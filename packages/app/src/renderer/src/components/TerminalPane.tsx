@@ -26,6 +26,7 @@ export function TerminalPane() {
     term.open(host);
     fit.fit();
 
+    let disposed = false;
     let ptyId: string | null = null;
     let offData = () => {};
     let offExit = () => {};
@@ -33,6 +34,7 @@ export function TerminalPane() {
     window.airlock
       .ptyCreate(term.cols, term.rows)
       .then((id) => {
+        if (disposed) return; // late resolve after cleanup: do not subscribe
         ptyId = id;
         offData = window.airlock.onPtyData((e) => {
           if (e.id === id) term.write(e.data);
@@ -54,6 +56,8 @@ export function TerminalPane() {
     ro.observe(host);
 
     return () => {
+      disposed = true;
+      // TODO(agent-core): send pty:kill for the in-flight session once that channel exists — it orphans in main until quit
       ro.disconnect();
       input.dispose();
       offData();
