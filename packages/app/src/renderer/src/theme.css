@@ -140,3 +140,42 @@ body,
   color: var(--fg-dim);
   font-size: 13px;
 }
+
+.viewer {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.viewer-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--border);
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #2d1f12;
+  color: #d29922;
+}
+
+.dim-badge {
+  background: #161d26;
+  color: var(--fg-dim);
+}
+
+.viewer-host {
+  min-height: 0;
+  overflow: auto;
+}
+
+.viewer-host .cm-editor {
+  height: 100%;
+}

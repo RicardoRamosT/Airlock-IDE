@@ -1,13 +1,12 @@
 import { Sidebar } from "./components/Sidebar";
-import { useApp } from "./store";
+import { Viewer } from "./components/Viewer";
 
 export function App() {
-  const selectedFile = useApp((s) => s.selectedFile);
   return (
     <div className="layout">
       <Sidebar />
       <main className="editor">
-        <div className="empty">{selectedFile ?? "select a file"}</div>
+        <Viewer />
       </main>
       <div className="right">
         <div className="agent-pane">
