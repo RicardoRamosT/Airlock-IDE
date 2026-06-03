@@ -21,15 +21,6 @@ body,
   color: var(--fg);
 }
 
-.boot {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  font-size: 14px;
-  color: var(--fg-dim);
-  letter-spacing: 0.3em;
-}
-
 .layout {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr) 460px;
