@@ -23,8 +23,12 @@ export function Sidebar() {
   const { root, setRoot } = useApp();
 
   const openFolder = async () => {
-    const picked = await window.airlock.openFolder();
-    if (picked) setRoot(picked);
+    try {
+      const picked = await window.airlock.openFolder();
+      if (picked) setRoot(picked);
+    } catch (err) {
+      console.error("openFolder failed", err);
+    }
   };
 
   return (

@@ -16,8 +16,12 @@ function Node({ entry, parent }: { entry: DirEntry; parent: string }) {
 function FileNode({ name, relPath }: { name: string; relPath: string }) {
   const { selectedFile, setSelected } = useApp();
   const select = async () => {
-    const file = await window.airlock.readFile(relPath);
-    setSelected(relPath, file);
+    try {
+      const file = await window.airlock.readFile(relPath);
+      setSelected(relPath, file);
+    } catch (err) {
+      console.error("readFile failed", err);
+    }
   };
   return (
     <button
@@ -36,8 +40,15 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
   const toggle = async () => {
     const next = !open;
     setOpen(next);
-    if (next && children === null)
-      setChildren(await window.airlock.listDir(relPath));
+    // TODO: invalidate on workspace:changed once file-watching lands
+    if (next && children === null) {
+      try {
+        setChildren(await window.airlock.listDir(relPath));
+      } catch (err) {
+        console.error("listDir failed", err);
+        setOpen(false); // collapse back; otherwise arrow shows open with no children
+      }
+    }
   };
   return (
     <div>
@@ -64,7 +75,7 @@ export function FileTree() {
       setEntries(null);
       return;
     }
-    window.airlock.listDir(".").then(setEntries);
+    window.airlock.listDir(".").then(setEntries).catch(console.error);
   }, [root]);
 
   if (!root) return null;
