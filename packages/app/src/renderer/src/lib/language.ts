@@ -18,6 +18,7 @@ const BY_EXT: Record<string, LanguageKey> = {
 export function languageKeyForPath(path: string): LanguageKey | null {
   const name = path.split("/").pop() ?? "";
   const dot = name.lastIndexOf(".");
+  // <= 0 (not === -1) intentionally rejects leading-dot names like ".env" too
   if (dot <= 0) return null;
   return BY_EXT[name.slice(dot + 1).toLowerCase()] ?? null;
 }

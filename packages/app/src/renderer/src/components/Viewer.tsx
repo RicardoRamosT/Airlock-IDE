@@ -34,6 +34,7 @@ export function Viewer() {
           basicSetup,
           oneDark,
           EditorState.readOnly.of(true),
+          EditorView.editable.of(false), // viewer semantics: contenteditable off (closes IME mutation path)
           EditorView.theme({ "&": { height: "100%" } }),
           ...(key ? [LANGUAGES[key]()] : []),
         ],
