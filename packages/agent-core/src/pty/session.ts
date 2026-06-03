@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
-import { type IPty, spawn } from "node-pty";
+import { type IDisposable, type IPty, spawn } from "node-pty";
+
+export type { IDisposable } from "node-pty";
 
 export interface PtyOptions {
   shell?: string;
@@ -29,12 +31,12 @@ export class PtySession {
     );
   }
 
-  onData(cb: (data: string) => void): void {
-    this.pty.onData(cb);
+  onData(cb: (data: string) => void): IDisposable {
+    return this.pty.onData(cb);
   }
 
-  onExit(cb: (exitCode: number) => void): void {
-    this.pty.onExit(({ exitCode }) => cb(exitCode));
+  onExit(cb: (exitCode: number) => void): IDisposable {
+    return this.pty.onExit(({ exitCode }) => cb(exitCode));
   }
 
   write(data: string): void {
