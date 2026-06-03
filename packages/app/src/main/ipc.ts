@@ -44,16 +44,29 @@ export function registerIpc(): void {
     return s.id;
   });
 
-  ipcMain.on("pty:input", (_e, { id, data }: { id: string; data: string }) => {
-    sessions.get(id)?.write(data);
+  ipcMain.on("pty:input", (_e, payload: unknown) => {
+    if (!payload || typeof payload !== "object") return;
+    const { id, data } = payload as { id: string; data: string };
+    if (typeof id === "string" && typeof data === "string")
+      sessions.get(id)?.write(data);
   });
 
-  ipcMain.on(
-    "pty:resize",
-    (_e, { id, cols, rows }: { id: string; cols: number; rows: number }) => {
+  ipcMain.on("pty:resize", (_e, payload: unknown) => {
+    if (!payload || typeof payload !== "object") return;
+    const { id, cols, rows } = payload as {
+      id: string;
+      cols: number;
+      rows: number;
+    };
+    if (
+      typeof id === "string" &&
+      Number.isFinite(cols) &&
+      cols > 0 &&
+      Number.isFinite(rows) &&
+      rows > 0
+    )
       sessions.get(id)?.resize(cols, rows);
-    },
-  );
+  });
 }
 
 export function killAllSessions(): void {

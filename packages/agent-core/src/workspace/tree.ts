@@ -15,6 +15,11 @@ const IGNORED = new Set([
   ".DS_Store",
 ]);
 
+// NOTE: Do not use multibyte chars (e.g. the section sign, copyright sign) in
+// comments in agent-core sources: they are bundled into the Electron CJS main
+// via electron-vite, and Electron's cjs_lexer asserts on multibyte chars there.
+// Context: commit 4a3beb2 (a section-sign character crashed the main process).
+
 /**
  * Resolve relPath against root and guarantee the real (symlink-resolved)
  * location stays inside root. Spec S6: all file tools are workspace-rooted;
