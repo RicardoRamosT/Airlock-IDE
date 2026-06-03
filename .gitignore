@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+.airlock/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
