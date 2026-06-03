@@ -1,7 +1,10 @@
 import { Sidebar } from "./components/Sidebar";
+import { TerminalPane } from "./components/TerminalPane";
 import { Viewer } from "./components/Viewer";
+import { useApp } from "./store";
 
 export function App() {
+  const root = useApp((s) => s.root);
   return (
     <div className="layout">
       <Sidebar />
@@ -13,7 +16,7 @@ export function App() {
           <div className="empty">agent arrives in week 3</div>
         </div>
         <div className="terminal-slot">
-          <div className="empty">terminal arrives in task 9</div>
+          <TerminalPane key={root ?? "no-workspace"} />
         </div>
       </div>
     </div>

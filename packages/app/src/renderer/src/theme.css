@@ -179,3 +179,8 @@ body,
 .viewer-host .cm-editor {
   height: 100%;
 }
+
+.terminal-host {
+  height: 100%;
+  padding: 6px 0 0 8px;
+}
