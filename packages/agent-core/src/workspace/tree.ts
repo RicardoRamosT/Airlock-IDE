@@ -17,7 +17,7 @@ const IGNORED = new Set([
 
 /**
  * Resolve relPath against root and guarantee the real (symlink-resolved)
- * location stays inside root. Spec §6: all file tools are workspace-rooted;
+ * location stays inside root. Spec S6: all file tools are workspace-rooted;
  * symlinks resolve before the check.
  */
 export async function resolveWithin(

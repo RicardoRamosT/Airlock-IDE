@@ -1,5 +1,6 @@
 import path from "node:path";
 import { app, BrowserWindow } from "electron";
+import { killAllSessions, registerIpc } from "./ipc";
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -15,6 +16,10 @@ function createWindow(): void {
     },
   });
 
+  // Security: never allow new windows or navigation away from the app.
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.on("will-navigate", (e) => e.preventDefault());
+
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
@@ -22,7 +27,12 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  registerIpc();
+  createWindow();
+});
+
+app.on("before-quit", killAllSessions);
 
 app.on("window-all-closed", () => {
   app.quit();
