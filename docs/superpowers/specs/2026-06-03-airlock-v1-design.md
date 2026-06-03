@@ -39,7 +39,7 @@ themes · OSC 133 block UI (v1.1) · command palette (v1.1).
 |---|---|---|
 | Desktop shell | Electron | One language (TS) everywhere; VS Code's own architecture — every hard problem has documented solutions; maximizes solo shipping probability |
 | Build tooling | electron-vite | Standard, fast HMR for renderer |
-| UI | React 18 + TypeScript (strict) + Zustand | Familiar; Zustand is minimal state without ceremony |
+| UI | React 19 + TypeScript (strict) + Zustand | Familiar; Zustand is minimal state without ceremony |
 | Editor | CodeMirror 6 + `@codemirror/merge` | Light, fully themeable (non-VS-Code aesthetic is a goal), diff view built in |
 | Terminal | `@xterm/xterm` + `node-pty` | The battle-tested pair (VS Code uses both) |
 | Agent | `@anthropic-ai/claude-agent-sdk` | Loop, streaming, tool execution, `canUseTool` permission callback for free; we own every tool that touches the machine |

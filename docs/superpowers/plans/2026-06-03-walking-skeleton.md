@@ -6,7 +6,7 @@
 
 **Architecture:** npm-workspaces monorepo. `packages/agent-core` owns everything that touches the machine (PTY sessions, workspace file access with path containment) and never imports Electron. `packages/app` is the Electron shell: sandboxed React renderer ↔ typed IPC ↔ main process, which calls agent-core. This boundary is the load-bearing wall from the spec (§4–§5) — it exists from the first commit.
 
-**Tech Stack:** Electron + electron-vite, React 18 + Zustand, `@xterm/xterm` + `node-pty`, CodeMirror 6 (read-only), TypeScript strict, vitest, biome.
+**Tech Stack:** Electron + electron-vite, React 19 + Zustand, `@xterm/xterm` + `node-pty`, CodeMirror 6 (read-only), TypeScript strict, vitest, biome.
 
 **Spec:** `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
