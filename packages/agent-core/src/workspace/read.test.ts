@@ -24,6 +24,7 @@ describe("readWorkspaceFile", () => {
 
   it("caps huge files and flags truncation", async () => {
     const f = await readWorkspaceFile(root, "big.txt");
+    // ASCII fixture: 1 byte == 1 char, so length happens to equal MAX_FILE_BYTES
     expect(f.content.length).toBe(MAX_FILE_BYTES);
     expect(f.truncated).toBe(true);
   });

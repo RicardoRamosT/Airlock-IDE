@@ -20,6 +20,10 @@ export async function readWorkspaceFile(
       const buf = await fh.readFile();
       return { content: buf.toString("utf8"), truncated: false };
     }
+    // NOTE: truncating at a byte boundary can split a multi-byte UTF-8 codepoint;
+    // Node's Buffer.toString('utf8') replaces the broken tail with U+FFFD.
+    // This is acceptable for the read-only viewer (truncated:true is already set).
+    // If the agent read_file tool needs clean boundaries, align to a codepoint here.
     const buf = Buffer.alloc(MAX_FILE_BYTES);
     await fh.read(buf, 0, MAX_FILE_BYTES, 0);
     return { content: buf.toString("utf8"), truncated: true };
