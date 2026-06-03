@@ -5,15 +5,13 @@ import { useApp } from "./store";
 
 export function App() {
   const root = useApp((s) => s.root);
+  const selectedFile = useApp((s) => s.selectedFile);
   return (
     <div className="layout">
       <Sidebar />
-      <main className="editor">
-        <Viewer />
-      </main>
-      <div className="right">
-        <div className="agent-pane">
-          <div className="empty">agent arrives in week 3</div>
+      <div className={`main${selectedFile ? " split" : ""}`}>
+        <div className="viewer-pane">
+          <Viewer />
         </div>
         <div className="terminal-slot">
           <TerminalPane key={root ?? "no-workspace"} />

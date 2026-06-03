@@ -20,7 +20,7 @@ const LANGUAGES: Record<LanguageKey, () => Extension> = {
 };
 
 export function Viewer() {
-  const { selectedFile, file } = useApp();
+  const { selectedFile, file, setSelected } = useApp();
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,6 +53,14 @@ export function Viewer() {
           <span className="badge">truncated · first 1 MB</span>
         )}
         <span className="badge dim-badge">read-only · editing in week 6</span>
+        <button
+          type="button"
+          className="viewer-close"
+          onClick={() => setSelected(null, null)}
+          title="Close viewer (back to full terminal)"
+        >
+          ✕
+        </button>
       </div>
       <div ref={hostRef} className="viewer-host" />
     </div>

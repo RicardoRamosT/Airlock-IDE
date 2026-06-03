@@ -23,7 +23,7 @@ body,
 
 .layout {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) 460px;
+  grid-template-columns: 230px minmax(0, 1fr);
   height: 100%;
 }
 
@@ -101,27 +101,46 @@ body,
   font-family: inherit;
 }
 
-.right {
-  display: grid;
-  grid-template-rows: 2fr 3fr;
-  border-left: 1px solid var(--border);
-  min-height: 0;
-}
-
-.agent-pane {
-  border-bottom: 1px solid var(--border);
-  min-height: 0;
-}
-
 .terminal-slot {
   min-height: 0;
   background: var(--bg);
 }
 
-.editor {
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  min-width: 0;
+}
+
+.main .viewer-pane {
+  display: none;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+.main.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.main.split .viewer-pane {
+  display: block;
+}
+
+.viewer-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  font-family: inherit;
+}
+
+.viewer-close:hover {
+  color: var(--fg);
 }
 
 .empty {

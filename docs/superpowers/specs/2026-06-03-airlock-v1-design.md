@@ -239,24 +239,29 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 
 ## 9. UI design
 
+*Revised 2026-06-03 after the first manual gate: the terminal owns the full main area (per the original product vision); the viewer opens as an on-demand split with a close button. The agent pane will be designed into this layout in weeks 3-5.*
+
 ```text
-┌──────────────┬──────────────────────────┬──────────────────────────────┐
-│ Workspace    │ Editor                   │ Agent                        │
-│  Files       │  (tabs from week 6;      │  conversation, approval      │
-│  Secrets     │   read-only viewer +     │  cards, secret-request       │
-│  Git (wk 8)  │   diff view before that) │  cards — inline, no popups   │
-│  Agent Log   │                          ├──────────────────────────────┤
-│              │                          │ Terminal (user PTY, raw)     │
-└──────────────┴──────────────────────────┴──────────────────────────────┘
+┌──────────────┬──────────────────────────────────────────────┐
+│ Workspace    │ Terminal (owns the main area)                │
+│  Files       │                                              │
+│  Secrets     │  clicking a file → split:                    │
+│  Git (wk 8)  │  ┌─────────────────┬───────────────────────┐ │
+│  Agent Log   │  │ viewer      [✕] │ terminal              │ │
+│              │  └─────────────────┴───────────────────────┘ │
+└──────────────┴──────────────────────────────────────────────┘
 ```
 
 - **Sidebar sections:** Files (tree); Secrets (names + status only — set/update
   via modal; never values); Git (week 8: status, stage, commit, diff); Agent Log
   (audit viewer). Sections collapse; sidebar toggles with `cmd+B`.
-- **Editor:** read-only viewer + `@codemirror/merge` diff (weeks 1–5) → editing,
-  tabs, save, `cmd+P` fuzzy open (week 6) → project find/replace (week 7).
-- **Right column:** agent pane over terminal, draggable split. Approvals are
-  inline cards with keyboard accept (`cmd+Enter`) / deny (`esc`).
+- **Viewer:** read-only CM6 viewer + `@codemirror/merge` diff (weeks 1–5) → editing,
+  tabs, save, `cmd+P` fuzzy open (week 6) → project find/replace (week 7). Opens as
+  an on-demand split pane (right of sidebar) when a file is clicked; a ✕ close button
+  returns to full-width terminal. Both panes stay mounted so the shell session survives
+  split toggling.
+- **Agent pane:** placement TBD weeks 3-5. Approvals will be inline cards with keyboard
+  accept (`cmd+Enter`) / deny (`esc`).
 - **Secure input modal:** variable name, provider hint, broker-side validation
   feedback, masked input, caption "This value never reaches the AI model."
 - **Aesthetic:** one dark theme; calm, linear, no icon ribbons (§11 of original
