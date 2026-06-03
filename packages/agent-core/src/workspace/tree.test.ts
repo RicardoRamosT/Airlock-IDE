@@ -32,6 +32,24 @@ describe("resolveWithin", () => {
       /escapes workspace/,
     );
   });
+
+  it("rejects nonexistent path through a symlinked ancestor dir", async () => {
+    // root/sneaky is a symlink to /etc in the fixture
+    await expect(resolveWithin(root, "sneaky/newfile")).rejects.toThrow(
+      /escapes workspace/,
+    );
+  });
+
+  it("allows nonexistent nested paths under real directories", async () => {
+    const p = await resolveWithin(root, "newdir/sub/file.txt");
+    expect(p.endsWith("/newdir/sub/file.txt")).toBe(true);
+  });
+
+  it("rejects absolute paths outside the workspace", async () => {
+    await expect(resolveWithin(root, "/etc/passwd")).rejects.toThrow(
+      /escapes workspace/,
+    );
+  });
 });
 
 describe("listDirectory", () => {

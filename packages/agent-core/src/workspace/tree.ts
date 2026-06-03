@@ -30,8 +30,30 @@ export async function resolveWithin(
   try {
     real = await realpath(abs);
   } catch {
-    // Path may not exist yet (future write_file); containment-check the lexical path.
-    real = abs;
+    // Path does not exist yet (future write_file).
+    // Walk up to the nearest existing ancestor, realpath that, then re-join
+    // the non-existing suffix. This resolves any symlinks in the ancestor chain
+    // before the containment check, preventing escape through a symlinked dir.
+    let ancestor = abs;
+    let suffix = "";
+    while (true) {
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) {
+        real = abs; // reached fs root without finding an existing ancestor; fall back
+        break;
+      }
+      suffix = suffix
+        ? path.join(path.basename(ancestor), suffix)
+        : path.basename(ancestor);
+      ancestor = parent;
+      try {
+        const resolvedAncestor = await realpath(ancestor);
+        real = suffix ? path.join(resolvedAncestor, suffix) : resolvedAncestor;
+        break;
+      } catch {
+        // this ancestor also doesn't exist; keep walking up
+      }
+    }
   }
   if (real !== realRoot && !real.startsWith(realRoot + path.sep)) {
     throw new Error(`Path escapes workspace: ${relPath}`);
@@ -49,6 +71,8 @@ export async function listDirectory(
     .filter((d) => !IGNORED.has(d.name))
     .map<DirEntry>((d) => ({
       name: d.name,
+      // Dirent uses lstat semantics: a symlink is never isDirectory()===true on POSIX.
+      // (Windows junctions behave differently — revisit if Windows lands; spec is macOS-only.)
       type: d.isDirectory() ? "dir" : "file",
     }))
     .sort((a, b) =>
