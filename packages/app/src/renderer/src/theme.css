@@ -1,0 +1,31 @@
+:root {
+  --bg: #0d1117;
+  --bg-panel: #11161d;
+  --border: #1f2630;
+  --fg: #c9d1d9;
+  --fg-dim: #8b949e;
+  --accent: #58a6ff;
+  font-family: -apple-system, "SF Pro Text", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.boot {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 14px;
+  color: var(--fg-dim);
+  letter-spacing: 0.3em;
+}
