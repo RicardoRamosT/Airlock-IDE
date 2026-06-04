@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import type { SectionVisibility } from "../shared/ipc";
 import { loadPrefs, savePrefs } from "./prefs";
 
 describe("app prefs", () => {
@@ -11,6 +12,14 @@ describe("app prefs", () => {
       sidebarVisible: true,
       sidebarPosition: "left",
       theme: "dark",
+      sectionVisibility: {
+        files: true,
+        secrets: true,
+        git: true,
+        databases: true,
+        docker: true,
+        audit: true,
+      },
     });
   });
 
@@ -24,6 +33,14 @@ describe("app prefs", () => {
       sidebarVisible: true,
       sidebarPosition: "right",
       theme: "dark",
+      sectionVisibility: {
+        files: true,
+        secrets: true,
+        git: true,
+        databases: true,
+        docker: true,
+        audit: true,
+      },
     });
   });
 
@@ -43,6 +60,14 @@ describe("app prefs", () => {
       sidebarVisible: true,
       sidebarPosition: "left",
       theme: "dark",
+      sectionVisibility: {
+        files: true,
+        secrets: true,
+        git: true,
+        databases: true,
+        docker: true,
+        audit: true,
+      },
     });
   });
 
@@ -54,6 +79,14 @@ describe("app prefs", () => {
       sidebarVisible: true,
       sidebarPosition: "left",
       theme: "dark",
+      sectionVisibility: {
+        files: true,
+        secrets: true,
+        git: true,
+        databases: true,
+        docker: true,
+        audit: true,
+      },
     });
   });
 
@@ -67,5 +100,75 @@ describe("app prefs", () => {
     // A garbage theme value sanitizes back to the dark default.
     await writeFile(file, JSON.stringify({ theme: "solarized" }));
     expect((await loadPrefs(file)).theme).toBe("dark");
+  });
+
+  it("defaults sectionVisibility to all six sections visible", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    expect(
+      (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
+    ).toEqual({
+      files: true,
+      secrets: true,
+      git: true,
+      databases: true,
+      docker: true,
+      audit: true,
+    });
+  });
+
+  it("persists a partial sectionVisibility as a full map", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    // A deliberately partial map (e.g. a malformed patch) must expand to full.
+    const next = await savePrefs(file, {
+      sectionVisibility: { docker: false } as SectionVisibility,
+    });
+    expect(next.sectionVisibility).toEqual({
+      files: true,
+      secrets: true,
+      git: true,
+      databases: true,
+      docker: false,
+      audit: true,
+    });
+    expect((await loadPrefs(file)).sectionVisibility).toEqual({
+      files: true,
+      secrets: true,
+      git: true,
+      databases: true,
+      docker: false,
+      audit: true,
+    });
+  });
+
+  it("sanitizes a non-object sectionVisibility to all-true", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(file, JSON.stringify({ sectionVisibility: 5 }));
+    expect((await loadPrefs(file)).sectionVisibility).toEqual({
+      files: true,
+      secrets: true,
+      git: true,
+      databases: true,
+      docker: true,
+      audit: true,
+    });
+  });
+
+  it("ignores non-boolean and unknown sectionVisibility keys", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(
+      file,
+      JSON.stringify({ sectionVisibility: { docker: "no", bogus: 1 } }),
+    );
+    expect((await loadPrefs(file)).sectionVisibility).toEqual({
+      files: true,
+      secrets: true,
+      git: true,
+      databases: true,
+      docker: true,
+      audit: true,
+    });
   });
 });

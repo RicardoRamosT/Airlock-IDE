@@ -58,6 +58,15 @@ export interface GithubInfo {
   identity: GitIdentity;
 }
 
+export type Section =
+  | "files"
+  | "secrets"
+  | "git"
+  | "databases"
+  | "docker"
+  | "audit";
+export type SectionVisibility = Record<Section, boolean>;
+
 /**
  * App-global preferences (userData JSON) - distinct from per-project config
  * and the keychain. Defined here as the single source of truth so both the
@@ -67,6 +76,7 @@ export interface AppPrefs {
   sidebarVisible: boolean;
   sidebarPosition: "left" | "right";
   theme: "dark" | "light";
+  sectionVisibility: SectionVisibility; // app-global; default all true
 }
 
 export interface PtyDataEvent {
