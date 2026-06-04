@@ -47,6 +47,9 @@ The terminal owns the main area and is a full multi-terminal panel:
 - **Split** — show two shells side-by-side; the split button toggles it off.
 - **Maximize** — the terminal swallows the sidebar and viewer split; restore
   brings them back. Split and maximize compose.
+- **Layout** — a top-right cluster in the title bar shows/hides and flips the
+  sidebar (left ⇄ right) and maximizes the terminal; the sidebar's side and
+  visibility are remembered across launches.
 
 Every terminal stays alive in the background, so buffers survive tab switches.
 Secrets are injected at spawn, so they apply to **new** terminals only — after

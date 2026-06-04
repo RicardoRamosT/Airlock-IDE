@@ -5,10 +5,12 @@ import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
 import { Viewer } from "./components/Viewer";
 import { useGitStatus } from "./lib/useGitStatus";
+import { usePrefs } from "./lib/usePrefs";
 import { useApp } from "./store";
 
 export function App() {
   useGitStatus();
+  usePrefs();
   const selectedFile = useApp((s) => s.selectedFile);
   const diff = useApp((s) => s.diff);
   const modal = useApp((s) => s.modal);
