@@ -30,6 +30,27 @@ export {
   validateSecretName,
 } from "./broker/validators";
 export {
+  commitStaged,
+  createBranch,
+  listBranches,
+  stageFiles,
+  switchBranch,
+  unstageFiles,
+} from "./git/ops";
+export { isGitRepo, runGit } from "./git/run";
+export {
+  type BranchInfo,
+  type FileChange,
+  type GitStatus,
+  gitStatus,
+  parsePorcelainV2,
+} from "./git/status";
+export {
+  type DiffSide,
+  type FileVersions,
+  gitFileVersions,
+} from "./git/versions";
+export {
   type ProjectConfig,
   readProjectConfig,
   writeProjectConfig,
