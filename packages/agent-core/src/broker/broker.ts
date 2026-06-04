@@ -2,6 +2,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { appendAudit } from "../audit/audit";
 import { projectIdFor } from "../project/id";
 import { resolveWithin } from "../workspace/tree";
+import { isDangerousEnvName } from "./dangerous";
 import { parseDotEnv } from "./dotenv";
 import { type KeychainStore, systemKeychain } from "./keychain";
 import { readMeta, removeMeta, type SecretMeta, upsertMeta } from "./meta";
@@ -26,10 +27,14 @@ export async function setSecret(
   const keychain = opts.keychain ?? systemKeychain;
   if (!validateSecretName(name))
     throw new Error(`Invalid secret name: ${name}`);
+  // Reject reserved/dangerous names at store time. filterDangerousEnv would
+  // silently strip these from injection, so vaulting one would create a
+  // secret that never injects - an explicit error is clearer than that.
+  if (isDangerousEnvName(name))
+    throw new Error(`Reserved env name cannot be vaulted: ${name}`);
   const validation = validateSecret(name, value);
   const existing = (await readMeta(root)).find((m) => m.name === name);
   const now = new Date().toISOString();
-  keychain.set(SERVICE, await accountFor(root, name), value);
   const meta: SecretMeta = {
     name,
     provider: validation.provider,
@@ -37,7 +42,13 @@ export async function setSecret(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
+  // Write meta BEFORE the keychain value. If we crash between the two, the
+  // gentler degrade is a meta entry whose value inject reports as "missing"
+  // (already handled, and the user sees it in the list to retry/delete) rather
+  // than a silent keychain orphan with no meta. If keychain.set throws here,
+  // the meta is already persisted - an acceptable degrade for the same reason.
   await upsertMeta(root, meta);
+  keychain.set(SERVICE, await accountFor(root, name), value);
   await appendAudit(root, "user", "secret.set", {
     name,
     provider: validation.provider,
@@ -52,9 +63,17 @@ export async function deleteSecret(
   opts: BrokerOptions = {},
 ): Promise<void> {
   const keychain = opts.keychain ?? systemKeychain;
-  keychain.delete(SERVICE, await accountFor(root, name));
+  // Capture whether the OS delete actually removed a credential. We still
+  // remove the meta entry regardless (the user wants it gone from the list),
+  // but record the truth: keychainDeleted:false means a value may linger in
+  // the OS keychain (locked store, or it was already absent). The audit stays
+  // honest instead of always claiming a clean delete.
+  const deleted = keychain.delete(SERVICE, await accountFor(root, name));
   await removeMeta(root, name);
-  await appendAudit(root, "user", "secret.delete", { name });
+  await appendAudit(root, "user", "secret.delete", {
+    name,
+    keychainDeleted: deleted,
+  });
 }
 
 export async function listSecrets(root: string): Promise<SecretMeta[]> {

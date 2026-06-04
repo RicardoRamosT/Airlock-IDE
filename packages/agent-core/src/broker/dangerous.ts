@@ -16,6 +16,17 @@ const EXACT = new Set([
 
 const PREFIXES = ["DYLD_", "LD_"];
 
+/**
+ * True if `name` is one of the reserved/dangerous env names (exact set above
+ * or a DYLD_/LD_ dynamic-loader prefix). Single source of truth shared by the
+ * injection-time filter (filterDangerousEnv) and the store-time guard in the
+ * broker, so a name that would be silently stripped at spawn is instead
+ * rejected up front.
+ */
+export function isDangerousEnvName(name: string): boolean {
+  return EXACT.has(name) || PREFIXES.some((p) => name.startsWith(p));
+}
+
 export interface DangerousEnvResult {
   safe: Record<string, string>;
   blocked: string[];
@@ -27,7 +38,7 @@ export function filterDangerousEnv(
   const safe: Record<string, string> = {};
   const blocked: string[] = [];
   for (const [name, value] of Object.entries(env)) {
-    if (EXACT.has(name) || PREFIXES.some((p) => name.startsWith(p))) {
+    if (isDangerousEnvName(name)) {
       blocked.push(name);
       continue;
     }

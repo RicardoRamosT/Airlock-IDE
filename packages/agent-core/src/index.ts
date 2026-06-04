@@ -20,6 +20,7 @@ export {
 export {
   type DangerousEnvResult,
   filterDangerousEnv,
+  isDangerousEnvName,
 } from "./broker/dangerous";
 export { parseDotEnv } from "./broker/dotenv";
 export { type KeychainStore, systemKeychain } from "./broker/keychain";

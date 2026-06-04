@@ -164,7 +164,7 @@ export function registerIpc(
           // safe direction.
           console.error(
             "[pty:create] injection/audit failed, spawning without secrets:",
-            err,
+            err instanceof Error ? err.message : String(err),
           );
           secretEnv = undefined;
         }

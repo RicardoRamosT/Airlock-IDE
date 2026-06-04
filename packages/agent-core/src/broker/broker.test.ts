@@ -134,4 +134,48 @@ describe("broker", () => {
     expect(second.createdAt).toBe(first.createdAt);
     expect(second.updatedAt).not.toBe(first.updatedAt);
   });
+
+  it("rejects reserved env names at store time", async () => {
+    await expect(
+      setSecret(root, "PATH", "/evil/bin", { keychain: fake }),
+    ).rejects.toThrow(/reserved/i);
+    await expect(
+      setSecret(root, "DYLD_FOO", "x", { keychain: fake }),
+    ).rejects.toThrow(/reserved/i);
+    // A normal name still works and is unaffected by the reserved-name guard.
+    const meta = await setSecret(root, "NORMAL_KEY", "ok", { keychain: fake });
+    expect(meta.name).toBe("NORMAL_KEY");
+    expect([...store.values()]).toContain("ok");
+  });
+
+  it("propagates a non-not-found keychain get error on inject", async () => {
+    await setSecret(root, "LOCKED", "v", { keychain: fake });
+    // A locked/access-denied keychain throws a NON-not-found error; inject must
+    // surface it (reject) rather than silently treating the secret as missing.
+    const lockedFake: KeychainStore = {
+      ...fake,
+      get: () => {
+        throw new Error("Platform secure storage failure: keychain is locked");
+      },
+    };
+    await expect(
+      injectInto(root, {}, { keychain: lockedFake }),
+    ).rejects.toThrow(/locked/i);
+  });
+
+  it("records keychainDeleted:false when the OS delete reports no removal", async () => {
+    await setSecret(root, "DANGLING", "v", { keychain: fake });
+    // Fake whose delete reports failure (e.g. locked store): meta is still
+    // removed, but the audit honestly records that the keychain kept the value.
+    const failDelete: KeychainStore = { ...fake, delete: () => false };
+    await deleteSecret(root, "DANGLING", { keychain: failDelete });
+    expect((await listSecrets(root)).map((m) => m.name)).not.toContain(
+      "DANGLING",
+    );
+    const del = (await readAudit(root)).find((e) => e.op === "secret.delete");
+    expect(del?.detail).toMatchObject({
+      name: "DANGLING",
+      keychainDeleted: false,
+    });
+  });
 });

@@ -28,7 +28,13 @@ async function writeMetaList(root: string, list: SecretMeta[]): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
   const tmp = `${file}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(sorted, null, 2)}\n`, "utf8");
+  // This is a names-only index (no secret values ever land here), but write it
+  // owner-only (0o600) for least privilege anyway. macOS honors the mode; the
+  // mode is set on the tmp file and preserved across the atomic rename.
+  await writeFile(tmp, `${JSON.stringify(sorted, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
   try {
     await copyFile(file, `${file}.bak`);
   } catch {

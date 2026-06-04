@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -50,5 +50,11 @@ describe("secrets meta index", () => {
     expect((await readMeta(root)).map((m) => m.name)).toEqual(["AA", "ZZ"]);
     await removeMeta(root, "AA");
     expect((await readMeta(root)).map((m) => m.name)).toEqual(["ZZ"]);
+  });
+
+  it("writes the meta file with 0o600 permissions", async () => {
+    await upsertMeta(root, metaA);
+    const s = await stat(path.join(root, ".airlock", "secrets.json"));
+    expect(s.mode & 0o777).toBe(0o600);
   });
 });
