@@ -100,15 +100,31 @@ export const useApp = create<AppState>((set) => ({
   removeTerminal: (id) =>
     set((s) => {
       const terminals = s.terminals.filter((t) => t.id !== id);
-      const splitTerminalId =
-        s.splitTerminalId === id ? null : s.splitTerminalId;
+      let splitTerminalId = s.splitTerminalId === id ? null : s.splitTerminalId;
       let activeTerminalId = s.activeTerminalId;
       if (activeTerminalId === id) {
         activeTerminalId = terminals[terminals.length - 1]?.id ?? null;
       }
+      // Closing the active pane while split can promote the split pane to
+      // active (it is the last remaining tab). The same terminal must never
+      // occupy both slots — that leaves a blank second column — so collapse
+      // the split when active and split would coincide.
+      if (splitTerminalId !== null && splitTerminalId === activeTerminalId) {
+        splitTerminalId = null;
+      }
       return { terminals, splitTerminalId, activeTerminalId };
     }),
-  setActiveTerminal: (id) => set({ activeTerminalId: id }),
+  setActiveTerminal: (id) =>
+    set((s) => {
+      // Clicking the tab that is currently in the split slot swaps the two
+      // slots: the split pane becomes active and the previous active pane
+      // moves into the split slot. Both stay visible. For any other tab we
+      // just promote it to active (leaving the split slot untouched).
+      if (id === s.splitTerminalId) {
+        return { activeTerminalId: id, splitTerminalId: s.activeTerminalId };
+      }
+      return { activeTerminalId: id };
+    }),
   setTerminalPty: (id, ptyId) =>
     set((s) => ({
       terminals: s.terminals.map((t) => (t.id === id ? { ...t, ptyId } : t)),
