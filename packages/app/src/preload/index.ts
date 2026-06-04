@@ -27,6 +27,16 @@ const api: AirlockApi = {
   configGet: () => ipcRenderer.invoke("config:get"),
   configSet: (patch) => ipcRenderer.invoke("config:set", patch),
   auditRead: (limit) => ipcRenderer.invoke("audit:read", limit),
+  gitIsRepo: () => ipcRenderer.invoke("git:isRepo"),
+  gitStatus: () => ipcRenderer.invoke("git:status"),
+  gitStage: (paths) => ipcRenderer.invoke("git:stage", paths),
+  gitUnstage: (paths) => ipcRenderer.invoke("git:unstage", paths),
+  gitCommit: (message) => ipcRenderer.invoke("git:commit", message),
+  gitBranches: () => ipcRenderer.invoke("git:branches"),
+  gitSwitchBranch: (name) => ipcRenderer.invoke("git:switchBranch", name),
+  gitCreateBranch: (name) => ipcRenderer.invoke("git:createBranch", name),
+  gitFileVersions: (relPath, which) =>
+    ipcRenderer.invoke("git:fileVersions", relPath, which),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

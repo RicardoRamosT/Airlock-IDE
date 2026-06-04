@@ -1,10 +1,16 @@
 import {
   appendAudit,
+  commitStaged,
+  createBranch,
   createPtySession,
   deleteSecret,
   filterDangerousEnv,
+  gitFileVersions,
+  gitStatus,
   importDotEnv,
   injectInto,
+  isGitRepo,
+  listBranches,
   listDirectory,
   listSecrets,
   type PtySession,
@@ -12,6 +18,9 @@ import {
   readProjectConfig,
   readWorkspaceFile,
   setSecret,
+  stageFiles,
+  switchBranch,
+  unstageFiles,
   writeProjectConfig,
 } from "@airlock/agent-core";
 import { dialog, ipcMain } from "electron";
@@ -82,6 +91,51 @@ export function registerIpc(): void {
       Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 50,
     ),
   );
+
+  ipcMain.handle("git:isRepo", () => isGitRepo(requireRoot()));
+
+  ipcMain.handle("git:status", () => gitStatus(requireRoot()));
+
+  ipcMain.handle("git:stage", (_e, paths: unknown) => {
+    if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
+      throw new Error("Invalid payload");
+    }
+    return stageFiles(requireRoot(), paths as string[]);
+  });
+
+  ipcMain.handle("git:unstage", (_e, paths: unknown) => {
+    if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
+      throw new Error("Invalid payload");
+    }
+    return unstageFiles(requireRoot(), paths as string[]);
+  });
+
+  ipcMain.handle("git:commit", (_e, message: unknown) => {
+    if (typeof message !== "string") throw new Error("Invalid payload");
+    return commitStaged(requireRoot(), message);
+  });
+
+  ipcMain.handle("git:branches", () => listBranches(requireRoot()));
+
+  ipcMain.handle("git:switchBranch", (_e, name: unknown) => {
+    if (typeof name !== "string") throw new Error("Invalid payload");
+    return switchBranch(requireRoot(), name);
+  });
+
+  ipcMain.handle("git:createBranch", (_e, name: unknown) => {
+    if (typeof name !== "string") throw new Error("Invalid payload");
+    return createBranch(requireRoot(), name);
+  });
+
+  ipcMain.handle("git:fileVersions", (_e, relPath: unknown, which: unknown) => {
+    if (
+      typeof relPath !== "string" ||
+      (which !== "staged" && which !== "unstaged")
+    ) {
+      throw new Error("Invalid payload");
+    }
+    return gitFileVersions(requireRoot(), relPath, which);
+  });
 
   ipcMain.handle("pty:create", async (e, cols: number, rows: number) => {
     let secretEnv: Record<string, string> | undefined;

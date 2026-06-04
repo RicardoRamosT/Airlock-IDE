@@ -1,7 +1,10 @@
 import type {
   AuditEntry,
+  DiffSide,
   DirEntry,
   FileContent,
+  FileVersions,
+  GitStatus,
   ImportResult,
   ProjectConfig,
   SecretMeta,
@@ -9,8 +12,11 @@ import type {
 
 export type {
   AuditEntry,
+  DiffSide,
   DirEntry,
   FileContent,
+  FileVersions,
+  GitStatus,
   ImportResult,
   ProjectConfig,
   SecretMeta,
@@ -46,4 +52,13 @@ export interface AirlockApi {
   configGet(): Promise<ProjectConfig>;
   configSet(patch: Partial<ProjectConfig>): Promise<ProjectConfig>;
   auditRead(limit: number): Promise<AuditEntry[]>;
+  gitIsRepo(): Promise<boolean>;
+  gitStatus(): Promise<GitStatus>;
+  gitStage(paths: string[]): Promise<void>;
+  gitUnstage(paths: string[]): Promise<void>;
+  gitCommit(message: string): Promise<string>;
+  gitBranches(): Promise<string[]>;
+  gitSwitchBranch(name: string): Promise<void>;
+  gitCreateBranch(name: string): Promise<void>;
+  gitFileVersions(relPath: string, which: DiffSide): Promise<FileVersions>;
 }
