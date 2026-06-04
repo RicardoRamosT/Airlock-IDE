@@ -20,7 +20,8 @@ Commit map (chronological, `feat/hardening`):
 | `5cb2a0d` | fix(agent-core): audit tolerates corrupt lines, config warns on malformed, honest partial-import audit |
 | `e8eee8b` | fix(app): surface import failures in the Secrets status line                        |
 | `4ad78fd` | fix(app): single-instance lock + macOS window lifecycle (darwin guard, activate)   |
-| (this)    | fix(agent-core): dotenv escapes, advisory-validator note, IPC guards; document audit disposition |
+| f07481a   | fix(agent-core): dotenv escapes, advisory-validator note, IPC guards; document audit disposition |
+| `776ddaa` | docs: hardening phase complete (threat-model note, root build script); repackaged |
 
 ---
 
@@ -145,7 +146,7 @@ ACCEPTED. Task 4, commit `5cb2a0d`. `readProjectConfig` now distinguishes ENOENT
 ignored), so the user's typo is no longer hidden.
 
 ### #17 - dotenv double-quote unescaping incomplete (only \n, \")
-ACCEPTED. Task 6, commit (this). The double-quote branch of `parseDotEnv` now
+ACCEPTED. Task 6, commit f07481a. The double-quote branch of `parseDotEnv` now
 unescapes `\t`, `\r`, `\\` in addition to `\n` and `\"`, via a single-pass
 regex (`val.replace(/\\(.)/g, ...)`) so escape ordering is correct: `\\n` (a
 literal backslash followed by n) maps to backslash + n, NOT a newline, while
@@ -154,7 +155,7 @@ assert the `\t`/`\n` expansion, the `\\n` vs `\n` distinction, `\r`, and `\\`
 collapsing to one backslash.
 
 ### #18 - "weak provider validators are a security risk" (SEVERITY: REFRAMED; light touch)
-REFRAMED. Task 6, commit (this). The validators are ADVISORY ONLY: they classify
+REFRAMED. Task 6, commit f07481a. The validators are ADVISORY ONLY: they classify
 a secret's likely provider and surface a UI hint, and are NEVER on the write path
 - `validateSecret` does not gate storage, so any value is vaulted regardless of
 what the patterns match. A loose or wrong regex can only mislabel the displayed
@@ -165,7 +166,7 @@ explicitly (the main deliverable), plus one minimal postgres-URL regex nudge
 (require a real host token after `@`). All existing validator tests stay green.
 
 ### #19 - fs IPC handlers pass relPath without a typeof string guard
-ACCEPTED. Task 6, commit (this). `fs:listDir` and `fs:readFile` were the only
+ACCEPTED. Task 6, commit f07481a. `fs:listDir` and `fs:readFile` were the only
 handlers passing `relPath` to agent-core without a `typeof relPath === "string"`
 guard (`resolveWithin` coerces and contains, but a clean early error is the
 pattern every other handler uses). Both now
