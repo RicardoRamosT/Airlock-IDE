@@ -498,6 +498,28 @@ body,
   background: var(--hover);
 }
 
+/* Right-click context menu for sidebar section headers (reuses .menu-item
+   rows and the .popover-backdrop click-away layer). Fixed-positioned at the
+   cursor via inline left/top. */
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Hint shown when every sidebar section is hidden, pointing users to the
+   View -> Sidebar menu as the way to bring sections back. */
+.sidebar-empty {
+  padding: 8px 12px;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
 .menu-shortcut {
   color: var(--fg-dim);
   font-family: "SF Mono", Menlo, monospace;

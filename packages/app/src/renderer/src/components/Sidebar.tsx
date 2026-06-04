@@ -1,4 +1,5 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import type { Section as SectionId } from "../../../shared/ipc";
 import { useApp } from "../store";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
@@ -9,32 +10,70 @@ import { SecretsSection } from "./SecretsSection";
 import { SidebarFooter } from "./SidebarFooter";
 
 function Section({
+  id,
   title,
   children,
   defaultOpen = true,
 }: {
+  id: SectionId;
   title: string;
   children?: ReactNode;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
   return (
     <div className="section">
       <button
         type="button"
         className="section-header"
         onClick={() => setOpen(!open)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
         <span className="section-title">{title}</span>
       </button>
       {open && <div className="section-body">{children}</div>}
+      {menu && (
+        <>
+          <button
+            type="button"
+            className="popover-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenu(null)}
+          />
+          <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                void window.airlock.setSectionVisibility(id, false);
+                setMenu(null);
+              }}
+            >
+              <span>Hide {title}</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 export function Sidebar() {
   const { root, setRoot } = useApp();
+  const vis = useApp((s) => s.sectionVisibility);
 
   const openFolder = async () => {
     try {
@@ -48,30 +87,51 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-sections">
-        <Section title="Files">
-          {root ? (
-            <FileTree />
-          ) : (
-            <button type="button" className="open-folder" onClick={openFolder}>
-              Open Folder…
-            </button>
-          )}
-        </Section>
-        <Section title="Secrets">
-          <SecretsSection />
-        </Section>
-        <Section title="Git">
-          <GitSection />
-        </Section>
-        <Section title="Databases" defaultOpen={false}>
-          <DatabasesSection />
-        </Section>
-        <Section title="Docker" defaultOpen={false}>
-          <DockerSection />
-        </Section>
-        <Section title="Audit" defaultOpen={false}>
-          <AuditSection />
-        </Section>
+        {vis.files && (
+          <Section id="files" title="Files">
+            {root ? (
+              <FileTree />
+            ) : (
+              <button
+                type="button"
+                className="open-folder"
+                onClick={openFolder}
+              >
+                Open Folder…
+              </button>
+            )}
+          </Section>
+        )}
+        {vis.secrets && (
+          <Section id="secrets" title="Secrets">
+            <SecretsSection />
+          </Section>
+        )}
+        {vis.git && (
+          <Section id="git" title="Git">
+            <GitSection />
+          </Section>
+        )}
+        {vis.databases && (
+          <Section id="databases" title="Databases" defaultOpen={false}>
+            <DatabasesSection />
+          </Section>
+        )}
+        {vis.docker && (
+          <Section id="docker" title="Docker" defaultOpen={false}>
+            <DockerSection />
+          </Section>
+        )}
+        {vis.audit && (
+          <Section id="audit" title="Audit" defaultOpen={false}>
+            <AuditSection />
+          </Section>
+        )}
+        {!Object.values(vis).some(Boolean) && (
+          <div className="sidebar-empty">
+            All sections hidden. Re-enable them from View → Sidebar.
+          </div>
+        )}
       </div>
       <SidebarFooter />
     </aside>
