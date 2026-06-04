@@ -305,6 +305,14 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 | 8 | Git sidebar: status, stage, commit, diff | v1.0 tag |
 | v1.1 | TS LSP (`typescript-language-server`), command palette, OSC 133 command blocks, approval-rules UI | full VS Code exit |
 
+> *Revised 2026-06-03 after skeleton-v0.1 shipped: the owner reordered the
+> roadmap — Phase A (standalone secrets: broker + keychain + terminal
+> injection + import-from-.env + audit v0, NO agent yet) and Phase B (git
+> sidebar) come before the agent. The redactor and request_secret remain
+> tied to the agent phase. Spec section 6 architecture is unchanged; the
+> broker simply gains a user-facing consumer (terminal injection) before
+> its agent-facing one.*
+
 ## 13. Parked / future
 
 Tauri or Rust port of agent-core · agent-core as standalone MCP server for
