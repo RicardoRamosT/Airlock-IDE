@@ -145,6 +145,20 @@ verifyChain(): boolean
   dotenv files, so inject-at-spawn Just Works. `exportDotEnv` exists as an
   explicit, warned, audited escape hatch for tools that demand a file.
 
+> *Added 2026-06-04 (databases + docker pass): a new main-only accessor
+> `getSecretValue(projectId, name): Promise<string | null>` is the single
+> by-name **value** path out of the broker. It exists so main can open a DB
+> connection the user asked to browse (resolve a vaulted `postgres-url` secret
+> to its connection string). It is used **ONLY by main-side DB connection
+> handlers** — it is **NEVER registered as an agent tool** and its result is
+> **NEVER returned over renderer IPC**: the renderer/agent see host / table /
+> row data only, never the DB password. Defense in depth at the query layer:
+> identifiers are double-quoted (with embedded-quote escaping) and the row
+> limit is clamped to an integer ceiling (SQL-injection defense), and the pg
+> client time-bounds both connect and query so an unreachable DB never hangs
+> the UI. This is the one place a secret value leaves the broker by name; every
+> other accessor returns metadata only.*
+
 ### Redactor
 
 Two engines on every agent-bound stream:
@@ -290,6 +304,31 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 > **Light theme + Themes.** A full **light** palette (GitHub light) ships under `:root[data-theme="light"]` in theme.css; structural hardcoded hexes were converted to vars so most UI re-themes for free. Theme is **app-global**, persisted in `prefs.json` (`AppPrefs.theme: "dark" | "light"`, default dark, garbage sanitized to dark) and rehydrated on startup riding the existing layoutHydrated guard. It is applied by setting `data-theme` on `<html>`, switchable from the gear's **Themes ▸** submenu (Dark / Light, active checked) or the Settings Appearance radio. The two non-CSS-var consumers are made theme-aware explicitly: **xterm** rebuilds its theme object from `store.theme` and updates `term.options.theme` live (the terminal does **not** remount on theme change — the PTY lifecycle is untouched), and **CM6** drops `oneDark` when light (its default reads on white) by adding `theme` to the viewer's rebuild deps.
 >
 > **Auto-update: explicitly DEFERRED.** Not built. It requires a real code-signing identity and a release host (update feed) that airlock does not yet have; with only ad-hoc signing it cannot work. The gear menu therefore contains *only* the items that map to real behavior — no faked Profile / Extensions / Snippets / Tasks / Sync / Update / Command Palette / Keyboard Shortcuts entries.*
+
+> *Revised again 2026-06-04 (databases + docker pass): the sidebar gains two new live-status sections, modeled on the GitHub-accounts status dots.*
+>
+> ```text
+> ┌──────────────┬───────────────────────────┐
+> │ Files        │ Terminal / viewer split   │
+> │ Secrets      │                           │
+> │ Git          │  click a table →          │
+> │ Databases    │  read-only data grid      │
+> │   ● neondb   │  opens here (viewer-pane) │
+> │     └ tables │                           │
+> │ Docker       │   ┌──────────────────┐    │
+> │   ● seq      │   │ public.users  [✕]│    │
+> │   ○ pg       │   │ id │ name │ ...  │    │
+> │ Agent Log    │   │  1 │ a    │ ...  │    │
+> ├──────────────┤   └──────────────────┘    │
+> │  (人)  (⚙)   │                           │
+> └──────────────┴───────────────────────────┘
+> ```
+>
+> **Databases.** A new section lists your Postgres connections, sourced from the vaulted `postgres-url` secrets (the secret NAME is the row id, e.g. `NEON_DATABASE`; host/database/user shown, password redacted). Each row carries a live status dot (grey checking → green reachable → red failed) driven by a `SELECT 1` ping, mirroring the gh accounts. Expand a database to list its tables (`information_schema`, system schemas filtered); click a table to browse its rows in a **read-only data grid in the viewer-pane** (mutually exclusive with a file/diff/settings, same slot, capped at 100 rows). Empty state points at Secrets. The renderer only ever receives host / table / row data — never the connection string or password.
+>
+> **Docker.** A second section lists local containers via the `docker` CLI (`docker ps -a`), each with a live status dot (green running / grey otherwise) and a start/stop action; it refetches on mount, refresh, and window focus. It is **not** root-gated (Docker is machine-global, shown even with no folder open) and degrades gracefully: "Docker not found" when the CLI is absent, "Docker daemon not running" when present but unreachable. Container ids are validated before being passed to `docker start`/`stop` (shell-injection defense).
+>
+> **Render / hosting deploy-status is a FUTURE slice.** Deferred — it needs the Render API plus an account token, which is a later increment; only Databases + Docker ship in this pass.*
 
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐

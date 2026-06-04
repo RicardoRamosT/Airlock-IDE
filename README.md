@@ -3,11 +3,12 @@
 > Working title. A terminal-first AI IDE where the agent can build, run, and
 > debug your app — but is structurally unable to read your secrets.
 
-**Status:** skeleton + secrets + git. A multi-terminal panel (tabs, split,
-rename), file tree, viewer split, keychain secrets with terminal injection,
-hash-chained audit, a live git sidebar (stage/commit/branch/diffs), GitHub
-account switching, and a settings tab with dark/light themes all work. The
-agent phase is next.
+**Status:** skeleton + secrets + git + DB + Docker. A multi-terminal panel
+(tabs, split, rename), file tree, viewer split, keychain secrets with terminal
+injection, hash-chained audit, a live git sidebar (stage/commit/branch/diffs),
+GitHub account switching, a settings tab with dark/light themes, live Postgres
+database browsing, and live Docker container control all work. The agent phase
+is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -80,6 +81,26 @@ The sidebar shows the current branch (switch or create from the dropdown),
 staged/unstaged changes with one-click stage/unstage, and a commit box.
 Click any changed file for a unified diff in the viewer split. Push, pull,
 merge, and anything else: the terminal is right there.
+
+## Databases
+
+The sidebar lists your Postgres connections, sourced from any secret you've
+vaulted with the `postgres-url` provider — so add a connection string in
+Secrets first, and the database shows up here (host and database name shown,
+password never). A live status dot reports reachability (grey while checking,
+green for a `SELECT 1` that connects, red when it fails); a refresh button
+re-checks. Expand a database to see its tables, then click a table to browse
+its rows in a **read-only** data grid in the viewer split (first 100 rows).
+The connection string is read in the main process only — the password never
+crosses into the UI.
+
+## Docker
+
+The sidebar lists your local Docker containers, each with a live status dot
+(green when running) and a one-click start/stop. It refreshes on focus and on
+demand. Needs the Docker daemon running — if Docker isn't installed or the
+daemon is down, the section says so instead of erroring. Not tied to an open
+folder (Docker is machine-wide).
 
 ## GitHub accounts
 
