@@ -3,9 +3,9 @@
 > Working title. A terminal-first AI IDE where the agent can build, run, and
 > debug your app — but is structurally unable to read your secrets.
 
-**Status:** skeleton + Phase A (secrets). Terminal, file tree, viewer split,
-keychain-backed secrets with terminal injection, import-from-.env, and a
-hash-chained audit log all work. Git sidebar (Phase B) and the agent are next.
+**Status:** skeleton + secrets + git. Terminal, file tree, viewer split,
+keychain secrets with terminal injection, hash-chained audit, and a live
+git sidebar (stage/commit/branch/diffs) all work. The agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -47,3 +47,10 @@ in `.airlock/audit/log.jsonl`, hash-chained.
 Note: the packaged app is ad-hoc signed; after re-packaging, macOS may
 re-prompt Keychain access once per rebuild ("airlock wants to access...").
 Click Always Allow. A real signing identity would make this stick.
+
+## Git
+
+The sidebar shows the current branch (switch or create from the dropdown),
+staged/unstaged changes with one-click stage/unstage, and a commit box.
+Click any changed file for a unified diff in the viewer split. Push, pull,
+merge, and anything else: the terminal is right there.
