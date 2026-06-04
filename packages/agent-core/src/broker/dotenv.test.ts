@@ -15,6 +15,27 @@ describe("parseDotEnv", () => {
     expect(parseDotEnv('PEM="line1\\nline2"')).toEqual({ PEM: "line1\nline2" });
   });
 
+  it("unescapes \\t and \\n inside double quotes", () => {
+    // File content is: A="x\ty\nz" (single backslashes before t and n).
+    // The TS literal doubles each backslash; the parser must turn \t and \n
+    // into a real tab and real newline.
+    expect(parseDotEnv('A="x\\ty\\nz"')).toEqual({ A: "x\ty\nz" });
+  });
+
+  it("treats \\\\n as a literal backslash + n, not a newline", () => {
+    // File content is: A="\\n" (backslash, backslash, n). The leading \\ is
+    // the escape for one backslash; the trailing n stays literal. Result is
+    // two characters: backslash + n -- NOT a newline.
+    expect(parseDotEnv('A="\\\\n"')).toEqual({ A: "\\n" });
+    // And \r maps to a carriage return.
+    expect(parseDotEnv('A="a\\rb"')).toEqual({ A: "a\rb" });
+  });
+
+  it("collapses an escaped backslash pair to a single backslash", () => {
+    // File content is: A="\\" (two backslashes) -> one literal backslash.
+    expect(parseDotEnv('A="\\\\"')).toEqual({ A: "\\" });
+  });
+
   it("unquotes single quotes literally", () => {
     expect(parseDotEnv("A='has \\n literal'")).toEqual({
       A: "has \\n literal",

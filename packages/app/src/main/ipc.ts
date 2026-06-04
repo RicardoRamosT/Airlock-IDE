@@ -47,13 +47,15 @@ export function registerIpc(
     return workspaceRoot;
   });
 
-  ipcMain.handle("fs:listDir", (_e, relPath: string) =>
-    listDirectory(requireRoot(), relPath),
-  );
+  ipcMain.handle("fs:listDir", (_e, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    return listDirectory(requireRoot(), relPath);
+  });
 
-  ipcMain.handle("fs:readFile", (_e, relPath: string) =>
-    readWorkspaceFile(requireRoot(), relPath),
-  );
+  ipcMain.handle("fs:readFile", (_e, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    return readWorkspaceFile(requireRoot(), relPath);
+  });
 
   ipcMain.handle("secrets:list", () => listSecrets(requireRoot()));
 

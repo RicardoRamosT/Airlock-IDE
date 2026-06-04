@@ -1,3 +1,10 @@
+// ADVISORY ONLY. These validators classify a secret's likely provider and
+// surface a friendly hint in the UI; they NEVER gate storage. validateSecret
+// is not called on the write path -- any secret value is accepted and vaulted
+// regardless of what (if anything) these patterns match. A loose or wrong
+// pattern can only mislabel the displayed hint; it has no security effect and
+// cannot block or alter what gets stored. Keep them best-effort, not strict.
+
 export interface ValidationResult {
   provider: string | null;
   valid: boolean;
@@ -42,8 +49,10 @@ const PROVIDERS: ProviderPattern[] = [
     hint: "Anthropic API key",
   },
   {
+    // Light nudge: require a real host token after '@' (not another '@' or
+    // whitespace) so the credential/host split is unambiguous. Advisory only.
     provider: "postgres-url",
-    pattern: /^postgres(ql)?:\/\/[^:@\s]+:[^@\s]+@.+/,
+    pattern: /^postgres(ql)?:\/\/[^:@\s]+:[^@\s]+@[^@\s].*/,
     hint: "Postgres connection URL with embedded credentials",
   },
   {
