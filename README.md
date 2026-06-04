@@ -54,3 +54,7 @@ The sidebar shows the current branch (switch or create from the dropdown),
 staged/unstaged changes with one-click stage/unstage, and a commit box.
 Click any changed file for a unified diff in the viewer split. Push, pull,
 merge, and anything else: the terminal is right there.
+
+## Credits
+
+Icons: [@vscode/codicons](https://github.com/microsoft/vscode-codicons) (CC-BY-4.0).

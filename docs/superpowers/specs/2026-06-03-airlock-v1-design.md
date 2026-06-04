@@ -241,6 +241,8 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 
 *Revised 2026-06-03 after the first manual gate: the terminal owns the full main area (per the original product vision); the viewer opens as an on-demand split with a close button. The agent pane will be designed into this layout in weeks 3-5.*
 
+> *Revised again 2026-06-03 (post git-v0.3 gate): owner directed a VS Code-grade polish pass — overlay scrollbars, codicons, collapsible sections, 22px density, hidden-inset chrome, status bar. The original §11 "non-VS-Code aesthetic" stance is superseded: airlock keeps its palette, adopts VS Code's structural discipline.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │
