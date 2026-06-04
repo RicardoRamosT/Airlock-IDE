@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AirlockApi, PtyDataEvent, PtyExitEvent } from "../shared/ipc";
+import type {
+  AirlockApi,
+  PtyDataEvent,
+  PtyExitEvent,
+  SectionVisibility,
+} from "../shared/ipc";
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
   const handler = (_: unknown, e: T) => cb(e);
@@ -51,6 +56,10 @@ const api: AirlockApi = {
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
+  setSectionVisibility: (id, visible) =>
+    ipcRenderer.invoke("sections:set", id, visible),
+  onSectionsChanged: (cb) =>
+    subscribe<SectionVisibility>("sections:changed", cb),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

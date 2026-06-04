@@ -37,8 +37,9 @@ import {
   writeProjectConfig,
 } from "@airlock/agent-core";
 import { dialog, ipcMain } from "electron";
-import type { AppPrefs } from "../shared/ipc";
-import { loadPrefs, savePrefs } from "./prefs";
+import type { AppPrefs, Section } from "../shared/ipc";
+import { changeSectionVisibility } from "./menu";
+import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
 
 let workspaceRoot: string | null = null;
 const sessions = new Map<string, PtySession>();
@@ -119,6 +120,20 @@ export function registerIpc(
   ipcMain.handle("prefs:set", (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
     return savePrefs(prefsFile, patch as Partial<AppPrefs>);
+  });
+
+  // App-global (NOT requireRoot-gated): toggle a sidebar section's visibility.
+  // Funnels through changeSectionVisibility, which persists the full map,
+  // rebuilds the menu, and pushes "sections:changed" to the renderer.
+  ipcMain.handle("sections:set", (_e, id: unknown, visible: unknown) => {
+    if (
+      typeof id !== "string" ||
+      !SECTIONS.includes(id as Section) ||
+      typeof visible !== "boolean"
+    ) {
+      throw new Error("Invalid payload");
+    }
+    return changeSectionVisibility(prefsFile, id as Section, visible);
   });
 
   ipcMain.handle("audit:read", (_e, limit: number) =>

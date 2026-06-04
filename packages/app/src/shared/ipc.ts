@@ -143,4 +143,9 @@ export interface AirlockApi {
   dockerStop(id: string): Promise<void>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
+  setSectionVisibility(
+    id: Section,
+    visible: boolean,
+  ): Promise<SectionVisibility>;
+  onSectionsChanged(cb: (v: SectionVisibility) => void): () => void;
 }
