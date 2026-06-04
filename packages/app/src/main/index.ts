@@ -2,6 +2,8 @@ import path from "node:path";
 import { captureLoginEnv } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
 import { killAllSessions, registerIpc } from "./ipc";
+import { applyAppMenu } from "./menu";
+import { loadPrefs } from "./prefs";
 
 app.setName("airlock");
 
@@ -88,6 +90,8 @@ function bootstrap(): void {
     const prefsFile = path.join(app.getPath("userData"), "prefs.json");
     registerIpc(() => loginEnv, prefsFile);
     createWindow();
+    const prefs = await loadPrefs(prefsFile);
+    applyAppMenu(prefsFile, prefs.sectionVisibility);
   });
 
   app.on("before-quit", killAllSessions);
