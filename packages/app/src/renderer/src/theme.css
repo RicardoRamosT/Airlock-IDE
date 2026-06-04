@@ -5,6 +5,9 @@
   --fg: #c9d1d9;
   --fg-dim: #8b949e;
   --accent: #58a6ff;
+  --hover: rgba(177, 186, 196, 0.08);
+  --selected: rgba(56, 139, 253, 0.15);
+  --row-h: 22px;
   font-family: -apple-system, "SF Pro Text", sans-serif;
 }
 
@@ -128,8 +131,10 @@ body,
   background: none;
   border: none;
   color: var(--fg);
+  height: var(--row-h);
+  line-height: var(--row-h);
+  padding: 0 4px;
   font-size: 13px;
-  padding: 2px 6px;
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
@@ -140,11 +145,11 @@ body,
 }
 
 .tree-item:hover {
-  background: #1a2129;
+  background: var(--hover);
 }
 
 .tree-item.selected {
-  background: #1f3a5f;
+  background: var(--selected);
 }
 
 .tree-item.dir {
@@ -276,6 +281,12 @@ body,
   align-items: center;
   gap: 5px;
   min-width: 0;
+  height: var(--row-h);
+}
+
+.secret-row:hover {
+  background: var(--hover);
+  border-radius: 4px;
 }
 
 .secret-name {
@@ -283,9 +294,10 @@ body,
   border: none;
   color: var(--fg);
   font-size: 12px;
+  line-height: var(--row-h);
   font-family: "SF Mono", Menlo, monospace;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 0 2px;
   border-radius: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -303,6 +315,8 @@ body,
   color: var(--fg-dim);
   cursor: pointer;
   font-size: 11px;
+  opacity: 0;
+  transition: opacity 80ms linear;
 }
 
 .secret-delete:hover {
@@ -320,7 +334,8 @@ body,
   border: 1px solid var(--border);
   color: var(--fg);
   border-radius: 6px;
-  padding: 3px 10px;
+  height: 24px;
+  padding: 0 10px;
   font-size: 12px;
   cursor: pointer;
   font-family: inherit;
@@ -492,6 +507,12 @@ body,
   align-items: center;
   gap: 5px;
   min-width: 0;
+  height: var(--row-h);
+}
+
+.git-row:hover {
+  background: var(--hover);
+  border-radius: 4px;
 }
 
 .git-letter {
@@ -507,9 +528,10 @@ body,
   border: none;
   color: var(--fg);
   font-size: 12px;
+  line-height: var(--row-h);
   font-family: "SF Mono", Menlo, monospace;
   cursor: pointer;
-  padding: 1px 4px;
+  padding: 0 2px;
   border-radius: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -531,10 +553,19 @@ body,
   font-size: 13px;
   flex: none;
   padding: 0 2px;
+  opacity: 0;
+  transition: opacity 80ms linear;
 }
 
 .git-action:hover {
   color: var(--accent);
+}
+
+.secret-row:hover .secret-delete,
+.secret-row:focus-within .secret-delete,
+.git-row:hover .git-action,
+.git-row:focus-within .git-action {
+  opacity: 1;
 }
 
 .git-message {
@@ -543,4 +574,12 @@ body,
 
 .git-new-branch {
   display: flex;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
