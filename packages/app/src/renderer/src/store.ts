@@ -6,6 +6,21 @@ import type {
   SecretMeta,
 } from "../../shared/ipc";
 
+export interface TerminalEntry {
+  id: string; // renderer-side uid (not the pty id)
+  title: string;
+  renamed: boolean; // user renamed -> OSC title updates stop applying
+  ptyId: string | null;
+}
+
+let termCounter = 0;
+const newEntry = (): TerminalEntry => ({
+  id: `term-${++termCounter}`,
+  title: "zsh",
+  renamed: false,
+  ptyId: null,
+});
+
 interface AppState {
   root: string | null;
   selectedFile: string | null;
@@ -13,7 +28,10 @@ interface AppState {
   secrets: SecretMeta[];
   config: ProjectConfig | null;
   gitStatus: GitStatus | null;
-  termNonce: number;
+  terminals: TerminalEntry[];
+  activeTerminalId: string | null;
+  splitTerminalId: string | null; // second visible pane; null = no split
+  maximized: boolean;
   modal: "add-secret" | { update: string } | null;
   diff: {
     path: string;
@@ -28,7 +46,13 @@ interface AppState {
   setConfig: (config: ProjectConfig | null) => void;
   setGitStatus: (gitStatus: GitStatus | null) => void;
   setModal: (modal: AppState["modal"]) => void;
-  restartTerminal: () => void;
+  addTerminal: () => string; // returns new id, sets active
+  removeTerminal: (id: string) => void;
+  setActiveTerminal: (id: string) => void;
+  setTerminalPty: (id: string, ptyId: string) => void;
+  setTerminalTitle: (id: string, title: string, fromUser: boolean) => void;
+  setSplit: (id: string | null) => void;
+  toggleMaximized: () => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -38,7 +62,6 @@ export const useApp = create<AppState>((set) => ({
   secrets: [],
   config: null,
   gitStatus: null,
-  termNonce: 0,
   modal: null,
   diff: null,
   setRoot: (root) =>
@@ -49,6 +72,10 @@ export const useApp = create<AppState>((set) => ({
       secrets: [],
       config: null,
       gitStatus: null,
+      terminals: [],
+      activeTerminalId: null,
+      splitTerminalId: null,
+      maximized: false,
       modal: null,
       diff: null,
     }),
@@ -58,5 +85,42 @@ export const useApp = create<AppState>((set) => ({
   setConfig: (config) => set({ config }),
   setGitStatus: (gitStatus) => set({ gitStatus }),
   setModal: (modal) => set({ modal }),
-  restartTerminal: () => set((s) => ({ termNonce: s.termNonce + 1 })),
+  terminals: [],
+  activeTerminalId: null,
+  splitTerminalId: null,
+  maximized: false,
+  addTerminal: () => {
+    const entry = newEntry();
+    set((s) => ({
+      terminals: [...s.terminals, entry],
+      activeTerminalId: entry.id,
+    }));
+    return entry.id;
+  },
+  removeTerminal: (id) =>
+    set((s) => {
+      const terminals = s.terminals.filter((t) => t.id !== id);
+      const splitTerminalId =
+        s.splitTerminalId === id ? null : s.splitTerminalId;
+      let activeTerminalId = s.activeTerminalId;
+      if (activeTerminalId === id) {
+        activeTerminalId = terminals[terminals.length - 1]?.id ?? null;
+      }
+      return { terminals, splitTerminalId, activeTerminalId };
+    }),
+  setActiveTerminal: (id) => set({ activeTerminalId: id }),
+  setTerminalPty: (id, ptyId) =>
+    set((s) => ({
+      terminals: s.terminals.map((t) => (t.id === id ? { ...t, ptyId } : t)),
+    })),
+  setTerminalTitle: (id, title, fromUser) =>
+    set((s) => ({
+      terminals: s.terminals.map((t) => {
+        if (t.id !== id) return t;
+        if (!fromUser && t.renamed) return t;
+        return { ...t, title, renamed: fromUser ? true : t.renamed };
+      }),
+    })),
+  setSplit: (id) => set({ splitTerminalId: id }),
+  toggleMaximized: () => set((s) => ({ maximized: !s.maximized })),
 }));

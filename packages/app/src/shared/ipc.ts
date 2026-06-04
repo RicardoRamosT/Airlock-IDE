@@ -40,6 +40,7 @@ export interface AirlockApi {
   ptyCreate(cols: number, rows: number): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
+  ptyKill(id: string): void;
   onPtyData(cb: (e: PtyDataEvent) => void): () => void;
   onPtyExit(cb: (e: PtyExitEvent) => void): () => void;
   secretsList(): Promise<SecretMeta[]>;

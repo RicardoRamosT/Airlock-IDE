@@ -2,15 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../store";
 
 export function SecretsSection() {
-  const {
-    root,
-    secrets,
-    setSecrets,
-    config,
-    setConfig,
-    setModal,
-    restartTerminal,
-  } = useApp();
+  const { root, secrets, setSecrets, config, setConfig, setModal } = useApp();
   const [needsRestart, setNeedsRestart] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
 
@@ -52,11 +44,6 @@ export function SecretsSection() {
         `Import failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-  };
-
-  const restart = () => {
-    restartTerminal();
-    setNeedsRestart(false);
   };
 
   return (
@@ -114,7 +101,13 @@ export function SecretsSection() {
         inject into terminal
       </label>
       {needsRestart && (
-        <button type="button" className="restart-hint" onClick={restart}>
+        <button
+          type="button"
+          className="restart-hint"
+          onClick={() => {
+            /* restart wired in Task 5 */
+          }}
+        >
           ↻ restart terminal to apply
         </button>
       )}

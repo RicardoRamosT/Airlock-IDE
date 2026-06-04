@@ -17,6 +17,7 @@ const api: AirlockApi = {
   ptyInput: (id, data) => ipcRenderer.send("pty:input", { id, data }),
   ptyResize: (id, cols, rows) =>
     ipcRenderer.send("pty:resize", { id, cols, rows }),
+  ptyKill: (id) => ipcRenderer.send("pty:kill", id),
   onPtyData: (cb) => subscribe<PtyDataEvent>("pty:data", cb),
   onPtyExit: (cb) => subscribe<PtyExitEvent>("pty:exit", cb),
   secretsList: () => ipcRenderer.invoke("secrets:list"),

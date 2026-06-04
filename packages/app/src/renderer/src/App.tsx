@@ -12,7 +12,6 @@ export function App() {
   const root = useApp((s) => s.root);
   const selectedFile = useApp((s) => s.selectedFile);
   const diff = useApp((s) => s.diff);
-  const termNonce = useApp((s) => s.termNonce);
   const modal = useApp((s) => s.modal);
   return (
     <div className="app-shell">
@@ -24,7 +23,7 @@ export function App() {
             <Viewer />
           </div>
           <div className="terminal-slot">
-            <TerminalPane key={`${root ?? "no-workspace"}:${termNonce}`} />
+            <TerminalPane key={root ?? "no-workspace"} />
           </div>
         </div>
       </div>

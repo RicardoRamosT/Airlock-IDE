@@ -13,7 +13,7 @@ const COMMON_NAMES = [
 ];
 
 export function SecretModal() {
-  const { modal, setModal, setSecrets, restartTerminal, config } = useApp();
+  const { modal, setModal, setSecrets } = useApp();
   const updating =
     modal !== null && modal !== "add-secret" ? modal.update : null;
   const [name, setName] = useState(updating ?? "");
@@ -36,7 +36,7 @@ export function SecretModal() {
       } else {
         setSecrets(await window.airlock.secretsList());
         setModal(null);
-        if (config?.injectSecretsIntoTerminal) restartTerminal();
+        /* restart wired in Task 5 */
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

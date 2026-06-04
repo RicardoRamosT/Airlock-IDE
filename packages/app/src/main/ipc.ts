@@ -205,6 +205,12 @@ export function registerIpc(): void {
     )
       sessions.get(id)?.resize(cols, rows);
   });
+
+  ipcMain.on("pty:kill", (_e, id: unknown) => {
+    if (typeof id !== "string") return;
+    sessions.get(id)?.kill();
+    // onExit cleanup (sessions.delete + pty:exit notify) already wired in pty:create.
+  });
 }
 
 export function killAllSessions(): void {
