@@ -1,4 +1,4 @@
-// The ONLY import path for consumers. Spec §4: app imports this surface;
+// The ONLY import path for consumers. Spec S4: app imports this surface;
 // nothing imports agent-core internals.
 
 export {
