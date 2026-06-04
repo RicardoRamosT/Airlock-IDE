@@ -138,8 +138,17 @@ body,
 }
 
 .sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
+}
+
+/* The sections area scrolls independently; the footer below is pinned. */
+.sidebar-sections {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 8px 0;
@@ -315,6 +324,132 @@ body,
 
 .layout.sidebar-hidden .sidebar {
   display: none;
+}
+
+/* Sidebar footer: pinned at the bottom of the sidebar (flex:none below the
+   scrolling sections). Hosts the accounts + settings icon buttons. Stays at the
+   bottom in both left and right sidebar positions (it is a flex child of
+   .sidebar, independent of the grid order flip) and vanishes with the sidebar
+   when hidden (display:none on .sidebar removes the whole column). */
+.sidebar-footer {
+  position: relative;
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.footer-btn {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.footer-btn:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.footer-btn.active {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+/* Popover: bottom-anchored above the footer (sits over the sidebar content). */
+.popover {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 8px;
+  min-width: 220px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  z-index: 20;
+}
+
+.popover-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  padding: 4px 6px 6px;
+}
+
+.popover-note {
+  font-size: 12px;
+  color: var(--fg-dim);
+  padding: 4px 6px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--fg);
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.account-row:hover {
+  background: var(--hover);
+}
+
+.account-row:disabled {
+  cursor: default;
+}
+
+.status-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.status-dot.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.account-name {
+  font-size: 13px;
+}
+
+.account-host {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.identity-line {
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 6px 6px 4px;
+}
+
+.identity-warning {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #d29922;
+  padding: 4px 6px;
 }
 
 .viewer-close {

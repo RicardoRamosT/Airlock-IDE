@@ -4,6 +4,7 @@ import { AuditSection } from "./AuditSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
 import { SecretsSection } from "./SecretsSection";
+import { SidebarFooter } from "./SidebarFooter";
 
 function Section({
   title,
@@ -44,24 +45,27 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <Section title="Files">
-        {root ? (
-          <FileTree />
-        ) : (
-          <button type="button" className="open-folder" onClick={openFolder}>
-            Open Folder…
-          </button>
-        )}
-      </Section>
-      <Section title="Secrets">
-        <SecretsSection />
-      </Section>
-      <Section title="Git">
-        <GitSection />
-      </Section>
-      <Section title="Audit" defaultOpen={false}>
-        <AuditSection />
-      </Section>
+      <div className="sidebar-sections">
+        <Section title="Files">
+          {root ? (
+            <FileTree />
+          ) : (
+            <button type="button" className="open-folder" onClick={openFolder}>
+              Open Folder…
+            </button>
+          )}
+        </Section>
+        <Section title="Secrets">
+          <SecretsSection />
+        </Section>
+        <Section title="Git">
+          <GitSection />
+        </Section>
+        <Section title="Audit" defaultOpen={false}>
+          <AuditSection />
+        </Section>
+      </div>
+      <SidebarFooter />
     </aside>
   );
 }
