@@ -26,18 +26,24 @@ export function SettingsTab() {
     }
   }, [root, config, setConfig]);
 
+  // Each persisted change marks layoutHydrated so a still-in-flight startup
+  // prefsGet cannot clobber a fast user choice (same race the layout buttons
+  // guard against).
   const chooseTheme = (t: "dark" | "light") => {
+    useApp.getState().setLayoutHydrated(true);
     setTheme(t);
     document.documentElement.setAttribute("data-theme", t);
     void window.airlock.prefsSet({ theme: t });
   };
 
   const choosePosition = (p: "left" | "right") => {
+    useApp.getState().setLayoutHydrated(true);
     setSidebarPosition(p);
     void window.airlock.prefsSet({ sidebarPosition: p });
   };
 
   const toggleSidebarVisible = () => {
+    useApp.getState().setLayoutHydrated(true);
     const next = !sidebarVisible;
     setSidebarVisible(next);
     void window.airlock.prefsSet({ sidebarVisible: next });

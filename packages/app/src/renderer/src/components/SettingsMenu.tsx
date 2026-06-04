@@ -12,6 +12,9 @@ export function SettingsMenu({ onClose }: { onClose: () => void }) {
   const [themesOpen, setThemesOpen] = useState(false);
 
   const chooseTheme = (t: "dark" | "light") => {
+    // Mark hydrated so a still-in-flight startup prefsGet cannot clobber this
+    // user choice (same race the layout buttons guard against).
+    useApp.getState().setLayoutHydrated(true);
     setTheme(t);
     document.documentElement.setAttribute("data-theme", t);
     void window.airlock.prefsSet({ theme: t });
