@@ -5,6 +5,25 @@ import { killAllSessions, registerIpc } from "./ipc";
 
 app.setName("airlock");
 
+// Single-instance lock (#13): two Airlocks would contend over the same
+// project's .airlock/ files (secrets meta, audit chain). If we don't get the
+// lock, a primary is already running -- quit immediately and let the running
+// "second-instance" handler focus the existing window.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+
+  bootstrap();
+}
+
 // Captured once at startup: the real login-shell env (homebrew PATH, locale).
 // A Finder-launched app inherits launchd's minimal env, so spawned terminals
 // would otherwise miss the user's PATH and have a broken locale.
@@ -36,27 +55,40 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(async () => {
-  // Capture the user's real login-shell env once, BEFORE any terminal can be
-  // spawned. Best-effort: on failure this stays {} and PTYs fall back to
-  // process.env unchanged.
-  loginEnv = await captureLoginEnv();
+// Only invoked for the primary instance (we hold the single-instance lock).
+// The secondary-instance path early-returns via app.quit() above and must NOT
+// capture login env or create a window.
+function bootstrap(): void {
+  app.whenReady().then(async () => {
+    // Capture the user's real login-shell env once, BEFORE any terminal can be
+    // spawned. Best-effort: on failure this stays {} and PTYs fall back to
+    // process.env unchanged.
+    loginEnv = await captureLoginEnv();
 
-  // Dev runs the stock Electron binary, which owns the dock identity; at least
-  // give it our icon at runtime. Packaged builds get name+icon from the bundle.
-  if (!app.isPackaged && process.platform === "darwin" && app.dock) {
-    app.dock.setIcon(
-      nativeImage.createFromPath(
-        path.join(__dirname, "../../build/icon-512.png"),
-      ),
-    );
-  }
-  registerIpc(() => loginEnv);
-  createWindow();
-});
+    // Dev runs the stock Electron binary, which owns the dock identity; at least
+    // give it our icon at runtime. Packaged builds get name+icon from the bundle.
+    if (!app.isPackaged && process.platform === "darwin" && app.dock) {
+      app.dock.setIcon(
+        nativeImage.createFromPath(
+          path.join(__dirname, "../../build/icon-512.png"),
+        ),
+      );
+    }
+    registerIpc(() => loginEnv);
+    createWindow();
+  });
 
-app.on("before-quit", killAllSessions);
+  app.on("before-quit", killAllSessions);
 
-app.on("window-all-closed", () => {
-  app.quit();
-});
+  // macOS lifecycle (#12): on darwin the app stays alive when all windows close
+  // (it is now stateful -- terminals, secrets, git -- so quitting would drop
+  // live sessions). On other platforms keep the quit-on-close behavior.
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+
+  // Re-open a window when the dock icon is clicked and none are open.
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+}
