@@ -64,6 +64,10 @@ into terminal" and new terminal sessions receive them as env vars — no
 are stripped at the spawn site and audited. Every broker operation lands
 in `.airlock/audit/log.jsonl`, hash-chained.
 
+Secrets only reach **new** terminals (injected at spawn), and each terminal
+inherits your login-shell `PATH`/locale — so homebrew tools and `LANG` work
+even when Airlock is launched from Finder.
+
 Note: the packaged app is ad-hoc signed; after re-packaging, macOS may
 re-prompt Keychain access once per rebuild ("airlock wants to access...").
 Click Always Allow. A real signing identity would make this stick.

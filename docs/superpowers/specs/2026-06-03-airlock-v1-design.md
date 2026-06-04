@@ -222,6 +222,20 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 - Prompt injection in general (mitigated by approvals + policy, not solved —
   same as every agent product in 2026).
 
+> **2026-06-03 hardening pass.** Tightened the broker + runtime surface:
+> reserved env names (PATH, DYLD_*, NODE_OPTIONS...) are now rejected at
+> *store* time, not silently dropped at injection; a locked/inaccessible
+> keychain now propagates the access error instead of injecting nothing
+> silently; the secrets meta index and project config are written `0o600`;
+> a single-instance lock stops two Airlocks contending over one project's
+> `.airlock/`; terminals capture the user's login-shell env (homebrew PATH,
+> locale) so Finder-launched spawns aren't impoverished; and the audit
+> reader tolerates a corrupt line (chain verifies false rather than throwing).
+> Still-open limits stand: the keychain+meta pair is two stores with no
+> cross-store transaction, so a crash between the two writes can orphan a
+> value or leave a listed-but-valueless name; and audit-log *truncation*
+> (dropping whole trailing entries) remains undetectable by the hash chain.
+
 ## 8. Hero flow (the v1.0 demo)
 
 ```text
