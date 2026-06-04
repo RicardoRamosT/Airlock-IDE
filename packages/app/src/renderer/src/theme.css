@@ -59,8 +59,10 @@ body,
 
 .titlebar {
   -webkit-app-region: drag;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  padding-left: 78px; /* clear the macOS traffic lights */
+  padding-right: 8px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
 }
@@ -68,6 +70,27 @@ body,
 .titlebar-title {
   font-size: 12px;
   color: var(--fg-dim);
+  margin: 0 auto 0 0; /* left, push the controls to the right edge */
+}
+
+.layout-controls {
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag; /* buttons stay clickable inside the drag strip */
+}
+
+.layout-btn {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.layout-btn:hover {
+  background: var(--hover);
+  color: var(--fg);
 }
 
 .statusbar {
@@ -140,6 +163,10 @@ body,
 
 .statusbar .codicon {
   font-size: 12px;
+}
+
+.layout-btn .codicon {
+  font-size: 15px;
 }
 
 .section-title {
@@ -246,6 +273,33 @@ body,
 
 .main.split .viewer-pane {
   display: block;
+}
+
+/* Sidebar on the right: flip the grid columns and reorder the two children so
+   the sidebar (DOM child 1) renders in the right column and main in the left.
+   The divider moves to the sidebar's left edge. order/border/columns only -- no
+   `display` here, so the maximize rules below still win for hiding. */
+.layout.sidebar-right {
+  grid-template-columns: minmax(0, 1fr) 230px;
+}
+
+.layout.sidebar-right .sidebar {
+  order: 2;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.layout.sidebar-right .main {
+  order: 1;
+}
+
+/* Sidebar hidden: collapse to a single column and remove the sidebar. */
+.layout.sidebar-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.layout.sidebar-hidden .sidebar {
+  display: none;
 }
 
 .viewer-close {

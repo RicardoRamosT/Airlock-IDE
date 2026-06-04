@@ -32,6 +32,8 @@ interface AppState {
   activeTerminalId: string | null;
   splitTerminalId: string | null; // second visible pane; null = no split
   maximized: boolean;
+  sidebarVisible: boolean; // app-global (persisted), not per-project
+  sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
   modal: "add-secret" | { update: string } | null;
   diff: {
     path: string;
@@ -53,6 +55,10 @@ interface AppState {
   setTerminalTitle: (id: string, title: string, fromUser: boolean) => void;
   setSplit: (id: string | null) => void;
   toggleMaximized: () => void;
+  setSidebarVisible: (v: boolean) => void;
+  toggleSidebar: () => void;
+  setSidebarPosition: (p: "left" | "right") => void;
+  toggleSidebarPosition: () => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -89,6 +95,8 @@ export const useApp = create<AppState>((set) => ({
   activeTerminalId: null,
   splitTerminalId: null,
   maximized: false,
+  sidebarVisible: true,
+  sidebarPosition: "left",
   addTerminal: () => {
     const entry = newEntry();
     set((s) => ({
@@ -139,4 +147,11 @@ export const useApp = create<AppState>((set) => ({
     })),
   setSplit: (id) => set({ splitTerminalId: id }),
   toggleMaximized: () => set((s) => ({ maximized: !s.maximized })),
+  setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
+  toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
+  setSidebarPosition: (sidebarPosition) => set({ sidebarPosition }),
+  toggleSidebarPosition: () =>
+    set((s) => ({
+      sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
+    })),
 }));

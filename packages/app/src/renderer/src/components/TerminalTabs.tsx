@@ -5,13 +5,11 @@ export function TerminalTabs() {
   const terminals = useApp((s) => s.terminals);
   const activeTerminalId = useApp((s) => s.activeTerminalId);
   const splitTerminalId = useApp((s) => s.splitTerminalId);
-  const maximized = useApp((s) => s.maximized);
   const addTerminal = useApp((s) => s.addTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
   const setActiveTerminal = useApp((s) => s.setActiveTerminal);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
   const setSplit = useApp((s) => s.setSplit);
-  const toggleMaximized = useApp((s) => s.toggleMaximized);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
@@ -102,16 +100,6 @@ export function TerminalTabs() {
           onClick={splitActive}
         >
           <i className="codicon codicon-split-horizontal" />
-        </button>
-        <button
-          type="button"
-          className="terminal-tab-action"
-          title={maximized ? "Restore layout" : "Maximize terminal"}
-          onClick={toggleMaximized}
-        >
-          <i
-            className={`codicon codicon-screen-${maximized ? "normal" : "full"}`}
-          />
         </button>
       </div>
     </div>

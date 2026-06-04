@@ -13,10 +13,14 @@ export function App() {
   const diff = useApp((s) => s.diff);
   const modal = useApp((s) => s.modal);
   const maximized = useApp((s) => s.maximized);
+  const sidebarVisible = useApp((s) => s.sidebarVisible);
+  const sidebarPosition = useApp((s) => s.sidebarPosition);
   return (
     <div className={`app-shell${maximized ? " maximized" : ""}`}>
       <TitleBar />
-      <div className="layout">
+      <div
+        className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
+      >
         <Sidebar />
         <div className={`main${selectedFile || diff ? " split" : ""}`}>
           <div className="viewer-pane">

@@ -1,4 +1,5 @@
 import { useApp } from "../store";
+import { LayoutControls } from "./LayoutControls";
 
 export function TitleBar() {
   const root = useApp((s) => s.root);
@@ -6,8 +7,9 @@ export function TitleBar() {
   return (
     <header className="titlebar">
       <span className="titlebar-title">
-        {project ? `airlock — ${project}` : "airlock"}
+        {project ? `airlock - ${project}` : "airlock"}
       </span>
+      <LayoutControls />
     </header>
   );
 }
