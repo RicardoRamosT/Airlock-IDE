@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
 
 const COMMON_NAMES = [
@@ -13,7 +14,7 @@ const COMMON_NAMES = [
 ];
 
 export function SecretModal() {
-  const { modal, setModal, setSecrets } = useApp();
+  const { modal, setModal, setSecrets, config } = useApp();
   const updating =
     modal !== null && modal !== "add-secret" ? modal.update : null;
   const [name, setName] = useState(updating ?? "");
@@ -36,7 +37,9 @@ export function SecretModal() {
       } else {
         setSecrets(await window.airlock.secretsList());
         setModal(null);
-        /* restart wired in Task 5 */
+        // A newly vaulted secret only reaches the shell on spawn, so replace
+        // the active terminal when injection is on.
+        if (config?.injectSecretsIntoTerminal) restartActiveTerminal();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
 
 export function SecretsSection() {
@@ -105,10 +106,14 @@ export function SecretsSection() {
           type="button"
           className="restart-hint"
           onClick={() => {
-            /* restart wired in Task 5 */
+            // Other running terminals keep their old env (env applies at
+            // spawn); only the active shell is replaced so the user lands in
+            // an injected one.
+            restartActiveTerminal();
+            setNeedsRestart(false);
           }}
         >
-          ↻ restart terminal to apply
+          ↻ new terminals get secrets — restart active
         </button>
       )}
     </div>
