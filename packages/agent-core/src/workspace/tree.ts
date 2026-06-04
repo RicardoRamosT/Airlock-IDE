@@ -77,7 +77,7 @@ export async function listDirectory(
     .map<DirEntry>((d) => ({
       name: d.name,
       // Dirent uses lstat semantics: a symlink is never isDirectory()===true on POSIX.
-      // (Windows junctions behave differently — revisit if Windows lands; spec is macOS-only.)
+      // (Windows junctions behave differently - revisit if Windows lands; spec is macOS-only.)
       type: d.isDirectory() ? "dir" : "file",
     }))
     .sort((a, b) =>

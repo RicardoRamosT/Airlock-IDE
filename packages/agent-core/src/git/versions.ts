@@ -8,6 +8,7 @@ export interface FileVersions {
   original: string;
   modified: string;
   binary: boolean;
+  truncated: boolean;
 }
 
 async function gitShow(root: string, ref: string): Promise<string | null> {
@@ -19,12 +20,16 @@ async function gitShow(root: string, ref: string): Promise<string | null> {
   }
 }
 
-async function worktreeContent(root: string, relPath: string): Promise<string> {
+async function worktreeContent(
+  root: string,
+  relPath: string,
+): Promise<{ content: string; truncated: boolean }> {
   try {
-    return (await readWorkspaceFile(root, relPath)).content;
+    const { content, truncated } = await readWorkspaceFile(root, relPath);
+    return { content, truncated };
   } catch {
     // Deleted in the worktree.
-    return "";
+    return { content: "", truncated: false };
   }
 }
 
@@ -38,13 +43,17 @@ export async function gitFileVersions(
   await resolveWithin(root, relPath);
   let original: string;
   let modified: string;
+  let truncated: boolean;
   if (which === "staged") {
     original = (await gitShow(root, `HEAD:${relPath}`)) ?? "";
     modified = (await gitShow(root, `:0:${relPath}`)) ?? "";
+    truncated = false;
   } else {
     original = (await gitShow(root, `:0:${relPath}`)) ?? "";
-    modified = await worktreeContent(root, relPath);
+    const wt = await worktreeContent(root, relPath);
+    modified = wt.content;
+    truncated = wt.truncated;
   }
   const binary = original.includes("\0") || modified.includes("\0");
-  return { original, modified, binary };
+  return { original, modified, binary, truncated };
 }

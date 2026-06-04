@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { MAX_FILE_BYTES } from "../workspace/read";
 import { runGit } from "./run";
 import { gitFileVersions } from "./versions";
 
@@ -64,5 +65,16 @@ describe("gitFileVersions", () => {
     await expect(
       gitFileVersions(root, "../outside.txt", "unstaged"),
     ).rejects.toThrow(/escapes workspace/);
+  });
+
+  it("flags worktree truncation on huge files", async () => {
+    const root = await makeRepo();
+    await writeFile(
+      path.join(root, "big.txt"),
+      Buffer.alloc(MAX_FILE_BYTES + 500_000, 0x61),
+    );
+    const v = await gitFileVersions(root, "big.txt", "unstaged");
+    expect(v.truncated).toBe(true);
+    expect(v.modified.length).toBe(MAX_FILE_BYTES);
   });
 });
