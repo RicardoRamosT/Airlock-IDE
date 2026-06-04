@@ -19,6 +19,14 @@ const api: AirlockApi = {
     ipcRenderer.send("pty:resize", { id, cols, rows }),
   onPtyData: (cb) => subscribe<PtyDataEvent>("pty:data", cb),
   onPtyExit: (cb) => subscribe<PtyExitEvent>("pty:exit", cb),
+  secretsList: () => ipcRenderer.invoke("secrets:list"),
+  secretsSet: (name, value) => ipcRenderer.invoke("secrets:set", name, value),
+  secretsDelete: (name) => ipcRenderer.invoke("secrets:delete", name),
+  secretsImportEnv: (relPath, deleteAfter) =>
+    ipcRenderer.invoke("secrets:importEnv", relPath, deleteAfter),
+  configGet: () => ipcRenderer.invoke("config:get"),
+  configSet: (patch) => ipcRenderer.invoke("config:set", patch),
+  auditRead: (limit) => ipcRenderer.invoke("audit:read", limit),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

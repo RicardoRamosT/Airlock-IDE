@@ -1,8 +1,18 @@
 import {
+  appendAudit,
   createPtySession,
+  deleteSecret,
+  filterDangerousEnv,
+  importDotEnv,
+  injectInto,
   listDirectory,
+  listSecrets,
   type PtySession,
+  readAudit,
+  readProjectConfig,
   readWorkspaceFile,
+  setSecret,
+  writeProjectConfig,
 } from "@airlock/agent-core";
 import { dialog, ipcMain } from "electron";
 
@@ -30,8 +40,71 @@ export function registerIpc(): void {
     readWorkspaceFile(requireRoot(), relPath),
   );
 
-  ipcMain.handle("pty:create", (e, cols: number, rows: number) => {
-    const s = createPtySession({ cwd: workspaceRoot ?? undefined, cols, rows });
+  ipcMain.handle("secrets:list", () => listSecrets(requireRoot()));
+
+  ipcMain.handle("secrets:set", (_e, name: string, value: string) => {
+    if (typeof name !== "string" || typeof value !== "string") {
+      throw new Error("Invalid payload");
+    }
+    return setSecret(requireRoot(), name, value);
+  });
+
+  ipcMain.handle("secrets:delete", (_e, name: string) => {
+    if (typeof name !== "string") throw new Error("Invalid payload");
+    return deleteSecret(requireRoot(), name);
+  });
+
+  ipcMain.handle(
+    "secrets:importEnv",
+    (_e, relPath: string, deleteAfter: boolean) => {
+      if (typeof relPath !== "string") throw new Error("Invalid payload");
+      return importDotEnv(requireRoot(), relPath, {
+        deleteAfter: deleteAfter === true,
+      });
+    },
+  );
+
+  ipcMain.handle("config:get", () => readProjectConfig(requireRoot()));
+
+  ipcMain.handle("config:set", (_e, patch: unknown) => {
+    if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
+    const p = patch as { injectSecretsIntoTerminal?: unknown };
+    const clean =
+      typeof p.injectSecretsIntoTerminal === "boolean"
+        ? { injectSecretsIntoTerminal: p.injectSecretsIntoTerminal }
+        : {};
+    return writeProjectConfig(requireRoot(), clean);
+  });
+
+  ipcMain.handle("audit:read", (_e, limit: number) =>
+    readAudit(
+      requireRoot(),
+      Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 50,
+    ),
+  );
+
+  ipcMain.handle("pty:create", async (e, cols: number, rows: number) => {
+    let secretEnv: Record<string, string> | undefined;
+    if (workspaceRoot) {
+      const cfg = await readProjectConfig(workspaceRoot);
+      if (cfg.injectSecretsIntoTerminal) {
+        const r = await injectInto(workspaceRoot, {});
+        const { safe, blocked } = filterDangerousEnv(r.env);
+        secretEnv = safe;
+        if (blocked.length > 0) {
+          await appendAudit(workspaceRoot, "user", "secret.inject.blocked", {
+            names: blocked,
+            reason: "dangerous env name at spawn site",
+          });
+        }
+      }
+    }
+    const s = createPtySession({
+      cwd: workspaceRoot ?? undefined,
+      cols,
+      rows,
+      env: secretEnv,
+    });
     sessions.set(s.id, s);
     const wc = e.sender;
     s.onData((data) => {

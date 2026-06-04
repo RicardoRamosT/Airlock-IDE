@@ -1,6 +1,20 @@
-import type { DirEntry, FileContent } from "@airlock/agent-core";
+import type {
+  AuditEntry,
+  DirEntry,
+  FileContent,
+  ImportResult,
+  ProjectConfig,
+  SecretMeta,
+} from "@airlock/agent-core";
 
-export type { DirEntry, FileContent };
+export type {
+  AuditEntry,
+  DirEntry,
+  FileContent,
+  ImportResult,
+  ProjectConfig,
+  SecretMeta,
+};
 
 export interface PtyDataEvent {
   id: string;
@@ -22,4 +36,14 @@ export interface AirlockApi {
   ptyResize(id: string, cols: number, rows: number): void;
   onPtyData(cb: (e: PtyDataEvent) => void): () => void;
   onPtyExit(cb: (e: PtyExitEvent) => void): () => void;
+  secretsList(): Promise<SecretMeta[]>;
+  secretsSet(name: string, value: string): Promise<SecretMeta>;
+  secretsDelete(name: string): Promise<void>;
+  secretsImportEnv(
+    relPath: string,
+    deleteAfter: boolean,
+  ): Promise<ImportResult>;
+  configGet(): Promise<ProjectConfig>;
+  configSet(patch: Partial<ProjectConfig>): Promise<ProjectConfig>;
+  auditRead(limit: number): Promise<AuditEntry[]>;
 }

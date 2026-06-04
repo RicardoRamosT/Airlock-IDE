@@ -17,6 +17,10 @@ export {
   listSecrets,
   setSecret,
 } from "./broker/broker";
+export {
+  type DangerousEnvResult,
+  filterDangerousEnv,
+} from "./broker/dangerous";
 export { parseDotEnv } from "./broker/dotenv";
 export { type KeychainStore, systemKeychain } from "./broker/keychain";
 export type { SecretMeta } from "./broker/meta";
@@ -25,6 +29,11 @@ export {
   validateSecret,
   validateSecretName,
 } from "./broker/validators";
+export {
+  type ProjectConfig,
+  readProjectConfig,
+  writeProjectConfig,
+} from "./project/config";
 export { projectIdFor } from "./project/id";
 export {
   createPtySession,
