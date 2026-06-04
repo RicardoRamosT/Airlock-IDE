@@ -80,6 +80,33 @@ export async function listSecrets(root: string): Promise<SecretMeta[]> {
   return readMeta(root);
 }
 
+// ===========================================================================
+// !!! MAIN-ONLY -- THE SINGLE BY-NAME VALUE PATH OUT OF THE BROKER !!!
+// ---------------------------------------------------------------------------
+// getSecretValue returns a secret's RAW value (e.g. a full Postgres
+// connection string, password and all) so the app can use it LOCALLY in the
+// main process -- for instance, opening a DB connection the user asked to
+// browse. This is the ONE place a credential leaves the broker keyed by name.
+//
+//   * NEVER register this as an agent tool.
+//   * NEVER return its result over renderer IPC.
+//   * Only main-side connection handlers may call it; the renderer/agent get
+//     host / database / table / row data ONLY -- never the credential itself.
+//
+// Every other broker accessor (listSecrets/injectInto) is metadata- or
+// env-injection-scoped on purpose. If you find yourself wanting this value
+// anywhere outside main's DB connection code, STOP -- you almost certainly
+// want a redacted projection instead.
+// ===========================================================================
+export async function getSecretValue(
+  root: string,
+  name: string,
+  opts: BrokerOptions = {},
+): Promise<string | null> {
+  const keychain = opts.keychain ?? systemKeychain;
+  return keychain.get(SERVICE, await accountFor(root, name));
+}
+
 export interface InjectResult {
   env: Record<string, string>;
   injected: string[];

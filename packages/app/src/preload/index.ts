@@ -41,6 +41,14 @@ const api: AirlockApi = {
   githubInfo: () => ipcRenderer.invoke("github:info"),
   githubSwitch: (host, username) =>
     ipcRenderer.invoke("github:switch", host, username),
+  dbList: () => ipcRenderer.invoke("db:list"),
+  dbPing: (id) => ipcRenderer.invoke("db:ping", id),
+  dbTables: (id) => ipcRenderer.invoke("db:tables", id),
+  dbRows: (id, schema, table, limit) =>
+    ipcRenderer.invoke("db:rows", id, schema, table, limit),
+  dockerList: () => ipcRenderer.invoke("docker:list"),
+  dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
+  dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
 };

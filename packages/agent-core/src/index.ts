@@ -10,6 +10,7 @@ export {
 export {
   type BrokerOptions,
   deleteSecret,
+  getSecretValue,
   type ImportResult,
   type InjectResult,
   importDotEnv,

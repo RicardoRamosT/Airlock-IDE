@@ -4,7 +4,11 @@ import {
   createBranch,
   createPtySession,
   deleteSecret,
+  dockerContainers,
+  dockerStart,
+  dockerStop,
   filterDangerousEnv,
+  getSecretValue,
   ghAccounts,
   gitFileVersions,
   gitStatus,
@@ -14,9 +18,13 @@ import {
   listBranches,
   listDirectory,
   listSecrets,
+  listTables,
   type PtySession,
+  parseConnString,
+  pingDb,
   readAudit,
   readProjectConfig,
+  readRows,
   readWorkspaceFile,
   runGit,
   setSecret,
@@ -24,6 +32,7 @@ import {
   switchBranch,
   switchGhAccount,
   unstageFiles,
+  withDb,
   writeProjectConfig,
 } from "@airlock/agent-core";
 import { dialog, ipcMain } from "electron";
@@ -189,6 +198,110 @@ export function registerIpc(
       throw new Error("Invalid payload");
     }
     return switchGhAccount(host, username);
+  });
+
+  // Databases. The connection string (with its password) is resolved MAIN-SIDE
+  // from the broker by secret name and used ONLY to open a short-lived pg
+  // connection. It is NEVER returned over IPC -- the renderer gets host /
+  // database / table names / row data and, on error, a message string only.
+  // db:* are requireRoot-gated (via dbConnString / db:list).
+
+  // Resolve a vaulted postgres-url secret to its connection string, MAIN-SIDE
+  // only. The string (with password) is used to connect and never leaves main.
+  async function dbConnString(id: string): Promise<string> {
+    const root = requireRoot();
+    const value = await getSecretValue(root, id);
+    if (!value) throw new Error("Database secret not found");
+    return value;
+  }
+
+  ipcMain.handle("db:list", async () => {
+    const root = requireRoot();
+    const metas = (await listSecrets(root)).filter(
+      (m) => m.provider === "postgres-url",
+    );
+    const out = [];
+    for (const m of metas) {
+      const value = await getSecretValue(root, m.name);
+      const info = value ? parseConnString(value) : null;
+      if (info) {
+        out.push({
+          id: m.name,
+          host: info.host,
+          database: info.database,
+          user: info.user,
+          redacted: info.redacted,
+        });
+      } else {
+        // Unparseable -> a placeholder projection, NEVER the raw value.
+        out.push({
+          id: m.name,
+          host: "",
+          database: "(unparseable)",
+          user: "",
+          redacted: m.name,
+        });
+      }
+    }
+    return out; // NO password field
+  });
+
+  ipcMain.handle("db:ping", async (_e, id: unknown) => {
+    if (typeof id !== "string") throw new Error("Invalid payload");
+    try {
+      await withDb(await dbConnString(id), (run) => pingDb(run));
+      return { ok: true };
+    } catch (err) {
+      // Message-only: never the connection string / stack / error object.
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  });
+
+  ipcMain.handle("db:tables", async (_e, id: unknown) => {
+    if (typeof id !== "string") throw new Error("Invalid payload");
+    return withDb(await dbConnString(id), (run) => listTables(run));
+  });
+
+  ipcMain.handle(
+    "db:rows",
+    async (
+      _e,
+      id: unknown,
+      schema: unknown,
+      table: unknown,
+      limit: unknown,
+    ) => {
+      if (
+        typeof id !== "string" ||
+        typeof schema !== "string" ||
+        typeof table !== "string"
+      ) {
+        throw new Error("Invalid payload");
+      }
+      const lim = typeof limit === "number" ? limit : 100;
+      // explorer.readRows quotes identifiers and clamps the limit; on a query
+      // error withDb rejects with a pg Error whose .message may echo the SQL
+      // but NOT the password. The renderer surfaces err.message only.
+      return withDb(await dbConnString(id), (run) =>
+        readRows(run, schema, table, lim),
+      );
+    },
+  );
+
+  // Docker: machine-global, so NOT requireRoot-gated.
+  ipcMain.handle("docker:list", () => dockerContainers());
+
+  ipcMain.handle("docker:start", (_e, id: unknown) => {
+    if (typeof id !== "string") throw new Error("Invalid payload");
+    return dockerStart(id);
+  });
+
+  ipcMain.handle("docker:stop", (_e, id: unknown) => {
+    if (typeof id !== "string") throw new Error("Invalid payload");
+    return dockerStop(id);
   });
 
   ipcMain.handle("pty:create", async (e, cols: number, rows: number) => {

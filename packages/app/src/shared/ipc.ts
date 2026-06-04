@@ -1,5 +1,7 @@
 import type {
   AuditEntry,
+  Container,
+  DbTable,
   DiffSide,
   DirEntry,
   FileContent,
@@ -9,11 +11,14 @@ import type {
   GitStatus,
   ImportResult,
   ProjectConfig,
+  QueryResult,
   SecretMeta,
 } from "@airlock/agent-core";
 
 export type {
   AuditEntry,
+  Container,
+  DbTable,
   DiffSide,
   DirEntry,
   FileContent,
@@ -23,8 +28,23 @@ export type {
   GitStatus,
   ImportResult,
   ProjectConfig,
+  QueryResult,
   SecretMeta,
 };
+
+/**
+ * A vaulted Postgres connection projected for the renderer. `id` is the secret
+ * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
+ * password field: only host/database/user and the redacted string cross the
+ * IPC boundary -- the credential stays main-side (see broker.getSecretValue).
+ */
+export interface DbEntry {
+  id: string;
+  host: string;
+  database: string;
+  user: string;
+  redacted: string;
+}
 
 /** The repo's local commit identity (git config user.name / user.email). */
 export interface GitIdentity {
@@ -91,6 +111,26 @@ export interface AirlockApi {
   gitFileVersions(relPath: string, which: DiffSide): Promise<FileVersions>;
   githubInfo(): Promise<GithubInfo>;
   githubSwitch(host: string, username: string): Promise<void>;
+  // Databases: id is the secret NAME; no password ever crosses these. dbList
+  // returns redacted projections; ping/tables/rows return data or a
+  // message-only error -- never the connection string.
+  dbList(): Promise<DbEntry[]>;
+  dbPing(id: string): Promise<{ ok: boolean; error?: string }>;
+  dbTables(id: string): Promise<DbTable[]>;
+  dbRows(
+    id: string,
+    schema: string,
+    table: string,
+    limit: number,
+  ): Promise<QueryResult>;
+  // Docker: machine-global (NOT root-gated); ids are opaque container ids.
+  dockerList(): Promise<{
+    installed: boolean;
+    running: boolean;
+    containers: Container[];
+  }>;
+  dockerStart(id: string): Promise<void>;
+  dockerStop(id: string): Promise<void>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
 }

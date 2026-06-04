@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readAudit } from "../audit/audit";
 import {
   deleteSecret,
+  getSecretValue,
   importDotEnv,
   injectInto,
   listSecrets,
@@ -196,6 +197,17 @@ describe("broker", () => {
       skipped: [],
       deleted: false,
     });
+  });
+
+  it("getSecretValue returns the raw value by name, null when absent", async () => {
+    await setSecret(root, "A", "val", { keychain: fake });
+    // The main-only by-name value path: returns the credential verbatim so
+    // main can open a connection with it.
+    expect(await getSecretValue(root, "A", { keychain: fake })).toBe("val");
+    // Missing name -> null (no throw); mirrors keychain.get's not-found case.
+    expect(
+      await getSecretValue(root, "MISSING", { keychain: fake }),
+    ).toBeNull();
   });
 
   it("records keychainDeleted:false when the OS delete reports no removal", async () => {
