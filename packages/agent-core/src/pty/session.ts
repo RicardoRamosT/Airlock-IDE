@@ -16,6 +16,9 @@ export interface PtyOptions {
   // Captured login-shell env (homebrew PATH, locale). Layered over
   // process.env as the base for the child; per-call env still wins.
   baseEnv?: Record<string, string>;
+  // Enable node-pty flow control so the child is paused under buffer
+  // backpressure (XOFF/XON markers). Defaults to true.
+  handleFlowControl?: boolean;
 }
 
 export class PtySession {
@@ -38,6 +41,11 @@ export class PtySession {
       rows: opts.rows ?? 24,
       cwd: opts.cwd ?? homedir(),
       env,
+      // Apply backpressure: node-pty pauses the child when the consumer
+      // falls behind, so a flood (e.g. cat-ing a huge file) cannot run the
+      // main process unbounded. Default markers are XOFF/XON, which do not
+      // appear in normal program output.
+      handleFlowControl: opts.handleFlowControl ?? true,
     });
   }
 

@@ -182,12 +182,17 @@ export function registerIpc(
     });
     sessions.set(s.id, s);
     const wc = e.sender;
-    s.onData((data) => {
+    const dataSub = s.onData((data) => {
       if (!wc.isDestroyed()) wc.send("pty:data", { id: s.id, data });
     });
-    s.onExit((exitCode) => {
+    const exitSub = s.onExit((exitCode) => {
       sessions.delete(s.id);
       if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
+      // Release the listeners explicitly. node-pty has no destroy(); kill()
+      // is teardown, but the onData/onExit subscriptions are IDisposables
+      // that should be disposed once the session has exited.
+      dataSub.dispose();
+      exitSub.dispose();
     });
     return s.id;
   });

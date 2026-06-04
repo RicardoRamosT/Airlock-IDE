@@ -30,11 +30,26 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     term.open(host);
     fit.fit();
 
-    let ptyId: string | null = null;
+    // Hold the resolved pty id in a ref so the data/exit listeners (attached
+    // synchronously below, before ptyCreate even resolves) can filter on it
+    // once it is known. Register-first closes the lost-output race: main wires
+    // s.onData -> wc.send inside pty:create before returning the id, so any
+    // early shell-prompt bytes were dropped while the old code was still
+    // waiting in the .then to subscribe. Listeners now exist before the invoke
+    // resolves, so the renderer is already listening when the id arrives.
+    const idRef = { current: null as string | null };
     let exited = false;
-    let offData = () => {};
-    let offExit = () => {};
     let disposed = false;
+
+    const offData = window.airlock.onPtyData((e) => {
+      if (e.id === idRef.current) term.write(e.data);
+    });
+    const offExit = window.airlock.onPtyExit((e) => {
+      if (e.id === idRef.current) {
+        exited = true;
+        removeTerminal(terminalId);
+      }
+    });
 
     window.airlock
       .ptyCreate(term.cols, term.rows)
@@ -44,44 +59,48 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
           window.airlock.ptyKill(id);
           return;
         }
-        ptyId = id;
+        idRef.current = id;
         setTerminalPty(terminalId, id);
-        offData = window.airlock.onPtyData((e) => {
-          if (e.id === id) term.write(e.data);
-        });
-        offExit = window.airlock.onPtyExit((e) => {
-          if (e.id === id) {
-            exited = true;
-            removeTerminal(terminalId);
-          }
-        });
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        // Failed spawn must not leave a zombie tab with no backing pty.
+        removeTerminal(terminalId);
+      });
 
     const input = term.onData((data) => {
-      if (ptyId) window.airlock.ptyInput(ptyId, data);
+      if (idRef.current) window.airlock.ptyInput(idRef.current, data);
     });
 
     const title = term.onTitleChange((t) => {
       if (t.trim()) setTerminalTitle(terminalId, t, false);
     });
 
+    // Trailing debounce so a window drag does not fire dozens of fit() +
+    // ptyResize IPC calls; the 0x0 hidden-pane guard stays inside the
+    // debounced fn so a tab hidden mid-drag is still skipped.
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     const ro = new ResizeObserver(() => {
-      if (host.clientWidth === 0 || host.clientHeight === 0) return; // hidden tab
-      fit.fit();
-      if (ptyId) window.airlock.ptyResize(ptyId, term.cols, term.rows);
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (host.clientWidth === 0 || host.clientHeight === 0) return; // hidden tab
+        fit.fit();
+        if (idRef.current)
+          window.airlock.ptyResize(idRef.current, term.cols, term.rows);
+      }, 50);
     });
     ro.observe(host);
 
     return () => {
       disposed = true;
+      if (resizeTimer) clearTimeout(resizeTimer);
       ro.disconnect();
       input.dispose();
       title.dispose();
       offData();
       offExit();
       // Tab closed / root changed: the session must die with the pane.
-      if (ptyId && !exited) window.airlock.ptyKill(ptyId);
+      if (idRef.current && !exited) window.airlock.ptyKill(idRef.current);
       term.dispose();
     };
   }, [terminalId, setTerminalPty, setTerminalTitle, removeTerminal]);
