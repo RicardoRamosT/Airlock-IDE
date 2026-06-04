@@ -75,6 +75,10 @@ export async function readAudit(
   return entries.slice(entries.length - limit);
 }
 
+/**
+ * Verifies integrity and linkage of all PRESENT entries. Silent truncation
+ * of trailing entries is undetectable by design (no external head pointer).
+ */
 export async function verifyAuditChain(root: string): Promise<boolean> {
   const entries = await readEntries(root);
   let prev = GENESIS;
