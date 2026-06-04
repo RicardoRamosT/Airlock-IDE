@@ -16,7 +16,7 @@ const COMMON_NAMES = [
 export function SecretModal() {
   const { modal, setModal, setSecrets, config } = useApp();
   const updating =
-    modal !== null && modal !== "add-secret" ? modal.update : null;
+    typeof modal === "object" && modal !== null ? modal.update : null;
   const [name, setName] = useState(updating ?? "");
   const [value, setValue] = useState("");
   const [show, setShow] = useState(false);

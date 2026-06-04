@@ -14,6 +14,18 @@ export interface TerminalEntry {
   ptyId: string | null;
 }
 
+export type DbView =
+  | { kind: "secret"; id: string; schema: string; table: string }
+  | {
+      kind: "neon";
+      projectId: string;
+      branchId: string;
+      database: string;
+      role: string;
+      schema: string;
+      table: string;
+    };
+
 let termCounter = 0;
 const newEntry = (): TerminalEntry => ({
   id: `term-${++termCounter}`,
@@ -40,9 +52,9 @@ interface AppState {
   // A vaulted DB table being browsed in the viewer-pane. Like settingsOpen and
   // file/diff this is part of the viewer-pane discriminator: only one of
   // file/diff/settings/dbView is non-null at a time (mutual exclusion).
-  dbView: { id: string; schema: string; table: string } | null;
+  dbView: DbView | null;
   layoutHydrated: boolean; // default false
-  modal: "add-secret" | { update: string } | null;
+  modal: "add-secret" | { update: string } | "connect-neon" | null;
   diff: {
     path: string;
     which: "staged" | "unstaged";
@@ -52,7 +64,7 @@ interface AppState {
   setRoot: (root: string | null) => void;
   setSelected: (relPath: string | null, file: FileContent | null) => void;
   setDiff: (diff: AppState["diff"]) => void;
-  setDbView: (v: AppState["dbView"]) => void;
+  setDbView: (v: DbView | null) => void;
   setSecrets: (secrets: SecretMeta[]) => void;
   setConfig: (config: ProjectConfig | null) => void;
   setGitStatus: (gitStatus: GitStatus | null) => void;

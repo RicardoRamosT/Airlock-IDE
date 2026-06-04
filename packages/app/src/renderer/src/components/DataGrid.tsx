@@ -36,13 +36,24 @@ export function DataGrid() {
 
   useEffect(() => {
     if (!dbView) return;
-    const { id, schema, table } = dbView;
+    const view = dbView;
     let cancelled = false;
     setLoading(true);
     setError(null);
     setResult(null);
-    window.airlock
-      .dbRows(id, schema, table, 100)
+    const rows =
+      view.kind === "neon"
+        ? window.airlock.neonRows(
+            view.projectId,
+            view.branchId,
+            view.database,
+            view.role,
+            view.schema,
+            view.table,
+            100,
+          )
+        : window.airlock.dbRows(view.id, view.schema, view.table, 100);
+    rows
       .then((r) => {
         if (!cancelled) setResult(r);
       })
