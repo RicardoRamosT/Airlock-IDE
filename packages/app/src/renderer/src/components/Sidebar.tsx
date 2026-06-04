@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useApp } from "../store";
+import { AuditSection } from "./AuditSection";
 import { FileTree } from "./FileTree";
 import { SecretsSection } from "./SecretsSection";
 
@@ -49,8 +50,8 @@ export function Sidebar() {
       <Section title="Git" dim>
         <div className="section-note">week 8</div>
       </Section>
-      <Section title="Agent Log" dim>
-        <div className="section-note">week 3</div>
+      <Section title="Audit">
+        <AuditSection />
       </Section>
     </aside>
   );

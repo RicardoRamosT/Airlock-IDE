@@ -356,3 +356,24 @@ body,
   gap: 8px;
   margin-top: 4px;
 }
+
+.audit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.audit-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+.audit-time {
+  color: var(--fg-dim);
+}
+
+.audit-op {
+  color: var(--fg);
+}
