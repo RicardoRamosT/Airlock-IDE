@@ -3,6 +3,9 @@ import { Entry } from "@napi-rs/keyring";
 /**
  * Indirection over the OS keychain so the broker is testable with an
  * in-memory fake. The system implementation talks to the macOS Keychain.
+ * Note: get() returns null for both not-found and platform errors (locked
+ * keychain, access denied) - callers cannot distinguish; inject surfaces
+ * these as "missing". set() propagates write failures as thrown errors.
  */
 export interface KeychainStore {
   set(service: string, account: string, value: string): void;

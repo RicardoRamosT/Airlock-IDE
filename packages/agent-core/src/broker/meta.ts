@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** Names and metadata ONLY. Secret values never appear in this file. */
@@ -29,6 +29,11 @@ async function writeMetaList(root: string, list: SecretMeta[]): Promise<void> {
   const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
   const tmp = `${file}.tmp`;
   await writeFile(tmp, `${JSON.stringify(sorted, null, 2)}\n`, "utf8");
+  try {
+    await copyFile(file, `${file}.bak`);
+  } catch {
+    // No existing file yet - first write has nothing to back up.
+  }
   await rename(tmp, file);
 }
 

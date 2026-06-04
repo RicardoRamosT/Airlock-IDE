@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -33,6 +33,15 @@ describe("secrets meta index", () => {
     };
     await upsertMeta(root, updated);
     expect(await readMeta(root)).toEqual([updated]);
+  });
+
+  it("keeps a one-version backup on rewrite", async () => {
+    await upsertMeta(root, metaA);
+    await upsertMeta(root, { ...metaA, name: "B" });
+    const bak = JSON.parse(
+      await readFile(path.join(root, ".airlock", "secrets.json.bak"), "utf8"),
+    );
+    expect(bak).toEqual([metaA]);
   });
 
   it("sorts by name and removes", async () => {
