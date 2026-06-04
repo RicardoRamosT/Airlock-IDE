@@ -10,6 +10,11 @@ import { Entry } from "@napi-rs/keyring";
 export interface KeychainStore {
   set(service: string, account: string, value: string): void;
   get(service: string, account: string): string | null;
+  /**
+   * Returns false on both not-found and platform failure; deleteSecret
+   * proceeds either way, so a silently failed OS delete leaves the value
+   * in the keychain while meta and audit say deleted (known v1 limitation).
+   */
   delete(service: string, account: string): boolean;
 }
 

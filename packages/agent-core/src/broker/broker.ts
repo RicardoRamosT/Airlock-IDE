@@ -117,7 +117,7 @@ export async function importDotEnv(
     imported.push(await setSecret(root, name, value, opts));
   }
   let deleted = false;
-  if (opts.deleteAfter && imported.length > 0) {
+  if (opts.deleteAfter && imported.length > 0 && skipped.length === 0) {
     await unlink(abs);
     deleted = true;
   }

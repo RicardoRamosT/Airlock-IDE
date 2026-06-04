@@ -106,4 +106,32 @@ describe("broker", () => {
     const ops = (await readAudit(root)).map((e) => e.op);
     expect(ops).toEqual(["secret.set", "secret.delete", "secret.inject"]);
   });
+
+  it("preserves the file when deleteAfter is set but entries were skipped", async () => {
+    const envPath = path.join(root, ".env");
+    await writeFile(envPath, "GOOD=value\nEMPTY=\n");
+    const result = await importDotEnv(root, ".env", {
+      keychain: fake,
+      deleteAfter: true,
+    });
+    expect(result.imported.map((m) => m.name)).toEqual(["GOOD"]);
+    expect(result.skipped).toEqual(["EMPTY"]);
+    expect(result.deleted).toBe(false);
+    await expect(stat(envPath)).resolves.toBeDefined();
+  });
+
+  it("audits imports with the secret.import op", async () => {
+    await writeFile(path.join(root, ".env"), "A=1\n");
+    await importDotEnv(root, ".env", { keychain: fake });
+    const ops = (await readAudit(root)).map((e) => e.op);
+    expect(ops).toEqual(["secret.set", "secret.import"]);
+  });
+
+  it("preserves createdAt across updates", async () => {
+    const first = await setSecret(root, "K", "v1", { keychain: fake });
+    await new Promise((r) => setTimeout(r, 5));
+    const second = await setSecret(root, "K", "v2", { keychain: fake });
+    expect(second.createdAt).toBe(first.createdAt);
+    expect(second.updatedAt).not.toBe(first.updatedAt);
+  });
 });
