@@ -26,6 +26,7 @@ import {
   readProjectConfig,
   readRows,
   readWorkspaceFile,
+  redactConnStrings,
   runGit,
   setSecret,
   stageFiles,
@@ -253,16 +254,30 @@ export function registerIpc(
       return { ok: true };
     } catch (err) {
       // Message-only: never the connection string / stack / error object.
+      // redactConnStrings is the enforcing layer: even if a pg upgrade or a
+      // DNS/driver error echoes the full connstr, the password is scrubbed
+      // before it crosses IPC to the renderer.
       return {
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: redactConnStrings(
+          err instanceof Error ? err.message : String(err),
+        ),
       };
     }
   });
 
   ipcMain.handle("db:tables", async (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
-    return withDb(await dbConnString(id), (run) => listTables(run));
+    try {
+      return await withDb(await dbConnString(id), (run) => listTables(run));
+    } catch (err) {
+      // Message-only, never the connection string / stack. redactConnStrings is
+      // the enforcing layer; we deliberately do NOT attach `cause` so the raw
+      // error object (which could carry the connstr) never crosses IPC.
+      throw new Error(
+        redactConnStrings(err instanceof Error ? err.message : String(err)),
+      );
+    }
   });
 
   ipcMain.handle(
@@ -283,11 +298,20 @@ export function registerIpc(
       }
       const lim = typeof limit === "number" ? limit : 100;
       // explorer.readRows quotes identifiers and clamps the limit; on a query
-      // error withDb rejects with a pg Error whose .message may echo the SQL
-      // but NOT the password. The renderer surfaces err.message only.
-      return withDb(await dbConnString(id), (run) =>
-        readRows(run, schema, table, lim),
-      );
+      // error withDb rejects with a pg Error whose .message may echo the SQL.
+      // The renderer surfaces err.message only, and redactConnStrings is the
+      // enforcing layer that scrubs any connstr from that message. We rethrow a
+      // fresh Error with NO `cause` so the raw error object (which could carry
+      // the connstr) never crosses IPC.
+      try {
+        return await withDb(await dbConnString(id), (run) =>
+          readRows(run, schema, table, lim),
+        );
+      } catch (err) {
+        throw new Error(
+          redactConnStrings(err instanceof Error ? err.message : String(err)),
+        );
+      }
     },
   );
 

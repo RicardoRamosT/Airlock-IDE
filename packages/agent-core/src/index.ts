@@ -32,7 +32,7 @@ export {
   validateSecretName,
 } from "./broker/validators";
 export { withDb } from "./db/client";
-export { type DbInfo, parseConnString } from "./db/connstr";
+export { type DbInfo, parseConnString, redactConnStrings } from "./db/connstr";
 export {
   type DbRunner,
   type DbTable,
