@@ -10,6 +10,9 @@ import type {
   GhStatus,
   GitStatus,
   ImportResult,
+  NeonBranch,
+  NeonDatabase,
+  NeonProject,
   ProjectConfig,
   QueryResult,
   SecretMeta,
@@ -27,6 +30,9 @@ export type {
   GhStatus,
   GitStatus,
   ImportResult,
+  NeonBranch,
+  NeonDatabase,
+  NeonProject,
   ProjectConfig,
   QueryResult,
   SecretMeta,
@@ -129,6 +135,36 @@ export interface AirlockApi {
   dbTables(id: string): Promise<DbTable[]>;
   dbRows(
     id: string,
+    schema: string,
+    table: string,
+    limit: number,
+  ): Promise<QueryResult>;
+  // Neon: REST-backed control plane (status/connect) + branch-scoped data
+  // access. The API key crosses only on neonConnect; thereafter projects are
+  // addressed by id. ping/tables/rows mirror the db* shape but are keyed by
+  // (projectId, branchId, database, role) instead of a vaulted secret name.
+  neonStatus(): Promise<{ connected: boolean }>;
+  neonConnect(key: string): Promise<{ connected: boolean }>;
+  neonProjects(): Promise<NeonProject[]>;
+  neonBranches(projectId: string): Promise<NeonBranch[]>;
+  neonDatabases(projectId: string, branchId: string): Promise<NeonDatabase[]>;
+  neonPing(
+    projectId: string,
+    branchId: string,
+    database: string,
+    role: string,
+  ): Promise<{ ok: boolean; error?: string }>;
+  neonTables(
+    projectId: string,
+    branchId: string,
+    database: string,
+    role: string,
+  ): Promise<DbTable[]>;
+  neonRows(
+    projectId: string,
+    branchId: string,
+    database: string,
+    role: string,
     schema: string,
     table: string,
     limit: number,
