@@ -42,10 +42,10 @@ function parseEntry(line: string): AuditEntry | null {
 // Returns one slot per non-empty line; a null slot is a line that failed to
 // parse (corrupt JSON). Reading the file is best-effort: a missing/unreadable
 // file yields no entries rather than throwing.
-async function readEntries(root: string): Promise<(AuditEntry | null)[]> {
+async function readEntries(logFile: string): Promise<(AuditEntry | null)[]> {
   let text: string;
   try {
-    text = await readFile(auditFile(root), "utf8");
+    text = await readFile(logFile, "utf8");
   } catch {
     return [];
   }
@@ -55,15 +55,19 @@ async function readEntries(root: string): Promise<(AuditEntry | null)[]> {
     .map((l) => parseEntry(l));
 }
 
-export async function appendAudit(
-  root: string,
+// Append a hash-chained entry to an EXPLICIT log file. Same chain logic as
+// appendAudit, but the caller supplies the path directly rather than deriving
+// it from a project root. Used for the app-global audit chain (under userData),
+// which is not rooted in any one project folder.
+export async function appendAuditAt(
+  logFile: string,
   actor: AuditEntry["actor"],
   op: string,
   detail: Record<string, unknown>,
   nowIso?: string,
 ): Promise<AuditEntry> {
   // Skip corrupt lines and link to the last PARSEABLE entry's hash.
-  const entries = (await readEntries(root)).filter(
+  const entries = (await readEntries(logFile)).filter(
     (e): e is AuditEntry => e !== null,
   );
   const prevHash =
@@ -78,9 +82,19 @@ export async function appendAudit(
     prevHash,
   };
   const entry: AuditEntry = { ...partial, hash: computeHash(partial) };
-  await mkdir(path.dirname(auditFile(root)), { recursive: true });
-  await appendFile(auditFile(root), `${JSON.stringify(entry)}\n`, "utf8");
+  await mkdir(path.dirname(logFile), { recursive: true });
+  await appendFile(logFile, `${JSON.stringify(entry)}\n`, "utf8");
   return entry;
+}
+
+export async function appendAudit(
+  root: string,
+  actor: AuditEntry["actor"],
+  op: string,
+  detail: Record<string, unknown>,
+  nowIso?: string,
+): Promise<AuditEntry> {
+  return appendAuditAt(auditFile(root), actor, op, detail, nowIso);
 }
 
 export async function readAudit(
@@ -88,7 +102,7 @@ export async function readAudit(
   limit?: number,
 ): Promise<AuditEntry[]> {
   // Best-effort display: skip corrupt lines rather than throwing on them.
-  const entries = (await readEntries(root)).filter(
+  const entries = (await readEntries(auditFile(root))).filter(
     (e): e is AuditEntry => e !== null,
   );
   if (limit === undefined || entries.length <= limit) return entries;
@@ -102,7 +116,7 @@ export async function readAudit(
  * (no external head pointer).
  */
 export async function verifyAuditChain(root: string): Promise<boolean> {
-  const entries = await readEntries(root);
+  const entries = await readEntries(auditFile(root));
   let prev = GENESIS;
   for (const e of entries) {
     // A corrupt (unparseable) line is an integrity failure, not a crash.

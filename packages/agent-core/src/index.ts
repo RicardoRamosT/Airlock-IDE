@@ -4,18 +4,21 @@
 export {
   type AuditEntry,
   appendAudit,
+  appendAuditAt,
   readAudit,
   verifyAuditChain,
 } from "./audit/audit";
 export {
   type BrokerOptions,
   deleteSecret,
+  getGlobalSecret,
   getSecretValue,
   type ImportResult,
   type InjectResult,
   importDotEnv,
   injectInto,
   listSecrets,
+  setGlobalSecret,
   setSecret,
 } from "./broker/broker";
 export {

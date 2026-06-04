@@ -2,7 +2,13 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { appendAudit, readAudit, verifyAuditChain } from "./audit";
+import {
+  type AuditEntry,
+  appendAudit,
+  appendAuditAt,
+  readAudit,
+  verifyAuditChain,
+} from "./audit";
 
 let root: string;
 
@@ -65,5 +71,22 @@ describe("audit", () => {
     for (let i = 0; i < 5; i++) await appendAudit(root, "user", `op${i}`, {});
     const tail = await readAudit(root, 2);
     expect(tail.map((e) => e.op)).toEqual(["op3", "op4"]);
+  });
+
+  it("appends a hash-chained entry at an explicit file path", async () => {
+    // appendAuditAt takes the log file directly (no .airlock/audit derivation),
+    // mkdir -p's its parent, and writes a parseable JSONL entry.
+    const logFile = path.join(root, "nested", "global.jsonl");
+    const a = await appendAuditAt(logFile, "user", "x.y", { a: 1 });
+    const text = await readFile(logFile, "utf8");
+    const lines = text.trimEnd().split("\n");
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0] ?? "") as AuditEntry;
+    expect(parsed.op).toBe("x.y");
+    expect(parsed.detail).toEqual({ a: 1 });
+    expect(parsed.hash).toBe(a.hash);
+    // A second call links prevHash to the first entry's hash.
+    const b = await appendAuditAt(logFile, "user", "x.z", { a: 2 });
+    expect(b.prevHash).toBe(a.hash);
   });
 });

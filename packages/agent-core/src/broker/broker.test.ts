@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readAudit } from "../audit/audit";
 import {
   deleteSecret,
+  getGlobalSecret,
   getSecretValue,
   importDotEnv,
   injectInto,
   listSecrets,
+  setGlobalSecret,
   setSecret,
 } from "./broker";
 import type { KeychainStore } from "./keychain";
@@ -224,5 +226,43 @@ describe("broker", () => {
       name: "DANGLING",
       keychainDeleted: false,
     });
+  });
+
+  it("vaults and reads an app-global secret round-trip", async () => {
+    await setGlobalSecret("NEON_API_KEY", "v", { keychain: fake });
+    expect(await getGlobalSecret("NEON_API_KEY", { keychain: fake })).toBe("v");
+  });
+
+  it("returns null for an unset app-global secret", async () => {
+    expect(
+      await getGlobalSecret("NEON_API_KEY", { keychain: fake }),
+    ).toBeNull();
+  });
+
+  it("stores app-global secrets under the @global namespace", async () => {
+    await setGlobalSecret("NEON_API_KEY", "v", { keychain: fake });
+    // The fake records keys as "<service>|<account>". The account must be the
+    // reserved global namespace, which a project secret ("<id>:<name>") can
+    // never produce, so there is no cross-project collision.
+    expect([...store.keys()]).toContain("airlock|@global/NEON_API_KEY");
+  });
+
+  it("rejects an empty app-global secret value", async () => {
+    await expect(
+      setGlobalSecret("NEON_API_KEY", "", { keychain: fake }),
+    ).rejects.toThrow(/empty/i);
+  });
+
+  it("audits setGlobalSecret to the app-global chain when auditLog is set", async () => {
+    const auditLog = path.join(root, "global-audit.jsonl");
+    await setGlobalSecret("NEON_API_KEY", "v", { keychain: fake, auditLog });
+    const text = await readFile(auditLog, "utf8");
+    const lines = text.trimEnd().split("\n");
+    expect(lines).toHaveLength(1);
+    const entry = JSON.parse(lines[0] ?? "");
+    expect(entry.op).toBe("secret.global.set");
+    expect(entry.detail).toEqual({ name: "NEON_API_KEY" });
+    // First entry in a fresh chain links to genesis (all zeros).
+    expect(entry.prevHash).toBe("0".repeat(64));
   });
 });

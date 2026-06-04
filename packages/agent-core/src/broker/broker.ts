@@ -1,5 +1,5 @@
 import { readFile, unlink } from "node:fs/promises";
-import { appendAudit } from "../audit/audit";
+import { appendAudit, appendAuditAt } from "../audit/audit";
 import { projectIdFor } from "../project/id";
 import { resolveWithin } from "../workspace/tree";
 import { isDangerousEnvName } from "./dangerous";
@@ -105,6 +105,54 @@ export async function getSecretValue(
 ): Promise<string | null> {
   const keychain = opts.keychain ?? systemKeychain;
   return keychain.get(SERVICE, await accountFor(root, name));
+}
+
+// Reserved app-global keychain namespace. accountFor() yields "<id>:<name>"
+// where id is "<basename>-<8hex>" -- never starts with "@" nor contains "/",
+// so "@global/<name>" can never collide with a project secret account.
+function globalAccountFor(name: string): string {
+  return `@global/${name}`;
+}
+
+// ===========================================================================
+// !!! MAIN-ONLY -- APP-GLOBAL BY-NAME VALUE PATH OUT OF THE BROKER !!!
+// ---------------------------------------------------------------------------
+// getGlobalSecret returns an account-level credential's RAW value (e.g. a Neon
+// or Render API key) so main can use it LOCALLY -- for instance, calling the
+// Neon API on the user's behalf. Account-level keys are not tied to one
+// project, hence the "@global" namespace instead of a projectId scope. This is
+// the SAME hard rule as getSecretValue:
+//
+//   * NEVER register this as an agent tool.
+//   * NEVER return its result over renderer IPC.
+//   * Only main-side handlers may call it; the renderer/agent get derived,
+//     redacted data ONLY -- never the credential itself.
+//
+// If you find yourself wanting this value anywhere outside main, STOP -- you
+// almost certainly want a redacted projection instead.
+// ===========================================================================
+export async function getGlobalSecret(
+  name: string,
+  opts: BrokerOptions = {},
+): Promise<string | null> {
+  const keychain = opts.keychain ?? systemKeychain;
+  return keychain.get(SERVICE, globalAccountFor(name));
+}
+
+// Vault an app-global secret. Write-only from the renderer's view. Audited to
+// the app-global chain when auditLog is provided (main passes the userData log
+// path, since a global write can happen with no project folder open).
+export async function setGlobalSecret(
+  name: string,
+  value: string,
+  opts: BrokerOptions & { auditLog?: string } = {},
+): Promise<void> {
+  const keychain = opts.keychain ?? systemKeychain;
+  if (!value) throw new Error("Empty secret value");
+  keychain.set(SERVICE, globalAccountFor(name), value);
+  if (opts.auditLog) {
+    await appendAuditAt(opts.auditLog, "user", "secret.global.set", { name });
+  }
 }
 
 export interface InjectResult {
