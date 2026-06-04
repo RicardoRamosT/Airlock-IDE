@@ -37,12 +37,52 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // early shell-prompt bytes were dropped while the old code was still
     // waiting in the .then to subscribe. Listeners now exist before the invoke
     // resolves, so the renderer is already listening when the id arrives.
+    //
+    // But "id === idRef.current" alone still drops the very first bytes: the
+    // shell prompt is emitted as soon as main starts forwarding, which can be
+    // BEFORE the ptyCreate promise resolves and sets idRef. Those events fail
+    // the id check and vanish. So buffer any pre-adopt bytes and flush them on
+    // adopt. This is safe without keying on id because each TerminalPane owns
+    // its own preload subscription and has exactly one in-flight ptyCreate, so
+    // any pre-adopt pty:data reaching THIS pane's listener belongs to THIS pane.
     const idRef = { current: null as string | null };
     let exited = false;
     let disposed = false;
+    const pending: string[] = [];
+
+    // Renderer-side flow control. xterm's write(data, cb) fires cb once that
+    // chunk is parsed/flushed, so we can count outstanding (unflushed) bytes.
+    // When the backlog crosses the high-water mark we send XOFF (\x13) over the
+    // pty input channel; session.ts spawns with handleFlowControl, so node-pty
+    // intercepts that marker and pause()s the child - real backpressure under a
+    // flood (e.g. cat-ing a huge file). When the backlog drains below the
+    // low-water mark the flush callback sends XON (\x11) to resume(). The
+    // hysteresis gap (HIGH vs LOW) avoids thrashing pause/resume on every chunk.
+    let unflushed = 0;
+    let paused = false;
+    const HIGH = 1_000_000; // ~1MB outstanding -> pause the child
+    const LOW = 100_000; // drained below this -> resume the child
+    const writeChunk = (data: string) => {
+      unflushed += data.length;
+      if (!paused && unflushed > HIGH && idRef.current) {
+        paused = true;
+        window.airlock.ptyInput(idRef.current, "\x13"); // XOFF -> node-pty pause()
+      }
+      term.write(data, () => {
+        unflushed -= data.length;
+        if (paused && unflushed < LOW && idRef.current) {
+          paused = false;
+          window.airlock.ptyInput(idRef.current, "\x11"); // XON -> node-pty resume()
+        }
+      });
+    };
 
     const offData = window.airlock.onPtyData((e) => {
-      if (e.id === idRef.current) term.write(e.data);
+      if (idRef.current === null) {
+        pending.push(e.data);
+        return;
+      }
+      if (e.id === idRef.current) writeChunk(e.data);
     });
     const offExit = window.airlock.onPtyExit((e) => {
       if (e.id === idRef.current) {
@@ -56,10 +96,17 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       .then((id) => {
         if (disposed) {
           // Late resolve after unmount: the session would orphan; kill it.
+          // Return BEFORE flushing - the terminal is gone, so pending bytes
+          // must not be written into a disposed instance.
           window.airlock.ptyKill(id);
           return;
         }
         idRef.current = id;
+        // Flush pre-adopt bytes now that the id is known. Route through
+        // writeChunk so buffered output also counts toward the flow-control
+        // high-water mark.
+        for (const d of pending) writeChunk(d);
+        pending.length = 0;
         setTerminalPty(terminalId, id);
       })
       .catch((err) => {
