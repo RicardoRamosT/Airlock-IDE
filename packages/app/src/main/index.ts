@@ -65,6 +65,15 @@ function bootstrap(): void {
     // process.env unchanged.
     loginEnv = await captureLoginEnv();
 
+    // Finder-launched packaged apps inherit launchd's minimal PATH (no
+    // /opt/homebrew/bin), so the main process cannot resolve CLIs like `gh`
+    // -- execFile("gh") fails ENOENT and the accounts panel wrongly reports
+    // "not found". Adopt the captured login PATH for the main process so every
+    // tool airlock shells out to (gh, git, and the agent's future run_command)
+    // resolves against the user's real PATH. PTYs already build env from
+    // loginEnv, so this only aligns main's own lookups -- no double effect.
+    if (loginEnv.PATH) process.env.PATH = loginEnv.PATH;
+
     // Dev runs the stock Electron binary, which owns the dock identity; at least
     // give it our icon at runtime. Packaged builds get name+icon from the bundle.
     if (!app.isPackaged && process.platform === "darwin" && app.dock) {
