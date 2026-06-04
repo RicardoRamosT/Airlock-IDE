@@ -617,7 +617,8 @@ body,
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 8px;
-  background: #2d1f12;
+  /* translucent amber so the pill reads on both dark and light backgrounds */
+  background: rgba(210, 153, 34, 0.16);
   color: #d29922;
 }
 
