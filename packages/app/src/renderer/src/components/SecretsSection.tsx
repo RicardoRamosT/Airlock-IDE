@@ -38,7 +38,7 @@ export function SecretsSection() {
       await refresh();
       setNeedsRestart(true);
       setImportMsg(
-        `Imported ${r.imported.length}${r.deleted ? ", .env deleted" : ""}${r.skipped.length ? `, skipped: ${r.skipped.join(", ")}` : ""}`,
+        `Imported ${r.imported.length}${r.deleted ? ", .env deleted" : ""}${r.skipped.length ? `, skipped: ${r.skipped.join(", ")}` : ""}${r.failed.length ? `, failed: ${r.failed.join(", ")}` : ""}`,
       );
     } catch (err) {
       setImportMsg(
