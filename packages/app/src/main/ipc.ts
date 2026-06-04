@@ -88,14 +88,25 @@ export function registerIpc(): void {
     if (workspaceRoot) {
       const cfg = await readProjectConfig(workspaceRoot);
       if (cfg.injectSecretsIntoTerminal) {
-        const r = await injectInto(workspaceRoot, {});
-        const { safe, blocked } = filterDangerousEnv(r.env);
-        secretEnv = safe;
-        if (blocked.length > 0) {
-          await appendAudit(workspaceRoot, "user", "secret.inject.blocked", {
-            names: blocked,
-            reason: "dangerous env name at spawn site",
-          });
+        try {
+          const r = await injectInto(workspaceRoot, {});
+          const { safe, blocked } = filterDangerousEnv(r.env);
+          secretEnv = safe;
+          if (blocked.length > 0) {
+            await appendAudit(workspaceRoot, "user", "secret.inject.blocked", {
+              names: blocked,
+              reason: "dangerous env name at spawn site",
+            });
+          }
+        } catch (err) {
+          // Fail-closed is for agent actions (spec section 10); a human's
+          // terminal must still open - just without secrets, which is the
+          // safe direction.
+          console.error(
+            "[pty:create] injection/audit failed, spawning without secrets:",
+            err,
+          );
+          secretEnv = undefined;
         }
       }
     }
