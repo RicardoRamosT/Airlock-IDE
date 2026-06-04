@@ -1,12 +1,35 @@
 {
   "name": "@airlock/app",
   "version": "0.1.0",
+  "description": "Terminal-first AI IDE where the agent can't read your secrets",
+  "author": "Ricardo Ramos",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build"
+    "build": "electron-vite build",
+    "package": "electron-vite build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.ricardoramos.airlock",
+    "productName": "airlock",
+    "electronVersion": "42.3.2",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "identity": null
+    }
   },
   "dependencies": {
+    "node-pty": "^1.1.0",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.11",
     "@codemirror/lang-javascript": "^6.2.5",

@@ -20,3 +20,15 @@ npm run lint
 ```
 
 macOS only for now (by design — see spec §2).
+
+## Package (real airlock.app for daily use)
+
+```bash
+npm run package   # → packages/app/release/mac-arm64/airlock.app
+```
+
+Drag it to /Applications (or the dock). Unsigned — local use only.
+Note: in `npm run dev` the dock may still show "Electron" (the dev binary's
+identity); the packaged app shows the airlock name + icon everywhere.
+To rebrand: replace `packages/app/build/icon.svg`, run
+`bash packages/app/scripts/make-icon.sh`, re-package.

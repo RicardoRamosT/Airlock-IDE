@@ -1,6 +1,8 @@
 import path from "node:path";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, nativeImage } from "electron";
 import { killAllSessions, registerIpc } from "./ipc";
+
+app.setName("airlock");
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -28,6 +30,15 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Dev runs the stock Electron binary, which owns the dock identity; at least
+  // give it our icon at runtime. Packaged builds get name+icon from the bundle.
+  if (!app.isPackaged && process.platform === "darwin" && app.dock) {
+    app.dock.setIcon(
+      nativeImage.createFromPath(
+        path.join(__dirname, "../../build/icon-512.png"),
+      ),
+    );
+  }
   registerIpc();
   createWindow();
 });

@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p packages/agent-core --noEmit && tsc -p packages/app --noEmit",
     "lint": "biome check .",
-    "rebuild": "electron-rebuild -f -w node-pty"
+    "rebuild": "electron-rebuild -f -w node-pty",
+    "package": "npm run package -w @airlock/app"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
@@ -19,6 +20,7 @@
     "@types/node": "^25.9.1",
     "@vitejs/plugin-react": "^6.0.2",
     "electron": "^42.3.2",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
