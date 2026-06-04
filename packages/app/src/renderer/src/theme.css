@@ -1277,3 +1277,71 @@ textarea:focus-visible {
   color: var(--fg-dim);
   font-style: italic;
 }
+
+/* Docker section. Reuses the row/dot vocabulary from the Databases section:
+   a flex row with a status-dot, the container name, a dim image, and a
+   trailing start/stop action button. All colors via theme vars. */
+.docker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.docker-row:hover {
+  background: var(--hover);
+}
+
+.docker-name {
+  font-size: 12px;
+  font-family: "SF Mono", Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-image {
+  font-size: 11px;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-action {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.docker-action:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.docker-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.docker-action .codicon {
+  font-size: 14px;
+}
