@@ -34,6 +34,7 @@ interface AppState {
   maximized: boolean;
   sidebarVisible: boolean; // app-global (persisted), not per-project
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
+  layoutHydrated: boolean; // default false
   modal: "add-secret" | { update: string } | null;
   diff: {
     path: string;
@@ -59,6 +60,7 @@ interface AppState {
   toggleSidebar: () => void;
   setSidebarPosition: (p: "left" | "right") => void;
   toggleSidebarPosition: () => void;
+  setLayoutHydrated: (v: boolean) => void;
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -97,6 +99,7 @@ export const useApp = create<AppState>((set) => ({
   maximized: false,
   sidebarVisible: true,
   sidebarPosition: "left",
+  layoutHydrated: false,
   addTerminal: () => {
     const entry = newEntry();
     set((s) => ({
@@ -154,4 +157,5 @@ export const useApp = create<AppState>((set) => ({
     set((s) => ({
       sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
     })),
+  setLayoutHydrated: (v) => set({ layoutHydrated: v }),
 }));

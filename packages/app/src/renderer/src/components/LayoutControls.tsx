@@ -10,11 +10,13 @@ export function LayoutControls() {
 
   // Persist the two app-global prefs on change; maximize is transient (not saved).
   const onToggleSidebar = () => {
+    useApp.getState().setLayoutHydrated(true);
     const next = !sidebarVisible;
     toggleSidebar();
     void window.airlock.prefsSet({ sidebarVisible: next });
   };
   const onFlip = () => {
+    useApp.getState().setLayoutHydrated(true);
     const next = sidebarPosition === "left" ? "right" : "left";
     toggleSidebarPosition();
     void window.airlock.prefsSet({ sidebarPosition: next });

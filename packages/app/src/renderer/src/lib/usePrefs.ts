@@ -10,9 +10,10 @@ export function usePrefs(): void {
     window.airlock
       .prefsGet()
       .then((p) => {
-        if (cancelled) return;
+        if (cancelled || useApp.getState().layoutHydrated) return;
         setSidebarVisible(p.sidebarVisible);
         setSidebarPosition(p.sidebarPosition);
+        useApp.getState().setLayoutHydrated(true);
       })
       .catch(console.error);
     return () => {
