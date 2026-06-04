@@ -22,6 +22,16 @@ export type {
   SecretMeta,
 };
 
+/**
+ * App-global preferences (userData JSON) - distinct from per-project config
+ * and the keychain. Defined here as the single source of truth so both the
+ * main-process store (prefs.ts) and the renderer (via AirlockApi) share it.
+ */
+export interface AppPrefs {
+  sidebarVisible: boolean;
+  sidebarPosition: "left" | "right";
+}
+
 export interface PtyDataEvent {
   id: string;
   data: string;
@@ -62,4 +72,6 @@ export interface AirlockApi {
   gitSwitchBranch(name: string): Promise<void>;
   gitCreateBranch(name: string): Promise<void>;
   gitFileVersions(relPath: string, which: DiffSide): Promise<FileVersions>;
+  prefsGet(): Promise<AppPrefs>;
+  prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
 }

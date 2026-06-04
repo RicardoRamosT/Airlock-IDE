@@ -24,6 +24,8 @@ import {
   writeProjectConfig,
 } from "@airlock/agent-core";
 import { dialog, ipcMain } from "electron";
+import type { AppPrefs } from "../shared/ipc";
+import { loadPrefs, savePrefs } from "./prefs";
 
 let workspaceRoot: string | null = null;
 const sessions = new Map<string, PtySession>();
@@ -37,8 +39,13 @@ function requireRoot(): string {
 // PATH, locale). pty:create uses it as the base for every terminal. Passed
 // as an accessor so the latest captured value is read at spawn time and
 // ipc.ts holds no module-level mutable state.
+//
+// prefsFile is the absolute path to the app-global prefs JSON (userData). The
+// prefs:get/set handlers below are NOT requireRoot-gated -- preferences are
+// app-global and must work before any folder is opened.
 export function registerIpc(
   getBaseEnv: () => Record<string, string> = () => ({}),
+  prefsFile = "",
 ): void {
   ipcMain.handle("dialog:openFolder", async () => {
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
@@ -91,6 +98,14 @@ export function registerIpc(
         ? { injectSecretsIntoTerminal: p.injectSecretsIntoTerminal }
         : {};
     return writeProjectConfig(requireRoot(), clean);
+  });
+
+  // App-global prefs: NOT requireRoot-gated (work with no folder open).
+  ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
+
+  ipcMain.handle("prefs:set", (_e, patch: unknown) => {
+    if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
+    return savePrefs(prefsFile, patch as Partial<AppPrefs>);
   });
 
   ipcMain.handle("audit:read", (_e, limit: number) =>

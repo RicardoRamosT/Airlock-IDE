@@ -38,6 +38,8 @@ const api: AirlockApi = {
   gitCreateBranch: (name) => ipcRenderer.invoke("git:createBranch", name),
   gitFileVersions: (relPath, which) =>
     ipcRenderer.invoke("git:fileVersions", relPath, which),
+  prefsGet: () => ipcRenderer.invoke("prefs:get"),
+  prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

@@ -74,7 +74,10 @@ function bootstrap(): void {
         ),
       );
     }
-    registerIpc(() => loginEnv);
+    // App-global prefs live in userData (NOT per-project .airlock/). getPath
+    // is only valid after the app is ready, so compute it here before wiring.
+    const prefsFile = path.join(app.getPath("userData"), "prefs.json");
+    registerIpc(() => loginEnv, prefsFile);
     createWindow();
   });
 
