@@ -41,6 +41,14 @@ export {
   readRows,
 } from "./db/explorer";
 export {
+  type Container,
+  type DockerStatus,
+  dockerContainers,
+  dockerStart,
+  dockerStop,
+  parseDockerPs,
+} from "./docker/docker";
+export {
   commitStaged,
   createBranch,
   listBranches,
