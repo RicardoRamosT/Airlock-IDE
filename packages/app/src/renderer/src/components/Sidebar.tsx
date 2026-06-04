@@ -6,6 +6,7 @@ import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
+import { NeonSection } from "./NeonSection";
 import { SecretsSection } from "./SecretsSection";
 import { SidebarFooter } from "./SidebarFooter";
 
@@ -114,6 +115,7 @@ export function Sidebar() {
         )}
         {vis.databases && (
           <Section id="databases" title="Databases" defaultOpen={false}>
+            <NeonSection />
             <DatabasesSection />
           </Section>
         )}

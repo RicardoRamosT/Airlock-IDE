@@ -1197,6 +1197,15 @@ textarea:focus-visible {
   padding-left: 14px;
 }
 
+/* Neon tree nesting (projects -> branches -> databases). Each level steps in by
+   the same amount as .db-tables so the lazy hierarchy reads as a tree; the
+   innermost tables level reuses .db-tables itself. */
+.neon-children {
+  display: flex;
+  flex-direction: column;
+  padding-left: 14px;
+}
+
 .db-table-row {
   display: flex;
   align-items: center;
