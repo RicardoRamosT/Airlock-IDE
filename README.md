@@ -5,8 +5,9 @@
 
 **Status:** skeleton + secrets + git. A multi-terminal panel (tabs, split,
 rename), file tree, viewer split, keychain secrets with terminal injection,
-hash-chained audit, and a live git sidebar (stage/commit/branch/diffs) all
-work. The agent phase is next.
+hash-chained audit, a live git sidebar (stage/commit/branch/diffs), GitHub
+account switching, and a settings tab with dark/light themes all work. The
+agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -79,6 +80,23 @@ The sidebar shows the current branch (switch or create from the dropdown),
 staged/unstaged changes with one-click stage/unstage, and a commit box.
 Click any changed file for a unified diff in the viewer split. Push, pull,
 merge, and anything else: the terminal is right there.
+
+## GitHub accounts
+
+The sidebar footer's person icon opens a popover listing every account
+`gh` is logged into (across hosts), with a filled dot on the active one.
+Click another to switch it (`gh auth switch`), and a warning appears when
+the active GitHub account differs from the open repo's commit name. `gh`
+redacts the token, so airlock manages accounts without ever seeing
+credentials. Needs the GitHub CLI (`gh`) installed.
+
+## Settings & Themes
+
+The sidebar footer's gear icon opens a menu: **Settings** opens a tab in
+the viewer split (Appearance, Layout, and — with a folder open — Secrets),
+and **Themes** flips the whole app between **dark** and **light**. The
+theme is app-global and remembered across launches (in `prefs.json`); the
+terminal and editor re-theme in place without losing their state.
 
 ## Credits
 

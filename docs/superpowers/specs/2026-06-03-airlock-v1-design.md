@@ -261,7 +261,35 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 
 > *Revised again 2026-06-04 (layout-controls pass): the title bar gains a top-right layout cluster — three VS Code-style controls: **toggle sidebar** (show/hide), **flip sidebar side** (left ⇄ right), and **maximize terminal** (relocated here from the terminal tab strip). This introduces airlock's FIRST app-global preference store: a `prefs.json` under Electron's `userData` path, distinct from both the per-project `.airlock/config.json` and the OS keychain. Sidebar visibility + position are persisted there and rehydrated on startup, so they survive across launches. Maximize is deliberately transient (session-only) — it is a momentary focus action, not a saved layout, so it is never written to prefs. The pure read/write logic is electron-free and corruption-tolerant (malformed prefs fall back to defaults).*
 
-> *Revised again 2026-06-04 (maximize removed): the **maximize terminal** control was deleted from the layout cluster (now two buttons: toggle + flip). It was redundant for the terminal-first workflow — collapsing the sidebar already gives a full-width terminal, and the on-demand viewer has its own close (✕). The `maximized` store state and the `.app-shell.maximized` CSS were removed with it (no dead code). To go terminal-only: hide the sidebar and close the viewer.*
+> *Revised again 2026-06-04 (maximize removed): the **maximize terminal** control was deleted from the layout cluster (now two buttons: toggle + flip). It was redundant for the terminal-first workflow — collapsing the sidebar already gives a full-width terminal, and the on-demand viewer has its own close (✕). The `maximized` store state and the `.app-shell.maximized` CSS were removed with it (no dead code). To go terminal-only: hide the sidebar and close the viewer.
+
+> *Revised again 2026-06-04 (accounts / settings / themes pass): the sidebar gains a VS Code-style footer pinned to its bottom with two icon buttons — **accounts** (`codicon-account`, person) and **settings** (`codicon-gear`, gear) — each toggling a click-away popover.*
+>
+> ```text
+> ┌──────────────┬───────────────────────────┐
+> │ Files        │ Terminal / viewer split   │
+> │ Secrets      │                           │
+> │ Git          │   gear → Settings opens    │
+> │ Agent Log    │   here as a tab            │
+> │   (scrolls)  │                           │
+> ├──────────────┤                           │
+> │  (人)  (⚙)   │  ← sidebar footer          │
+> └──────────────┴───────────────────────────┘
+>   │     └ gear: Settings (Appearance / Layout / Secrets) + Themes ▸ (Dark / Light)
+>   └ person: GitHub accounts popover
+>       ✓ RicardoRamosT        github.com   ● active (filled dot)
+>         vnricardotrevino     github.com   ○ click to switch
+>       commits as vnricardotrevino <…>
+>       ⚠ active GitHub account (RicardoRamosT) does not match this repo's commit name
+> ```
+>
+> **GitHub accounts.** The person popover calls a new electron-free module, `agent-core/github/accounts.ts` (`execFile`-based, mirroring `git/run.ts` — ASCII comments, no Electron imports). It lists *every* account from `gh auth status` (multi-account and enterprise-host aware via a glyph-independent parser TDD'd against the real gh 2.87.3 output), draws a filled status dot on the **active** one and hollow dots on the rest, and switches on click via `gh auth switch --hostname <host> --user <name>` (host/username regex-validated against shell injection). It also reads the open repo's commit identity (`git config user.name` / `user.email`, null when no folder is open) and surfaces a **warning** when the active gh account differs from that commit name — the verified state on this machine (`RicardoRamosT` active vs `vnricardotrevino` in the repo). Crucially, **`gh` redacts the token** (`gho_****`), so airlock lists and switches accounts without ever seeing credentials — the secrets boundary (§7) is preserved. Exposed over two non-root-gated IPC channels: `github:info` (accounts + identity) and `github:switch`.
+>
+> **Settings tab.** The gear menu's **Settings** item opens an honest, lean Settings view **as a tab in the viewer-pane** (it takes that document slot, mutually exclusive with a file/diff). Sections surface airlock's *real, existing* options in one place: **Appearance** (theme radio), **Layout** (sidebar position Left/Right), and **Secrets** (the inject-into-terminal toggle, shown only when a folder is open). This supersedes the §9 "Settings = a JSON file, no settings UI in v1" line for the user-facing options above; `prefs.json` remains the persistence layer behind it.
+>
+> **Light theme + Themes.** A full **light** palette (GitHub light) ships under `:root[data-theme="light"]` in theme.css; structural hardcoded hexes were converted to vars so most UI re-themes for free. Theme is **app-global**, persisted in `prefs.json` (`AppPrefs.theme: "dark" | "light"`, default dark, garbage sanitized to dark) and rehydrated on startup riding the existing layoutHydrated guard. It is applied by setting `data-theme` on `<html>`, switchable from the gear's **Themes ▸** submenu (Dark / Light, active checked) or the Settings Appearance radio. The two non-CSS-var consumers are made theme-aware explicitly: **xterm** rebuilds its theme object from `store.theme` and updates `term.options.theme` live (the terminal does **not** remount on theme change — the PTY lifecycle is untouched), and **CM6** drops `oneDark` when light (its default reads on white) by adding `theme` to the viewer's rebuild deps.
+>
+> **Auto-update: explicitly DEFERRED.** Not built. It requires a real code-signing identity and a release host (update feed) that airlock does not yet have; with only ad-hoc signing it cannot work. The gear menu therefore contains *only* the items that map to real behavior — no faked Profile / Extensions / Snippets / Tasks / Sync / Update / Command Palette / Keyboard Shortcuts entries.*
 
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
