@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   appendAudit,
   commitStaged,
@@ -8,6 +9,7 @@ import {
   dockerStart,
   dockerStop,
   filterDangerousEnv,
+  getGlobalSecret,
   getSecretValue,
   ghAccounts,
   gitFileVersions,
@@ -19,6 +21,10 @@ import {
   listDirectory,
   listSecrets,
   listTables,
+  neonConnectionUri,
+  neonListBranches,
+  neonListDatabases,
+  neonListProjects,
   type PtySession,
   parseConnString,
   pingDb,
@@ -28,6 +34,7 @@ import {
   readWorkspaceFile,
   redactConnStrings,
   runGit,
+  setGlobalSecret,
   setSecret,
   stageFiles,
   switchBranch,
@@ -49,6 +56,23 @@ function requireRoot(): string {
   return workspaceRoot;
 }
 
+const NEON_KEY = "NEON_API_KEY";
+
+// MAIN-ONLY: resolve a Neon branch/db connection URI (carries a password).
+// NEVER returned over IPC -- only fed to withDb here.
+async function neonUri(
+  p: string,
+  b: string,
+  db: string,
+  role: string,
+): Promise<string> {
+  const key = await getGlobalSecret(NEON_KEY);
+  if (!key) throw new Error("Neon not connected");
+  return neonConnectionUri(key, p, b, db, role);
+}
+const allStr = (xs: unknown[]): boolean =>
+  xs.every((x) => typeof x === "string");
+
 // getBaseEnv supplies the login-shell env captured once at startup (real
 // PATH, locale). pty:create uses it as the base for every terminal. Passed
 // as an accessor so the latest captured value is read at spawn time and
@@ -61,6 +85,11 @@ export function registerIpc(
   getBaseEnv: () => Record<string, string> = () => ({}),
   prefsFile = "",
 ): void {
+  // App-global audit chain (userData-level), for global credential writes.
+  const globalAuditLog = prefsFile
+    ? path.join(path.dirname(prefsFile), "audit-global.jsonl")
+    : "";
+
   ipcMain.handle("dialog:openFolder", async () => {
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (r.canceled || r.filePaths.length === 0) return null;
@@ -323,6 +352,84 @@ export function registerIpc(
           readRows(run, schema, table, lim),
         );
       } catch (err) {
+        throw new Error(
+          redactConnStrings(err instanceof Error ? err.message : String(err)),
+        );
+      }
+    },
+  );
+
+  // Neon: app-global (account-level), so NOT requireRoot-gated. The API key
+  // and any fetched connection URI stay main-only; only metadata/rows cross.
+  ipcMain.handle("neon:status", async () => ({
+    connected: (await getGlobalSecret(NEON_KEY)) !== null,
+  }));
+  ipcMain.handle("neon:connect", async (_e, key: unknown) => {
+    if (typeof key !== "string" || !key.trim())
+      throw new Error("Invalid payload");
+    await setGlobalSecret(NEON_KEY, key.trim(), { auditLog: globalAuditLog });
+    return { connected: true };
+  });
+  ipcMain.handle("neon:projects", async () => {
+    const key = await getGlobalSecret(NEON_KEY);
+    if (!key) throw new Error("Neon not connected");
+    return neonListProjects(key);
+  });
+  ipcMain.handle("neon:branches", async (_e, p: unknown) => {
+    if (typeof p !== "string") throw new Error("Invalid payload");
+    const key = await getGlobalSecret(NEON_KEY);
+    if (!key) throw new Error("Neon not connected");
+    return neonListBranches(key, p);
+  });
+  ipcMain.handle("neon:databases", async (_e, p: unknown, b: unknown) => {
+    if (!allStr([p, b])) throw new Error("Invalid payload");
+    const key = await getGlobalSecret(NEON_KEY);
+    if (!key) throw new Error("Neon not connected");
+    return neonListDatabases(key, p as string, b as string);
+  });
+  ipcMain.handle("neon:ping", async (_e, p, b, db, role) => {
+    if (!allStr([p, b, db, role])) throw new Error("Invalid payload");
+    try {
+      await withDb(await neonUri(p, b, db, role), (run) => pingDb(run));
+      return { ok: true };
+    } catch (err) {
+      // Message-only, scrubbed: a Neon connection URI carries a password, so
+      // redactConnStrings is the enforcing layer even if a driver/DNS error
+      // echoes the full URI before it crosses IPC.
+      return {
+        ok: false,
+        error: redactConnStrings(
+          err instanceof Error ? err.message : String(err),
+        ),
+      };
+    }
+  });
+  ipcMain.handle("neon:tables", async (_e, p, b, db, role) => {
+    if (!allStr([p, b, db, role])) throw new Error("Invalid payload");
+    try {
+      return await withDb(await neonUri(p, b, db, role), (run) =>
+        listTables(run),
+      );
+    } catch (err) {
+      // Fresh Error, NO `cause`: the raw error object (which could carry the
+      // connection URI) never crosses IPC; the scrubbed message is all that does.
+      throw new Error(
+        redactConnStrings(err instanceof Error ? err.message : String(err)),
+      );
+    }
+  });
+  ipcMain.handle(
+    "neon:rows",
+    async (_e, p, b, db, role, schema, table, limit) => {
+      if (!allStr([p, b, db, role, schema, table]))
+        throw new Error("Invalid payload");
+      const lim = typeof limit === "number" ? limit : 100;
+      try {
+        return await withDb(await neonUri(p, b, db, role), (run) =>
+          readRows(run, schema as string, table as string, lim),
+        );
+      } catch (err) {
+        // Fresh Error, NO `cause` (mirrors db:rows): scrubbed message only.
         throw new Error(
           redactConnStrings(err instanceof Error ? err.message : String(err)),
         );
