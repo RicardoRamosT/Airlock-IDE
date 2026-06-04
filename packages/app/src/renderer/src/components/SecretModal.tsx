@@ -30,15 +30,14 @@ export function SecretModal() {
     try {
       const meta = await window.airlock.secretsSet(name.trim(), value);
       if (!meta.valid) {
-        // Stored, but the format check disagrees - surface it and let the
-        // user decide to fix or keep.
         setError(
           "Saved, but the value looks unusual for this name. Check the provider hint.",
         );
+      } else {
+        setSecrets(await window.airlock.secretsList());
+        setModal(null);
+        if (config?.injectSecretsIntoTerminal) restartTerminal();
       }
-      setSecrets(await window.airlock.secretsList());
-      setModal(null);
-      if (config?.injectSecretsIntoTerminal) restartTerminal();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -93,7 +92,10 @@ export function SecretModal() {
           <button
             type="button"
             className="btn"
-            onClick={() => setModal(null)}
+            onClick={async () => {
+              setSecrets(await window.airlock.secretsList());
+              setModal(null);
+            }}
             disabled={busy}
           >
             Cancel

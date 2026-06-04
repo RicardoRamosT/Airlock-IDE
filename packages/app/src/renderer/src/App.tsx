@@ -8,6 +8,7 @@ export function App() {
   const root = useApp((s) => s.root);
   const selectedFile = useApp((s) => s.selectedFile);
   const termNonce = useApp((s) => s.termNonce);
+  const modal = useApp((s) => s.modal);
   return (
     <div className="layout">
       <Sidebar />
@@ -19,7 +20,9 @@ export function App() {
           <TerminalPane key={`${root ?? "no-workspace"}:${termNonce}`} />
         </div>
       </div>
-      <SecretModal />
+      {modal !== null && (
+        <SecretModal key={typeof modal === "string" ? modal : modal.update} />
+      )}
     </div>
   );
 }
