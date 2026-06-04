@@ -277,8 +277,7 @@ body,
 
 /* Sidebar on the right: flip the grid columns and reorder the two children so
    the sidebar (DOM child 1) renders in the right column and main in the left.
-   The divider moves to the sidebar's left edge. order/border/columns only -- no
-   `display` here, so the maximize rules below still win for hiding. */
+   The divider moves to the sidebar's left edge. */
 .layout.sidebar-right {
   grid-template-columns: minmax(0, 1fr) 230px;
 }
@@ -715,16 +714,6 @@ textarea:focus-visible {
 }
 
 .terminal-pane-slot.hidden {
-  display: none;
-}
-
-/* Maximize hides the sidebar and the viewer split. We win the cascade with
-   specificity, not !important: `.app-shell.maximized .main .viewer-pane` (0,4,0)
-   beats the split rule `.main.split .viewer-pane` (0,3,0); the sidebar is
-   uncontested for `display` so `.app-shell.maximized .layout .sidebar` (0,3,0)
-   needs only to exist. */
-.app-shell.maximized .layout .sidebar,
-.app-shell.maximized .main .viewer-pane {
   display: none;
 }
 

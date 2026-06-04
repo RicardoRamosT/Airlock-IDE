@@ -261,6 +261,8 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 
 > *Revised again 2026-06-04 (layout-controls pass): the title bar gains a top-right layout cluster — three VS Code-style controls: **toggle sidebar** (show/hide), **flip sidebar side** (left ⇄ right), and **maximize terminal** (relocated here from the terminal tab strip). This introduces airlock's FIRST app-global preference store: a `prefs.json` under Electron's `userData` path, distinct from both the per-project `.airlock/config.json` and the OS keychain. Sidebar visibility + position are persisted there and rehydrated on startup, so they survive across launches. Maximize is deliberately transient (session-only) — it is a momentary focus action, not a saved layout, so it is never written to prefs. The pure read/write logic is electron-free and corruption-tolerant (malformed prefs fall back to defaults).*
 
+> *Revised again 2026-06-04 (maximize removed): the **maximize terminal** control was deleted from the layout cluster (now two buttons: toggle + flip). It was redundant for the terminal-first workflow — collapsing the sidebar already gives a full-width terminal, and the on-demand viewer has its own close (✕). The `maximized` store state and the `.app-shell.maximized` CSS were removed with it (no dead code). To go terminal-only: hide the sidebar and close the viewer.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │

@@ -3,12 +3,10 @@ import { useApp } from "../store";
 export function LayoutControls() {
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const sidebarPosition = useApp((s) => s.sidebarPosition);
-  const maximized = useApp((s) => s.maximized);
   const toggleSidebar = useApp((s) => s.toggleSidebar);
   const toggleSidebarPosition = useApp((s) => s.toggleSidebarPosition);
-  const toggleMaximized = useApp((s) => s.toggleMaximized);
 
-  // Persist the two app-global prefs on change; maximize is transient (not saved).
+  // Persist the two app-global prefs on change.
   const onToggleSidebar = () => {
     useApp.getState().setLayoutHydrated(true);
     const next = !sidebarVisible;
@@ -42,16 +40,6 @@ export function LayoutControls() {
         onClick={onFlip}
       >
         <i className="codicon codicon-arrow-swap" />
-      </button>
-      <button
-        type="button"
-        className="layout-btn"
-        title={maximized ? "Restore layout" : "Maximize terminal"}
-        onClick={toggleMaximized}
-      >
-        <i
-          className={`codicon codicon-screen-${maximized ? "normal" : "full"}`}
-        />
       </button>
     </div>
   );

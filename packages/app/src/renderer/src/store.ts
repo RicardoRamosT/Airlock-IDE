@@ -31,7 +31,6 @@ interface AppState {
   terminals: TerminalEntry[];
   activeTerminalId: string | null;
   splitTerminalId: string | null; // second visible pane; null = no split
-  maximized: boolean;
   sidebarVisible: boolean; // app-global (persisted), not per-project
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
   layoutHydrated: boolean; // default false
@@ -55,7 +54,6 @@ interface AppState {
   setTerminalPty: (id: string, ptyId: string) => void;
   setTerminalTitle: (id: string, title: string, fromUser: boolean) => void;
   setSplit: (id: string | null) => void;
-  toggleMaximized: () => void;
   setSidebarVisible: (v: boolean) => void;
   toggleSidebar: () => void;
   setSidebarPosition: (p: "left" | "right") => void;
@@ -83,7 +81,6 @@ export const useApp = create<AppState>((set) => ({
       terminals: [],
       activeTerminalId: null,
       splitTerminalId: null,
-      maximized: false,
       modal: null,
       diff: null,
     }),
@@ -96,7 +93,6 @@ export const useApp = create<AppState>((set) => ({
   terminals: [],
   activeTerminalId: null,
   splitTerminalId: null,
-  maximized: false,
   sidebarVisible: true,
   sidebarPosition: "left",
   layoutHydrated: false,
@@ -149,7 +145,6 @@ export const useApp = create<AppState>((set) => ({
       }),
     })),
   setSplit: (id) => set({ splitTerminalId: id }),
-  toggleMaximized: () => set((s) => ({ maximized: !s.maximized })),
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarPosition: (sidebarPosition) => set({ sidebarPosition }),

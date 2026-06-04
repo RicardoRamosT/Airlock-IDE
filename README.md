@@ -4,9 +4,9 @@
 > debug your app — but is structurally unable to read your secrets.
 
 **Status:** skeleton + secrets + git. A multi-terminal panel (tabs, split,
-maximize, rename), file tree, viewer split, keychain secrets with terminal
-injection, hash-chained audit, and a live git sidebar (stage/commit/branch/diffs)
-all work. The agent phase is next.
+rename), file tree, viewer split, keychain secrets with terminal injection,
+hash-chained audit, and a live git sidebar (stage/commit/branch/diffs) all
+work. The agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -45,11 +45,9 @@ The terminal owns the main area and is a full multi-terminal panel:
 - **Rename** — double-click a tab to name it; a manual rename pins the title so
   later OSC updates stop overwriting it.
 - **Split** — show two shells side-by-side; the split button toggles it off.
-- **Maximize** — the terminal swallows the sidebar and viewer split; restore
-  brings them back. Split and maximize compose.
-- **Layout** — a top-right cluster in the title bar shows/hides and flips the
-  sidebar (left ⇄ right) and maximizes the terminal; the sidebar's side and
-  visibility are remembered across launches.
+- **Layout** — a top-right cluster in the title bar shows/hides the sidebar and
+  flips it (left ⇄ right); both are remembered across launches. To go
+  terminal-only, hide the sidebar and close the viewer with its ✕.
 
 Every terminal stays alive in the background, so buffers survive tab switches.
 Secrets are injected at spawn, so they apply to **new** terminals only — after
