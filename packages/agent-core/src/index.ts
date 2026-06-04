@@ -81,6 +81,20 @@ export {
   switchGhAccount,
 } from "./github/accounts";
 export {
+  fetchTransport,
+  // Aliased: agent-core already exports a git listBranches (./git/ops) with a
+  // different signature; this is the Neon REST one.
+  listBranches as neonListBranches,
+  listDatabases as neonListDatabases,
+  listProjects as neonListProjects,
+  type NeonBranch,
+  type NeonDatabase,
+  type NeonOptions,
+  type NeonProject,
+  type NeonTransport,
+  neonConnectionUri,
+} from "./neon/client";
+export {
   type ProjectConfig,
   readProjectConfig,
   writeProjectConfig,
