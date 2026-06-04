@@ -9,8 +9,15 @@ interface AppState {
   config: ProjectConfig | null;
   termNonce: number;
   modal: "add-secret" | { update: string } | null;
+  diff: {
+    path: string;
+    which: "staged" | "unstaged";
+    original: string;
+    modified: string;
+  } | null;
   setRoot: (root: string | null) => void;
   setSelected: (relPath: string | null, file: FileContent | null) => void;
+  setDiff: (diff: AppState["diff"]) => void;
   setSecrets: (secrets: SecretMeta[]) => void;
   setConfig: (config: ProjectConfig | null) => void;
   setModal: (modal: AppState["modal"]) => void;
@@ -25,6 +32,7 @@ export const useApp = create<AppState>((set) => ({
   config: null,
   termNonce: 0,
   modal: null,
+  diff: null,
   setRoot: (root) =>
     set({
       root,
@@ -33,8 +41,10 @@ export const useApp = create<AppState>((set) => ({
       secrets: [],
       config: null,
       modal: null,
+      diff: null,
     }),
-  setSelected: (selectedFile, file) => set({ selectedFile, file }),
+  setSelected: (selectedFile, file) => set({ selectedFile, file, diff: null }),
+  setDiff: (diff) => set({ diff, selectedFile: null, file: null }),
   setSecrets: (secrets) => set({ secrets }),
   setConfig: (config) => set({ config }),
   setModal: (modal) => set({ modal }),

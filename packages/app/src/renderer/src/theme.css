@@ -377,3 +377,11 @@ body,
 .audit-op {
   color: var(--fg);
 }
+
+.viewer-host .cm-deletedChunk {
+  background: rgba(248, 81, 73, 0.12);
+}
+
+.viewer-host .cm-changedLine {
+  background: rgba(63, 185, 80, 0.08);
+}
