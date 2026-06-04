@@ -1,7 +1,7 @@
 import { SecretModal } from "./components/SecretModal";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
-import { TerminalPane } from "./components/TerminalPane";
+import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
 import { Viewer } from "./components/Viewer";
 import { useGitStatus } from "./lib/useGitStatus";
@@ -9,12 +9,12 @@ import { useApp } from "./store";
 
 export function App() {
   useGitStatus();
-  const root = useApp((s) => s.root);
   const selectedFile = useApp((s) => s.selectedFile);
   const diff = useApp((s) => s.diff);
   const modal = useApp((s) => s.modal);
+  const maximized = useApp((s) => s.maximized);
   return (
-    <div className="app-shell">
+    <div className={`app-shell${maximized ? " maximized" : ""}`}>
       <TitleBar />
       <div className="layout">
         <Sidebar />
@@ -23,7 +23,7 @@ export function App() {
             <Viewer />
           </div>
           <div className="terminal-slot">
-            <TerminalPane key={root ?? "no-workspace"} />
+            <TerminalManager />
           </div>
         </div>
       </div>

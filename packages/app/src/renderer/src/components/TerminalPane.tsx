@@ -2,9 +2,13 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
+import { useApp } from "../store";
 
-export function TerminalPane() {
+export function TerminalPane({ terminalId }: { terminalId: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const setTerminalPty = useApp((s) => s.setTerminalPty);
+  const setTerminalTitle = useApp((s) => s.setTerminalTitle);
+  const removeTerminal = useApp((s) => s.removeTerminal);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -26,21 +30,30 @@ export function TerminalPane() {
     term.open(host);
     fit.fit();
 
-    let disposed = false;
     let ptyId: string | null = null;
+    let exited = false;
     let offData = () => {};
     let offExit = () => {};
+    let disposed = false;
 
     window.airlock
       .ptyCreate(term.cols, term.rows)
       .then((id) => {
-        if (disposed) return; // late resolve after cleanup: do not subscribe
+        if (disposed) {
+          // Late resolve after unmount: the session would orphan; kill it.
+          window.airlock.ptyKill(id);
+          return;
+        }
         ptyId = id;
+        setTerminalPty(terminalId, id);
         offData = window.airlock.onPtyData((e) => {
           if (e.id === id) term.write(e.data);
         });
         offExit = window.airlock.onPtyExit((e) => {
-          if (e.id === id) term.write("\r\n[session ended]\r\n");
+          if (e.id === id) {
+            exited = true;
+            removeTerminal(terminalId);
+          }
         });
       })
       .catch(console.error);
@@ -49,7 +62,12 @@ export function TerminalPane() {
       if (ptyId) window.airlock.ptyInput(ptyId, data);
     });
 
+    const title = term.onTitleChange((t) => {
+      if (t.trim()) setTerminalTitle(terminalId, t, false);
+    });
+
     const ro = new ResizeObserver(() => {
+      if (host.clientWidth === 0 || host.clientHeight === 0) return; // hidden tab
       fit.fit();
       if (ptyId) window.airlock.ptyResize(ptyId, term.cols, term.rows);
     });
@@ -57,14 +75,16 @@ export function TerminalPane() {
 
     return () => {
       disposed = true;
-      // TODO(agent-core): send pty:kill for the in-flight session once that channel exists — it orphans in main until quit
       ro.disconnect();
       input.dispose();
+      title.dispose();
       offData();
       offExit();
+      // Tab closed / root changed: the session must die with the pane.
+      if (ptyId && !exited) window.airlock.ptyKill(ptyId);
       term.dispose();
     };
-  }, []);
+  }, [terminalId, setTerminalPty, setTerminalTitle, removeTerminal]);
 
   return <div ref={hostRef} className="terminal-host" />;
 }

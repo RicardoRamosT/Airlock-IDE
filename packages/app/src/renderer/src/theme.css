@@ -628,3 +628,37 @@ textarea:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
+
+.terminal-manager {
+  display: grid;
+  grid-template-rows: 30px minmax(0, 1fr);
+  height: 100%;
+}
+
+.terminal-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.terminal-panes.split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.terminal-panes.split .terminal-pane-slot:not(.hidden):first-of-type {
+  border-right: 1px solid var(--border);
+}
+
+.terminal-pane-slot {
+  min-width: 0;
+  min-height: 0;
+}
+
+.terminal-pane-slot.hidden {
+  display: none;
+}
+
+.app-shell.maximized .sidebar,
+.app-shell.maximized .viewer-pane {
+  display: none !important;
+}
