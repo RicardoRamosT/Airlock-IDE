@@ -4,6 +4,7 @@ import type {
   GitStatus,
   ProjectConfig,
   SecretMeta,
+  SectionVisibility,
 } from "../../shared/ipc";
 
 export interface TerminalEntry {
@@ -34,6 +35,7 @@ interface AppState {
   sidebarVisible: boolean; // app-global (persisted), not per-project
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
   theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
+  sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   settingsOpen: boolean; // Settings tab shown in viewer-pane (excludes file/diff)
   // A vaulted DB table being browsed in the viewer-pane. Like settingsOpen and
   // file/diff this is part of the viewer-pane discriminator: only one of
@@ -66,6 +68,7 @@ interface AppState {
   setSidebarPosition: (p: "left" | "right") => void;
   toggleSidebarPosition: () => void;
   setTheme: (t: "dark" | "light") => void;
+  setSectionVisibility: (v: SectionVisibility) => void;
   setSettingsOpen: (v: boolean) => void;
   setLayoutHydrated: (v: boolean) => void;
 }
@@ -116,6 +119,14 @@ export const useApp = create<AppState>((set) => ({
   sidebarVisible: true,
   sidebarPosition: "left",
   theme: "dark",
+  sectionVisibility: {
+    files: true,
+    secrets: true,
+    git: true,
+    databases: true,
+    docker: true,
+    audit: true,
+  },
   settingsOpen: false,
   layoutHydrated: false,
   addTerminal: () => {
@@ -175,6 +186,7 @@ export const useApp = create<AppState>((set) => ({
       sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
     })),
   setTheme: (theme) => set({ theme }),
+  setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   // Opening Settings clears the file/diff/dbView so the viewer-pane shows only
   // one thing at a time (mutual exclusion). Closing leaves the rest untouched.
   setSettingsOpen: (v) =>

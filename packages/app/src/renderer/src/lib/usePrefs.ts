@@ -6,6 +6,7 @@ export function usePrefs(): void {
   const setSidebarVisible = useApp((s) => s.setSidebarVisible);
   const setSidebarPosition = useApp((s) => s.setSidebarPosition);
   const setTheme = useApp((s) => s.setTheme);
+  const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const theme = useApp((s) => s.theme);
 
   useEffect(() => {
@@ -23,13 +24,24 @@ export function usePrefs(): void {
         setSidebarVisible(p.sidebarVisible);
         setSidebarPosition(p.sidebarPosition);
         setTheme(p.theme);
+        setSectionVisibility(p.sectionVisibility);
         useApp.getState().setLayoutHydrated(true);
       })
       .catch(console.error);
     return () => {
       cancelled = true;
     };
-  }, [setSidebarVisible, setSidebarPosition, setTheme]);
+  }, [setSidebarVisible, setSidebarPosition, setTheme, setSectionVisibility]);
+
+  // Runtime visibility changes (View menu or right-click) arrive as an
+  // authoritative push from main. Mark hydrated first so a late startup
+  // prefsGet cannot clobber the user's live change (the recurring hydrate race).
+  useEffect(() => {
+    return window.airlock.onSectionsChanged((v) => {
+      useApp.getState().setLayoutHydrated(true);
+      useApp.getState().setSectionVisibility(v);
+    });
+  }, []);
 
   // Apply the active theme to the DOM whenever it changes. This single effect
   // covers BOTH hydrate (store.theme updated above) and any live toggle, so
