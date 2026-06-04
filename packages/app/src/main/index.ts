@@ -10,6 +10,7 @@ function createWindow(): void {
     height: 900,
     backgroundColor: "#0d1117",
     title: "airlock",
+    titleBarStyle: "hiddenInset",
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,

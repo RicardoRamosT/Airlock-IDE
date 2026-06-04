@@ -51,10 +51,51 @@ body,
   color: var(--fg);
 }
 
+.app-shell {
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr) 22px;
+  height: 100%;
+}
+
+.titlebar {
+  -webkit-app-region: drag;
+  display: grid;
+  place-items: center;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.titlebar-title {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.statusbar-side {
+  display: flex;
+  gap: 12px;
+}
+
+.statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
-  height: 100%;
+  min-height: 0;
 }
 
 .sidebar {
@@ -95,6 +136,10 @@ body,
 
 .section-header .codicon {
   font-size: 13px;
+}
+
+.statusbar .codicon {
+  font-size: 12px;
 }
 
 .section-title {

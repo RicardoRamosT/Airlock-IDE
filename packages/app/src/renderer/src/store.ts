@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { FileContent, ProjectConfig, SecretMeta } from "../../shared/ipc";
+import type {
+  FileContent,
+  GitStatus,
+  ProjectConfig,
+  SecretMeta,
+} from "../../shared/ipc";
 
 interface AppState {
   root: string | null;
@@ -7,6 +12,7 @@ interface AppState {
   file: FileContent | null;
   secrets: SecretMeta[];
   config: ProjectConfig | null;
+  gitStatus: GitStatus | null;
   termNonce: number;
   modal: "add-secret" | { update: string } | null;
   diff: {
@@ -20,6 +26,7 @@ interface AppState {
   setDiff: (diff: AppState["diff"]) => void;
   setSecrets: (secrets: SecretMeta[]) => void;
   setConfig: (config: ProjectConfig | null) => void;
+  setGitStatus: (gitStatus: GitStatus | null) => void;
   setModal: (modal: AppState["modal"]) => void;
   restartTerminal: () => void;
 }
@@ -30,6 +37,7 @@ export const useApp = create<AppState>((set) => ({
   file: null,
   secrets: [],
   config: null,
+  gitStatus: null,
   termNonce: 0,
   modal: null,
   diff: null,
@@ -40,6 +48,7 @@ export const useApp = create<AppState>((set) => ({
       file: null,
       secrets: [],
       config: null,
+      gitStatus: null,
       modal: null,
       diff: null,
     }),
@@ -47,6 +56,7 @@ export const useApp = create<AppState>((set) => ({
   setDiff: (diff) => set({ diff, selectedFile: null, file: null }),
   setSecrets: (secrets) => set({ secrets }),
   setConfig: (config) => set({ config }),
+  setGitStatus: (gitStatus) => set({ gitStatus }),
   setModal: (modal) => set({ modal }),
   restartTerminal: () => set((s) => ({ termNonce: s.termNonce + 1 })),
 }));

@@ -7,6 +7,7 @@ const NEW_BRANCH = "__new__";
 export function GitSection() {
   const root = useApp((s) => s.root);
   const setDiff = useApp((s) => s.setDiff);
+  const setGitStatus = useApp((s) => s.setGitStatus);
   const [isRepo, setIsRepo] = useState(false);
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [branches, setBranches] = useState<string[]>([]);
@@ -19,19 +20,22 @@ export function GitSection() {
     try {
       const repo = await window.airlock.gitIsRepo();
       setIsRepo(repo);
-      if (!repo) return;
-      setStatus(await window.airlock.gitStatus());
+      if (!repo) {
+        setGitStatus(null);
+        return;
+      }
+      const s = await window.airlock.gitStatus();
+      setStatus(s);
+      setGitStatus(s);
       setBranches(await window.airlock.gitBranches());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [root]);
+  }, [root, setGitStatus]);
 
   useEffect(() => {
     refresh().catch(console.error);
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
   }, [refresh]);
 
   if (!root) return <div className="section-note">open a folder first</div>;
