@@ -35,6 +35,10 @@ interface AppState {
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
   theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
   settingsOpen: boolean; // Settings tab shown in viewer-pane (excludes file/diff)
+  // A vaulted DB table being browsed in the viewer-pane. Like settingsOpen and
+  // file/diff this is part of the viewer-pane discriminator: only one of
+  // file/diff/settings/dbView is non-null at a time (mutual exclusion).
+  dbView: { id: string; schema: string; table: string } | null;
   layoutHydrated: boolean; // default false
   modal: "add-secret" | { update: string } | null;
   diff: {
@@ -46,6 +50,7 @@ interface AppState {
   setRoot: (root: string | null) => void;
   setSelected: (relPath: string | null, file: FileContent | null) => void;
   setDiff: (diff: AppState["diff"]) => void;
+  setDbView: (v: AppState["dbView"]) => void;
   setSecrets: (secrets: SecretMeta[]) => void;
   setConfig: (config: ProjectConfig | null) => void;
   setGitStatus: (gitStatus: GitStatus | null) => void;
@@ -74,6 +79,7 @@ export const useApp = create<AppState>((set) => ({
   gitStatus: null,
   modal: null,
   diff: null,
+  dbView: null,
   setRoot: (root) =>
     set({
       root,
@@ -88,11 +94,18 @@ export const useApp = create<AppState>((set) => ({
       modal: null,
       diff: null,
       settingsOpen: false,
+      dbView: null,
     }),
   setSelected: (selectedFile, file) =>
-    set({ selectedFile, file, diff: null, settingsOpen: false }),
+    set({ selectedFile, file, diff: null, settingsOpen: false, dbView: null }),
   setDiff: (diff) =>
-    set({ diff, selectedFile: null, file: null, settingsOpen: false }),
+    set({
+      diff,
+      selectedFile: null,
+      file: null,
+      settingsOpen: false,
+      dbView: null,
+    }),
   setSecrets: (secrets) => set({ secrets }),
   setConfig: (config) => set({ config }),
   setGitStatus: (gitStatus) => set({ gitStatus }),
@@ -162,12 +175,23 @@ export const useApp = create<AppState>((set) => ({
       sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
     })),
   setTheme: (theme) => set({ theme }),
-  // Opening Settings clears the file/diff so the viewer-pane shows only one
-  // thing at a time (mutual exclusion). Closing leaves file/diff untouched.
+  // Opening Settings clears the file/diff/dbView so the viewer-pane shows only
+  // one thing at a time (mutual exclusion). Closing leaves the rest untouched.
   setSettingsOpen: (v) =>
     set({
       settingsOpen: v,
-      ...(v ? { selectedFile: null, file: null, diff: null } : {}),
+      ...(v
+        ? { selectedFile: null, file: null, diff: null, dbView: null }
+        : {}),
+    }),
+  // Browsing a DB table clears file/diff/settings (mutual exclusion), exactly
+  // like setSettingsOpen. Passing null closes the data grid (back to terminal).
+  setDbView: (v) =>
+    set({
+      dbView: v,
+      ...(v
+        ? { selectedFile: null, file: null, diff: null, settingsOpen: false }
+        : {}),
     }),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
 }));

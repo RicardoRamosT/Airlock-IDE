@@ -1,3 +1,4 @@
+import { DataGrid } from "./components/DataGrid";
 import { SecretModal } from "./components/SecretModal";
 import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
@@ -15,6 +16,7 @@ export function App() {
   const selectedFile = useApp((s) => s.selectedFile);
   const diff = useApp((s) => s.diff);
   const settingsOpen = useApp((s) => s.settingsOpen);
+  const dbView = useApp((s) => s.dbView);
   const modal = useApp((s) => s.modal);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const sidebarPosition = useApp((s) => s.sidebarPosition);
@@ -26,10 +28,16 @@ export function App() {
       >
         <Sidebar />
         <div
-          className={`main${selectedFile || diff || settingsOpen ? " split" : ""}`}
+          className={`main${selectedFile || diff || settingsOpen || dbView ? " split" : ""}`}
         >
           <div className="viewer-pane">
-            {settingsOpen ? <SettingsTab /> : <Viewer />}
+            {dbView ? (
+              <DataGrid />
+            ) : settingsOpen ? (
+              <SettingsTab />
+            ) : (
+              <Viewer />
+            )}
           </div>
           <div className="terminal-slot">
             <TerminalManager />

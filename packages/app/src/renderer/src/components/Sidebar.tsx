@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { useApp } from "../store";
 import { AuditSection } from "./AuditSection";
+import { DatabasesSection } from "./DatabasesSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
 import { SecretsSection } from "./SecretsSection";
@@ -60,6 +61,9 @@ export function Sidebar() {
         </Section>
         <Section title="Git">
           <GitSection />
+        </Section>
+        <Section title="Databases" defaultOpen={false}>
+          <DatabasesSection />
         </Section>
         <Section title="Audit" defaultOpen={false}>
           <AuditSection />
