@@ -13,6 +13,18 @@ export function AccountsPopover(_props: { onClose: () => void }) {
     refresh();
   }, [refresh]);
 
+  // gh auth status emits the active account first, so its order changes on
+  // switch. Render in a STABLE order (host, then username) so only the dot
+  // moves between rows -- the list never reshuffles. Row keys are stable per
+  // account, so React keeps the same DOM nodes; just the .active dot changes.
+  const orderedAccounts = info
+    ? [...info.gh.accounts].sort(
+        (a, b) =>
+          a.host.localeCompare(b.host) ||
+          a.username.toLowerCase().localeCompare(b.username.toLowerCase()),
+      )
+    : [];
+
   const active = info?.gh.accounts.find((a) => a.active) ?? null;
   const mismatch =
     !!active &&
@@ -45,7 +57,7 @@ export function AccountsPopover(_props: { onClose: () => void }) {
           No accounts. Run `gh auth login` in the terminal.
         </div>
       )}
-      {info?.gh.accounts.map((a) => (
+      {orderedAccounts.map((a) => (
         <button
           key={`${a.host}:${a.username}`}
           type="button"
