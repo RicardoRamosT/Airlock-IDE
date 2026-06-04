@@ -12,10 +12,20 @@ function configFile(root: string): string {
 }
 
 export async function readProjectConfig(root: string): Promise<ProjectConfig> {
+  // Distinguish an absent file (normal: return defaults silently) from a
+  // malformed file (a user typo: still return defaults, but warn so the
+  // ignored config is not silently hidden).
+  let text: string;
   try {
-    const text = await readFile(configFile(root), "utf8");
+    text = await readFile(configFile(root), "utf8");
+  } catch {
+    // Read failure (ENOENT or otherwise) means no usable config - defaults.
+    return { ...DEFAULTS };
+  }
+  try {
     return { ...DEFAULTS, ...(JSON.parse(text) as Partial<ProjectConfig>) };
   } catch {
+    console.warn("[airlock] .airlock/config.json malformed, using defaults");
     return { ...DEFAULTS };
   }
 }
@@ -26,10 +36,10 @@ export async function writeProjectConfig(
 ): Promise<ProjectConfig> {
   const next = { ...(await readProjectConfig(root)), ...patch };
   await mkdir(path.dirname(configFile(root)), { recursive: true });
-  await writeFile(
-    configFile(root),
-    `${JSON.stringify(next, null, 2)}\n`,
-    "utf8",
-  );
+  // mode 0o600: least-privilege, matching the secrets meta hardening.
+  await writeFile(configFile(root), `${JSON.stringify(next, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
   return next;
 }

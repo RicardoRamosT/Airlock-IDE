@@ -163,6 +163,41 @@ describe("broker", () => {
     ).rejects.toThrow(/locked/i);
   });
 
+  it("records failures, keeps the file, and still writes the import audit when an entry throws mid-loop", async () => {
+    const envPath = path.join(root, ".env");
+    await writeFile(envPath, "A=1\nB=2\nC=3\n");
+    // Keychain that throws when storing the 2nd name (B) - e.g. a locked store.
+    // The loop must record B as failed and continue to C, not abort.
+    const throwOnB: KeychainStore = {
+      ...fake,
+      set: (s, a, v) => {
+        if (a.endsWith(":B"))
+          throw new Error(
+            "Platform secure storage failure: keychain is locked",
+          );
+        store.set(`${s}|${a}`, v);
+      },
+    };
+    const result = await importDotEnv(root, ".env", {
+      keychain: throwOnB,
+      deleteAfter: true,
+    });
+    expect(result.imported.map((m) => m.name)).toEqual(["A", "C"]);
+    expect(result.failed).toEqual(["B"]);
+    expect(result.skipped).toEqual([]);
+    // A failure blocks deletion: the .env must survive so B can be retried.
+    expect(result.deleted).toBe(false);
+    await expect(stat(envPath)).resolves.toBeDefined();
+    // The summary audit is still written and honestly records the failure.
+    const imp = (await readAudit(root)).find((e) => e.op === "secret.import");
+    expect(imp?.detail).toMatchObject({
+      imported: ["A", "C"],
+      failed: ["B"],
+      skipped: [],
+      deleted: false,
+    });
+  });
+
   it("records keychainDeleted:false when the OS delete reports no removal", async () => {
     await setSecret(root, "DANGLING", "v", { keychain: fake });
     // Fake whose delete reports failure (e.g. locked store): meta is still

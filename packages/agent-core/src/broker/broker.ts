@@ -115,6 +115,9 @@ export async function injectInto(
 export interface ImportResult {
   imported: SecretMeta[];
   skipped: string[];
+  // Names whose setSecret threw mid-loop (e.g. a reserved name like PATH, or a
+  // locked keychain). Distinct from `skipped` (rejected before any write).
+  failed: string[];
   deleted: boolean;
 }
 
@@ -128,15 +131,29 @@ export async function importDotEnv(
   const pairs = parseDotEnv(text);
   const imported: SecretMeta[] = [];
   const skipped: string[] = [];
+  const failed: string[] = [];
   for (const [name, value] of Object.entries(pairs)) {
     if (!validateSecretName(name) || value.length === 0) {
       skipped.push(name);
       continue;
     }
-    imported.push(await setSecret(root, name, value, opts));
+    // A single setSecret failure must not abort the loop and lose the summary
+    // audit. Record the name in `failed` and continue so the trail is honest.
+    try {
+      imported.push(await setSecret(root, name, value, opts));
+    } catch {
+      failed.push(name);
+    }
   }
+  // Never delete the source file unless EVERY entry made it (no skips, no
+  // failures) - otherwise an unrecoverable secret would be silently dropped.
   let deleted = false;
-  if (opts.deleteAfter && imported.length > 0 && skipped.length === 0) {
+  if (
+    opts.deleteAfter &&
+    imported.length > 0 &&
+    skipped.length === 0 &&
+    failed.length === 0
+  ) {
     await unlink(abs);
     deleted = true;
   }
@@ -144,7 +161,8 @@ export async function importDotEnv(
     file: relPath,
     imported: imported.map((m) => m.name),
     skipped,
+    failed,
     deleted,
   });
-  return { imported, skipped, deleted };
+  return { imported, skipped, failed, deleted };
 }

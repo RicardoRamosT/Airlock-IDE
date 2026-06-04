@@ -40,6 +40,22 @@ describe("audit", () => {
     expect(await verifyAuditChain(root)).toBe(false);
   });
 
+  it("treats a corrupt line as invalid without throwing", async () => {
+    await appendAudit(root, "user", "secret.set", { name: "A" });
+    await appendAudit(root, "user", "secret.set", { name: "B" });
+    const file = path.join(root, ".airlock", "audit", "log.jsonl");
+    const lines = (await readFile(file, "utf8")).trimEnd().split("\n");
+    // Corrupt line 1 into syntactically INVALID JSON (truncated object).
+    lines[0] = '{"ts":';
+    await writeFile(file, `${lines.join("\n")}\n`);
+    // The chain is invalid, but neither verify nor read throws.
+    expect(await verifyAuditChain(root)).toBe(false);
+    const entries = await readAudit(root);
+    // Best-effort read drops the corrupt line and keeps the parseable one.
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.detail).toEqual({ name: "B" });
+  });
+
   it("reads an empty log as no entries with a valid chain", async () => {
     expect(await readAudit(root)).toEqual([]);
     expect(await verifyAuditChain(root)).toBe(true);

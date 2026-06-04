@@ -28,7 +28,21 @@ function computeHash(e: Omit<AuditEntry, "hash">): string {
   return createHash("sha256").update(body).digest("hex");
 }
 
-async function readEntries(root: string): Promise<AuditEntry[]> {
+// Parse one JSONL line into an entry, returning null on malformed JSON
+// instead of throwing. A null marks a corrupt line so callers can decide:
+// verifyAuditChain treats it as an integrity failure, readAudit skips it.
+function parseEntry(line: string): AuditEntry | null {
+  try {
+    return JSON.parse(line) as AuditEntry;
+  } catch {
+    return null;
+  }
+}
+
+// Returns one slot per non-empty line; a null slot is a line that failed to
+// parse (corrupt JSON). Reading the file is best-effort: a missing/unreadable
+// file yields no entries rather than throwing.
+async function readEntries(root: string): Promise<(AuditEntry | null)[]> {
   let text: string;
   try {
     text = await readFile(auditFile(root), "utf8");
@@ -38,7 +52,7 @@ async function readEntries(root: string): Promise<AuditEntry[]> {
   return text
     .split("\n")
     .filter((l) => l.trim().length > 0)
-    .map((l) => JSON.parse(l) as AuditEntry);
+    .map((l) => parseEntry(l));
 }
 
 export async function appendAudit(
@@ -48,7 +62,10 @@ export async function appendAudit(
   detail: Record<string, unknown>,
   nowIso?: string,
 ): Promise<AuditEntry> {
-  const entries = await readEntries(root);
+  // Skip corrupt lines and link to the last PARSEABLE entry's hash.
+  const entries = (await readEntries(root)).filter(
+    (e): e is AuditEntry => e !== null,
+  );
   const prevHash =
     entries.length > 0
       ? (entries[entries.length - 1]?.hash ?? GENESIS)
@@ -70,19 +87,26 @@ export async function readAudit(
   root: string,
   limit?: number,
 ): Promise<AuditEntry[]> {
-  const entries = await readEntries(root);
+  // Best-effort display: skip corrupt lines rather than throwing on them.
+  const entries = (await readEntries(root)).filter(
+    (e): e is AuditEntry => e !== null,
+  );
   if (limit === undefined || entries.length <= limit) return entries;
   return entries.slice(entries.length - limit);
 }
 
 /**
- * Verifies integrity and linkage of all PRESENT entries. Silent truncation
- * of trailing entries is undetectable by design (no external head pointer).
+ * Verifies integrity and linkage of all PRESENT entries. A corrupt
+ * (unparseable) line makes the chain invalid (returns false) rather than
+ * throwing. Silent truncation of trailing entries is undetectable by design
+ * (no external head pointer).
  */
 export async function verifyAuditChain(root: string): Promise<boolean> {
   const entries = await readEntries(root);
   let prev = GENESIS;
   for (const e of entries) {
+    // A corrupt (unparseable) line is an integrity failure, not a crash.
+    if (e === null) return false;
     if (e.prevHash !== prev) return false;
     const { hash, ...rest } = e;
     if (computeHash(rest) !== hash) return false;
