@@ -5,6 +5,8 @@ import path from "node:path";
 /**
  * Stable per-project identity: "<basename>-<sha256(realpath) first 8 hex>".
  * Used to scope keychain accounts so equally-named projects do not collide.
+ * Note: renaming or moving the project directory changes its id; keychain
+ * entries stored under the old id are orphaned (documented v1 tradeoff).
  */
 export async function projectIdFor(root: string): Promise<string> {
   const real = await realpath(path.resolve(root));
