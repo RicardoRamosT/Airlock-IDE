@@ -15,8 +15,10 @@ export async function runGit(root: string, args: string[]): Promise<string> {
     });
     return stdout;
   } catch (err) {
-    const e = err as { stderr?: string; message?: string };
-    throw new Error(e.stderr?.trim() || e.message || "git failed");
+    const e = err as { stderr?: string; stdout?: string; message?: string };
+    throw new Error(
+      e.stderr?.trim() || e.stdout?.trim() || e.message || "git failed",
+    );
   }
 }
 

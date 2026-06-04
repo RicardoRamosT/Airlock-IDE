@@ -28,7 +28,17 @@ export async function unstageFiles(
   paths: string[],
 ): Promise<void> {
   assertPaths(paths);
-  await runGit(root, ["restore", "--staged", "--", ...paths]);
+  try {
+    await runGit(root, ["restore", "--staged", "--", ...paths]);
+  } catch (err) {
+    // Unborn branch (no commits yet): restore cannot resolve HEAD; rm --cached
+    // is the unborn-safe unstage. Any other failure propagates untouched.
+    if (err instanceof Error && /HEAD/.test(err.message)) {
+      await runGit(root, ["rm", "--cached", "--", ...paths]);
+    } else {
+      throw err;
+    }
+  }
 }
 
 export async function commitStaged(

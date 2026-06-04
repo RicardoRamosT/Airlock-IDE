@@ -65,4 +65,20 @@ describe("git ops", () => {
       /branch name/i,
     );
   });
+
+  it("unstages on an unborn branch (no commits yet)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-unborn-"));
+    await runGit(root, ["init", "-b", "main"]);
+    await runGit(root, ["config", "user.email", "t@airlock.local"]);
+    await runGit(root, ["config", "user.name", "T"]);
+    await writeFile(path.join(root, "new.txt"), "x\n");
+    await stageFiles(root, ["new.txt"]);
+    expect((await gitStatus(root)).staged.map((c) => c.path)).toEqual([
+      "new.txt",
+    ]);
+    await unstageFiles(root, ["new.txt"]);
+    const s = await gitStatus(root);
+    expect(s.staged).toEqual([]);
+    expect(s.untracked).toEqual(["new.txt"]);
+  });
 });

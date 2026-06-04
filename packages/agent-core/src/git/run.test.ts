@@ -25,6 +25,14 @@ describe("runGit", () => {
       /not-a-ref/,
     );
   });
+
+  it("surfaces stdout-only diagnostics in thrown errors", async () => {
+    const root = await makeRepo();
+    // Nothing staged: git commit fails writing its explanation to stdout.
+    await expect(runGit(root, ["commit", "-m", "x"])).rejects.toThrow(
+      /nothing to commit/i,
+    );
+  });
 });
 
 describe("isGitRepo", () => {
