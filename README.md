@@ -7,8 +7,9 @@
 multi-terminal panel (tabs, split, rename), file tree, viewer split, keychain
 secrets with terminal injection, hash-chained audit, a live git sidebar
 (stage/commit/branch/diffs), GitHub account switching, a settings tab with
-dark/light themes, live Postgres database browsing, live Docker container
-control, and per-section sidebar show/hide all work. The agent phase is next.
+dark/light themes, live Postgres database browsing, Neon project/branch/database
+browsing, live Docker container control, and per-section sidebar show/hide all
+work. The agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -93,6 +94,17 @@ re-checks. Expand a database to see its tables, then click a table to browse
 its rows in a **read-only** data grid in the viewer split (first 100 rows).
 The connection string is read in the main process only — the password never
 crosses into the UI.
+
+### Neon
+
+At the top of Databases is a **Neon** group. Click **Connect Neon** and paste an
+API key from the [Neon Console](https://console.neon.tech) — it is stored in your
+keychain, read in the main process only, and never seen by the agent. Once
+connected, browse your account as a tree: **projects → branches → databases**.
+Each database gets the same live status dot, expands to its tables, and opens any
+table in the read-only data grid (first 100 rows). The API key and the
+per-branch connection string stay in the main process — only table and row data
+reach the UI.
 
 ## Docker
 

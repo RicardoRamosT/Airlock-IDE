@@ -1,7 +1,7 @@
 # Neon Databases + Host (Local/Render) Design
 
 **Date:** 2026-06-04
-**Status:** Design approved. Building Slice A (Neon) first, then Slice B (Host).
+**Status:** Slice A (Neon) complete; Slice B (Host) pending.
 
 ## Overview
 Two additions, both extending the existing sidebar + secret-broker model:

@@ -330,6 +330,31 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 >
 > **Render / hosting deploy-status is a FUTURE slice.** Deferred — it needs the Render API plus an account token, which is a later increment; only Databases + Docker ship in this pass.*
 
+> *Revised again 2026-06-04 (Neon in Databases — Slice A of the neon/render/host
+> design): the Databases section gains a **Neon** group pinned at its top, above
+> the per-project `postgres-url` connections. You vault a Neon API key **once**
+> via a dedicated **Connect Neon** modal — it is an app-global secret named
+> `NEON_API_KEY`, stored in the macOS Keychain (not per-project), resolved
+> main-only and **never seen by the renderer or the agent**. With a key set, the
+> group becomes a lazy tree: **projects → branches → databases**, each level
+> fetched on expand from Neon's API. Every database leaf reuses the existing DB
+> behavior verbatim — the live status dot (`SELECT 1` ping), expand-to-tables,
+> and click-a-table → read-only data grid in the viewer-pane (the `dbView`
+> discriminator gained a `neon` variant alongside `secret`).
+>
+> **Security.** The Neon API key and the per-branch connection URI (fetched from
+> Neon's API on demand, password-bearing) are resolved **MAIN-ONLY and never
+> cross IPC** — the renderer/agent receive metadata and rows only, never a key or
+> connstring. All `neon:*` error paths are scrubbed via `redactConnStrings` and
+> rethrows carry no `cause` (the same discipline §7 validated for `db:*`).
+> Because Neon is account-level, the `neon:*` handlers are **not** root-gated
+> (they work with no folder open). The global credential write is audited to a
+> separate **userData-level hash-chained `audit-global.jsonl`** chain (distinct
+> from the per-project `.airlock/audit/log.jsonl`).
+>
+> **Slice B (Host: local dev server + Render deploy-status) is still pending** —
+> see the dedicated spec (`2026-06-04-neon-render-host-design.md`).*
+
 > *Revised again 2026-06-04 (sidebar section visibility pass): every sidebar
 > section — Files, Secrets, Git, Databases, Docker, Audit — now shows by default
 > and can be individually hidden. A section is hidden by right-clicking its
