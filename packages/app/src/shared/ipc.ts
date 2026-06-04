@@ -46,6 +46,7 @@ export interface GithubInfo {
 export interface AppPrefs {
   sidebarVisible: boolean;
   sidebarPosition: "left" | "right";
+  theme: "dark" | "light";
 }
 
 export interface PtyDataEvent {

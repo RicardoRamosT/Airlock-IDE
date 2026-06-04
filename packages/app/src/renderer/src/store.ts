@@ -33,6 +33,7 @@ interface AppState {
   splitTerminalId: string | null; // second visible pane; null = no split
   sidebarVisible: boolean; // app-global (persisted), not per-project
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
+  theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
   layoutHydrated: boolean; // default false
   modal: "add-secret" | { update: string } | null;
   diff: {
@@ -58,6 +59,7 @@ interface AppState {
   toggleSidebar: () => void;
   setSidebarPosition: (p: "left" | "right") => void;
   toggleSidebarPosition: () => void;
+  setTheme: (t: "dark" | "light") => void;
   setLayoutHydrated: (v: boolean) => void;
 }
 
@@ -95,6 +97,7 @@ export const useApp = create<AppState>((set) => ({
   splitTerminalId: null,
   sidebarVisible: true,
   sidebarPosition: "left",
+  theme: "dark",
   layoutHydrated: false,
   addTerminal: () => {
     const entry = newEntry();
@@ -152,5 +155,6 @@ export const useApp = create<AppState>((set) => ({
     set((s) => ({
       sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
     })),
+  setTheme: (theme) => set({ theme }),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
 }));

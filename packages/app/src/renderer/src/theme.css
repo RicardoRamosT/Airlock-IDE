@@ -11,6 +11,22 @@
   font-family: -apple-system, "SF Pro Text", sans-serif;
 }
 
+/* Light palette (GitHub light). Driven by data-theme on <html>, set from
+   AppPrefs.theme. Every rule that uses var(--*) re-themes for free; the few
+   hardcoded neutral surfaces below were converted to these vars so they invert
+   too. Semantic colors (error red, amber, diff tints) intentionally stay
+   literal -- they read on both backgrounds. */
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-panel: #f6f8fa;
+  --border: #d0d7de;
+  --fg: #1f2328;
+  --fg-dim: #656d76;
+  --accent: #0969da;
+  --hover: rgba(31, 35, 40, 0.06);
+  --selected: rgba(9, 105, 218, 0.12);
+}
+
 /* VS Code-style overlay scrollbars (WebKit) */
 ::-webkit-scrollbar {
   width: 10px;
@@ -350,7 +366,7 @@ body,
 }
 
 .dim-badge {
-  background: #161d26;
+  background: var(--bg-panel);
   color: var(--fg-dim);
 }
 
@@ -403,7 +419,7 @@ body,
 }
 
 .secret-name:hover {
-  background: #1a2129;
+  background: var(--hover);
 }
 
 .secret-delete {
@@ -428,7 +444,7 @@ body,
 }
 
 .btn {
-  background: #1a2129;
+  background: var(--bg-panel);
   border: 1px solid var(--border);
   color: var(--fg);
   border-radius: 6px;
@@ -440,7 +456,7 @@ body,
 }
 
 .btn:hover {
-  background: #222b36;
+  background: var(--border);
 }
 
 .btn.primary {
@@ -640,7 +656,7 @@ body,
 }
 
 .git-path:hover {
-  background: #1a2129;
+  background: var(--hover);
 }
 
 .git-action {

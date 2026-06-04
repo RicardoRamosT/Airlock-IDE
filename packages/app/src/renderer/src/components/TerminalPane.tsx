@@ -1,14 +1,35 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
+import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { useApp } from "../store";
 
+// xterm has no CSS-variable hook, so its palette must be supplied as a literal
+// object. Mirror the two app palettes (theme.css :root / [data-theme=light]):
+// dark = the original GitHub-dark terminal colors; light = the GitHub-light
+// surface so the embedded terminal inverts with the rest of the UI.
+const XTERM_THEMES: Record<"dark" | "light", ITheme> = {
+  dark: {
+    background: "#0d1117",
+    foreground: "#c9d1d9",
+    cursor: "#58a6ff",
+    selectionBackground: "#1f3a5f",
+  },
+  light: {
+    background: "#ffffff",
+    foreground: "#1f2328",
+    cursor: "#0969da",
+    selectionBackground: "rgba(9, 105, 218, 0.18)",
+  },
+};
+
 export function TerminalPane({ terminalId }: { terminalId: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
   const setTerminalPty = useApp((s) => s.setTerminalPty);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
   const removeTerminal = useApp((s) => s.removeTerminal);
+  const theme = useApp((s) => s.theme);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -18,13 +39,13 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       fontSize: 13,
       fontFamily: "'SF Mono', Menlo, monospace",
       cursorBlink: true,
-      theme: {
-        background: "#0d1117",
-        foreground: "#c9d1d9",
-        cursor: "#58a6ff",
-        selectionBackground: "#1f3a5f",
-      },
+      // Read the current theme at creation time (not via the effect deps) so
+      // the first paint is correct without making this PTY-lifecycle effect
+      // re-run on theme change. Live theme changes are handled by the separate
+      // effect below, which just sets term.options.theme.
+      theme: XTERM_THEMES[useApp.getState().theme],
     });
+    termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(host);
@@ -149,8 +170,17 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       // Tab closed / root changed: the session must die with the pane.
       if (idRef.current && !exited) window.airlock.ptyKill(idRef.current);
       term.dispose();
+      termRef.current = null;
     };
   }, [terminalId, setTerminalPty, setTerminalTitle, removeTerminal]);
+
+  // Live theme change: update the existing terminal's palette in place. xterm
+  // applies options.theme immediately, so the PTY + buffer + flow-control
+  // lifecycle above is preserved (no remount, no lost output). The main effect
+  // does NOT depend on theme precisely so it never tears down the session here.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = XTERM_THEMES[theme];
+  }, [theme]);
 
   return <div ref={hostRef} className="terminal-host" />;
 }

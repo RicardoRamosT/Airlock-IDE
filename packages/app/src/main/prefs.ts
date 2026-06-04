@@ -10,7 +10,11 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AppPrefs } from "../shared/ipc";
 
-const DEFAULTS: AppPrefs = { sidebarVisible: true, sidebarPosition: "left" };
+const DEFAULTS: AppPrefs = {
+  sidebarVisible: true,
+  sidebarPosition: "left",
+  theme: "dark",
+};
 
 function sanitize(raw: unknown): AppPrefs {
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
@@ -21,6 +25,7 @@ function sanitize(raw: unknown): AppPrefs {
         ? r.sidebarVisible
         : DEFAULTS.sidebarVisible,
     sidebarPosition: r.sidebarPosition === "right" ? "right" : "left",
+    theme: r.theme === "light" ? "light" : "dark",
   };
 }
 

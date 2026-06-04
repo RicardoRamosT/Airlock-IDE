@@ -10,6 +10,7 @@ describe("app prefs", () => {
     expect(await loadPrefs(path.join(dir, "prefs.json"))).toEqual({
       sidebarVisible: true,
       sidebarPosition: "left",
+      theme: "dark",
     });
   });
 
@@ -22,6 +23,7 @@ describe("app prefs", () => {
     expect(await loadPrefs(file)).toEqual({
       sidebarVisible: true,
       sidebarPosition: "right",
+      theme: "dark",
     });
   });
 
@@ -33,12 +35,14 @@ describe("app prefs", () => {
       JSON.stringify({
         sidebarPosition: "sideways",
         sidebarVisible: "yes",
+        theme: "neon",
         junk: 1,
       }),
     );
     expect(await loadPrefs(file)).toEqual({
       sidebarVisible: true,
       sidebarPosition: "left",
+      theme: "dark",
     });
   });
 
@@ -49,6 +53,19 @@ describe("app prefs", () => {
     expect(await loadPrefs(file)).toEqual({
       sidebarVisible: true,
       sidebarPosition: "left",
+      theme: "dark",
     });
+  });
+
+  it("round-trips theme and sanitizes garbage theme to dark", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    // A valid theme value persists and reloads.
+    const next = await savePrefs(file, { theme: "light" });
+    expect(next.theme).toBe("light");
+    expect((await loadPrefs(file)).theme).toBe("light");
+    // A garbage theme value sanitizes back to the dark default.
+    await writeFile(file, JSON.stringify({ theme: "solarized" }));
+    expect((await loadPrefs(file)).theme).toBe("dark");
   });
 });

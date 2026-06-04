@@ -22,6 +22,7 @@ const LANGUAGES: Record<LanguageKey, () => Extension> = {
 
 export function Viewer() {
   const { selectedFile, file, setSelected, diff, setDiff } = useApp();
+  const theme = useApp((s) => s.theme);
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,11 @@ export function Viewer() {
         doc: docText,
         extensions: [
           basicSetup,
-          oneDark,
+          // oneDark only in dark mode; CM6's built-in default theme is
+          // light and reads on the white [data-theme=light] background. The
+          // view is recreated on theme change (added to the deps below) so the
+          // editor swaps palettes with the rest of the UI.
+          ...(theme === "dark" ? [oneDark] : []),
           EditorState.readOnly.of(true),
           EditorView.editable.of(false), // viewer semantics: contenteditable off (closes IME mutation path)
           EditorView.theme({ "&": { height: "100%" } }),
@@ -53,7 +58,7 @@ export function Viewer() {
       parent: host,
     });
     return () => view.destroy();
-  }, [selectedFile, file, diff]);
+  }, [selectedFile, file, diff, theme]);
 
   if (!file && !diff) return <div className="empty">select a file</div>;
   return (
