@@ -56,6 +56,7 @@ export {
   writeProjectConfig,
 } from "./project/config";
 export { projectIdFor } from "./project/id";
+export { captureLoginEnv, loginShell } from "./pty/login-env";
 export {
   createPtySession,
   type IDisposable,

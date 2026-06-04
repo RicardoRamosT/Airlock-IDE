@@ -33,7 +33,13 @@ function requireRoot(): string {
   return workspaceRoot;
 }
 
-export function registerIpc(): void {
+// getBaseEnv supplies the login-shell env captured once at startup (real
+// PATH, locale). pty:create uses it as the base for every terminal. Passed
+// as an accessor so the latest captured value is read at spawn time and
+// ipc.ts holds no module-level mutable state.
+export function registerIpc(
+  getBaseEnv: () => Record<string, string> = () => ({}),
+): void {
   ipcMain.handle("dialog:openFolder", async () => {
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (r.canceled || r.filePaths.length === 0) return null;
@@ -168,6 +174,10 @@ export function registerIpc(): void {
       cwd: workspaceRoot ?? undefined,
       cols,
       rows,
+      // Captured login-shell env (legitimate PATH/locale) is the base; it is
+      // NOT run through filterDangerousEnv. Injected secrets (already filtered
+      // above) are the per-call env and still win over baseEnv.
+      baseEnv: getBaseEnv(),
       env: secretEnv,
     });
     sessions.set(s.id, s);

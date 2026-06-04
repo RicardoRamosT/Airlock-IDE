@@ -1,8 +1,14 @@
 import path from "node:path";
+import { captureLoginEnv } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
 import { killAllSessions, registerIpc } from "./ipc";
 
 app.setName("airlock");
+
+// Captured once at startup: the real login-shell env (homebrew PATH, locale).
+// A Finder-launched app inherits launchd's minimal env, so spawned terminals
+// would otherwise miss the user's PATH and have a broken locale.
+let loginEnv: Record<string, string> = {};
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -30,7 +36,12 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Capture the user's real login-shell env once, BEFORE any terminal can be
+  // spawned. Best-effort: on failure this stays {} and PTYs fall back to
+  // process.env unchanged.
+  loginEnv = await captureLoginEnv();
+
   // Dev runs the stock Electron binary, which owns the dock identity; at least
   // give it our icon at runtime. Packaged builds get name+icon from the bundle.
   if (!app.isPackaged && process.platform === "darwin" && app.dock) {
@@ -40,7 +51,7 @@ app.whenReady().then(() => {
       ),
     );
   }
-  registerIpc();
+  registerIpc(() => loginEnv);
   createWindow();
 });
 

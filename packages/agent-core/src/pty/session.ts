@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { type IDisposable, type IPty, spawn } from "node-pty";
+import { loginShell } from "./login-env";
 
 export type { IDisposable } from "node-pty";
 
@@ -10,7 +11,11 @@ export interface PtyOptions {
   cwd?: string;
   cols?: number;
   rows?: number;
+  // Per-call env (e.g. injected secrets). Layered ON TOP of baseEnv.
   env?: Record<string, string>;
+  // Captured login-shell env (homebrew PATH, locale). Layered over
+  // process.env as the base for the child; per-call env still wins.
+  baseEnv?: Record<string, string>;
 }
 
 export class PtySession {
@@ -18,17 +23,22 @@ export class PtySession {
   private readonly pty: IPty;
 
   constructor(opts: PtyOptions = {}) {
-    this.pty = spawn(
-      opts.shell ?? process.env.SHELL ?? "/bin/zsh",
-      opts.args ?? [],
-      {
-        name: "xterm-256color",
-        cols: opts.cols ?? 80,
-        rows: opts.rows ?? 24,
-        cwd: opts.cwd ?? homedir(),
-        env: { ...process.env, ...opts.env } as Record<string, string>,
-      },
-    );
+    // Env precedence (low to high): process.env floor, then the captured
+    // login-shell env (real PATH/locale), then per-call env (injected
+    // secrets). TERM_PROGRAM is forced last so terminals identify as Airlock.
+    const env = {
+      ...process.env,
+      ...opts.baseEnv,
+      ...opts.env,
+    } as Record<string, string>;
+    env.TERM_PROGRAM = "Airlock";
+    this.pty = spawn(opts.shell ?? loginShell(), opts.args ?? [], {
+      name: "xterm-256color",
+      cols: opts.cols ?? 80,
+      rows: opts.rows ?? 24,
+      cwd: opts.cwd ?? homedir(),
+      env,
+    });
   }
 
   onData(cb: (data: string) => void): IDisposable {
