@@ -52,6 +52,13 @@ export {
   gitFileVersions,
 } from "./git/versions";
 export {
+  type GhAccount,
+  type GhStatus,
+  ghAccounts,
+  parseGhAuthStatus,
+  switchGhAccount,
+} from "./github/accounts";
+export {
   type ProjectConfig,
   readProjectConfig,
   writeProjectConfig,

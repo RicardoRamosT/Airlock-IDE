@@ -38,6 +38,9 @@ const api: AirlockApi = {
   gitCreateBranch: (name) => ipcRenderer.invoke("git:createBranch", name),
   gitFileVersions: (relPath, which) =>
     ipcRenderer.invoke("git:fileVersions", relPath, which),
+  githubInfo: () => ipcRenderer.invoke("github:info"),
+  githubSwitch: (host, username) =>
+    ipcRenderer.invoke("github:switch", host, username),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
 };

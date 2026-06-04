@@ -5,6 +5,7 @@ import {
   createPtySession,
   deleteSecret,
   filterDangerousEnv,
+  ghAccounts,
   gitFileVersions,
   gitStatus,
   importDotEnv,
@@ -17,9 +18,11 @@ import {
   readAudit,
   readProjectConfig,
   readWorkspaceFile,
+  runGit,
   setSecret,
   stageFiles,
   switchBranch,
+  switchGhAccount,
   unstageFiles,
   writeProjectConfig,
 } from "@airlock/agent-core";
@@ -158,6 +161,34 @@ export function registerIpc(
       throw new Error("Invalid payload");
     }
     return gitFileVersions(requireRoot(), relPath, which);
+  });
+
+  // GitHub accounts + commit identity: NOT requireRoot-gated. gh accounts are
+  // app-global and must list with no folder open; the repo identity is just
+  // null then. gh redacts tokens, so airlock never sees credentials.
+  ipcMain.handle("github:info", async () => {
+    const gh = await ghAccounts();
+    let name: string | null = null;
+    let email: string | null = null;
+    if (workspaceRoot) {
+      try {
+        name =
+          (await runGit(workspaceRoot, ["config", "user.name"])).trim() || null;
+      } catch {}
+      try {
+        email =
+          (await runGit(workspaceRoot, ["config", "user.email"])).trim() ||
+          null;
+      } catch {}
+    }
+    return { gh, identity: { name, email } };
+  });
+
+  ipcMain.handle("github:switch", (_e, host: unknown, username: unknown) => {
+    if (typeof host !== "string" || typeof username !== "string") {
+      throw new Error("Invalid payload");
+    }
+    return switchGhAccount(host, username);
   });
 
   ipcMain.handle("pty:create", async (e, cols: number, rows: number) => {

@@ -4,6 +4,8 @@ import type {
   DirEntry,
   FileContent,
   FileVersions,
+  GhAccount,
+  GhStatus,
   GitStatus,
   ImportResult,
   ProjectConfig,
@@ -16,11 +18,25 @@ export type {
   DirEntry,
   FileContent,
   FileVersions,
+  GhAccount,
+  GhStatus,
   GitStatus,
   ImportResult,
   ProjectConfig,
   SecretMeta,
 };
+
+/** The repo's local commit identity (git config user.name / user.email). */
+export interface GitIdentity {
+  name: string | null;
+  email: string | null;
+}
+
+/** Combined GitHub state: gh-logged-in accounts + the repo's commit identity. */
+export interface GithubInfo {
+  gh: GhStatus;
+  identity: GitIdentity;
+}
 
 /**
  * App-global preferences (userData JSON) - distinct from per-project config
@@ -72,6 +88,8 @@ export interface AirlockApi {
   gitSwitchBranch(name: string): Promise<void>;
   gitCreateBranch(name: string): Promise<void>;
   gitFileVersions(relPath: string, which: DiffSide): Promise<FileVersions>;
+  githubInfo(): Promise<GithubInfo>;
+  githubSwitch(host: string, username: string): Promise<void>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
 }
