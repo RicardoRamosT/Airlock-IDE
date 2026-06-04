@@ -30,6 +30,16 @@ export {
   validateSecret,
   validateSecretName,
 } from "./broker/validators";
+export { withDb } from "./db/client";
+export { type DbInfo, parseConnString } from "./db/connstr";
+export {
+  type DbRunner,
+  type DbTable,
+  listTables,
+  pingDb,
+  type QueryResult,
+  readRows,
+} from "./db/explorer";
 export {
   commitStaged,
   createBranch,
