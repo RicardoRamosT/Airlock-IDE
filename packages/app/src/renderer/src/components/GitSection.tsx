@@ -78,6 +78,7 @@ export function GitSection() {
   return (
     <div className="git">
       <div className="git-branch-row">
+        <i className="codicon codicon-git-branch" />
         <select
           className="git-branch"
           value={status.branch.head}
@@ -138,7 +139,7 @@ export function GitSection() {
                   void run(() => window.airlock.gitUnstage([c.path]))
                 }
               >
-                −
+                <i className="codicon codicon-remove" />
               </button>
             </div>
           ))}
@@ -167,7 +168,7 @@ export function GitSection() {
                   void run(() => window.airlock.gitStage([c.path]))
                 }
               >
-                +
+                <i className="codicon codicon-add" />
               </button>
             </div>
           ))}
@@ -188,7 +189,7 @@ export function GitSection() {
                 title="Stage"
                 onClick={() => void run(() => window.airlock.gitStage([p]))}
               >
-                +
+                <i className="codicon codicon-add" />
               </button>
             </div>
           ))}

@@ -29,6 +29,7 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
       className={`tree-item${selectedFile === relPath ? " selected" : ""}`}
       onClick={select}
     >
+      <i className="codicon codicon-file" />
       {name}
     </button>
   );
@@ -53,7 +54,8 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
   return (
     <div>
       <button type="button" className="tree-item dir" onClick={toggle}>
-        {open ? "▾" : "▸"} {name}
+        <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
+        {name}
       </button>
       {open && children && (
         <div className="tree-children">

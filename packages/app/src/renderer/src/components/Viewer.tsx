@@ -73,7 +73,7 @@ export function Viewer() {
           onClick={() => (diff ? setDiff(null) : setSelected(null, null))}
           title="Close viewer (back to full terminal)"
         >
-          ✕
+          <i className="codicon codicon-close" />
         </button>
       </div>
       <div ref={hostRef} className="viewer-host" />

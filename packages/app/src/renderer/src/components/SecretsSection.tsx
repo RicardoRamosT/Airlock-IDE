@@ -63,6 +63,7 @@ export function SecretsSection() {
     <div className="secrets">
       {secrets.map((s) => (
         <div key={s.name} className="secret-row">
+          <i className="codicon codicon-key" />
           <button
             type="button"
             className="secret-name"
@@ -79,7 +80,7 @@ export function SecretsSection() {
             title="Delete from Keychain"
             onClick={() => removeSecret(s.name)}
           >
-            ✕
+            <i className="codicon codicon-trash" />
           </button>
         </div>
       ))}

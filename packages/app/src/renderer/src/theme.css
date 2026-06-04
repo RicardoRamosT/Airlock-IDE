@@ -63,28 +63,66 @@ body,
 }
 
 .section {
-  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
 }
 
-.section.dim {
-  opacity: 0.45;
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+}
+
+.section-header:hover {
+  color: var(--fg);
+}
+
+.codicon {
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.section-header .codicon {
+  font-size: 13px;
 }
 
 .section-title {
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--fg-dim);
-  margin-bottom: 6px;
+  letter-spacing: 0.06em;
+}
+
+.section-body {
+  padding: 2px 8px 8px 10px;
 }
 
 .section-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-dim);
+  padding: 2px 0;
+}
+
+.tree-item .codicon,
+.secret-row .codicon,
+.git-row .codicon {
+  font-size: 14px;
+  color: var(--fg-dim);
+  flex: none;
 }
 
 .tree-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   width: 100%;
   text-align: left;
   background: none;
@@ -236,7 +274,7 @@ body,
 .secret-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -452,7 +490,7 @@ body,
 .git-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 

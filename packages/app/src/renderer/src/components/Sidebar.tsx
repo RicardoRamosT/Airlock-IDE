@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useApp } from "../store";
 import { AuditSection } from "./AuditSection";
 import { FileTree } from "./FileTree";
@@ -8,16 +8,24 @@ import { SecretsSection } from "./SecretsSection";
 function Section({
   title,
   children,
-  dim,
+  defaultOpen = true,
 }: {
   title: string;
   children?: ReactNode;
-  dim?: boolean;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className={`section${dim ? " dim" : ""}`}>
-      <div className="section-title">{title}</div>
-      {children}
+    <div className="section">
+      <button
+        type="button"
+        className="section-header"
+        onClick={() => setOpen(!open)}
+      >
+        <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
+        <span className="section-title">{title}</span>
+      </button>
+      {open && <div className="section-body">{children}</div>}
     </div>
   );
 }
@@ -51,7 +59,7 @@ export function Sidebar() {
       <Section title="Git">
         <GitSection />
       </Section>
-      <Section title="Audit">
+      <Section title="Audit" defaultOpen={false}>
         <AuditSection />
       </Section>
     </aside>
