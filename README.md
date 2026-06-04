@@ -3,12 +3,12 @@
 > Working title. A terminal-first AI IDE where the agent can build, run, and
 > debug your app — but is structurally unable to read your secrets.
 
-**Status:** skeleton + secrets + git + DB + Docker. A multi-terminal panel
-(tabs, split, rename), file tree, viewer split, keychain secrets with terminal
-injection, hash-chained audit, a live git sidebar (stage/commit/branch/diffs),
-GitHub account switching, a settings tab with dark/light themes, live Postgres
-database browsing, and live Docker container control all work. The agent phase
-is next.
+**Status:** skeleton + secrets + git + DB + Docker + sidebar customization. A
+multi-terminal panel (tabs, split, rename), file tree, viewer split, keychain
+secrets with terminal injection, hash-chained audit, a live git sidebar
+(stage/commit/branch/diffs), GitHub account switching, a settings tab with
+dark/light themes, live Postgres database browsing, live Docker container
+control, and per-section sidebar show/hide all work. The agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -118,6 +118,15 @@ the viewer split (Appearance, Layout, and — with a folder open — Secrets),
 and **Themes** flips the whole app between **dark** and **light**. The
 theme is app-global and remembered across launches (in `prefs.json`); the
 terminal and editor re-theme in place without losing their state.
+
+## Customizing the sidebar
+
+Every sidebar section — Files, Secrets, Git, Databases, Docker, Audit — shows by
+default, and you can hide any you don't need. Right-click a section's header and
+choose **Hide**, or uncheck it under **View ▸ Sidebar**. Re-show a hidden
+section by re-checking it in that same menu. The choice is app-global and
+remembered across launches, separate from simply collapsing a section (which is
+not saved). Hide everything and the sidebar points you back at View ▸ Sidebar.
 
 ## Credits
 

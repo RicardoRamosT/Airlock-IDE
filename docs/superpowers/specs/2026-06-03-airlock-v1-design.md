@@ -330,6 +330,38 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 >
 > **Render / hosting deploy-status is a FUTURE slice.** Deferred — it needs the Render API plus an account token, which is a later increment; only Databases + Docker ship in this pass.*
 
+> *Revised again 2026-06-04 (sidebar section visibility pass): every sidebar
+> section — Files, Secrets, Git, Databases, Docker, Audit — now shows by default
+> and can be individually hidden. A section is hidden by right-clicking its
+> header and choosing **Hide**, or by unchecking it under the new **View ▸
+> Sidebar** application menu; it is re-shown by re-checking it there. Visibility
+> is **app-global**, persisted in `prefs.json` (`AppPrefs.sectionVisibility`, a
+> full `Section → boolean` map, default all true, garbage sanitized per-key). It
+> is deliberately **distinct from a section's collapsed/expanded state**, which
+> stays local to the renderer and is **not** persisted — collapse is a momentary
+> view tweak, visibility is a saved layout choice.
+>
+> **First custom application menu.** This is the project's FIRST custom Electron
+> application menu: `Menu.buildFromTemplate` + `setApplicationMenu` REPLACE the
+> default menu wholesale, so the standard roles — Reload / Force Reload / Toggle
+> DevTools, Zoom in/out/reset, Full Screen, the copy-paste edit roles, and the
+> window menu — are all re-declared in the template to be preserved. The new
+> **View ▸ Sidebar** submenu carries one checkbox per section.
+>
+> **Main is the single source of truth.** Both entry points — the menu checkbox
+> and the renderer's right-click **Hide** — funnel through one main-side
+> function, `changeSectionVisibility(prefsFile, id, visible)`, which (1) writes
+> the COMPLETE map to `prefs.json` (the `savePrefs` merge is shallow, so callers
+> only ever send `(id, visible)` and main computes the full map), (2) rebuilds
+> and re-installs the application menu so the checkmarks track the new state, and
+> (3) pushes the authoritative map to the renderer over a `sections:changed`
+> channel. The renderer is purely **reactive** for visibility: it applies only
+> what main pushes (plus a one-time startup hydrate from `prefs:get`) and NEVER
+> mutates visibility locally — eliminating menu/sidebar drift and the
+> hydrate-vs-fast-toggle race (the push handler marks `layoutHydrated` before
+> applying so a late startup hydrate cannot clobber a live toggle). When every
+> section is hidden the sidebar shows a hint pointing back at View ▸ Sidebar.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │
