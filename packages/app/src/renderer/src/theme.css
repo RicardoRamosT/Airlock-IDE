@@ -664,9 +664,14 @@ textarea:focus-visible {
   display: none;
 }
 
-.app-shell.maximized .sidebar,
-.app-shell.maximized .viewer-pane {
-  display: none !important;
+/* Maximize hides the sidebar and the viewer split. We win the cascade with
+   specificity, not !important: `.app-shell.maximized .main .viewer-pane` (0,4,0)
+   beats the split rule `.main.split .viewer-pane` (0,3,0); the sidebar is
+   uncontested for `display` so `.app-shell.maximized .layout .sidebar` (0,3,0)
+   needs only to exist. */
+.app-shell.maximized .layout .sidebar,
+.app-shell.maximized .main .viewer-pane {
+  display: none;
 }
 
 .terminal-tabs {

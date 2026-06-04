@@ -243,6 +243,8 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 
 > *Revised again 2026-06-03 (post git-v0.3 gate): owner directed a VS Code-grade polish pass — overlay scrollbars, codicons, collapsible sections, 22px density, hidden-inset chrome, status bar. The original §11 "non-VS-Code aesthetic" stance is superseded: airlock keeps its palette, adopts VS Code's structural discipline.*
 
+> *Revised again 2026-06-03 (terminal-tabs pass): the terminal becomes a multi-terminal panel with VS Code-grade management — a tab strip (icon · OSC-driven title · close), `+` to spawn, kill, **split** (two shells side-by-side), **maximize** (the terminal swallows the sidebar + viewer split and restores), and double-click rename (a user rename pins the title so later OSC updates stop applying). Titles track the running process via the shell's OSC title sequences. All terminals stay MOUNTED and CSS-hidden when inactive so their buffers survive tab switches; closing a tab unmounts the pane. This adds one IPC channel, `pty:kill`, which closes the walking-skeleton's long-standing orphan-PTY TODO — tab close, root change, and a late post-unmount `ptyCreate` resolve all now kill their session deterministically. The old `termNonce` full-remount mechanism is retired: the secrets restart-hint now restarts only the ACTIVE terminal (other running terminals keep their existing env, since secrets apply at spawn).*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │

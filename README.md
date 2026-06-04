@@ -3,9 +3,10 @@
 > Working title. A terminal-first AI IDE where the agent can build, run, and
 > debug your app — but is structurally unable to read your secrets.
 
-**Status:** skeleton + secrets + git. Terminal, file tree, viewer split,
-keychain secrets with terminal injection, hash-chained audit, and a live
-git sidebar (stage/commit/branch/diffs) all work. The agent phase is next.
+**Status:** skeleton + secrets + git. A multi-terminal panel (tabs, split,
+maximize, rename), file tree, viewer split, keychain secrets with terminal
+injection, hash-chained audit, and a live git sidebar (stage/commit/branch/diffs)
+all work. The agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -33,6 +34,25 @@ Note: in `npm run dev` the dock may still show "Electron" (the dev binary's
 identity); the packaged app shows the airlock name + icon everywhere.
 To rebrand: replace `packages/app/build/icon.svg`, run
 `bash packages/app/scripts/make-icon.sh`, re-package.
+
+## Terminal
+
+The terminal owns the main area and is a full multi-terminal panel:
+
+- **Tabs** — `+` spawns a new terminal; click a tab to switch; `✕` kills it
+  (closing the last tab respawns a fresh one). Tab titles track the running
+  process via the shell's OSC title sequences.
+- **Rename** — double-click a tab to name it; a manual rename pins the title so
+  later OSC updates stop overwriting it.
+- **Split** — show two shells side-by-side; the split button toggles it off.
+- **Maximize** — the terminal swallows the sidebar and viewer split; restore
+  brings them back. Split and maximize compose.
+
+Every terminal stays alive in the background, so buffers survive tab switches.
+Secrets are injected at spawn, so they apply to **new** terminals only — after
+toggling injection, the secrets panel offers a "restart active" hint that
+replaces just the active terminal with a freshly injected one (other running
+terminals keep their existing env).
 
 ## Secrets
 
