@@ -1,4 +1,5 @@
 import { DataGrid } from "./components/DataGrid";
+import { NeonConnectModal } from "./components/NeonConnectModal";
 import { SecretModal } from "./components/SecretModal";
 import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
@@ -45,9 +46,11 @@ export function App() {
         </div>
       </div>
       <StatusBar />
-      {modal !== null && (
+      {(modal === "add-secret" ||
+        (typeof modal === "object" && modal !== null)) && (
         <SecretModal key={typeof modal === "string" ? modal : modal.update} />
       )}
+      {modal === "connect-neon" && <NeonConnectModal />}
     </div>
   );
 }
