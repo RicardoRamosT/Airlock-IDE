@@ -452,6 +452,127 @@ body,
   padding: 4px 6px;
 }
 
+/* Click-away backdrop: transparent full-screen layer that closes an open
+   popover when clicked. Sits below the popover (z-index 20) but above the
+   rest of the app so any outside click is captured. */
+.popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+/* Gear menu (VS Code-style rows with right-aligned shortcut hints). */
+.settings-menu {
+  min-width: 200px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--fg);
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.menu-item:hover {
+  background: var(--hover);
+}
+
+.menu-shortcut {
+  color: var(--fg-dim);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  margin-left: 16px;
+}
+
+.submenu {
+  margin-left: 8px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+
+/* Settings tab (opens in the viewer-pane). Padded sections with headings and
+   radio/checkbox rows; every color is a theme var so it inverts in light. */
+.settings-tab {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.settings-tab-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--border);
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+.settings-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+}
+
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.settings-section h3 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+}
+
+.settings-sublabel {
+  font-size: 12px;
+  color: var(--fg-dim);
+  margin: 4px 0 6px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg);
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.settings-row input {
+  cursor: pointer;
+}
+
+.settings-note {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.settings-footer-note {
+  font-size: 12px;
+  color: var(--fg-dim);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
 .viewer-close {
   margin-left: auto;
   background: none;

@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GithubInfo } from "../../../shared/ipc";
 
-// onClose is part of the popover API (the footer owns open/close today; the
-// click-away wiring lands in Task 4). Aliased to mark it intentionally unused.
-export function AccountsPopover({
-  onClose: _onClose,
-}: {
-  onClose: () => void;
-}) {
+// onClose is owned by the footer (it renders a click-away backdrop that calls
+// it). Kept in the props so the popover API is uniform with SettingsMenu.
+export function AccountsPopover(_props: { onClose: () => void }) {
   const [info, setInfo] = useState<GithubInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = useCallback(() => {

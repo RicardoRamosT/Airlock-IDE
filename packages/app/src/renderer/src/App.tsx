@@ -1,4 +1,5 @@
 import { SecretModal } from "./components/SecretModal";
+import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
@@ -13,6 +14,7 @@ export function App() {
   usePrefs();
   const selectedFile = useApp((s) => s.selectedFile);
   const diff = useApp((s) => s.diff);
+  const settingsOpen = useApp((s) => s.settingsOpen);
   const modal = useApp((s) => s.modal);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const sidebarPosition = useApp((s) => s.sidebarPosition);
@@ -23,9 +25,11 @@ export function App() {
         className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
       >
         <Sidebar />
-        <div className={`main${selectedFile || diff ? " split" : ""}`}>
+        <div
+          className={`main${selectedFile || diff || settingsOpen ? " split" : ""}`}
+        >
           <div className="viewer-pane">
-            <Viewer />
+            {settingsOpen ? <SettingsTab /> : <Viewer />}
           </div>
           <div className="terminal-slot">
             <TerminalManager />
