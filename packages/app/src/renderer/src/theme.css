@@ -1376,3 +1376,49 @@ textarea:focus-visible {
 .docker-action .codicon {
   font-size: 14px;
 }
+
+/* Host section. Reuses the docker row/dot/action vocabulary; these add only
+   the dev-server URL text, the inline URL editor input, and the Render
+   deployed-vs-HEAD badge. No new palette -- accent/fg-dim/border only. */
+.host-url {
+  flex: 1;
+}
+
+.host-set {
+  margin-left: auto;
+  flex: none;
+}
+
+.host-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-family: "SF Mono", Menlo, monospace;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+}
+
+.host-badge {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.host-badge .codicon {
+  font-size: 12px;
+}
+
+.host-diff {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
