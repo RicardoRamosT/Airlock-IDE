@@ -2,7 +2,7 @@ import { BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
 import type { Section, SectionVisibility } from "../shared/ipc";
 import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
 
-const SECTION_LABELS: Record<Section, string> = {
+export const SECTION_LABELS: Record<Section, string> = {
   files: "Files",
   secrets: "Secrets",
   git: "Git",

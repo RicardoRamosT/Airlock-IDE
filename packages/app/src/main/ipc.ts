@@ -5,7 +5,6 @@ import {
   createBranch,
   createPtySession,
   deleteSecret,
-  dockerContainers,
   dockerStart,
   dockerStop,
   filterDangerousEnv,
@@ -13,8 +12,6 @@ import {
   getSecretValue,
   ghAccounts,
   gitFileVersions,
-  gitStatus,
-  headSha,
   importDotEnv,
   injectInto,
   isGitRepo,
@@ -23,11 +20,6 @@ import {
   listSecrets,
   listTables,
   neonConnectionUri,
-  neonListBranches,
-  neonListDatabases,
-  neonListProjects,
-  normalizeRepoUrl,
-  originRemoteUrl,
   type PtySession,
   parseConnString,
   pingDb,
@@ -37,8 +29,6 @@ import {
   readRows,
   readWorkspaceFile,
   redactConnStrings,
-  renderLatestDeploy,
-  renderListServices,
   runGit,
   setGlobalSecret,
   setSecret,
@@ -51,6 +41,16 @@ import {
 } from "@airlock/agent-core";
 import { dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
+import {
+  dockerStatus,
+  gitStatusFor,
+  neonBranches,
+  neonDatabases,
+  neonProjects,
+  neonStatus,
+  renderServicesStatus,
+  resolveDevUrl,
+} from "./ide-state";
 import { changeSectionVisibility } from "./menu";
 import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
 
@@ -184,7 +184,7 @@ export function registerIpc(
 
   ipcMain.handle("git:isRepo", () => isGitRepo(requireRoot()));
 
-  ipcMain.handle("git:status", () => gitStatus(requireRoot()));
+  ipcMain.handle("git:status", () => gitStatusFor(requireRoot()));
 
   ipcMain.handle("git:stage", (_e, paths: unknown) => {
     if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
@@ -371,31 +371,21 @@ export function registerIpc(
 
   // Neon: app-global (account-level), so NOT requireRoot-gated. The API key
   // and any fetched connection URI stay main-only; only metadata/rows cross.
-  ipcMain.handle("neon:status", async () => ({
-    connected: (await getGlobalSecret(NEON_KEY)) !== null,
-  }));
+  ipcMain.handle("neon:status", () => neonStatus());
   ipcMain.handle("neon:connect", async (_e, key: unknown) => {
     if (typeof key !== "string" || !key.trim())
       throw new Error("Invalid payload");
     await setGlobalSecret(NEON_KEY, key.trim(), { auditLog: globalAuditLog });
     return { connected: true };
   });
-  ipcMain.handle("neon:projects", async () => {
-    const key = await getGlobalSecret(NEON_KEY);
-    if (!key) throw new Error("Neon not connected");
-    return neonListProjects(key);
-  });
-  ipcMain.handle("neon:branches", async (_e, p: unknown) => {
+  ipcMain.handle("neon:projects", () => neonProjects());
+  ipcMain.handle("neon:branches", (_e, p: unknown) => {
     if (typeof p !== "string") throw new Error("Invalid payload");
-    const key = await getGlobalSecret(NEON_KEY);
-    if (!key) throw new Error("Neon not connected");
-    return neonListBranches(key, p);
+    return neonBranches(p);
   });
-  ipcMain.handle("neon:databases", async (_e, p: unknown, b: unknown) => {
+  ipcMain.handle("neon:databases", (_e, p: unknown, b: unknown) => {
     if (!allStr([p, b])) throw new Error("Invalid payload");
-    const key = await getGlobalSecret(NEON_KEY);
-    if (!key) throw new Error("Neon not connected");
-    return neonListDatabases(key, p as string, b as string);
+    return neonDatabases(p as string, b as string);
   });
   ipcMain.handle("neon:ping", async (_e, p, b, db, role) => {
     if (!allStr([p, b, db, role])) throw new Error("Invalid payload");
@@ -460,100 +450,15 @@ export function registerIpc(
     await setGlobalSecret(RENDER_KEY, key.trim(), { auditLog: globalAuditLog });
     return { connected: true };
   });
-  ipcMain.handle("render:services", async () => {
-    const key = await getGlobalSecret(RENDER_KEY);
-    if (!key) throw new Error("Render not connected");
-    let services = await renderListServices(key);
-    // Filter to THIS project's git repo when a workspace is open and its origin
-    // remote matches a service repo. If nothing matches, fall back to all
-    // services rather than hiding everything.
-    if (workspaceRoot) {
-      const origin = await originRemoteUrl(workspaceRoot);
-      if (origin) {
-        const want = normalizeRepoUrl(origin);
-        const matched = services.filter(
-          (s) => normalizeRepoUrl(s.repo) === want,
-        );
-        if (matched.length > 0) services = matched;
-      }
-    }
-    // Local HEAD sha for the deployed-vs-HEAD comparison (best effort).
-    let localSha = "";
-    if (workspaceRoot) {
-      try {
-        localSha = await headSha(workspaceRoot);
-      } catch {
-        localSha = "";
-      }
-    }
-    const out = [];
-    for (const s of services) {
-      let deployStatus = "";
-      let deployed: boolean | null = null;
-      try {
-        const dep = await renderLatestDeploy(key, s.id);
-        if (dep) {
-          deployStatus = dep.status;
-          // Compare with prefix tolerance: Render may report a short or full
-          // commit sha vs the local full HEAD. null when either side is empty.
-          deployed =
-            localSha && dep.commit
-              ? dep.commit === localSha ||
-                dep.commit.startsWith(localSha) ||
-                localSha.startsWith(dep.commit)
-              : null;
-        }
-      } catch {
-        deployStatus = "";
-      }
-      out.push({
-        id: s.id,
-        name: s.name,
-        url: s.url,
-        branch: s.branch,
-        deployStatus,
-        deployed,
-      });
-    }
-    return out;
-  });
+  ipcMain.handle("render:services", () => renderServicesStatus(workspaceRoot));
 
   // Host/local dev server: host:probe + host:openExternal are global (NOT
   // requireRoot-gated). host:localUrl resolves the per-project dev URL so it IS
   // requireRoot-gated (config.devUrl, else guessed from package.json).
-  ipcMain.handle("host:localUrl", async () => {
-    const root = requireRoot();
-    const cfg = await readProjectConfig(root);
-    if (cfg.devUrl) return cfg.devUrl;
-    try {
-      const { content } = await readWorkspaceFile(root, "package.json");
-      const pkg = JSON.parse(content) as {
-        scripts?: Record<string, string>;
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-      };
-      const deps = {
-        ...(pkg.dependencies ?? {}),
-        ...(pkg.devDependencies ?? {}),
-      };
-      const scriptText = Object.values(pkg.scripts ?? {}).join(" ");
-      const portMatch = scriptText.match(/--port[ =](\d{2,5})/);
-      const port = portMatch
-        ? Number(portMatch[1])
-        : deps.next
-          ? 3000
-          : deps.vite || deps["@vitejs/plugin-react"]
-            ? 5173
-            : deps["react-scripts"]
-              ? 3000
-              : deps.astro
-                ? 4321
-                : null;
-      return port ? `http://localhost:${port}` : null;
-    } catch {
-      return null;
-    }
-  });
+  // Per-project dev URL (config.devUrl, else guessed from package.json). Shape
+  // is unchanged (string | null); the resolution logic lives in ide-state's
+  // resolveDevUrl so hostStatus (MCP) shares the exact same URL guess.
+  ipcMain.handle("host:localUrl", () => resolveDevUrl(requireRoot()));
   ipcMain.handle("host:probe", async (_e, url: unknown) => {
     if (typeof url !== "string") throw new Error("Invalid payload");
     let u: URL;
@@ -573,7 +478,7 @@ export function registerIpc(
   });
 
   // Docker: machine-global, so NOT requireRoot-gated.
-  ipcMain.handle("docker:list", () => dockerContainers());
+  ipcMain.handle("docker:list", () => dockerStatus());
 
   ipcMain.handle("docker:start", (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
