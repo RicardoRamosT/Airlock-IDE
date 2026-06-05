@@ -108,6 +108,18 @@ export {
   PtySession,
 } from "./pty/session";
 export {
+  // Aliased (same precedent as the Neon block): the Render REST functions are
+  // render-prefixed to avoid clashing with other agent-core exports.
+  latestDeploy as renderLatestDeploy,
+  listServices as renderListServices,
+  type RenderDeploy,
+  type RenderOptions,
+  type RenderService,
+  type RenderTransport,
+  renderFetchTransport,
+} from "./render/client";
+export { normalizeRepoUrl } from "./render/parse";
+export {
   type FileContent,
   MAX_FILE_BYTES,
   readWorkspaceFile,
