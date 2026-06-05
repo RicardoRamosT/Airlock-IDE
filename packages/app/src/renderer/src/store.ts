@@ -54,7 +54,12 @@ interface AppState {
   // file/diff/settings/dbView is non-null at a time (mutual exclusion).
   dbView: DbView | null;
   layoutHydrated: boolean; // default false
-  modal: "add-secret" | { update: string } | "connect-neon" | null;
+  modal:
+    | "add-secret"
+    | { update: string }
+    | "connect-neon"
+    | "connect-render"
+    | null;
   diff: {
     path: string;
     which: "staged" | "unstaged";
