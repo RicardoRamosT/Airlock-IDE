@@ -116,6 +116,9 @@ export {
   type PtyOptions,
   PtySession,
 } from "./pty/session";
+// Scrubs injected secret values + secret-shaped strings out of command output
+// before the agent sees it (companion to redactConnStrings above).
+export { redactSecrets } from "./redact/redact";
 export {
   // Aliased (same precedent as the Neon block): the Render REST functions are
   // render-prefixed to avoid clashing with other agent-core exports.
