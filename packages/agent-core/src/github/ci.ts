@@ -74,7 +74,11 @@ export function parseRunJobs(raw: string): {
   for (const job of jobs) {
     const jobSteps = Array.isArray(job.steps) ? job.steps : [];
     for (const s of jobSteps) {
-      steps.push({ name: s.name, status: s.status, conclusion: s.conclusion ?? null });
+      steps.push({
+        name: s.name,
+        status: s.status,
+        conclusion: s.conclusion ?? null,
+      });
     }
   }
   const stepsDone = steps.filter((s) => s.status === "completed").length;
@@ -96,8 +100,14 @@ export async function latestCiRun(
   let listRaw: string;
   try {
     listRaw = await run([
-      "run", "list", "--branch", branch, "--limit", "1",
-      "--json", "databaseId,status,conclusion,workflowName,headSha,url",
+      "run",
+      "list",
+      "--branch",
+      branch,
+      "--limit",
+      "1",
+      "--json",
+      "databaseId,status,conclusion,workflowName,headSha,url",
     ]);
   } catch {
     return null;
@@ -106,7 +116,13 @@ export async function latestCiRun(
   if (!summary) return null;
   let jobsRaw = "";
   try {
-    jobsRaw = await run(["run", "view", String(summary.databaseId), "--json", "jobs"]);
+    jobsRaw = await run([
+      "run",
+      "view",
+      String(summary.databaseId),
+      "--json",
+      "jobs",
+    ]);
   } catch {
     jobsRaw = ""; // step detail unavailable -> show the run without steps
   }

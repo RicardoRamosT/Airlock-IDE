@@ -111,6 +111,7 @@ export type Section =
   | "files"
   | "secrets"
   | "git"
+  | "activity"
   | "databases"
   | "docker"
   | "host"

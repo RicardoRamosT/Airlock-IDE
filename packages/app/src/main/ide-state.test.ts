@@ -7,16 +7,18 @@ import { listSidebarSections } from "./ide-state";
 // listSidebarSections is the one NEW (MCP-only) read with no existing coverage.
 // The other ide-state functions are thin extractions of already-tested IPC
 // bodies and rely on that coverage plus the typecheck gate. Here we pin the
-// projection shape: the canonical 7-section order, human labels, and the
-// default-true visibility semantics (absent / non-false -> visible).
+// projection shape: the canonical 8-section order (Activity added after Git),
+// human labels, and the default-true visibility semantics (absent /
+// non-false -> visible).
 describe("listSidebarSections", () => {
-  it("returns all seven sections in order, all visible by default", async () => {
+  it("returns all eight sections in order, all visible by default", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-ide-state-"));
     const rows = await listSidebarSections(path.join(dir, "prefs.json"));
     expect(rows).toEqual([
       { id: "files", label: "Files", visible: true },
       { id: "secrets", label: "Secrets", visible: true },
       { id: "git", label: "Git", visible: true },
+      { id: "activity", label: "Activity", visible: true },
       { id: "databases", label: "Databases", visible: true },
       { id: "docker", label: "Docker", visible: true },
       { id: "host", label: "Host", visible: true },

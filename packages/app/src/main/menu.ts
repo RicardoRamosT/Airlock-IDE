@@ -6,6 +6,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   files: "Files",
   secrets: "Secrets",
   git: "Git",
+  activity: "Activity",
   databases: "Databases",
   docker: "Docker",
   host: "Host",

@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import type { Section as SectionId } from "../../../shared/ipc";
 import { useApp } from "../store";
+import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
@@ -113,6 +114,11 @@ export function Sidebar() {
         {vis.git && (
           <Section id="git" title="Git">
             <GitSection />
+          </Section>
+        )}
+        {vis.activity && (
+          <Section id="activity" title="Activity" defaultOpen={false}>
+            <ActivitySection />
           </Section>
         )}
         {vis.databases && (

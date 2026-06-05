@@ -1422,3 +1422,156 @@ textarea:focus-visible {
   font-size: 11px;
   color: var(--fg-dim);
 }
+
+/* ---- Activity panel ---- */
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.activity-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-h);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.activity-row[role="button"] {
+  cursor: pointer;
+}
+.activity-row:hover {
+  background: var(--hover);
+}
+.activity-title {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-sub {
+  font-size: 11px;
+  color: var(--fg-dim);
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-link {
+  flex: none;
+  margin-left: 4px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.activity-link:hover {
+  color: var(--accent);
+}
+.activity-progress-label {
+  font-size: 10px;
+  color: var(--fg-dim);
+  padding: 0 4px 2px;
+}
+
+/* Progress bar: determinate fill (smooth width) + indeterminate shimmer sweep */
+.progress-bar {
+  height: 3px;
+  margin: 0 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.progress-bar .fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 400ms ease;
+}
+.progress-bar.indeterminate .fill {
+  width: 35%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: activity-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes activity-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+/* Pulsing dot while running */
+.status-dot.running {
+  background: var(--accent);
+  border-color: var(--accent);
+  animation: activity-pulse 1.2s ease-in-out infinite;
+}
+@keyframes activity-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* CI step checklist */
+.step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0 2px 18px;
+}
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.step-row .codicon {
+  font-size: 12px;
+}
+.step-ok {
+  color: var(--accent);
+}
+.step-fail {
+  color: #f85149;
+}
+.step-spin {
+  animation: activity-spin 1s linear infinite;
+}
+@keyframes activity-spin {
+  from {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar.indeterminate .fill,
+  .status-dot.running,
+  .step-spin {
+    animation: none;
+  }
+  .progress-bar.indeterminate .fill {
+    transform: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}

@@ -57,13 +57,29 @@ describe("parseRunJobs", () => {
     const r = parseRunJobs(raw);
     expect(r.stepsTotal).toBe(4);
     expect(r.stepsDone).toBe(2);
-    expect(r.steps[0]).toEqual({ name: "checkout", status: "completed", conclusion: "success" });
-    expect(r.steps[3]).toEqual({ name: "e2e", status: "queued", conclusion: null });
+    expect(r.steps[0]).toEqual({
+      name: "checkout",
+      status: "completed",
+      conclusion: "success",
+    });
+    expect(r.steps[3]).toEqual({
+      name: "e2e",
+      status: "queued",
+      conclusion: null,
+    });
   });
 
   it("handles no jobs / empty output", () => {
-    expect(parseRunJobs("")).toEqual({ steps: [], stepsDone: 0, stepsTotal: 0 });
-    expect(parseRunJobs(JSON.stringify({ jobs: [] }))).toEqual({ steps: [], stepsDone: 0, stepsTotal: 0 });
+    expect(parseRunJobs("")).toEqual({
+      steps: [],
+      stepsDone: 0,
+      stepsTotal: 0,
+    });
+    expect(parseRunJobs(JSON.stringify({ jobs: [] }))).toEqual({
+      steps: [],
+      stepsDone: 0,
+      stepsTotal: 0,
+    });
   });
 });
 
@@ -104,8 +120,14 @@ describe("latestCiRun", () => {
     expect(run?.stepsTotal).toBe(2);
     expect(run?.url).toBe("https://gh/7");
     expect(calls[0]).toEqual([
-      "run", "list", "--branch", "feature/x", "--limit", "1",
-      "--json", "databaseId,status,conclusion,workflowName,headSha,url",
+      "run",
+      "list",
+      "--branch",
+      "feature/x",
+      "--limit",
+      "1",
+      "--json",
+      "databaseId,status,conclusion,workflowName,headSha,url",
     ]);
     expect(calls[1]).toEqual(["run", "view", "7", "--json", "jobs"]);
   });

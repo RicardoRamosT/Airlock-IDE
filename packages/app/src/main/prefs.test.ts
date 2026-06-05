@@ -16,6 +16,7 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
+        activity: true,
         databases: true,
         docker: true,
         host: true,
@@ -38,6 +39,7 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
+        activity: true,
         databases: true,
         docker: true,
         host: true,
@@ -66,6 +68,7 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
+        activity: true,
         databases: true,
         docker: true,
         host: true,
@@ -86,6 +89,7 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
+        activity: true,
         databases: true,
         docker: true,
         host: true,
@@ -106,7 +110,7 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).theme).toBe("dark");
   });
 
-  it("defaults sectionVisibility to all seven sections visible", async () => {
+  it("defaults sectionVisibility to all eight sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -114,6 +118,7 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
+      activity: true,
       databases: true,
       docker: true,
       host: true,
@@ -132,6 +137,7 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
+      activity: true,
       databases: true,
       docker: false,
       host: true,
@@ -141,6 +147,7 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
+      activity: true,
       databases: true,
       docker: false,
       host: true,
@@ -156,6 +163,7 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
+      activity: true,
       databases: true,
       docker: true,
       host: true,
@@ -174,6 +182,7 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
+      activity: true,
       databases: true,
       docker: true,
       host: true,
