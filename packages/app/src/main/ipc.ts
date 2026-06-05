@@ -39,7 +39,7 @@ import {
   withDb,
   writeProjectConfig,
 } from "@airlock/agent-core";
-import { dialog, ipcMain, shell } from "electron";
+import { clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus } from "./activity";
 import {
@@ -141,6 +141,35 @@ export function registerIpc(
   ipcMain.handle("secrets:delete", (_e, name: string) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
     return deleteSecret(requireRoot(), name);
+  });
+
+  // OWNER-ONLY value path. The renderer is the human's surface; the agent (a
+  // separate process, reachable only over MCP) cannot call this IPC and is NOT
+  // given any value tool. Audited (name only). See broker.getSecretValue banner.
+  ipcMain.handle("secrets:reveal", async (_e, name: unknown) => {
+    if (typeof name !== "string") throw new Error("Invalid payload");
+    const root = requireRoot();
+    await appendAudit(root, "user", "secret.reveal", { name });
+    return getSecretValue(root, name);
+  });
+
+  // Copy by NAME so the value never enters the renderer: main resolves it, puts
+  // it on the clipboard, and conditionally auto-clears after the configured delay
+  // (0 = never; clears only if the clipboard still holds this exact value).
+  ipcMain.handle("clipboard:copySecret", async (_e, name: unknown) => {
+    if (typeof name !== "string") throw new Error("Invalid payload");
+    const root = requireRoot();
+    const value = await getSecretValue(root, name);
+    if (value === null) return { copied: false, clearAfterSeconds: 0 };
+    clipboard.writeText(value);
+    await appendAudit(root, "user", "secret.copy", { name });
+    const seconds = (await loadPrefs(prefsFile)).clipboardClearSeconds;
+    if (seconds > 0) {
+      setTimeout(() => {
+        if (clipboard.readText() === value) clipboard.writeText("");
+      }, seconds * 1000);
+    }
+    return { copied: true, clearAfterSeconds: seconds };
   });
 
   ipcMain.handle(

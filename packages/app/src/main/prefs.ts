@@ -37,6 +37,7 @@ const DEFAULTS: AppPrefs = {
   sidebarPosition: "left",
   theme: "dark",
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
+  clipboardClearSeconds: 30,
 };
 
 // Allowlist per key: only a real boolean overrides the default; unknown keys
@@ -83,6 +84,11 @@ function sanitize(raw: unknown): AppPrefs {
     sidebarPosition: r.sidebarPosition === "right" ? "right" : "left",
     theme: r.theme === "light" ? "light" : "dark",
     sectionVisibility: sanitizeSectionVisibility(r.sectionVisibility),
+    clipboardClearSeconds:
+      typeof r.clipboardClearSeconds === "number" &&
+      Number.isFinite(r.clipboardClearSeconds)
+        ? Math.min(3600, Math.max(0, Math.floor(r.clipboardClearSeconds)))
+        : DEFAULTS.clipboardClearSeconds,
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.

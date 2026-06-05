@@ -128,6 +128,7 @@ export interface AppPrefs {
   sidebarPosition: "left" | "right";
   theme: "dark" | "light";
   sectionVisibility: SectionVisibility; // app-global; default all true
+  clipboardClearSeconds: number; // app-global; 0 = never auto-clear the clipboard
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
@@ -163,6 +164,10 @@ export interface AirlockApi {
     relPath: string,
     deleteAfter: boolean,
   ): Promise<ImportResult>;
+  secretsReveal(name: string): Promise<string | null>;
+  clipboardCopySecret(
+    name: string,
+  ): Promise<{ copied: boolean; clearAfterSeconds: number }>;
   configGet(): Promise<ProjectConfig>;
   configSet(patch: Partial<ProjectConfig>): Promise<ProjectConfig>;
   auditRead(limit: number): Promise<AuditEntry[]>;

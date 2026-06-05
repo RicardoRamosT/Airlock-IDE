@@ -22,6 +22,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      clipboardClearSeconds: 30,
     });
   });
 
@@ -45,6 +46,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      clipboardClearSeconds: 30,
     });
   });
 
@@ -74,6 +76,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      clipboardClearSeconds: 30,
     });
   });
 
@@ -95,6 +98,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      clipboardClearSeconds: 30,
     });
   });
 
@@ -188,5 +192,31 @@ describe("app prefs", () => {
       host: true,
       audit: true,
     });
+  });
+});
+
+// sanitize() is not exported, so these go through loadPrefs against a fixture
+// file -- the same accessor the rest of this suite uses -- and assert the same
+// numbers the spec's direct-sanitize tests would (defaults / clamp / floor).
+describe("clipboardClearSeconds", () => {
+  it("defaults to 30 when absent or wrong type", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const absent = path.join(dir, "absent.json");
+    expect((await loadPrefs(absent)).clipboardClearSeconds).toBe(30);
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(wrong, JSON.stringify({ clipboardClearSeconds: "x" }));
+    expect((await loadPrefs(wrong)).clipboardClearSeconds).toBe(30);
+  });
+  it("clamps to [0, 3600] and floors", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const low = path.join(dir, "low.json");
+    await writeFile(low, JSON.stringify({ clipboardClearSeconds: -5 }));
+    expect((await loadPrefs(low)).clipboardClearSeconds).toBe(0);
+    const high = path.join(dir, "high.json");
+    await writeFile(high, JSON.stringify({ clipboardClearSeconds: 99999 }));
+    expect((await loadPrefs(high)).clipboardClearSeconds).toBe(3600);
+    const frac = path.join(dir, "frac.json");
+    await writeFile(frac, JSON.stringify({ clipboardClearSeconds: 45.7 }));
+    expect((await loadPrefs(frac)).clipboardClearSeconds).toBe(45);
   });
 });
