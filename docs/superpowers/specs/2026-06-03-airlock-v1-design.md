@@ -453,6 +453,38 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 > `run_command` (dedicated PTY + redactor + command policy + broker injection),
 > `request_secret` (the secure modal), and file editing.*
 
+> *Revised again 2026-06-05 (run_command v1 — see the dedicated spec
+> `2026-06-05-run-command-design.md`): the MCP surface gains its first
+> secret-**using** tool, `run_command` (now the 10th tool; the allowlist guard
+> moves 9 → 10). The terminal Claude calls `run_command(command, { injectSecrets?:
+> names[], cwd? })`; the **broker** resolves each requested name to its value
+> main-side (`getSecretValue`) and injects the name=value pairs into the
+> environment of a **dedicated child process** (`sh -c`, cwd = cwd||root, timeout
+> + output cap), with the injected set run through `filterDangerousEnv` so a
+> vaulted `PATH`/`DYLD_*` can't hijack which binary runs. The captured stdout +
+> stderr are passed through a **new agent-core `redact/` module** — exact-match
+> every injected value -> `***` (longest-first, all occurrences, regex-escaped so
+> a password full of metachars matches literally) plus a defense-in-depth pattern
+> pack (`redactConnStrings` userinfo + `Bearer <token>`) — **before** the output
+> is returned, so even a command that echoes the secret comes back redacted. The
+> agent thus **USES a secret without ever HOLDING it**; values are injected into
+> the child env and redacted out of the result, never returned. **Fail-closed:**
+> a requested name that isn't vaulted does NOT run — `runCommand` throws a clean
+> error naming the missing secret (the NAME is safe; a value never is) and writes
+> a `command.run.blocked` audit entry. Every run is audited `command.run` (the
+> command + the injected secret **names** + exitCode/timedOut/truncated — never
+> the values). The new no-secrets guarantee for this tool: **`run_command`'s
+> output is redacted of every injected value, and the values are never in the
+> result** — the adversarial test (a command that prints an injected secret ->
+> `***`) is the proof. `tools.ts` still references NONE of the secret-VALUE
+> functions (the source-guard stays green): the tool calls agent-core
+> `runCommand`, which uses `getSecretValue` internally. The command-risk
+> classifier (rm -rf / curl|sh flagging) is **deferred** — the terminal Claude
+> can already run any command via its own Bash, so `run_command` adds no
+> command-execution risk; its only new power (using secrets) is covered by the
+> redactor + env-filter + audit, plus Claude Code's per-tool approval on first
+> use.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │

@@ -21,11 +21,33 @@ Secret values are stored in the **OS keychain** and are used **main-side only** 
 itself — for example:
 
 - injected into a terminal's environment at spawn time (when the human enables that), or
-- used to open a short-lived database connection so a status/ping/table read can run.
+- used to open a short-lived database connection so a status/ping/table read can run, or
+- injected into the environment of a single command you run via **`run_command`** — used
+  for that one run, then gone.
 
-In both cases the value is read, used, and discarded inside airlock's main process. It is
+In each case the value is read, used, and discarded inside airlock's main process. It is
 never sent to the renderer UI, and it is never sent to you over MCP. Even error messages
 are scrubbed of connection strings before they cross any boundary.
+
+## Using a secret without seeing it — `run_command`
+`run_command` is the one tool that *uses* secrets, and it is built so the invariant still
+holds. You name the secrets you need (`injectSecrets`, names from `list_secret_names`); the
+**broker** resolves each name to its value **main-side** and injects it into the
+environment of a dedicated child process for that single command. Before the output is
+handed back to you it is run through airlock's redactor: **every injected value is
+exact-matched and replaced with `***`** (plus a defense-in-depth pattern pass for
+secret-shaped strings), in both stdout and stderr. So even a command that deliberately
+`echo`s the secret comes back redacted — **you use the secret, you never see it.**
+
+Three guarantees ride along:
+
+- **Fail-closed.** If a requested secret isn't vaulted, the command does **not** run. You
+  get a clean error naming the missing secret — the *name* is safe to surface; a *value*
+  never is.
+- **Env can't be hijacked.** The injected names are filtered for dangerous loader vars
+  (`PATH`, `DYLD_*`, ...) so a vaulted secret can't change which binary runs.
+- **Audited, names only.** Every run appends a `command.run` audit entry recording the
+  command and the injected secret **names** — never the values.
 
 ## What this means for you
 - **Don't ask for secret values** and don't expect a tool to provide one.
@@ -34,7 +56,7 @@ are scrubbed of connection strings before they cross any boundary.
 - **Treat a redacted/absent value as correct, not a bug.** Seeing that
   `DATABASE_URL` exists and its database is reachable is the complete, intended signal.
 - If a task genuinely needs a credential *applied* (e.g. run something that needs the DB),
-  rely on airlock's main-side use of it — for instance secrets injected into the terminal —
-  rather than trying to read the value yourself.
+  use **`run_command`** with the secret names in `injectSecrets` — airlock injects the
+  values and redacts them from the output — rather than trying to read the value yourself.
 
 This boundary is not an obstacle to route around; it is the product. Work within it.

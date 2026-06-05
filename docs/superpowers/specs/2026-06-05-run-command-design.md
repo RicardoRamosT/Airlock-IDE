@@ -1,7 +1,7 @@
 # run_command (Agent capability) Design
 
 **Date:** 2026-06-05
-**Status:** Design approved. Building v1.
+**Status:** v1 complete.
 
 ## Overview
 A new MCP tool, `run_command`, that lets the terminal Claude run a shell command **with named vaulted secrets injected by the broker**, and get the output back **redacted** -- so the agent USES a secret without ever SEEING its value. This extends the MCP IDE-bridge (the agent already reads statuses + curates the sidebar; now it can run things that need secrets).

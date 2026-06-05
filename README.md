@@ -179,6 +179,14 @@ so it understands the IDE without you explaining it.
 section. So you can ask "set up my sidebar for this project" and it will turn
 on Databases and Docker, hide what you don't need, and the sidebar updates live.
 
+**Run commands that need your secrets.** With `run_command`, the terminal Claude
+can run a shell command that needs a credential — a migration against your
+`DATABASE_URL`, a `curl` that needs an API key — by naming the secret it needs.
+airlock injects the value into that one command's environment for you and
+**redacts it out of the output**, so the agent *uses* the secret without ever
+*seeing* it. If a named secret isn't vaulted the command refuses to run, and
+every run is audited (the command and the secret *names*, never the values).
+
 **The security boundary.** Claude can never read a secret value through airlock —
 **the tools to do that do not exist.** Every read returns names, hosts, and
 status only; `getSecretValue`/`getGlobalSecret` are never exposed as tools, and a

@@ -1,7 +1,9 @@
 # MCP tools
 
-airlock exposes 9 tools over this MCP server. Eight are **read-only status** tools; one
-(`set_sidebar_section_visibility`) drives the sidebar UI. **None returns a secret value.**
+airlock exposes 10 tools over this MCP server. Eight are **read-only status** tools; one
+(`set_sidebar_section_visibility`) drives the sidebar UI; one (`run_command`) runs a shell
+command with named vaulted secrets injected and the output returned with those values
+**redacted**. **None returns a secret value.**
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
 yet; the app-global tools work regardless.
@@ -38,6 +40,21 @@ yet; the app-global tools work regardless.
   values, ever. Use it to learn what credentials exist (and thus what the project needs),
   e.g. to decide which sidebar sections to surface. See `security-model.md`.
 
+## Acting — run a command that needs a secret
+
+- **`run_command`** — run a shell command with named vaulted secrets injected into its
+  environment for just that one run; the output is returned with every injected value
+  **redacted** (`***`). Args: `command` (the shell command), `injectSecrets` (an array of
+  secret **names** — exactly as returned by `list_secret_names`, never values — to inject),
+  and an optional `cwd` (defaults to the workspace root). Use it for commands that need a
+  credential to work: a `psql`/migration against `DATABASE_URL`, a `curl` that needs an API
+  key, a script that reads a token from its env. You name the secret; **airlock injects the
+  value main-side, you never see it**, and if the command echoes it the output comes back
+  redacted. **Fail-closed:** if a requested name isn't vaulted, the command does **not** run
+  and you get a clean error naming the missing secret (the name is safe; a value never is).
+  **Every run is audited** (`command.run` — the command and the secret *names*, never the
+  values). Workspace-rooted (needs an open folder). See `security-model.md`.
+
 ## Picking a tool
 
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
@@ -45,4 +62,8 @@ yet; the app-global tools work regardless.
   `docker_status`, `render_services`, `neon_status`).
 - "What does this project use?" → `list_secret_names` + the status reads together paint the
   picture (e.g. a `postgres-url` secret + a reachable DB ⇒ surface Databases).
-- You will **never** find a tool that returns a secret value — that is by design.
+- "Run something that needs a credential" → `run_command` with the secret **names** in
+  `injectSecrets` (from `list_secret_names`). airlock injects the values, you get redacted
+  output.
+- You will **never** find a tool that hands you a secret value — that is by design.
+  `run_command` *uses* a secret on your behalf but redacts it out of what you get back.
