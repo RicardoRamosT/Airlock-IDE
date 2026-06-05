@@ -3,8 +3,15 @@
 ## What it shows
 The project's vaulted secrets, listed by **name** only (with a key icon). Each row lets the
 human update or delete the value, and the section has a "Import from `.env`" action and an
-"inject secrets into the terminal" toggle. Secret **values are never shown here** — not to
-the human in the list, and never to you. Values live in the OS keychain.
+"inject secrets into the terminal" toggle. Secret **values are never shown to you**. Values
+live in the OS keychain.
+
+The human **owner** has two per-row hover actions for their own use: an **eye** to reveal a
+value inline, and a **copy** button (puts the value on the clipboard, which then auto-clears
+after a delay set in **Settings → Secrets** — default 30s, `0` = never; the risk of the
+shared clipboard is explained there). These are owner-only renderer actions; **you have no
+value path** — they are not MCP tools, the value never reaches you, and the copy resolves
+the value main-side so it never even enters the UI. See `security-model.md`.
 
 The MCP tool `list_secret_names` mirrors this: it returns each secret's name, provider, and
 whether it looks valid — never the value. See `security-model.md`.

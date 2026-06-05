@@ -88,14 +88,12 @@ export async function listSecrets(root: string): Promise<SecretMeta[]> {
 // main process -- for instance, opening a DB connection the user asked to
 // browse. This is the ONE place a credential leaves the broker keyed by name.
 //
-//   * NEVER register this as an agent tool.
 //   * NEVER register this as an agent/MCP tool.
 //   * The ONLY renderer IPC that may return this is the explicit, OWNER-triggered
 //     secrets:reveal / clipboard:copySecret in app main/ipc.ts (audited, name
 //     only; the agent process cannot reach renderer IPC). Do NOT add others.
 //   * Only main-side connection handlers may call it; the renderer/agent get
 //     host / database / table / row data ONLY -- never the credential itself.
-// ===========================================================================
 //
 // Every other broker accessor (listSecrets/injectInto) is metadata- or
 // env-injection-scoped on purpose. If you find yourself wanting this value

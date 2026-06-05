@@ -1,7 +1,7 @@
 # Reveal Secret Value (owner-only) + auto-clearing copy
 
 **Date:** 2026-06-05
-**Status:** Design approved. Building.
+**Status:** v1 complete.
 
 ## Overview
 Let the human OWNER reveal and copy a vaulted secret's value in airlock's Secrets

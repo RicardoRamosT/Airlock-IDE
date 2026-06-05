@@ -75,6 +75,10 @@ Secrets only reach **new** terminals (injected at spawn), and each terminal
 inherits your login-shell `PATH`/locale — so homebrew tools and `LANG` work
 even when Airlock is launched from Finder.
 
+As the owner you can reveal (eye toggle) and copy a secret's own value in the
+sidebar — copy goes straight to the clipboard and auto-clears (Settings ▸
+Secrets; default 30s, 0 = never) — while the agent still cannot read any value.
+
 Note: the packaged app is ad-hoc signed; after re-packaging, macOS may
 re-prompt Keychain access once per rebuild ("airlock wants to access...").
 Click Always Allow. A real signing identity would make this stick.

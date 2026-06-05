@@ -59,6 +59,26 @@ learn that the secret now exists and can retry the action that needed it (e.g. `
 still without ever seeing the value. It is the lowest-risk tool here: there is no value path
 to you at all.
 
+## The owner can reveal/copy their own secrets — and you still can't
+The human **owner** can reveal a secret's value (the per-row eye toggle) and copy it (the
+copy button) in the Secrets sidebar. This is the owner acting on their own surface — it is
+**not a tool you can call** and it does **not** change anything above:
+
+- It is **renderer-only IPC** (`secrets:reveal` / `clipboard:copySecret`), audited as
+  `secret.reveal` / `secret.copy` — **name only, never the value**.
+- It is **not an MCP/agent tool.** The MCP allowlist is still **11**, the `getSecretValue`
+  source-guard test is green, and you (a separate process) **cannot call renderer IPC** —
+  so you gain no value path. Your zero-value invariant is unchanged.
+- **Copy** resolves the value **main-side** and writes it straight to the clipboard; the
+  value **never enters the renderer** for a copy. The clipboard then **auto-clears** after a
+  configurable delay (default 30s; `0` = never), and only if it still holds that value.
+
+Honest caveats (documented, not "fixed"): the owner is the **trust root**, so they can
+always paste a revealed value into you themselves — airlock can't stop that. And the
+clipboard is a **shared OS surface**: your shell could `pbpaste` within the clear window.
+That risk is minimized by the by-name copy (value never in the renderer) plus the
+auto-clear — but it is the owner's to manage via the setting, not a path opened to you.
+
 ## What this means for you
 - **Don't ask for secret values** and don't expect a tool to provide one.
 - **Don't try to exfiltrate them** — reading keychain entries, grepping for them, or
