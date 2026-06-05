@@ -76,6 +76,13 @@ const api: AirlockApi = {
     ipcRenderer.invoke("sections:set", id, visible),
   onSectionsChanged: (cb) =>
     subscribe<SectionVisibility>("sections:changed", cb),
+  onRequestSecret: (cb) =>
+    subscribe<{ requestId: string; name: string; providerHint?: string }>(
+      "agent:request-secret",
+      cb,
+    ),
+  requestSecretResolve: (requestId, vaulted) =>
+    ipcRenderer.invoke("agent:request-secret-resolved", requestId, vaulted),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

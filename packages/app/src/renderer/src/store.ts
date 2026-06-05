@@ -57,6 +57,13 @@ interface AppState {
   modal:
     | "add-secret"
     | { update: string }
+    | {
+        requestSecret: {
+          requestId: string;
+          name: string;
+          providerHint?: string;
+        };
+      }
     | "connect-neon"
     | "connect-render"
     | null;

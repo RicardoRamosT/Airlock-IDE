@@ -43,6 +43,15 @@ export function usePrefs(): void {
     });
   }, []);
 
+  // The agent (via the request_secret MCP tool) asks the user to vault a secret.
+  // Main pushes agent:request-secret; open the secure modal for it. SecretModal
+  // reports the outcome back so the awaiting agent is never stranded.
+  useEffect(() => {
+    return window.airlock.onRequestSecret((p) => {
+      useApp.getState().setModal({ requestSecret: p });
+    });
+  }, []);
+
   // Apply the active theme to the DOM whenever it changes. This single effect
   // covers BOTH hydrate (store.theme updated above) and any live toggle, so
   // the CSS [data-theme] override on <html> always tracks store.theme. Default

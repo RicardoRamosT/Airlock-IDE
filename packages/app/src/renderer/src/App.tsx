@@ -49,7 +49,15 @@ export function App() {
       <StatusBar />
       {(modal === "add-secret" ||
         (typeof modal === "object" && modal !== null)) && (
-        <SecretModal key={typeof modal === "string" ? modal : modal.update} />
+        <SecretModal
+          key={
+            typeof modal === "string"
+              ? modal
+              : "requestSecret" in modal
+                ? modal.requestSecret.requestId
+                : modal.update
+          }
+        />
       )}
       {modal === "connect-neon" && <NeonConnectModal />}
       {modal === "connect-render" && <RenderConnectModal />}

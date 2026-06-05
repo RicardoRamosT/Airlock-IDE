@@ -218,4 +218,13 @@ export interface AirlockApi {
     visible: boolean,
   ): Promise<SectionVisibility>;
   onSectionsChanged(cb: (v: SectionVisibility) => void): () => void;
+  // Agent-requested secret: main pushes agent:request-secret when the
+  // request_secret MCP tool asks the user to vault a secret. The renderer opens
+  // the secure modal, then reports the outcome via requestSecretResolve. ONLY a
+  // boolean crosses back -- the value goes user -> keychain via secretsSet; the
+  // agent never sees it.
+  onRequestSecret(
+    cb: (p: { requestId: string; name: string; providerHint?: string }) => void,
+  ): () => void;
+  requestSecretResolve(requestId: string, vaulted: boolean): Promise<void>;
 }
