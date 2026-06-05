@@ -88,6 +88,7 @@ export {
   parseGhAuthStatus,
   switchGhAccount,
 } from "./github/accounts";
+export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
 export { type PortProber, probePort } from "./host/probe";
 export {
   type ClaudeRunner,
