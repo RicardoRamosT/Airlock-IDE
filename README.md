@@ -3,13 +3,14 @@
 > Working title. A terminal-first AI IDE where the agent can build, run, and
 > debug your app — but is structurally unable to read your secrets.
 
-**Status:** skeleton + secrets + git + DB + Docker + sidebar customization. A
-multi-terminal panel (tabs, split, rename), file tree, viewer split, keychain
-secrets with terminal injection, hash-chained audit, a live git sidebar
-(stage/commit/branch/diffs), GitHub account switching, a settings tab with
-dark/light themes, live Postgres database browsing, Neon project/branch/database
-browsing, live Docker container control, and per-section sidebar show/hide all
-work. The agent phase is next.
+**Status:** skeleton + secrets + git + DB + Docker + Host + sidebar
+customization. A multi-terminal panel (tabs, split, rename), file tree, viewer
+split, keychain secrets with terminal injection, hash-chained audit, a live git
+sidebar (stage/commit/branch/diffs), GitHub account switching, a settings tab
+with dark/light themes, live Postgres database browsing, Neon
+project/branch/database browsing, live Docker container control, a Host section
+(local dev-server status + Render deploy status), and per-section sidebar
+show/hide all work. The agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -113,6 +114,24 @@ The sidebar lists your local Docker containers, each with a live status dot
 demand. Needs the Docker daemon running — if Docker isn't installed or the
 daemon is down, the section says so instead of erroring. Not tied to an open
 folder (Docker is machine-wide).
+
+## Host
+
+The sidebar's **Host** section shows where the current project runs.
+
+**Local** — your dev server. airlock resolves its URL from
+`.airlock/config.json` (set or edit it inline) or guesses it from
+`package.json` (Next, Vite, CRA, Astro defaults). A live dot reports up/down
+via a quick TCP probe (refreshes on focus and on demand), and an
+open-in-browser button launches it in your **system** browser.
+
+**Render** — your services' deploy status. Click **Connect Render** and paste a
+Render API key — it is stored in your keychain, read in the main process only,
+and never seen by the agent. Once connected, airlock lists the services for the
+open project (matched to its git remote, or all services if none match), each
+with a live status dot for its latest deploy, a check for whether your **latest
+commit is live** (Render's deployed commit vs your local `HEAD`), and an
+open-in-browser link. The API key never leaves the main process.
 
 ## GitHub accounts
 

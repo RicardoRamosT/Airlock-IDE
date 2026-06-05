@@ -387,6 +387,44 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 > applying so a late startup hydrate cannot clobber a live toggle). When every
 > section is hidden the sidebar shows a hint pointing back at View ▸ Sidebar.*
 
+> *Revised again 2026-06-04 (Host section — Slice B of the neon/render/host
+> design): the sidebar gains a new **toggleable "Host"** section — the **7th**
+> section (it joins Files, Secrets, Git, Databases, Docker, Audit in `SECTIONS`,
+> the `SectionVisibility` map, the **View ▸ Sidebar** menu, and the right-click
+> **Hide** affordance, exactly like the other six). It answers "where does this
+> project run?" with two groups, LOCAL and RENDER.
+>
+> **LOCAL — the project's dev server.** The URL is resolved main-side: the
+> per-project `.airlock/config.json` `devUrl` if set, else guessed from
+> `package.json` (an explicit `--port` in a script, else framework defaults —
+> next 3000, vite 5173, react-scripts 3000, astro 4321). A live up/down dot is
+> driven by a short TCP connect to the resolved host:port (agent-core
+> `probePort`, a DI'd `node:net` seam), refreshed on window focus and on demand.
+> Open-in-browser uses `shell.openExternal` so it opens the **system** browser
+> (not an airlock window, so the no-new-windows rule holds) and is `http(s)`-
+> validated before it runs. A set/edit-URL affordance writes `devUrl` back via
+> `config:set` (whose field allowlist was extended to pass `devUrl` through).
+>
+> **RENDER — the project's services.** Behind a vaulted app-global
+> `RENDER_API_KEY` (a dedicated **Connect Render** modal, the same global-secret
+> discipline as the Neon key: stored in the macOS Keychain, resolved **MAIN-ONLY,
+> never returned over IPC, never an agent tool**, audited on connect). A new
+> agent-core Render REST client (DI'd transport, pure TDD'd parsers) lists
+> services and the latest deploy. Services are **filtered to this project's git
+> remote** — `normalizeRepoUrl` compares each service's repo to
+> `git remote get-url origin` (https/ssh forms normalized), falling back to **all**
+> services when nothing matches or there is no origin. Each service shows a live
+> status dot mapped from its **latest deploy state** and a **"latest commit
+> deployed?"** check — Render's deployed commit SHA vs the local `HEAD`
+> (`headSha`, short-vs-full tolerant) — plus an open-in-browser to the service
+> URL. The repo filter, deploy lookup, and commit compare all happen **main-side**;
+> the renderer receives only an enriched per-service status projection
+> (`RenderServiceStatus` — id/name/url/branch/deployStatus/deployed), never the
+> key, a connection string, or a raw deploy object.
+>
+> This completes the dedicated spec (`2026-06-04-neon-render-host-design.md`):
+> Slice A (Neon) + Slice B (Host) are both done.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │

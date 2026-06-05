@@ -1,7 +1,7 @@
 # Neon Databases + Host (Local/Render) Design
 
 **Date:** 2026-06-04
-**Status:** Slice A (Neon) complete; Slice B (Host) pending.
+**Status:** Slice A (Neon) + Slice B (Host) complete.
 
 ## Overview
 Two additions, both extending the existing sidebar + secret-broker model:
