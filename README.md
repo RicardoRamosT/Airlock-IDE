@@ -3,14 +3,14 @@
 > Working title. A terminal-first AI IDE where the agent can build, run, and
 > debug your app — but is structurally unable to read your secrets.
 
-**Status:** skeleton + secrets + git + DB + Docker + Host + sidebar
+**Status:** skeleton + secrets + git + DB + Docker + Host + Activity + sidebar
 customization + an MCP IDE-bridge. A multi-terminal panel (tabs, split, rename),
 file tree, viewer split, keychain secrets with terminal injection, hash-chained
 audit, a live git sidebar (stage/commit/branch/diffs), GitHub account switching,
 a settings tab with dark/light themes, live Postgres database browsing, Neon
 project/branch/database browsing, live Docker container control, a Host section
-(local dev-server status + Render deploy status), and per-section sidebar
-show/hide all work. airlock also runs a local MCP server so the Claude Code in
+(local dev-server status + Render deploy status), an Activity feed (live
+CI/deploy/container progress), and per-section sidebar show/hide all work. airlock also runs a local MCP server so the Claude Code in
 its terminal can read every status and curate the sidebar — never a secret
 value. The full agent phase is next.
 
@@ -135,6 +135,16 @@ with a live status dot for its latest deploy, a check for whether your **latest
 commit is live** (Render's deployed commit vs your local `HEAD`), and an
 open-in-browser link. The API key never leaves the main process.
 
+## Activity
+
+The sidebar's **Activity** section is a live feed of in-progress operations with
+honest progress. **GitHub CI** shows the latest Actions run for the current branch
+(via `gh`, so the token never reaches airlock) — expand it for a step-checklist and
+a `steps done / total` bar. **Render** shows a deploy mid-build, and **Docker**
+shows containers that are starting/restarting; both animate without faking a
+percentage the source doesn't give. It polls while expanded and something is
+running, refreshes on focus, then goes quiet when everything's idle.
+
 ## GitHub accounts
 
 The sidebar footer's person icon opens a popover listing every account
@@ -154,8 +164,8 @@ terminal and editor re-theme in place without losing their state.
 
 ## Customizing the sidebar
 
-Every sidebar section — Files, Secrets, Git, Databases, Docker, Audit — shows by
-default, and you can hide any you don't need. Right-click a section's header and
+Every sidebar section — Files, Secrets, Git, Databases, Docker, Audit, Activity — shows
+by default, and you can hide any you don't need. Right-click a section's header and
 choose **Hide**, or uncheck it under **View ▸ Sidebar**. Re-show a hidden
 section by re-checking it in that same menu. The choice is app-global and
 remembered across launches, separate from simply collapsing a section (which is

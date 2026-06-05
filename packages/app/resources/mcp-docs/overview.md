@@ -10,8 +10,8 @@ server, and an audit log — and it exposes all of that to you over this MCP ser
 airlock's window has three regions:
 
 - **Sidebar** (left, can be moved to the right or hidden) — a stack of collapsible
-  sections: Files, Secrets, Git, Databases, Docker, Host, Audit. This is the project's
-  status at a glance. You can read every section's live status and you can show/hide
+  sections: Files, Secrets, Git, Databases, Docker, Host, Audit, Activity. This is the
+  project's status at a glance. You can read every section's live status and you can show/hide
   sections to curate what the human sees (see `tools.md`).
 - **The terminal owns the right-hand side.** By default the main area is just the
   terminal — that is where you live. It is the primary surface, not an afterthought.

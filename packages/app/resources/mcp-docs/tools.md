@@ -12,8 +12,8 @@ yet; the app-global tools work regardless.
 ## Sidebar control
 
 - **`list_sidebar_sections`** — list every sidebar section (`files`, `secrets`, `git`,
-  `databases`, `docker`, `host`, `audit`) with its label and current visibility. Call this
-  first when you want to curate the sidebar, so you know the current state.
+  `databases`, `docker`, `host`, `audit`, `activity`) with its label and current visibility.
+  Call this first when you want to curate the sidebar, so you know the current state.
 - **`set_sidebar_section_visibility`** — show or hide one section (args: `section`,
   `visible`); returns the new visibility map. Use it to tailor the sidebar to the project:
   reveal the sections that matter (see the `sidebar-*.md` files for the per-section "when

@@ -1,7 +1,7 @@
 # Activity Panel (live pipeline progress) Design
 
 **Date:** 2026-06-05
-**Status:** Design approved (unified Activity panel). Building v1.
+**Status:** v1 complete.
 
 ## Overview
 A new toggleable "Activity" sidebar section: a unified, animated live feed of in-progress operations. v1 sources:
