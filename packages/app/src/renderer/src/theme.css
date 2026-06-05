@@ -710,7 +710,6 @@ body,
 }
 
 .secret-delete {
-  margin-left: auto;
   background: none;
   border: none;
   color: var(--fg-dim);
@@ -722,6 +721,49 @@ body,
 
 .secret-delete:hover {
   color: #f85149;
+}
+
+/* Per-row reveal (eye) + copy buttons. Hidden until the row is hovered/focused
+   (same reveal group as .secret-delete below). The first trailing action takes
+   the auto margin so the eye/copy/delete cluster sits flush to the right. */
+.secret-action {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+.secret-action:first-of-type {
+  margin-left: auto;
+}
+
+.secret-action:hover {
+  color: var(--accent);
+}
+
+/* Inline plaintext shown under a row after the eye is clicked. Monospace,
+   selectable (user-select:all) for easy manual copy, wraps long values. */
+.secret-reveal {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 0 0 4px 22px;
+  user-select: all;
+  word-break: break-all;
+}
+
+/* Brief "copied" confirmation under a row (auto-dismisses). */
+.secret-copied {
+  font-size: 10px;
+  color: var(--fg-dim);
+  margin: 0 0 4px 22px;
 }
 
 .secret-actions {
@@ -964,6 +1006,8 @@ body,
 
 .secret-row:hover .secret-delete,
 .secret-row:focus-within .secret-delete,
+.secret-row:hover .secret-action,
+.secret-row:focus-within .secret-action,
 .git-row:hover .git-action,
 .git-row:focus-within .git-action {
   opacity: 1;

@@ -14,6 +14,8 @@ export function SettingsTab() {
   const setSidebarPosition = useApp((s) => s.setSidebarPosition);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const setSidebarVisible = useApp((s) => s.setSidebarVisible);
+  const clipboardClearSeconds = useApp((s) => s.clipboardClearSeconds);
+  const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
   const root = useApp((s) => s.root);
   const config = useApp((s) => s.config);
   const setConfig = useApp((s) => s.setConfig);
@@ -140,6 +142,36 @@ export function SettingsTab() {
               Open a folder to manage secrets.
             </div>
           )}
+          <div className="settings-row">
+            <label htmlFor="clip-clear">
+              Clipboard auto-clear (seconds, 0 = never)
+            </label>
+            <input
+              id="clip-clear"
+              type="number"
+              min={0}
+              max={3600}
+              value={clipboardClearSeconds}
+              onChange={(e) => {
+                const n = Math.min(
+                  3600,
+                  Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                );
+                useApp.getState().setLayoutHydrated(true);
+                setClipboardClearSeconds(n);
+                void window.airlock.prefsSet({ clipboardClearSeconds: n });
+              }}
+            />
+          </div>
+          <p className="settings-note">
+            When you copy a secret, it goes to the system clipboard, which other
+            apps — and the terminal agent via <code>pbpaste</code> — can read
+            while it is there. airlock clears it after this delay (only if the
+            clipboard still holds that secret). A longer delay, or{" "}
+            <strong>0 (never)</strong>, is more convenient but leaves the value
+            readable for longer. airlock cannot purge a third-party clipboard
+            manager's history.
+          </p>
         </section>
 
         <div className="settings-footer-note">

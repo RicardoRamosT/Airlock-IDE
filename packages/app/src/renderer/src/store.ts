@@ -47,6 +47,7 @@ interface AppState {
   sidebarVisible: boolean; // app-global (persisted), not per-project
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
   theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
+  clipboardClearSeconds: number; // app-global (persisted), seconds before clipboard auto-clears (0 = never)
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   settingsOpen: boolean; // Settings tab shown in viewer-pane (excludes file/diff)
   // A vaulted DB table being browsed in the viewer-pane. Like settingsOpen and
@@ -92,6 +93,7 @@ interface AppState {
   setSidebarPosition: (p: "left" | "right") => void;
   toggleSidebarPosition: () => void;
   setTheme: (t: "dark" | "light") => void;
+  setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
   setSettingsOpen: (v: boolean) => void;
   setLayoutHydrated: (v: boolean) => void;
@@ -143,6 +145,7 @@ export const useApp = create<AppState>((set) => ({
   sidebarVisible: true,
   sidebarPosition: "left",
   theme: "dark",
+  clipboardClearSeconds: 30,
   sectionVisibility: {
     files: true,
     secrets: true,
@@ -212,6 +215,8 @@ export const useApp = create<AppState>((set) => ({
       sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
     })),
   setTheme: (theme) => set({ theme }),
+  setClipboardClearSeconds: (clipboardClearSeconds) =>
+    set({ clipboardClearSeconds }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   // Opening Settings clears the file/diff/dbView so the viewer-pane shows only
   // one thing at a time (mutual exclusion). Closing leaves the rest untouched.

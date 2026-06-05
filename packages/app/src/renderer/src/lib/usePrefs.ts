@@ -6,6 +6,7 @@ export function usePrefs(): void {
   const setSidebarVisible = useApp((s) => s.setSidebarVisible);
   const setSidebarPosition = useApp((s) => s.setSidebarPosition);
   const setTheme = useApp((s) => s.setTheme);
+  const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const theme = useApp((s) => s.theme);
 
@@ -24,6 +25,7 @@ export function usePrefs(): void {
         setSidebarVisible(p.sidebarVisible);
         setSidebarPosition(p.sidebarPosition);
         setTheme(p.theme);
+        setClipboardClearSeconds(p.clipboardClearSeconds);
         setSectionVisibility(p.sectionVisibility);
         useApp.getState().setLayoutHydrated(true);
       })
@@ -31,7 +33,13 @@ export function usePrefs(): void {
     return () => {
       cancelled = true;
     };
-  }, [setSidebarVisible, setSidebarPosition, setTheme, setSectionVisibility]);
+  }, [
+    setSidebarVisible,
+    setSidebarPosition,
+    setTheme,
+    setClipboardClearSeconds,
+    setSectionVisibility,
+  ]);
 
   // Runtime visibility changes (View menu or right-click) arrive as an
   // authoritative push from main. Mark hydrated first so a late startup
