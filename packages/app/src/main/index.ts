@@ -1,6 +1,7 @@
 import path from "node:path";
 import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
+import { registerAgentRequestIpc } from "./agent-requests";
 import { getWorkspaceRoot, killAllSessions, registerIpc } from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
@@ -125,6 +126,10 @@ function bootstrap(): void {
     };
 
     registerIpc(() => loginEnv, prefsFile, onFolderOpen);
+    // Register the agent-request resolver IPC (renderer reports the user's
+    // save/cancel for a request_secret prompt). The MCP tool that drives this
+    // (Task 2) is wired into startMcpServer's deps separately.
+    registerAgentRequestIpc();
     createWindow();
     const prefs = await loadPrefs(prefsFile);
     applyAppMenu(prefsFile, prefs.sectionVisibility);
