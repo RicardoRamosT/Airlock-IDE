@@ -62,6 +62,13 @@ function requireRoot(): string {
   return workspaceRoot;
 }
 
+// Accessor for the module-private workspaceRoot. The MCP server reads the
+// current workspace root through this rather than holding its own copy, so
+// there is one source of truth for the open folder.
+export function getWorkspaceRoot(): string | null {
+  return workspaceRoot;
+}
+
 const NEON_KEY = "NEON_API_KEY";
 const RENDER_KEY = "RENDER_API_KEY";
 
@@ -88,9 +95,15 @@ const allStr = (xs: unknown[]): boolean =>
 // prefsFile is the absolute path to the app-global prefs JSON (userData). The
 // prefs:get/set handlers below are NOT requireRoot-gated -- preferences are
 // app-global and must work before any folder is opened.
+//
+// onFolderOpen is an OPTIONAL callback invoked when the user opens a folder
+// (dialog:openFolder resolves to a non-null path). The MCP server uses it to
+// re-register with Claude Code keyed to the newly opened project dir. Omitting
+// it keeps the existing registerIpc(getBaseEnv, prefsFile) call valid.
 export function registerIpc(
   getBaseEnv: () => Record<string, string> = () => ({}),
   prefsFile = "",
+  onFolderOpen?: (root: string) => void,
 ): void {
   // App-global audit chain (userData-level), for global credential writes.
   const globalAuditLog = prefsFile
@@ -101,6 +114,7 @@ export function registerIpc(
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (r.canceled || r.filePaths.length === 0) return null;
     workspaceRoot = r.filePaths[0] ?? null;
+    if (workspaceRoot) onFolderOpen?.(workspaceRoot);
     return workspaceRoot;
   });
 
