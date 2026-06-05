@@ -5,7 +5,23 @@ export default defineConfig({
   main: {
     // Bundle agent-core from TS source; keep the native module external.
     plugins: [externalizeDepsPlugin({ exclude: ["@airlock/agent-core"] })],
-    build: { rollupOptions: { external: ["node-pty", "electron"] } },
+    // An explicit external array here OVERRIDES (does not merge with) the
+    // externalizeDepsPlugin's own external list, so every third-party dep that
+    // must NOT be bundled is listed here explicitly. node-pty is native;
+    // @modelcontextprotocol/sdk must stay external too -- bundling its source
+    // into out/main risks an Electron cjs_lexer multibyte crash, and like
+    // node-pty it ships fine as an externalized require. The trailing regex
+    // covers the deep subpath imports (server/mcp.js, server/streamableHttp.js).
+    build: {
+      rollupOptions: {
+        external: [
+          "node-pty",
+          "electron",
+          "@modelcontextprotocol/sdk",
+          /^@modelcontextprotocol\/sdk\/.+/,
+        ],
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

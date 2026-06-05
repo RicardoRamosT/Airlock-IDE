@@ -50,10 +50,30 @@ function sanitizeSectionVisibility(raw: unknown): SectionVisibility {
   return out;
 }
 
+// Pass the MCP identity through only when fully well-formed: port a finite
+// number and token a non-empty string. Anything else (absent, partial, wrong
+// types) returns undefined so the field is dropped and ensureMcpConfig will
+// regenerate it. mcp is OPTIONAL, so default prefs deliberately omit it.
+function sanitizeMcp(
+  raw: unknown,
+): { port: number; token: string } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  if (
+    typeof r.port === "number" &&
+    Number.isFinite(r.port) &&
+    typeof r.token === "string" &&
+    r.token.length > 0
+  ) {
+    return { port: r.port, token: r.token };
+  }
+  return undefined;
+}
+
 function sanitize(raw: unknown): AppPrefs {
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
   const r = raw as Record<string, unknown>;
-  return {
+  const out: AppPrefs = {
     sidebarVisible:
       typeof r.sidebarVisible === "boolean"
         ? r.sidebarVisible
@@ -62,6 +82,11 @@ function sanitize(raw: unknown): AppPrefs {
     theme: r.theme === "light" ? "light" : "dark",
     sectionVisibility: sanitizeSectionVisibility(r.sectionVisibility),
   };
+  // Only attach mcp when present and valid; keep it off the object otherwise so
+  // toEqual against the defaults (which have no mcp key) stays exact.
+  const mcp = sanitizeMcp(r.mcp);
+  if (mcp) out.mcp = mcp;
+  return out;
 }
 
 export async function loadPrefs(file: string): Promise<AppPrefs> {

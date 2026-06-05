@@ -1,7 +1,9 @@
 import path from "node:path";
 import { captureLoginEnv } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
-import { killAllSessions, registerIpc } from "./ipc";
+import { getWorkspaceRoot, killAllSessions, registerIpc } from "./ipc";
+import { ensureMcpConfig } from "./mcp/config";
+import { startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu } from "./menu";
 import { loadPrefs } from "./prefs";
 
@@ -92,9 +94,28 @@ function bootstrap(): void {
     createWindow();
     const prefs = await loadPrefs(prefsFile);
     applyAppMenu(prefsFile, prefs.sectionVisibility);
+
+    // Stand up the local MCP server (loopback, bearer-guarded). Its identity
+    // (stable port + token) is generated/persisted once. A start failure (e.g.
+    // a busy port we could not bump past) must NOT take down the app -- log and
+    // continue; the IDE works without the agent bridge.
+    const { port, token } = await ensureMcpConfig(prefsFile);
+    await startMcpServer(port, { prefsFile, getWorkspaceRoot, token }).catch(
+      (e) => {
+        console.error(
+          "MCP server failed to start:",
+          e instanceof Error ? e.message : e,
+        );
+      },
+    );
   });
 
   app.on("before-quit", killAllSessions);
+  // Tear down the MCP listener on quit (it intentionally outlives window-close
+  // on darwin). Coexists with killAllSessions above.
+  app.on("before-quit", () => {
+    void stopMcpServer();
+  });
 
   // macOS lifecycle (#12): on darwin the app stays alive when all windows close
   // (it is now stateful -- terminals, secrets, git -- so quitting would drop

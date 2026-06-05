@@ -100,6 +100,11 @@ export interface AppPrefs {
   sidebarPosition: "left" | "right";
   theme: "dark" | "light";
   sectionVisibility: SectionVisibility; // app-global; default all true
+  // Local MCP server identity (HTTP port + bearer token). Optional: absent on
+  // first run and generated/persisted by mcp/config.ensureMcpConfig so the
+  // registered Claude Code URL stays stable across launches. Never exposed to
+  // the renderer beyond this shared type (the token must not reach the UI).
+  mcp?: { port: number; token: string };
 }
 
 export interface PtyDataEvent {
