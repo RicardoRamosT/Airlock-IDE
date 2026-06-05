@@ -23,6 +23,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { savePrefs } from "../prefs";
+import { registerTools } from "./tools";
 
 export interface McpDeps {
   prefsFile: string;
@@ -84,13 +85,13 @@ export async function startMcpServer(
 ): Promise<void> {
   mcp = new McpServer({ name: "airlock", version: "1.0.0" });
 
-  // Trivial tool so the server has a usable surface and starts cleanly. Tasks
-  // 5/6 register the real tools/resources via getMcpServer().
-  mcp.registerTool(
-    "ping",
-    { description: "Health check; returns 'pong'." },
-    () => ({ content: [{ type: "text", text: "pong" }] }),
-  );
+  // Register the v1 read + UI-control tools (see ./tools). Each is a thin
+  // wrapper over the shared ide-state read layer / the menu visibility funnel;
+  // none returns a secret value (tools.test.ts locks that invariant).
+  registerTools(mcp, {
+    prefsFile: deps.prefsFile,
+    getWorkspaceRoot: deps.getWorkspaceRoot,
+  });
 
   // Stateless transport: no session id, so one instance serves every request.
   transport = new StreamableHTTPServerTransport({
