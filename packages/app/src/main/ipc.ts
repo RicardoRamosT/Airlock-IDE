@@ -41,6 +41,7 @@ import {
 } from "@airlock/agent-core";
 import { dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
+import { activityStatus } from "./activity";
 import {
   dockerStatus,
   gitStatusFor,
@@ -493,6 +494,10 @@ export function registerIpc(
 
   // Docker: machine-global, so NOT requireRoot-gated.
   ipcMain.handle("docker:list", () => dockerStatus());
+
+  // activity:status -> ActivityItem[]; NOT requireRoot-gated (render/docker work
+  // with no folder; activityStatus skips CI itself when workspaceRoot is null).
+  ipcMain.handle("activity:status", () => activityStatus(workspaceRoot));
 
   ipcMain.handle("docker:start", (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");

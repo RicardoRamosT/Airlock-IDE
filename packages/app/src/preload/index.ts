@@ -64,6 +64,7 @@ const api: AirlockApi = {
   renderStatus: () => ipcRenderer.invoke("render:status"),
   renderConnect: (key) => ipcRenderer.invoke("render:connect", key),
   renderServices: () => ipcRenderer.invoke("render:services"),
+  activityStatus: () => ipcRenderer.invoke("activity:status"),
   hostLocalUrl: () => ipcRenderer.invoke("host:localUrl"),
   hostProbe: (url) => ipcRenderer.invoke("host:probe", url),
   hostOpenExternal: (url) => ipcRenderer.invoke("host:openExternal", url),

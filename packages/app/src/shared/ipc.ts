@@ -68,6 +68,33 @@ export interface RenderServiceStatus {
   deployed: boolean | null;
 }
 
+/** One CI step (job) projected for the Activity panel's expandable step list. */
+export interface ActivityStep {
+  name: string;
+  status: string;
+  conclusion: string | null;
+}
+
+/**
+ * A unified in-progress operation for the Activity panel. CI runs, Render
+ * deploys, and transitional Docker containers all map onto this single shape.
+ * `progress` is determinate (a percentage + label), indeterminate (spinner),
+ * or null (no bar). `href` is an optional external link (e.g. the CI run page).
+ */
+export interface ActivityItem {
+  id: string;
+  kind: "ci" | "render" | "docker";
+  title: string;
+  subtitle: string;
+  state: "running" | "done" | "failed" | "idle";
+  progress:
+    | { kind: "determinate"; value: number; label: string }
+    | { kind: "indeterminate" }
+    | null;
+  steps?: ActivityStep[];
+  href?: string;
+}
+
 /** The repo's local commit identity (git config user.name / user.email). */
 export interface GitIdentity {
   name: string | null;
@@ -197,6 +224,9 @@ export interface AirlockApi {
   renderStatus(): Promise<{ connected: boolean }>;
   renderConnect(key: string): Promise<{ connected: boolean }>;
   renderServices(): Promise<RenderServiceStatus[]>;
+  // Activity: aggregated in-progress operations (CI + Render + Docker) for the
+  // Activity panel. NOT root-gated; CI is skipped when no folder is open.
+  activityStatus(): Promise<ActivityItem[]>;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
   // http(s) URLs in the system browser.
