@@ -2,16 +2,22 @@
 // bearer token, wired to the @modelcontextprotocol/sdk streamable-HTTP server
 // transport. Started on app-ready and stopped on quit (see main/index.ts).
 //
-// This task stands up the server + lifecycle + a stable port/token and registers
-// a single trivial 'ping' tool so it starts cleanly. Task 5 registers the real
-// read/UI-control tools and Task 6 the doc resources -- both onto the live
-// McpServer returned by getMcpServer().
+// The server exposes the v1 read + UI-control tools (see ./tools) and the
+// IDE-manual docs as read-only resources (see ./resources).
 //
-// Transport model: STATELESS (sessionIdGenerator: undefined). One transport is
-// connected to the McpServer once at startup and every request is handed to
-// transport.handleRequest after the bearer gate, so there is no per-session
-// transport bookkeeping. The SDK's own DNS-rebinding protection is left off
-// because we bind loopback only and gate every request on the bearer token.
+// Transport model: STATELESS (sessionIdGenerator: undefined). The SDK's stateless
+// streamable-HTTP transport is single-use: its handleRequest throws "Stateless
+// transport cannot be reused across requests. Create a new transport per request."
+// the SECOND time it is called, and the @hono/node-server wrapper turns that throw
+// into an opaque empty HTTP 500. So we build a FRESH McpServer + FRESH transport
+// PER REQUEST (the documented stateless pattern), connect them, hand the parsed
+// body to handleRequest, and close both when the response finishes. GET/DELETE
+// have no SSE stream in stateless mode, so they are answered 405 directly. The
+// SDK's own DNS-rebinding protection is left off because we bind loopback only and
+// gate every request on the bearer token.
+//
+// To avoid a readdir per request the doc list is enumerated ONCE at startup and
+// the cached list is registered onto each per-request server.
 //
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
@@ -23,7 +29,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { savePrefs } from "../prefs";
-import { registerResources } from "./resources";
+import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
 
 export interface McpDeps {
@@ -32,16 +38,95 @@ export interface McpDeps {
   token: string;
 }
 
-// Module-level singletons: the server is process-global and lives across
-// window-close on darwin, only torn down on quit.
+// Module-level singletons: the listener is process-global and lives across
+// window-close on darwin, only torn down on quit. There is intentionally NO
+// long-lived McpServer/transport here -- both are created per request (see the
+// transport model note above).
 let httpServer: import("node:http").Server | null = null;
-let mcp: McpServer | null = null;
-let transport: StreamableHTTPServerTransport | null = null;
 
 // How many sequential ports to try if the preferred one is taken. Keeps a busy
 // port from crashing startup; the chosen port is persisted so the registered
 // URL can be refreshed on the next folder-open.
 const PORT_ATTEMPTS = 10;
+
+// Largest request body we will buffer before parsing. MCP JSON-RPC requests are
+// tiny; this just caps a hostile/runaway loopback client.
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
+// Build a fresh McpServer with the v1 tools + the cached doc resources registered.
+// Called PER REQUEST: the stateless SDK transport cannot be reused, so each request
+// gets its own server connected to its own transport. registerTools is the SAME
+// allowlist-locked registration used everywhere (tools.test.ts asserts it stays at
+// exactly the nine v1 tools and that none returns a secret value), so the security
+// invariant holds identically on every per-request server.
+function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
+  const mcp = new McpServer({ name: "airlock", version: "1.0.0" });
+
+  // Register the v1 read + UI-control tools (see ./tools). Each is a thin
+  // wrapper over the shared ide-state read layer / the menu visibility funnel;
+  // none returns a secret value (tools.test.ts locks that invariant).
+  registerTools(mcp, {
+    prefsFile: deps.prefsFile,
+    getWorkspaceRoot: deps.getWorkspaceRoot,
+  });
+
+  // Register the IDE-manual docs as read-only MCP resources from the list
+  // enumerated once at startup. Doc CONTENT is still read at request time inside
+  // each read callback, so an edited doc is served fresh.
+  registerDocResources(mcp, docs);
+
+  return mcp;
+}
+
+// Collect the full request body off the IncomingMessage stream and JSON.parse it.
+// The SDK's handleRequest takes a pre-parsed body (it does not read the stream
+// itself in this path), so we must buffer here. An empty body parses to undefined
+// (tolerated -- e.g. a probe POST with no payload). Rejects on invalid JSON or an
+// oversized body so the caller answers a clean error instead of crashing.
+function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error("request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8").trim();
+      if (raw.length === 0) {
+        resolve(undefined);
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+// Write a JSON-RPC error response with the given HTTP status. Used for the 405 on
+// GET/DELETE (no SSE stream in stateless mode) and the last-resort 500.
+function sendJsonRpcError(
+  res: ServerResponse,
+  status: number,
+  code: number,
+  message: string,
+): void {
+  if (res.headersSent) return;
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(
+    JSON.stringify({ jsonrpc: "2.0", error: { code, message }, id: null }),
+  );
+}
 
 // Listen on 127.0.0.1, retrying the next port on EADDRINUSE. Resolves with the
 // port actually bound. Any non-EADDRINUSE error (or running out of attempts)
@@ -77,61 +162,68 @@ function listenWithFallback(
   });
 }
 
-// Build the McpServer + transport, gate every request on the bearer token, and
-// bind the loopback listener. On success the bound port is persisted (it may
-// differ from the requested one if the preferred port was taken).
+// Gate every request on the bearer token, then serve it with a per-request
+// McpServer + transport, and bind the loopback listener. On success the bound
+// port is persisted (it may differ from the requested one if the preferred port
+// was taken).
 export async function startMcpServer(
   port: number,
   deps: McpDeps,
 ): Promise<void> {
-  mcp = new McpServer({ name: "airlock", version: "1.0.0" });
+  // Enumerate the IDE-manual docs ONCE here; the cached list is registered onto
+  // each per-request server so we never readdir on the request path.
+  const docs = await loadDocList();
 
-  // Register the v1 read + UI-control tools (see ./tools). Each is a thin
-  // wrapper over the shared ide-state read layer / the menu visibility funnel;
-  // none returns a secret value (tools.test.ts locks that invariant).
-  registerTools(mcp, {
-    prefsFile: deps.prefsFile,
-    getWorkspaceRoot: deps.getWorkspaceRoot,
-  });
-
-  // Register the IDE-manual docs as read-only MCP resources (see ./resources).
-  // Best-effort: a missing docs dir logs and registers nothing rather than
-  // failing startup, so the tool surface is unaffected.
-  await registerResources(mcp);
-
-  // Stateless transport: no session id, so one instance serves every request.
-  transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  });
-  await mcp.connect(transport);
-
-  // Capture in locals so the request handler closure does not race a later
-  // stopMcpServer() that nulls the module singletons.
-  const activeTransport = transport;
+  // Capture in a local so the request handler closure does not read a stale value
+  // if deps were ever to change; token is the authorization boundary.
   const token = deps.token;
 
   httpServer = createServer(
     async (req: IncomingMessage, res: ServerResponse) => {
-      // Bearer gate FIRST -- reject before touching the transport. Bind is
-      // loopback-only, but the token is the actual authorization boundary.
+      // Bearer gate FIRST -- reject before doing any work. Bind is loopback-only,
+      // but the token is the actual authorization boundary.
       if (req.headers.authorization !== `Bearer ${token}`) {
         res.statusCode = 401;
         res.end("unauthorized");
         return;
       }
+
+      // Stateless mode has no standalone SSE stream and no session to delete, so
+      // only POST is meaningful. Answer GET/DELETE with a JSON-RPC 405 rather than
+      // letting the transport try (and fail) to open a stream.
+      if (req.method !== "POST") {
+        sendJsonRpcError(res, 405, -32000, "Method not allowed.");
+        return;
+      }
+
       try {
-        await activeTransport.handleRequest(req, res);
+        // Read + parse the body BEFORE handing to the SDK: its handleRequest takes
+        // a pre-parsed body and does not consume the stream itself on this path.
+        const body = await readJsonBody(req);
+
+        // Fresh server + fresh transport PER REQUEST -- the stateless transport is
+        // single-use (reuse throws and surfaces as an opaque 500).
+        const server = createMcpServer(deps, docs);
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+        });
+        // Tear both down once the response is done so we do not leak a server +
+        // transport per request.
+        res.on("close", () => {
+          void transport.close();
+          void server.close();
+        });
+        await server.connect(transport);
+        await transport.handleRequest(req, res, body);
       } catch (err) {
-        // Never let a transport error crash the listener. If nothing has been
-        // sent yet, emit a 500; otherwise the response is already underway.
+        // Last resort: never let a handler error crash the listener. If nothing
+        // has been sent yet, emit a JSON-RPC 500; otherwise the response is
+        // already underway. NEVER log the token.
         console.error(
           "MCP request failed:",
           err instanceof Error ? err.message : err,
         );
-        if (!res.headersSent) {
-          res.statusCode = 500;
-          res.end("internal error");
-        }
+        sendJsonRpcError(res, 500, -32603, "Internal error.");
       }
     },
   );
@@ -146,22 +238,15 @@ export async function startMcpServer(
   }
 }
 
-// Tear down in order: close the McpServer (and thus the transport), then the
-// HTTP listener. Safe to call when nothing is running.
+// Tear down the HTTP listener. Per-request servers/transports close themselves on
+// their response 'close', so there is nothing process-global to close here. Safe
+// to call when nothing is running.
 export async function stopMcpServer(): Promise<void> {
-  await mcp?.close?.();
   await new Promise<void>((resolve) => {
     if (httpServer) httpServer.close(() => resolve());
     else resolve();
   });
   httpServer = null;
-  mcp = null;
-  transport = null;
-}
-
-// The live McpServer so Tasks 5/6 can register tools/resources after start.
-export function getMcpServer(): McpServer | null {
-  return mcp;
 }
 
 // The port the listener is actually bound to (may differ from the requested one
