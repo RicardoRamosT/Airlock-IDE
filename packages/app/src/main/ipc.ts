@@ -14,6 +14,7 @@ import {
   ghAccounts,
   gitFileVersions,
   gitStatus,
+  headSha,
   importDotEnv,
   injectInto,
   isGitRepo,
@@ -25,14 +26,19 @@ import {
   neonListBranches,
   neonListDatabases,
   neonListProjects,
+  normalizeRepoUrl,
+  originRemoteUrl,
   type PtySession,
   parseConnString,
   pingDb,
+  probePort,
   readAudit,
   readProjectConfig,
   readRows,
   readWorkspaceFile,
   redactConnStrings,
+  renderLatestDeploy,
+  renderListServices,
   runGit,
   setGlobalSecret,
   setSecret,
@@ -43,7 +49,7 @@ import {
   withDb,
   writeProjectConfig,
 } from "@airlock/agent-core";
-import { dialog, ipcMain } from "electron";
+import { dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { changeSectionVisibility } from "./menu";
 import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
@@ -57,6 +63,7 @@ function requireRoot(): string {
 }
 
 const NEON_KEY = "NEON_API_KEY";
+const RENDER_KEY = "RENDER_API_KEY";
 
 // MAIN-ONLY: resolve a Neon branch/db connection URI (carries a password).
 // NEVER returned over IPC -- only fed to withDb here.
@@ -135,11 +142,14 @@ export function registerIpc(
 
   ipcMain.handle("config:set", (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
-    const p = patch as { injectSecretsIntoTerminal?: unknown };
-    const clean =
-      typeof p.injectSecretsIntoTerminal === "boolean"
-        ? { injectSecretsIntoTerminal: p.injectSecretsIntoTerminal }
-        : {};
+    const p = patch as {
+      injectSecretsIntoTerminal?: unknown;
+      devUrl?: unknown;
+    };
+    const clean: { injectSecretsIntoTerminal?: boolean; devUrl?: string } = {};
+    if (typeof p.injectSecretsIntoTerminal === "boolean")
+      clean.injectSecretsIntoTerminal = p.injectSecretsIntoTerminal;
+    if (typeof p.devUrl === "string") clean.devUrl = p.devUrl;
     return writeProjectConfig(requireRoot(), clean);
   });
 
@@ -436,6 +446,131 @@ export function registerIpc(
       }
     },
   );
+
+  // Render: app-global (account-level), so NOT requireRoot-gated. Mirrors the
+  // neon:status/connect shape -- the API key stays main-only and is NEVER
+  // returned over IPC. render:services returns an enriched status projection
+  // (id/name/url/branch/deployStatus/deployed) with NO key and NO secrets.
+  ipcMain.handle("render:status", async () => ({
+    connected: (await getGlobalSecret(RENDER_KEY)) !== null,
+  }));
+  ipcMain.handle("render:connect", async (_e, key: unknown) => {
+    if (typeof key !== "string" || !key.trim())
+      throw new Error("Invalid payload");
+    await setGlobalSecret(RENDER_KEY, key.trim(), { auditLog: globalAuditLog });
+    return { connected: true };
+  });
+  ipcMain.handle("render:services", async () => {
+    const key = await getGlobalSecret(RENDER_KEY);
+    if (!key) throw new Error("Render not connected");
+    let services = await renderListServices(key);
+    // Filter to THIS project's git repo when a workspace is open and its origin
+    // remote matches a service repo. If nothing matches, fall back to all
+    // services rather than hiding everything.
+    if (workspaceRoot) {
+      const origin = await originRemoteUrl(workspaceRoot);
+      if (origin) {
+        const want = normalizeRepoUrl(origin);
+        const matched = services.filter(
+          (s) => normalizeRepoUrl(s.repo) === want,
+        );
+        if (matched.length > 0) services = matched;
+      }
+    }
+    // Local HEAD sha for the deployed-vs-HEAD comparison (best effort).
+    let localSha = "";
+    if (workspaceRoot) {
+      try {
+        localSha = await headSha(workspaceRoot);
+      } catch {
+        localSha = "";
+      }
+    }
+    const out = [];
+    for (const s of services) {
+      let deployStatus = "";
+      let deployed: boolean | null = null;
+      try {
+        const dep = await renderLatestDeploy(key, s.id);
+        if (dep) {
+          deployStatus = dep.status;
+          // Compare with prefix tolerance: Render may report a short or full
+          // commit sha vs the local full HEAD. null when either side is empty.
+          deployed =
+            localSha && dep.commit
+              ? dep.commit === localSha ||
+                dep.commit.startsWith(localSha) ||
+                localSha.startsWith(dep.commit)
+              : null;
+        }
+      } catch {
+        deployStatus = "";
+      }
+      out.push({
+        id: s.id,
+        name: s.name,
+        url: s.url,
+        branch: s.branch,
+        deployStatus,
+        deployed,
+      });
+    }
+    return out;
+  });
+
+  // Host/local dev server: host:probe + host:openExternal are global (NOT
+  // requireRoot-gated). host:localUrl resolves the per-project dev URL so it IS
+  // requireRoot-gated (config.devUrl, else guessed from package.json).
+  ipcMain.handle("host:localUrl", async () => {
+    const root = requireRoot();
+    const cfg = await readProjectConfig(root);
+    if (cfg.devUrl) return cfg.devUrl;
+    try {
+      const { content } = await readWorkspaceFile(root, "package.json");
+      const pkg = JSON.parse(content) as {
+        scripts?: Record<string, string>;
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      const deps = {
+        ...(pkg.dependencies ?? {}),
+        ...(pkg.devDependencies ?? {}),
+      };
+      const scriptText = Object.values(pkg.scripts ?? {}).join(" ");
+      const portMatch = scriptText.match(/--port[ =](\d{2,5})/);
+      const port = portMatch
+        ? Number(portMatch[1])
+        : deps.next
+          ? 3000
+          : deps.vite || deps["@vitejs/plugin-react"]
+            ? 5173
+            : deps["react-scripts"]
+              ? 3000
+              : deps.astro
+                ? 4321
+                : null;
+      return port ? `http://localhost:${port}` : null;
+    } catch {
+      return null;
+    }
+  });
+  ipcMain.handle("host:probe", async (_e, url: unknown) => {
+    if (typeof url !== "string") throw new Error("Invalid payload");
+    let u: URL;
+    try {
+      u = new URL(url);
+    } catch {
+      return { up: false };
+    }
+    const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
+    return { up: await probePort(u.hostname, port) };
+  });
+  // Validate http(s) BEFORE opening: never file:// or a custom scheme.
+  ipcMain.handle("host:openExternal", (_e, url: unknown) => {
+    if (typeof url !== "string" || !/^https?:\/\//.test(url))
+      throw new Error("Invalid payload");
+    return shell.openExternal(url);
+  });
 
   // Docker: machine-global, so NOT requireRoot-gated.
   ipcMain.handle("docker:list", () => dockerContainers());

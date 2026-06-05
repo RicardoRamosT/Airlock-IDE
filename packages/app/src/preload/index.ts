@@ -61,6 +61,12 @@ const api: AirlockApi = {
     ipcRenderer.invoke("neon:tables", p, b, db, role),
   neonRows: (p, b, db, role, schema, table, limit) =>
     ipcRenderer.invoke("neon:rows", p, b, db, role, schema, table, limit),
+  renderStatus: () => ipcRenderer.invoke("render:status"),
+  renderConnect: (key) => ipcRenderer.invoke("render:connect", key),
+  renderServices: () => ipcRenderer.invoke("render:services"),
+  hostLocalUrl: () => ipcRenderer.invoke("host:localUrl"),
+  hostProbe: (url) => ipcRenderer.invoke("host:probe", url),
+  hostOpenExternal: (url) => ipcRenderer.invoke("host:openExternal", url),
   dockerList: () => ipcRenderer.invoke("docker:list"),
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),

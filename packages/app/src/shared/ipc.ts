@@ -52,6 +52,22 @@ export interface DbEntry {
   redacted: string;
 }
 
+/**
+ * A Render service projected for the renderer's Host section. Enriched
+ * main-side with the latest deploy: `deployStatus` is Render's deploy status
+ * string, `deployed` is true/false when the deployed commit can be compared to
+ * local HEAD, or null when either side is unknown. There is deliberately NO API
+ * key and NO raw connection string -- the key stays main-only.
+ */
+export interface RenderServiceStatus {
+  id: string;
+  name: string;
+  url: string;
+  branch: string;
+  deployStatus: string;
+  deployed: boolean | null;
+}
+
 /** The repo's local commit identity (git config user.name / user.email). */
 export interface GitIdentity {
   name: string | null;
@@ -169,6 +185,18 @@ export interface AirlockApi {
     table: string,
     limit: number,
   ): Promise<QueryResult>;
+  // Render: app-global (account-level, NOT root-gated). The API key crosses
+  // only on renderConnect and is NEVER returned. renderServices returns an
+  // enriched per-service status (deploy state + deployed-vs-HEAD) with no key.
+  renderStatus(): Promise<{ connected: boolean }>;
+  renderConnect(key: string): Promise<{ connected: boolean }>;
+  renderServices(): Promise<RenderServiceStatus[]>;
+  // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
+  // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
+  // http(s) URLs in the system browser.
+  hostLocalUrl(): Promise<string | null>;
+  hostProbe(url: string): Promise<{ up: boolean }>;
+  hostOpenExternal(url: string): Promise<void>;
   // Docker: machine-global (NOT root-gated); ids are opaque container ids.
   dockerList(): Promise<{
     installed: boolean;
