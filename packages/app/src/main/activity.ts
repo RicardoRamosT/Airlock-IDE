@@ -107,7 +107,7 @@ export async function activityStatus(
     try {
       const branch = (await gitStatusFor(root)).branch.head;
       if (branch && branch !== "(detached)") {
-        const run = await latestCiRun(branch);
+        const run = await latestCiRun(branch, root);
         if (run) items.push(ciRunToItem(run, branch));
       }
     } catch {

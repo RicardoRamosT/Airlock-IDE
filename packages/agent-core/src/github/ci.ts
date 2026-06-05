@@ -7,10 +7,16 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 
-export type GhRunner = (args: string[]) => Promise<string>;
+export type GhRunner = (args: string[], cwd?: string) => Promise<string>;
 
-const realGh: GhRunner = async (args) => {
-  const { stdout } = await exec("gh", args, { maxBuffer: 4 * 1024 * 1024 });
+const realGh: GhRunner = async (args, cwd) => {
+  // cwd MUST be the repo root: gh resolves the target repo from the working
+  // directory, and the packaged app's process cwd is "/" (launchd-launched),
+  // where gh would fail "not a git repository" and yield no CI item.
+  const { stdout } = await exec("gh", args, {
+    cwd,
+    maxBuffer: 4 * 1024 * 1024,
+  });
   return stdout;
 };
 
@@ -89,26 +95,32 @@ export function parseRunJobs(raw: string): {
 // so this is defense-in-depth, not the only guard.
 const BRANCH_RE = /^[A-Za-z0-9._/-]+$/;
 
-// The latest workflow run for a branch, with flattened step detail. Returns
-// null for any failure (gh missing, no repo, no auth, no workflows, no runs) --
-// the Activity panel just shows no CI item in those cases.
+// The latest workflow run for a branch, with flattened step detail. `root` is the
+// repo working directory handed to gh as its cwd -- REQUIRED, because gh resolves
+// the repo from the working dir and the app's process cwd is not the project.
+// Returns null for any failure (gh missing, no repo, no auth, no workflows, no
+// runs) -- the Activity panel just shows no CI item in those cases.
 export async function latestCiRun(
   branch: string,
+  root: string,
   run: GhRunner = realGh,
 ): Promise<CiRun | null> {
   if (!branch || !BRANCH_RE.test(branch)) return null;
   let listRaw: string;
   try {
-    listRaw = await run([
-      "run",
-      "list",
-      "--branch",
-      branch,
-      "--limit",
-      "1",
-      "--json",
-      "databaseId,status,conclusion,workflowName,headSha,url",
-    ]);
+    listRaw = await run(
+      [
+        "run",
+        "list",
+        "--branch",
+        branch,
+        "--limit",
+        "1",
+        "--json",
+        "databaseId,status,conclusion,workflowName,headSha,url",
+      ],
+      root,
+    );
   } catch {
     return null;
   }
@@ -116,13 +128,10 @@ export async function latestCiRun(
   if (!summary) return null;
   let jobsRaw = "";
   try {
-    jobsRaw = await run([
-      "run",
-      "view",
-      String(summary.databaseId),
-      "--json",
-      "jobs",
-    ]);
+    jobsRaw = await run(
+      ["run", "view", String(summary.databaseId), "--json", "jobs"],
+      root,
+    );
   } catch {
     jobsRaw = ""; // step detail unavailable -> show the run without steps
   }

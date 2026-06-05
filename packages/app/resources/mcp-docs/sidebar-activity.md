@@ -15,11 +15,16 @@ animated indeterminate state otherwise. v1 sources:
   with an honest "starting" animation. It does **not** show layer-by-layer pull or
   build progress (airlock doesn't run those, so there's no real layer % to report).
 
-The section polls while it is expanded **and** something is running (and refreshes
-on window focus); when everything is idle/done it stops polling and just shows the
-last state. There is no separate MCP status tool for it in v1; it is a human-facing
-panel. Like the other sections it is toggleable — `set_sidebar_section_visibility`
-accepts `activity`.
+The section fetches when opened and on window focus, and polls every few seconds
+while something is running; when nothing is running it stops polling. A manual
+**Refresh** button (in the section toolbar) is always available. What it surfaces:
+the latest CI run for the branch (in progress, or its most recent passed/failed
+result), plus any Render deploy that is mid-build and any container that is still
+starting/restarting — so when there is no such work it shows "Nothing active"
+(Render services that are live and containers that are simply running are not
+listed; they are not in-progress). There is no separate MCP status tool for it in
+v1; it is a human-facing panel. Like the other sections it is toggleable —
+`set_sidebar_section_visibility` accepts `activity`.
 
 ## When it's useful
 Useful for any project with a pipeline worth watching live — one with GitHub Actions

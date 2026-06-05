@@ -84,10 +84,12 @@ describe("parseRunJobs", () => {
 });
 
 describe("latestCiRun", () => {
-  it("composes list + view into a CiRun and uses the right argv", async () => {
+  it("composes list + view, passes the repo cwd, uses the right argv", async () => {
     const calls: string[][] = [];
-    const fake: GhRunner = async (args) => {
+    const cwds: (string | undefined)[] = [];
+    const fake: GhRunner = async (args, cwd) => {
       calls.push(args);
+      cwds.push(cwd);
       if (args[1] === "list") {
         return JSON.stringify([
           {
@@ -114,7 +116,7 @@ describe("latestCiRun", () => {
         ],
       });
     };
-    const run = await latestCiRun("feature/x", fake);
+    const run = await latestCiRun("feature/x", "/repo", fake);
     expect(run?.workflowName).toBe("CI");
     expect(run?.stepsDone).toBe(1);
     expect(run?.stepsTotal).toBe(2);
@@ -130,18 +132,22 @@ describe("latestCiRun", () => {
       "databaseId,status,conclusion,workflowName,headSha,url",
     ]);
     expect(calls[1]).toEqual(["run", "view", "7", "--json", "jobs"]);
+    // The repo root must reach gh as its cwd for BOTH calls (the bug this guards:
+    // gh run from "/" fails "not a git repository" and yields no CI item).
+    expect(cwds[0]).toBe("/repo");
+    expect(cwds[1]).toBe("/repo");
   });
 
   it("returns null when there are no runs", async () => {
     const fake: GhRunner = async () => "[]";
-    expect(await latestCiRun("main", fake)).toBeNull();
+    expect(await latestCiRun("main", "/repo", fake)).toBeNull();
   });
 
   it("returns null when gh is missing (ENOENT)", async () => {
     const fake: GhRunner = async () => {
       throw Object.assign(new Error("nope"), { code: "ENOENT" });
     };
-    expect(await latestCiRun("main", fake)).toBeNull();
+    expect(await latestCiRun("main", "/repo", fake)).toBeNull();
   });
 
   it("rejects an invalid branch without shelling out", async () => {
@@ -150,7 +156,7 @@ describe("latestCiRun", () => {
       called = true;
       return "[]";
     };
-    expect(await latestCiRun("bad branch; rm -rf", fake)).toBeNull();
+    expect(await latestCiRun("bad branch; rm -rf", "/repo", fake)).toBeNull();
     expect(called).toBe(false);
   });
 
@@ -170,7 +176,7 @@ describe("latestCiRun", () => {
       }
       throw new Error("no jobs available");
     };
-    const run = await latestCiRun("main", fake);
+    const run = await latestCiRun("main", "/repo", fake);
     expect(run?.stepsTotal).toBe(0);
     expect(run?.conclusion).toBe("success");
   });
