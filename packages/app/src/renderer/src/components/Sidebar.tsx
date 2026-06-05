@@ -6,7 +6,9 @@ import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
+import { LocalHostSection } from "./LocalHostSection";
 import { NeonSection } from "./NeonSection";
+import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
 import { SidebarFooter } from "./SidebarFooter";
 
@@ -122,6 +124,12 @@ export function Sidebar() {
         {vis.docker && (
           <Section id="docker" title="Docker" defaultOpen={false}>
             <DockerSection />
+          </Section>
+        )}
+        {vis.host && (
+          <Section id="host" title="Host" defaultOpen={false}>
+            <LocalHostSection />
+            <RenderSection />
           </Section>
         )}
         {vis.audit && (

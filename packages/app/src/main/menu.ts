@@ -8,6 +8,7 @@ const SECTION_LABELS: Record<Section, string> = {
   git: "Git",
   databases: "Databases",
   docker: "Docker",
+  host: "Host",
   audit: "Audit",
 };
 

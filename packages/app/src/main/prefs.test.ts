@@ -18,6 +18,7 @@ describe("app prefs", () => {
         git: true,
         databases: true,
         docker: true,
+        host: true,
         audit: true,
       },
     });
@@ -39,6 +40,7 @@ describe("app prefs", () => {
         git: true,
         databases: true,
         docker: true,
+        host: true,
         audit: true,
       },
     });
@@ -66,6 +68,7 @@ describe("app prefs", () => {
         git: true,
         databases: true,
         docker: true,
+        host: true,
         audit: true,
       },
     });
@@ -85,6 +88,7 @@ describe("app prefs", () => {
         git: true,
         databases: true,
         docker: true,
+        host: true,
         audit: true,
       },
     });
@@ -102,7 +106,7 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).theme).toBe("dark");
   });
 
-  it("defaults sectionVisibility to all six sections visible", async () => {
+  it("defaults sectionVisibility to all seven sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -112,6 +116,7 @@ describe("app prefs", () => {
       git: true,
       databases: true,
       docker: true,
+      host: true,
       audit: true,
     });
   });
@@ -129,6 +134,7 @@ describe("app prefs", () => {
       git: true,
       databases: true,
       docker: false,
+      host: true,
       audit: true,
     });
     expect((await loadPrefs(file)).sectionVisibility).toEqual({
@@ -137,6 +143,7 @@ describe("app prefs", () => {
       git: true,
       databases: true,
       docker: false,
+      host: true,
       audit: true,
     });
   });
@@ -151,6 +158,7 @@ describe("app prefs", () => {
       git: true,
       databases: true,
       docker: true,
+      host: true,
       audit: true,
     });
   });
@@ -168,6 +176,7 @@ describe("app prefs", () => {
       git: true,
       databases: true,
       docker: true,
+      host: true,
       audit: true,
     });
   });

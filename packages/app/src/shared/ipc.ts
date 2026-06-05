@@ -86,6 +86,7 @@ export type Section =
   | "git"
   | "databases"
   | "docker"
+  | "host"
   | "audit";
 export type SectionVisibility = Record<Section, boolean>;
 

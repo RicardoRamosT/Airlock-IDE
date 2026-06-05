@@ -16,6 +16,7 @@ export const SECTIONS: Section[] = [
   "git",
   "databases",
   "docker",
+  "host",
   "audit",
 ];
 
@@ -25,6 +26,7 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   git: true,
   databases: true,
   docker: true,
+  host: true,
   audit: true,
 };
 
