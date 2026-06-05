@@ -36,6 +36,10 @@ export interface McpDeps {
   prefsFile: string;
   getWorkspaceRoot: () => string | null;
   getBaseEnv: () => Record<string, string>;
+  requestSecretFromUser: (
+    name: string,
+    providerHint?: string,
+  ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
   token: string;
 }
 
@@ -58,7 +62,7 @@ const MAX_BODY_BYTES = 4 * 1024 * 1024;
 // Called PER REQUEST: the stateless SDK transport cannot be reused, so each request
 // gets its own server connected to its own transport. registerTools is the SAME
 // allowlist-locked registration used everywhere (tools.test.ts asserts it stays at
-// exactly the nine v1 tools and that none returns a secret value), so the security
+// exactly the eleven v1 tools and that none returns a secret value), so the security
 // invariant holds identically on every per-request server.
 function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
   const mcp = new McpServer({ name: "airlock", version: "1.0.0" });
@@ -70,6 +74,7 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     prefsFile: deps.prefsFile,
     getWorkspaceRoot: deps.getWorkspaceRoot,
     getBaseEnv: deps.getBaseEnv,
+    requestSecretFromUser: deps.requestSecretFromUser,
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

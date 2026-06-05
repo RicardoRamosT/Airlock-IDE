@@ -43,20 +43,22 @@ const baseDeps = {
   prefsFile: "/tmp/airlock-test-prefs.json",
   getWorkspaceRoot: () => null as string | null,
   getBaseEnv: () => ({}) as Record<string, string>,
+  requestSecretFromUser: vi.fn(async () => ({ vaulted: true })),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // ten v1 tools. An 11th tool (e.g. a future secret-value drill-down) or a
+  // eleven v1 tools. A 12th tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the ten allowlisted tools and nothing else", () => {
+  it("registers exactly the eleven allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(10);
+    expect(registered).toHaveLength(11);
     expect(registered).toContain("run_command");
+    expect(registered).toContain("request_secret");
   });
 
   it("registers no duplicate tool names", () => {
@@ -168,5 +170,36 @@ describe("run_command tool", () => {
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toBe("No workspace open");
     expect(runCommandMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("request_secret tool", () => {
+  function getRequestSecretTool(deps = baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const tool = tools.find((t) => t.name === "request_secret");
+    if (!tool) throw new Error("request_secret tool not registered");
+    return tool;
+  }
+
+  it("declares the name/providerHint input schema", () => {
+    const tool = getRequestSecretTool();
+    expect(tool.config.inputSchema).toBeDefined();
+    expect(tool.config.inputSchema?.name).toBeDefined();
+    expect(tool.config.inputSchema?.providerHint).toBeDefined();
+  });
+
+  it("returns NO_WORKSPACE and does NOT call requestSecretFromUser with no workspace open", async () => {
+    // baseDeps.getWorkspaceRoot() is null, so the handler must short-circuit
+    // before reaching the resolver (which would open the secure prompt).
+    const requestSecretFromUser = vi.fn(async () => ({ vaulted: true }));
+    const tool = getRequestSecretTool({ ...baseDeps, requestSecretFromUser });
+    const res = (await tool.handler({ name: "DATABASE_URL" })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toBe("No workspace open");
+    expect(requestSecretFromUser).not.toHaveBeenCalled();
   });
 });

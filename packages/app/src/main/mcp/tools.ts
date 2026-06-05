@@ -1,7 +1,8 @@
-// The v1 airlock MCP tool set: read-status tools plus the single UI-control
-// tool. Every tool is a THIN wrapper over the shared read layer (main/ide-state)
-// or main/menu's changeSectionVisibility -- there is no business logic here, only
-// argument plumbing and the SDK result shape.
+// The v1 airlock MCP tool set: read-status tools, the UI-control tool, the
+// command runner, and the request-secret prompt. Every tool is a THIN wrapper
+// over the shared read layer (main/ide-state), main/menu's
+// changeSectionVisibility, or an injected resolver -- there is no business logic
+// here, only argument plumbing and the SDK result shape.
 //
 // SECURITY INVARIANT (enforced by tools.test.ts): no tool returns a secret
 // value. This module imports ONLY ide-state read functions + the visibility
@@ -23,7 +24,7 @@ import { changeSectionVisibility } from "../menu";
 import { SECTIONS } from "../prefs";
 
 // The exact, locked v1 tool set. tools.test.ts asserts the registered names
-// equal this list, so a 10th tool or a missing one fails the allowlist guard.
+// equal this list, so a 12th tool or a missing one fails the allowlist guard.
 export const TOOL_NAMES: string[] = [
   "list_sidebar_sections",
   "set_sidebar_section_visibility",
@@ -35,6 +36,7 @@ export const TOOL_NAMES: string[] = [
   "host_status",
   "list_secret_names",
   "run_command",
+  "request_secret",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -44,6 +46,10 @@ export interface ToolDeps {
   prefsFile: string;
   getWorkspaceRoot: () => string | null;
   getBaseEnv: () => Record<string, string>;
+  requestSecretFromUser: (
+    name: string,
+    providerHint?: string,
+  ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
   changeVisibility?: (
     prefsFile: string,
     id: Section,
@@ -68,8 +74,9 @@ function err(message: string) {
 const NO_WORKSPACE = "No workspace open";
 
 // Register the v1 tools onto the live McpServer. Called once at startup from
-// startMcpServer. Each handler forwards to an ide-state read or the visibility
-// funnel and never touches secret values.
+// startMcpServer. Each handler forwards to an ide-state read, the visibility
+// funnel, the command runner, or the request-secret resolver, and never touches
+// a secret value (request_secret resolves only a boolean outcome).
 export function registerTools(mcp: McpServer, deps: ToolDeps): void {
   const changeVisibility = deps.changeVisibility ?? changeSectionVisibility;
 
@@ -207,6 +214,27 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
       }
+    },
+  );
+
+  // Ask the user to vault a secret the agent needs. This opens a secure prompt
+  // in the IDE (main -> renderer modal); the value flows user -> keychain and
+  // NEVER through this handler. The dep resolves only a boolean outcome, so the
+  // source-guard stays green -- this references no value-returning identifier.
+  mcp.registerTool(
+    "request_secret",
+    {
+      description:
+        "Ask the user to vault a secret you need (opens a secure prompt in the IDE). Returns only whether it was vaulted -- you never see the value. Use this after a tool reports a secret is not vaulted, then retry.",
+      inputSchema: {
+        name: z.string(),
+        providerHint: z.string().optional(),
+      },
+    },
+    async ({ name, providerHint }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      return ok(await deps.requestSecretFromUser(name, providerHint));
     },
   );
 }
