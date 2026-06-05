@@ -84,6 +84,12 @@ export {
 } from "./github/accounts";
 export { type PortProber, probePort } from "./host/probe";
 export {
+  type ClaudeRunner,
+  type McpRegisterInput,
+  type McpRegisterResult,
+  registerMcpServer,
+} from "./mcp/register";
+export {
   fetchTransport,
   // Aliased: agent-core already exports a git listBranches (./git/ops) with a
   // different signature; this is the Neon REST one.
