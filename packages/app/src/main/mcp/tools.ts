@@ -14,6 +14,7 @@
 //
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
+import { runCommand } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Section, SectionVisibility } from "../../shared/ipc";
@@ -33,6 +34,7 @@ export const TOOL_NAMES: string[] = [
   "git_status",
   "host_status",
   "list_secret_names",
+  "run_command",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -41,6 +43,7 @@ export const TOOL_NAMES: string[] = [
 export interface ToolDeps {
   prefsFile: string;
   getWorkspaceRoot: () => string | null;
+  getBaseEnv: () => Record<string, string>;
   changeVisibility?: (
     prefsFile: string,
     id: Section,
@@ -170,6 +173,40 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
       return ok(await ide.listSecretNames(root));
+    },
+  );
+
+  // The single side-effecting tool: runs a shell command with named vaulted
+  // secrets injected into its env, then returns the output with every injected
+  // value redacted. The secret RESOLUTION + injection + redaction all happen
+  // inside runCommand (agent-core) -- this handler never touches a secret value,
+  // so the source-guard stays green. On the fail-closed path runCommand throws
+  // an Error whose message is name-only (never a value), so surfacing it is safe.
+  mcp.registerTool(
+    "run_command",
+    {
+      description:
+        "Run a shell command with the named vaulted secrets injected into its environment; the output is returned with secret values redacted. Use this for commands that need a secret (database, API keys) -- you never see the secret value.",
+      inputSchema: {
+        command: z.string(),
+        injectSecrets: z.array(z.string()).optional(),
+        cwd: z.string().optional(),
+      },
+    },
+    async ({ command, injectSecrets, cwd }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      try {
+        return ok(
+          await runCommand(root, command, {
+            injectSecrets,
+            cwd,
+            baseEnv: deps.getBaseEnv(),
+          }),
+        );
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e));
+      }
     },
   );
 }

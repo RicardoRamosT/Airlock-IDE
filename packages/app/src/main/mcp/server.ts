@@ -35,6 +35,7 @@ import { registerTools } from "./tools";
 export interface McpDeps {
   prefsFile: string;
   getWorkspaceRoot: () => string | null;
+  getBaseEnv: () => Record<string, string>;
   token: string;
 }
 
@@ -68,6 +69,7 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
   registerTools(mcp, {
     prefsFile: deps.prefsFile,
     getWorkspaceRoot: deps.getWorkspaceRoot,
+    getBaseEnv: deps.getBaseEnv,
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

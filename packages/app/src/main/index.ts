@@ -132,14 +132,17 @@ function bootstrap(): void {
     // Stand up the local MCP server (loopback, bearer-guarded). A start failure
     // (e.g. a busy port we could not bump past) must NOT take down the app --
     // log and continue; the IDE works without the agent bridge.
-    await startMcpServer(port, { prefsFile, getWorkspaceRoot, token }).catch(
-      (e) => {
-        console.error(
-          "MCP server failed to start:",
-          e instanceof Error ? e.message : e,
-        );
-      },
-    );
+    await startMcpServer(port, {
+      prefsFile,
+      getWorkspaceRoot,
+      getBaseEnv: () => loginEnv,
+      token,
+    }).catch((e) => {
+      console.error(
+        "MCP server failed to start:",
+        e instanceof Error ? e.message : e,
+      );
+    });
   });
 
   app.on("before-quit", killAllSessions);

@@ -7,6 +7,15 @@ import type { Section, SectionVisibility } from "../../shared/ipc";
 import { SECTIONS } from "../prefs";
 import { registerTools, TOOL_NAMES } from "./tools";
 
+// Mock agent-core's runCommand so the run_command handler tests can assert it is
+// NOT invoked on the fail-closed (no-workspace) path. tools.ts imports runCommand
+// directly (it does NOT inject it), so a module mock is the only seam. This also
+// keeps the test from resolving/injecting real secrets or spawning a process.
+const runCommandMock = vi.fn();
+vi.mock("@airlock/agent-core", () => ({
+  runCommand: (...args: unknown[]) => runCommandMock(...args),
+}));
+
 // A minimal McpServer stand-in that records every registerTool call. registerTools
 // only ever calls .registerTool, so this captures the full registered surface
 // (names, configs, handlers) without standing up the real SDK server or Electron.
@@ -33,19 +42,21 @@ function fakeServer(): { mcp: McpServer; tools: Recorded[] } {
 const baseDeps = {
   prefsFile: "/tmp/airlock-test-prefs.json",
   getWorkspaceRoot: () => null as string | null,
+  getBaseEnv: () => ({}) as Record<string, string>,
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // nine v1 tools. A 10th tool (e.g. a future secret-value drill-down) or a
+  // ten v1 tools. An 11th tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the nine allowlisted tools and nothing else", () => {
+  it("registers exactly the ten allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(9);
+    expect(registered).toHaveLength(10);
+    expect(registered).toContain("run_command");
   });
 
   it("registers no duplicate tool names", () => {
@@ -125,5 +136,37 @@ describe("set_sidebar_section_visibility validation", () => {
     expect(tool?.config.inputSchema).toBeDefined();
     expect(tool?.config.inputSchema?.section).toBeDefined();
     expect(tool?.config.inputSchema?.visible).toBeDefined();
+  });
+});
+
+describe("run_command tool", () => {
+  function getRunCommandTool() {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, baseDeps);
+    const tool = tools.find((t) => t.name === "run_command");
+    if (!tool) throw new Error("run_command tool not registered");
+    return tool;
+  }
+
+  it("declares the command/injectSecrets/cwd input schema", () => {
+    const tool = getRunCommandTool();
+    expect(tool.config.inputSchema).toBeDefined();
+    expect(tool.config.inputSchema?.command).toBeDefined();
+    expect(tool.config.inputSchema?.injectSecrets).toBeDefined();
+    expect(tool.config.inputSchema?.cwd).toBeDefined();
+  });
+
+  it("returns NO_WORKSPACE and does NOT call runCommand with no workspace open", async () => {
+    runCommandMock.mockClear();
+    // baseDeps.getWorkspaceRoot() is null, so the handler must short-circuit
+    // before reaching agent-core's runCommand (which resolves/injects secrets).
+    const tool = getRunCommandTool();
+    const res = (await tool.handler({ command: "echo hi" })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toBe("No workspace open");
+    expect(runCommandMock).not.toHaveBeenCalled();
   });
 });
