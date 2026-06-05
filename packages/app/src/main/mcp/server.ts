@@ -23,6 +23,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { savePrefs } from "../prefs";
+import { registerResources } from "./resources";
 import { registerTools } from "./tools";
 
 export interface McpDeps {
@@ -92,6 +93,11 @@ export async function startMcpServer(
     prefsFile: deps.prefsFile,
     getWorkspaceRoot: deps.getWorkspaceRoot,
   });
+
+  // Register the IDE-manual docs as read-only MCP resources (see ./resources).
+  // Best-effort: a missing docs dir logs and registers nothing rather than
+  // failing startup, so the tool surface is unaffected.
+  await registerResources(mcp);
 
   // Stateless transport: no session id, so one instance serves every request.
   transport = new StreamableHTTPServerTransport({

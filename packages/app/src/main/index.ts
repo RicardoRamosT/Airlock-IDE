@@ -1,9 +1,9 @@
 import path from "node:path";
-import { captureLoginEnv } from "@airlock/agent-core";
+import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
 import { getWorkspaceRoot, killAllSessions, registerIpc } from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
-import { startMcpServer, stopMcpServer } from "./mcp/server";
+import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu } from "./menu";
 import { loadPrefs } from "./prefs";
 
@@ -90,16 +90,48 @@ function bootstrap(): void {
     // App-global prefs live in userData (NOT per-project .airlock/). getPath
     // is only valid after the app is ready, so compute it here before wiring.
     const prefsFile = path.join(app.getPath("userData"), "prefs.json");
-    registerIpc(() => loginEnv, prefsFile);
+
+    // MCP identity (stable port + token), generated/persisted once. Resolved
+    // before registerIpc so the onFolderOpen callback below can close over it.
+    const { port, token } = await ensureMcpConfig(prefsFile);
+
+    // onFolderOpen: when the user opens a folder, register airlock's MCP server
+    // with Claude Code at LOCAL scope keyed to that project dir, so the terminal
+    // Claude there can reach airlock's tools/resources. Use the live bound port
+    // (it may differ from the requested one after an EADDRINUSE bump), falling
+    // back to the requested port if the server is not up yet. Best-effort: a
+    // registration failure must not disrupt opening the folder.
+    const onFolderOpen = (root: string) => {
+      const livePort = getMcpPort() ?? port;
+      const url = `http://127.0.0.1:${livePort}/mcp`;
+      void registerMcpServer({ root, url, token })
+        .then((r) => {
+          if (!r.ok && r.reason === "not_found") {
+            // The `claude` CLI is not installed/on PATH; tell the user how to
+            // wire it up by hand. NEVER print the real token -- use a placeholder.
+            console.error(
+              `airlock: 'claude' CLI not found; to connect manually run: claude mcp add --transport http airlock ${url} --scope local --header "Authorization: Bearer <token>"`,
+            );
+          } else if (!r.ok) {
+            console.error("airlock: MCP registration failed:", r.message);
+          }
+        })
+        .catch((e) => {
+          console.error(
+            "airlock: MCP registration threw:",
+            e instanceof Error ? e.message : e,
+          );
+        });
+    };
+
+    registerIpc(() => loginEnv, prefsFile, onFolderOpen);
     createWindow();
     const prefs = await loadPrefs(prefsFile);
     applyAppMenu(prefsFile, prefs.sectionVisibility);
 
-    // Stand up the local MCP server (loopback, bearer-guarded). Its identity
-    // (stable port + token) is generated/persisted once. A start failure (e.g.
-    // a busy port we could not bump past) must NOT take down the app -- log and
-    // continue; the IDE works without the agent bridge.
-    const { port, token } = await ensureMcpConfig(prefsFile);
+    // Stand up the local MCP server (loopback, bearer-guarded). A start failure
+    // (e.g. a busy port we could not bump past) must NOT take down the app --
+    // log and continue; the IDE works without the agent bridge.
     await startMcpServer(port, { prefsFile, getWorkspaceRoot, token }).catch(
       (e) => {
         console.error(

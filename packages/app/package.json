@@ -23,6 +23,12 @@
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
+    "extraResources": [
+      {
+        "from": "resources/mcp-docs",
+        "to": "mcp-docs"
+      }
+    ],
     "mac": {
       "icon": "build/icon.icns",
       "identity": null
