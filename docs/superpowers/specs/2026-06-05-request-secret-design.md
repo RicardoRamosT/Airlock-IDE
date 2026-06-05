@@ -1,7 +1,7 @@
 # request_secret (Agent capability) Design
 
 **Date:** 2026-06-05
-**Status:** Design approved. Building v1.
+**Status:** v1 complete.
 
 ## Overview
 A new MCP tool, `request_secret`, that lets the terminal Claude ASK THE USER to vault a secret it needs. airlock opens the existing secure modal (pre-filled with the requested name); the user types + saves the value (which goes straight to the keychain); the agent gets back ONLY whether it was vaulted -- NEVER the value. It is the lowest-risk agent tool: there is no value path to the agent at all (it never calls getSecretValue).

@@ -1,9 +1,10 @@
 # MCP tools
 
-airlock exposes 10 tools over this MCP server. Eight are **read-only status** tools; one
+airlock exposes 11 tools over this MCP server. Eight are **read-only status** tools; one
 (`set_sidebar_section_visibility`) drives the sidebar UI; one (`run_command`) runs a shell
 command with named vaulted secrets injected and the output returned with those values
-**redacted**. **None returns a secret value.**
+**redacted**; one (`request_secret`) asks the user to vault a secret you need (you get back
+only whether it was vaulted, never the value). **None returns a secret value.**
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
 yet; the app-global tools work regardless.
@@ -55,6 +56,18 @@ yet; the app-global tools work regardless.
   **Every run is audited** (`command.run` — the command and the secret *names*, never the
   values). Workspace-rooted (needs an open folder). See `security-model.md`.
 
+## Acting — ask the user to vault a secret you need
+
+- **`request_secret`** — ask the user to vault a secret you need. A secure prompt opens in
+  the IDE (the name pre-filled); the user types and saves the value, which goes straight to
+  the keychain. You get back only **whether it was vaulted** — never the value. Args: `name`
+  (the secret name to request, e.g. `DATABASE_URL`) and an optional `providerHint` (a short
+  note about what kind of value it is, e.g. "looks like a Postgres URL"). **When to use it:**
+  after a tool reports a secret is **not vaulted** (e.g. `run_command` fails closed naming a
+  missing secret), call `request_secret` with that name, then **retry** the original action
+  once it reports vaulted. Workspace-rooted (the secret is vaulted into the open project).
+  See `security-model.md`.
+
 ## Picking a tool
 
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
@@ -65,5 +78,7 @@ yet; the app-global tools work regardless.
 - "Run something that needs a credential" → `run_command` with the secret **names** in
   `injectSecrets` (from `list_secret_names`). airlock injects the values, you get redacted
   output.
+- "The secret I need isn't vaulted yet" → `request_secret` with the name (a secure prompt
+  opens for the user to vault it); when it reports vaulted, retry the action that needed it.
 - You will **never** find a tool that hands you a secret value — that is by design.
   `run_command` *uses* a secret on your behalf but redacts it out of what you get back.

@@ -485,6 +485,35 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 > redactor + env-filter + audit, plus Claude Code's per-tool approval on first
 > use.*
 
+> *Revised again 2026-06-05 (request_secret v1 — see the dedicated spec
+> `2026-06-05-request-secret-design.md`): the MCP surface gains `request_secret`
+> (now the 11th tool; the allowlist guard moves 10 -> 11), the lowest-risk agent
+> tool because there is **no value path to the agent at all**. The terminal Claude
+> calls `request_secret(name, { providerHint? })` to **ask the USER to vault a
+> secret it needs** — it closes the loop `run_command` opens when a requested
+> secret isn't vaulted. A main-side resolver (`requestSecretFromUser`) pushes
+> `agent:request-secret { requestId, name, providerHint }` to the renderer, which
+> opens the existing **SecretModal in an "agent-requested" mode** — the name is
+> pre-filled and locked, with a "Claude is requesting this secret to use on your
+> behalf; it is vaulted in your keychain, Claude never sees the value" note (+ the
+> hint if present). The user saves (value -> keychain via the **existing
+> `secretsSet`/`setSecret` path**, the agent never in it) or cancels/closes; the
+> renderer reports the outcome over `agent:request-secret-resolved { requestId,
+> vaulted }` and main resolves the matching promise. The resolver is
+> **single-in-flight** (a second concurrent request returns `{ vaulted: false,
+> busy: true }` rather than stacking modals) with a **~5 min timeout**
+> (`{ vaulted: false, timedOut: true }`), so the agent never hangs forever; in
+> agent mode the save resolves `vaulted: true` whenever `secretsSet` resolves
+> (even on a format-`valid:false` warning — the keychain write happens regardless,
+> so the agent isn't stranded). The tool is **root-gated** (the secret is vaulted
+> into the open project's keychain namespace) and returns **only a boolean**, never
+> the value. `tools.ts` references **none** of the secret-VALUE functions
+> (getSecretValue/getGlobalSecret/...) — the source-guard stays trivially green
+> because `request_secret` calls the `requestSecretFromUser` dep, which only opens
+> the modal and awaits a boolean. The resolver's busy/timeout/resolve logic is
+> unit-tested with a fake notifier; the live modal round-trip (modal pops, user
+> saves, agent proceeds) is the human gate.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │

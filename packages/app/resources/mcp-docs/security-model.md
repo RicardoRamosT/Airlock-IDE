@@ -49,6 +49,16 @@ Three guarantees ride along:
 - **Audited, names only.** Every run appends a `command.run` audit entry recording the
   command and the injected secret **names** — never the values.
 
+## Asking the user to vault a secret — `request_secret`
+When you hit a secret that isn't vaulted yet, `request_secret` lets you ask the **user** to
+provide it — and it holds the invariant just as tightly. It opens a secure prompt in the IDE
+(the name you pass is pre-filled); the user types the value and saves it, and that value goes
+**user → keychain only**. You are **never** in that path: `request_secret` does not return,
+read, or touch a value — it resolves only a **boolean** (whether the user vaulted it). So you
+learn that the secret now exists and can retry the action that needed it (e.g. `run_command`),
+still without ever seeing the value. It is the lowest-risk tool here: there is no value path
+to you at all.
+
 ## What this means for you
 - **Don't ask for secret values** and don't expect a tool to provide one.
 - **Don't try to exfiltrate them** — reading keychain entries, grepping for them, or

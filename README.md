@@ -187,6 +187,11 @@ airlock injects the value into that one command's environment for you and
 *seeing* it. If a named secret isn't vaulted the command refuses to run, and
 every run is audited (the command and the secret *names*, never the values).
 
+**Ask you to vault a secret it needs.** With `request_secret`, the terminal Claude
+can ask you to vault a secret it needs (a secure prompt opens with the name
+pre-filled); you provide the value and it goes straight to your keychain — the
+agent only learns whether it was vaulted, never the value.
+
 **The security boundary.** Claude can never read a secret value through airlock —
 **the tools to do that do not exist.** Every read returns names, hosts, and
 status only; `getSecretValue`/`getGlobalSecret` are never exposed as tools, and a
