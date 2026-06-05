@@ -69,3 +69,18 @@ export async function createBranch(root: string, name: string): Promise<void> {
   assertBranchName(name);
   await runGit(root, ["switch", "-c", name]);
 }
+
+// Origin remote URL (null when no origin/remote -> caller falls back to all
+// services).
+export async function originRemoteUrl(root: string): Promise<string | null> {
+  try {
+    return (await runGit(root, ["remote", "get-url", "origin"])).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// Full SHA of a ref (default HEAD) for the deploy-vs-local compare.
+export async function headSha(root: string, ref = "HEAD"): Promise<string> {
+  return (await runGit(root, ["rev-parse", ref])).trim();
+}

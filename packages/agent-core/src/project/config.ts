@@ -3,6 +3,10 @@ import path from "node:path";
 
 export interface ProjectConfig {
   injectSecretsIntoTerminal: boolean;
+  // Local dev-server URL for the Host section probe (e.g. http://localhost:3000).
+  // Optional: undefined by default, so it is omitted from DEFAULTS. A partial
+  // { devUrl } patch persists via writeProjectConfig and survives readProjectConfig.
+  devUrl?: string;
 }
 
 const DEFAULTS: ProjectConfig = { injectSecretsIntoTerminal: false };

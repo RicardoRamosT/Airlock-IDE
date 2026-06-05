@@ -55,7 +55,9 @@ export {
 export {
   commitStaged,
   createBranch,
+  headSha,
   listBranches,
+  originRemoteUrl,
   stageFiles,
   switchBranch,
   unstageFiles,
@@ -80,6 +82,7 @@ export {
   parseGhAuthStatus,
   switchGhAccount,
 } from "./github/accounts";
+export { type PortProber, probePort } from "./host/probe";
 export {
   fetchTransport,
   // Aliased: agent-core already exports a git listBranches (./git/ops) with a

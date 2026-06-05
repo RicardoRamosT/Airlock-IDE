@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   commitStaged,
   createBranch,
+  headSha,
   listBranches,
+  originRemoteUrl,
   stageFiles,
   switchBranch,
   unstageFiles,
@@ -80,5 +82,25 @@ describe("git ops", () => {
     const s = await gitStatus(root);
     expect(s.staged).toEqual([]);
     expect(s.untracked).toEqual(["new.txt"]);
+  });
+});
+
+describe("git origin and headSha", () => {
+  it("returns the origin remote url, or null when none is set", async () => {
+    const root = await makeRepo();
+    expect(await originRemoteUrl(root)).toBeNull();
+    await runGit(root, [
+      "remote",
+      "add",
+      "origin",
+      "https://github.com/o/r.git",
+    ]);
+    expect(await originRemoteUrl(root)).toBe("https://github.com/o/r.git");
+  });
+
+  it("resolves HEAD to a full 40-char sha", async () => {
+    const root = await makeRepo();
+    const sha = await headSha(root);
+    expect(sha).toMatch(/^[0-9a-f]{40}$/);
   });
 });
