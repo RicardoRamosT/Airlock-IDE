@@ -4,13 +4,15 @@
 > debug your app — but is structurally unable to read your secrets.
 
 **Status:** skeleton + secrets + git + DB + Docker + Host + sidebar
-customization. A multi-terminal panel (tabs, split, rename), file tree, viewer
-split, keychain secrets with terminal injection, hash-chained audit, a live git
-sidebar (stage/commit/branch/diffs), GitHub account switching, a settings tab
-with dark/light themes, live Postgres database browsing, Neon
+customization + an MCP IDE-bridge. A multi-terminal panel (tabs, split, rename),
+file tree, viewer split, keychain secrets with terminal injection, hash-chained
+audit, a live git sidebar (stage/commit/branch/diffs), GitHub account switching,
+a settings tab with dark/light themes, live Postgres database browsing, Neon
 project/branch/database browsing, live Docker container control, a Host section
 (local dev-server status + Render deploy status), and per-section sidebar
-show/hide all work. The agent phase is next.
+show/hide all work. airlock also runs a local MCP server so the Claude Code in
+its terminal can read every status and curate the sidebar — never a secret
+value. The full agent phase is next.
 
 Spec: `docs/superpowers/specs/2026-06-03-airlock-v1-design.md`
 
@@ -158,6 +160,38 @@ choose **Hide**, or uncheck it under **View ▸ Sidebar**. Re-show a hidden
 section by re-checking it in that same menu. The choice is app-global and
 remembered across launches, separate from simply collapsing a section (which is
 not saved). Hide everything and the sidebar points you back at View ▸ Sidebar.
+
+## Claude in your terminal can drive airlock
+
+airlock runs a small local MCP server, so the Claude Code you already use in
+airlock's terminal can see what airlock sees and curate it for you — no extra
+setup, no second API key. The terminal Claude *is* the agent; airlock is just
+the tool and resource provider.
+
+**What it can see.** Every live status the sidebar shows: your databases (host
+and reachability), Neon projects/branches/databases, Docker containers, Render
+deploy status, the git branch and changes, the local dev-server host and
+up/down, which sidebar sections are visible, and your secret *names*. It also
+reads a built-in manual (one page per sidebar section, plus the security model)
+so it understands the IDE without you explaining it.
+
+**What it can do.** Curate the sidebar for the project — show or hide any
+section. So you can ask "set up my sidebar for this project" and it will turn
+on Databases and Docker, hide what you don't need, and the sidebar updates live.
+
+**The security boundary.** Claude can never read a secret value through airlock —
+**the tools to do that do not exist.** Every read returns names, hosts, and
+status only; `getSecretValue`/`getGlobalSecret` are never exposed as tools, and a
+test enforces that the only tools registered are the read/curate set (so a future
+tool that would leak a value fails the build). The server listens on `127.0.0.1`
+only, behind a bearer token airlock generates. This is the same no-secrets rule
+the rest of airlock follows — now on a second surface.
+
+**On first use, you approve it.** Open a project and Claude Code prompts you to
+approve the `airlock` MCP server; the first time it wants to change the sidebar,
+Claude Code asks you to approve that tool too. Nothing happens behind your back.
+(airlock registers itself in Claude Code's *local* scope, keyed to the project —
+so no file is written into your repo.)
 
 ## Credits
 

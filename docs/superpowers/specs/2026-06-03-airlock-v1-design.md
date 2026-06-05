@@ -425,6 +425,34 @@ cannot be written, agent actions stop. Renders in the sidebar as Agent Log.
 > This completes the dedicated spec (`2026-06-04-neon-render-host-design.md`):
 > Slice A (Neon) + Slice B (Host) are both done.*
 
+> *Revised again 2026-06-04 (MCP IDE-bridge v1 — see the dedicated spec
+> `2026-06-04-mcp-ide-bridge-design.md`): airlock now hosts a **local HTTP MCP
+> server** (`127.0.0.1`, bearer-token-guarded, the `@modelcontextprotocol/sdk`
+> kept externalized) so the **Claude Code already running in airlock's terminal**
+> gains IDE-awareness — no embedded agent, no chat panel, no second API key. It
+> exposes three things: **markdown resources** (the IDE manual — overview, a page
+> per sidebar section, the tool list, the security model — so the terminal Claude
+> "knows" the IDE), **live status reads** (db / docker / neon / render / git /
+> host / sidebar sections / secret NAMES), and **one UI-control tool**
+> (show/hide a sidebar section). The status reads are a thin layer over a new
+> shared `ide-state` module extracted from the existing IPC handlers, so IPC and
+> MCP read from ONE source of truth (no drift); UI control reuses the existing
+> `changeSectionVisibility` funnel.
+>
+> **The MCP surface is the SECOND external no-secrets boundary** (after the
+> renderer IPC, §7). The invariant holds structurally: `getSecretValue` /
+> `getGlobalSecret` are **NEVER** registered as tools — every read tool returns
+> metadata / status / names only, and a **tool-allowlist guard test** enforces in
+> CI that no secret-VALUE function is ever reachable as a tool (so a future tool
+> addition that would leak a value fails the build). The server binds loopback
+> only and the registration helper never echoes the bearer token.
+>
+> On opening a project, airlock registers itself in **Claude Code's local scope**
+> (`claude mcp add --scope local`, keyed to the project path) — so it writes **no
+> file into the user's repo** (no git noise). Deferred to later agent slices:
+> `run_command` (dedicated PTY + redactor + command policy + broker injection),
+> `request_secret` (the secure modal), and file editing.*
+
 ```text
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Workspace    │ Terminal (owns the main area)                │

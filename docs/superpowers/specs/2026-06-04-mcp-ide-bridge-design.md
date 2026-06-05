@@ -1,7 +1,7 @@
 # airlock MCP IDE-Bridge Design
 
 **Date:** 2026-06-04
-**Status:** Design approved. Building v1 (IDE-aware + sidebar control).
+**Status:** v1 complete.
 
 ## Overview
 Instead of embedding its own agent + chat panel, airlock exposes itself as a **local MCP server**. The Claude Code the user already runs in airlock's integrated terminal connects to it and gains:
