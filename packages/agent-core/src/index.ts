@@ -34,6 +34,12 @@ export {
   validateSecret,
   validateSecretName,
 } from "./broker/validators";
+export {
+  type CommandRunner,
+  type RunCommandOptions,
+  type RunCommandResult,
+  runCommand,
+} from "./command/run";
 export { withDb } from "./db/client";
 export { type DbInfo, parseConnString, redactConnStrings } from "./db/connstr";
 export {
