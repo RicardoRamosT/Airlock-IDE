@@ -5,7 +5,8 @@
 
 **Status:** skeleton + secrets + git + DB + Docker + Host + Activity + sidebar
 customization + an MCP IDE-bridge. A multi-terminal panel (tabs, split, rename),
-file tree, viewer split, keychain secrets with terminal injection, hash-chained
+multiple projects (as tabs in one window or separate windows), file tree,
+viewer split, keychain secrets with terminal injection, hash-chained
 audit, a live git sidebar (stage/commit/branch/diffs), GitHub account switching,
 a settings tab with dark/light themes, live Postgres database browsing, Neon
 project/branch/database browsing, live Docker container control, a Host section
@@ -60,6 +61,22 @@ Secrets are injected at spawn, so they apply to **new** terminals only — after
 toggling injection, the secrets panel offers a "restart active" hint that
 replaces just the active terminal with a freshly injected one (other running
 terminals keep their existing env).
+
+## Projects
+
+Open more than one project at once. By default each folder you open becomes a
+**tab** in the current window (like browser tabs): a strip below the title bar
+shows one tab per project, `+` opens another, `✕` closes one. Click a tab to
+switch projects — the file tree, git, secrets, viewer, and the agent all follow
+the active tab — while every tab's terminals keep running in the background, so
+nothing is lost when you switch away.
+
+Prefer separate windows? **New Window** (`⌘⇧N`, or the dock icon's right-click
+menu) always opens a fresh window, and **Settings ▸ Layout ▸ Open projects as
+tabs** turns tabs off entirely so each folder opens in its own window instead
+(the strip hides itself). Either way airlock runs **one agent at a time**: it
+operates on the project you're currently looking at — the active tab in the
+focused window — so switching projects switches what the agent sees and acts on.
 
 ## Secrets
 
@@ -218,11 +235,13 @@ pre-filled); you provide the value and it goes straight to your keychain — the
 agent only learns whether it was vaulted, never the value.
 
 **Read your terminals' recent output.** With `get_terminal_tail`, the terminal
-Claude can read the recent output of your terminal tabs — a dev server's errors,
-a build/test run, logs — so it can see what you're running elsewhere. It lists the
-tabs (by a short redacted preview) or reads one tab's tail, and **every vaulted
-secret value is redacted out** before it reaches the agent; each read is audited
-(ids and counts only, never the content).
+Claude can read the recent output of the active project's terminal tabs — a dev
+server's errors, a build/test run, logs — so it can see what you're running
+elsewhere. It lists those tabs (by a short redacted preview) or reads one tab's
+tail, and **every vaulted secret value is redacted out** before it reaches the
+agent; each read is audited (ids and counts only, never the content). When you
+have several projects open as tabs, the agent only sees the active one's
+terminals — never another project's.
 
 **The security boundary.** Claude can never read a secret value through airlock —
 **the tools to do that do not exist.** Every read returns names, hosts, and

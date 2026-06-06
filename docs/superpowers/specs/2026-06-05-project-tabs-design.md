@@ -1,7 +1,9 @@
 # Project tabs (multiple projects in one window)
 
 **Date:** 2026-06-05
-**Status:** Design -- pending owner review (biggest renderer change yet).
+**Status:** v1 implemented (T1-T5: store + tab strip + main sync + agent
+scoping + openProjectsAsTabs toggle + store tests), reviewed; pending owner
+live gate. 306 tests green.
 
 ## Overview
 One airlock window holds N projects as TABS. Click a tab and the window becomes

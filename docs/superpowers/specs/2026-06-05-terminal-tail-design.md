@@ -54,6 +54,9 @@ tool:
   exactly like `run_command` calls `runCommand`.
 - Allowlist becomes exactly 12; the guard test updates 11 -> 12.
 - root-gated (terminal reads belong to the open project's session) + audited.
+  (Refined by multi-window + project-tabs: "the open project" is the
+  last-focused window's ACTIVE tab; `sessionRoots` scopes reads to that
+  project's terminals only -- see the project-tabs design.)
 - Redaction covers ALL vaulted values (any could appear), not just an injected set.
 
 ## Honest limits (documented, not "fixed")
