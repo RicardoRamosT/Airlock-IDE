@@ -54,8 +54,8 @@ import {
   renderServicesStatus,
   resolveDevUrl,
 } from "./ide-state";
-import { changeSectionVisibility } from "./menu";
-import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
+import { applyAppMenu, changeSectionVisibility } from "./menu";
+import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
 
 let workspaceRoot: string | null = null;
 const sessions = new Map<string, PtySession>();
@@ -78,6 +78,10 @@ function requireRoot(): string {
 // there is one source of truth for the open folder.
 export function getWorkspaceRoot(): string | null {
   return workspaceRoot;
+}
+
+export function setWorkspaceRoot(root: string | null): void {
+  workspaceRoot = root;
 }
 
 const NEON_KEY = "NEON_API_KEY";
@@ -121,12 +125,54 @@ export function registerIpc(
     ? path.join(path.dirname(prefsFile), "audit-global.jsonl")
     : "";
 
+  // Open a workspace at a known path: set root, re-register MCP (onFolderOpen),
+  // record the folder in recents (most-recent-first, deduped, capped), and
+  // rebuild the menu so Open Recent reflects it.
+  async function recordAndOpen(root: string): Promise<void> {
+    workspaceRoot = root;
+    onFolderOpen?.(root);
+    const prev = await loadPrefs(prefsFile);
+    const recents = [
+      root,
+      ...prev.recentFolders.filter((p) => p !== root),
+    ].slice(0, RECENT_CAP);
+    await savePrefs(prefsFile, { recentFolders: recents });
+    applyAppMenu(prefsFile, prev.sectionVisibility, recents);
+  }
+
   ipcMain.handle("dialog:openFolder", async () => {
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (r.canceled || r.filePaths.length === 0) return null;
-    workspaceRoot = r.filePaths[0] ?? null;
-    if (workspaceRoot) onFolderOpen?.(workspaceRoot);
-    return workspaceRoot;
+    const picked = r.filePaths[0];
+    if (!picked) return null;
+    await recordAndOpen(picked);
+    return picked;
+  });
+
+  ipcMain.handle("workspace:open", async (_e, p: unknown) => {
+    if (typeof p !== "string") throw new Error("Invalid payload");
+    await recordAndOpen(p);
+    return p;
+  });
+
+  ipcMain.handle("workspace:close", () => {
+    workspaceRoot = null;
+  });
+
+  // Pick a file to view; return it RELATIVE to the open folder (the viewer read
+  // path is workspace-confined). null if cancelled, no folder open, or outside.
+  ipcMain.handle("dialog:openFile", async () => {
+    if (!workspaceRoot) return null;
+    const r = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      defaultPath: workspaceRoot,
+    });
+    if (r.canceled || r.filePaths.length === 0) return null;
+    const picked = r.filePaths[0];
+    if (!picked) return null;
+    const rel = path.relative(workspaceRoot, picked);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+    return rel;
   });
 
   ipcMain.handle("fs:listDir", (_e, relPath: unknown) => {
