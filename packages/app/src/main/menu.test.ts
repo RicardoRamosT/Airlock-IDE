@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Section, SectionVisibility } from "../shared/ipc";
-import { newMenuItem, recentSubmenuItems, sectionSubmenuItems } from "./menu";
+import {
+  buildDockTemplate,
+  newMenuItem,
+  recentSubmenuItems,
+  sectionSubmenuItems,
+} from "./menu";
 
 const ALL_VISIBLE: SectionVisibility = {
   files: true,
@@ -94,5 +99,45 @@ describe("newMenuItem", () => {
     const item = newMenuItem(false);
     expect(item.label).toBe("New Window");
     expect(item.accelerator).toBe("CmdOrCtrl+Shift+N");
+  });
+});
+
+// buildDockTemplate is the pure dock-menu builder: recent projects (basename
+// labels, parent-dir disambiguation on collision), a separator, then the New
+// item. It returns the template array without touching app.dock, so it is
+// asserted directly; the click handlers need not be invoked.
+describe("buildDockTemplate", () => {
+  it("lists recents then a separator then 'New Tab' in tabs mode", () => {
+    const items = buildDockTemplate(true, ["/a/projX", "/b/projY"]);
+    expect(items.map((i) => i.label)).toEqual([
+      "projX",
+      "projY",
+      undefined, // the separator carries no label
+      "New Tab",
+    ]);
+    expect(items[2]?.type).toBe("separator");
+    const last = items[items.length - 1];
+    expect(last?.label).toBe("New Tab");
+    expect(last?.accelerator).toBe("CmdOrCtrl+T");
+  });
+
+  it("ends with 'New Window' (Cmd+Shift+N) in windows mode", () => {
+    const items = buildDockTemplate(false, ["/a/projX", "/b/projY"]);
+    const last = items[items.length - 1];
+    expect(last?.label).toBe("New Window");
+    expect(last?.accelerator).toBe("CmdOrCtrl+Shift+N");
+  });
+
+  it("disambiguates a basename collision with the parent dir", () => {
+    const items = buildDockTemplate(true, ["/x/api", "/y/api"]);
+    expect(items[0]?.label).toBe("api - x");
+    expect(items[1]?.label).toBe("api - y");
+  });
+
+  it("is just the New item (no leading separator) when there are no recents", () => {
+    const items = buildDockTemplate(true, []);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.label).toBe("New Tab");
+    expect(items.some((i) => i.type === "separator")).toBe(false);
   });
 });

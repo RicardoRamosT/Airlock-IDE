@@ -172,7 +172,7 @@ export function registerIpc(
       recents,
       prev.openProjectsAsTabs,
     );
-    applyDockMenu(prev.openProjectsAsTabs);
+    applyDockMenu(prev.openProjectsAsTabs, recents);
   }
 
   ipcMain.handle("dialog:openFolder", async (e) => {
@@ -320,7 +320,7 @@ export function registerIpc(
         p.recentFolders,
         p.openProjectsAsTabs,
       );
-      applyDockMenu(p.openProjectsAsTabs);
+      applyDockMenu(p.openProjectsAsTabs, p.recentFolders);
     }
     return saved;
   });

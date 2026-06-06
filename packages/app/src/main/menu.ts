@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, dirname } from "node:path";
 import {
   app,
   BrowserWindow,
@@ -165,11 +165,65 @@ export function applyAppMenu(
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-// Build + install the macOS dock right-click menu. For now just the New item
-// (relabelled by the pref); T6 will prepend recent projects. No-op off darwin.
-export function applyDockMenu(openProjectsAsTabs: boolean): void {
+// Clicking a recent opens it in the focused window via the normal open-recent
+// renderer path (workspaceOpen sets main root + recents + MCP, then
+// openPickedFolder opens it as a tab / fills a blank tab / replaces per mode).
+// If no window is open, create one and open the folder once it has loaded.
+function openRecentFromDock(path: string, _openProjectsAsTabs: boolean): void {
+  const existing =
+    BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    existing.webContents.send("menu:action", { type: "open-recent", path });
+    return;
+  }
+  const win = createWindow();
+  win.webContents.once("did-finish-load", () => {
+    if (!win.isDestroyed())
+      win.webContents.send("menu:action", { type: "open-recent", path });
+  });
+}
+
+// Build the dock menu template: recent projects (most-recent-first) then the
+// New Tab/New Window item. Labels are the folder basename; on a basename
+// collision the colliding entries are disambiguated with their parent dir.
+export function buildDockTemplate(
+  openProjectsAsTabs: boolean,
+  recentFolders: string[],
+): MenuItemConstructorOptions[] {
+  const items: MenuItemConstructorOptions[] = [];
+  const counts = new Map<string, number>();
+  for (const p of recentFolders) {
+    const b = basename(p);
+    counts.set(b, (counts.get(b) ?? 0) + 1);
+  }
+  for (const p of recentFolders) {
+    const b = basename(p);
+    const label =
+      (counts.get(b) ?? 0) > 1 ? `${b} - ${basename(dirname(p))}` : b;
+    items.push({
+      label,
+      click: () => openRecentFromDock(p, openProjectsAsTabs),
+    });
+  }
+  if (items.length > 0) items.push({ type: "separator" });
+  items.push(newMenuItem(openProjectsAsTabs));
+  return items;
+}
+
+// Build + install the macOS dock right-click menu: recent projects, a separator,
+// then the New item (relabelled by the pref). No-op off darwin (app.dock only
+// exists on macOS).
+export function applyDockMenu(
+  openProjectsAsTabs: boolean,
+  recentFolders: string[],
+): void {
   if (process.platform !== "darwin") return;
-  app.dock?.setMenu(Menu.buildFromTemplate([newMenuItem(openProjectsAsTabs)]));
+  app.dock?.setMenu(
+    Menu.buildFromTemplate(
+      buildDockTemplate(openProjectsAsTabs, recentFolders),
+    ),
+  );
 }
 
 // The single funnel for a visibility change, from the menu OR (Task 3) the
