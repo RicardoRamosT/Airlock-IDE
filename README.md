@@ -158,6 +158,15 @@ the active GitHub account differs from the open repo's commit name. `gh`
 redacts the token, so airlock manages accounts without ever seeing
 credentials. Needs the GitHub CLI (`gh`) installed.
 
+## File menu
+
+The menubar's **File** menu drives the workspace and viewer: **Open Folder**
+(`⌘O`) and **Open Recent** swap the open folder, **Open File** (`⌘⇧O`) opens any
+file in the read-only viewer, **Close Editor** (`⌘W`) returns the viewer split to
+the full terminal, **Close Folder** clears the workspace, and **Close Window**
+(`⌘⇧W`) quits. New Window and the create/save items (New File, Save) are deferred
+to later phases.
+
 ## Settings & Themes
 
 The sidebar footer's gear icon opens a menu: **Settings** opens a tab in

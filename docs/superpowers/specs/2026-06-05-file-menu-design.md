@@ -1,7 +1,7 @@
 # File menu (VS Code-like, current capabilities)
 
 **Date:** 2026-06-05
-**Status:** Design approved. Building.
+**Status:** v1 complete.
 
 ## Overview
 Populate airlock's File menu (currently just "Close Window") with the file
