@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
@@ -23,9 +23,11 @@ export function TerminalManager() {
   const tabs = useApp((s) => s.tabs);
   const { slots } = useTerminalSlots();
   const keepAliveRef = useRef<HTMLDivElement>(null);
-  // One stable host node per tab id, created lazily and reused forever.
+  // One stable host node per tab id, created lazily and reused forever. Reads
+  // only the (stable) ref, so it has no reactive deps -- useCallback([]) keeps a
+  // stable identity so the layout effect below does not re-run every render.
   const nodesRef = useRef(new Map<string, HTMLDivElement>());
-  const nodeFor = (tabId: string): HTMLDivElement => {
+  const nodeFor = useCallback((tabId: string): HTMLDivElement => {
     const map = nodesRef.current;
     let node = map.get(tabId);
     if (!node) {
@@ -34,7 +36,7 @@ export function TerminalManager() {
       map.set(tabId, node);
     }
     return node;
-  };
+  }, []);
 
   // After each render, move every tab's stable node into its current pane slot
   // (or the hidden keep-alive when the tab is not visible). appendChild relocates
@@ -55,7 +57,7 @@ export function TerminalManager() {
         nodesRef.current.delete(id);
       }
     }
-  }, [tabs, slots]);
+  }, [tabs, slots, nodeFor]);
 
   return (
     <>

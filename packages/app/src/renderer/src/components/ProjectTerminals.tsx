@@ -24,6 +24,19 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   );
   const addTerminal = useApp((s) => s.addTerminal);
   const activeTabId = useApp((s) => s.activeTabId);
+  const switchTab = useApp((s) => s.switchTab);
+  // Visible = actually rendered on screen. In a SHOWING split both panes (a and
+  // b) are visible; otherwise only the active tab is. The secondary split pane
+  // is visible but NOT the active tab, so anything that must run "for a pane the
+  // user can see" (the respawn-when-empty below) keys on this, not on activeness.
+  const isVisible = useApp((s) => {
+    const showSplit =
+      s.split !== null &&
+      (s.split.a === s.activeTabId || s.split.b === s.activeTabId);
+    return showSplit && s.split
+      ? tabId === s.split.a || tabId === s.split.b
+      : tabId === s.activeTabId;
+  });
   // Running-process notice (T3): shown on the folder-rooted terminal that was
   // spawned alongside a KEPT busy terminal when a folder was opened into this
   // (blank) tab. runningNotice.terminalId is that new terminal's renderer id.
@@ -37,10 +50,11 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   // boot. The guard is armed only while the list is empty and cleared once a
   // terminal exists, so killing the last tab still respawns a fresh one.
   //
-  // addTerminal acts on the ACTIVE tab, so only respawn for the tab that is
-  // currently active (an empty background tab must not steal the respawn and
-  // spawn into itself). A blank tab is a real tab, so it matches activeTabId
-  // directly when it is the active one.
+  // Respawn into THIS tab (addTerminal takes the explicit tabId), but only while
+  // the pane is VISIBLE -- a backgrounded empty tab must not eagerly spawn a pty
+  // it isn't showing (lazy until shown). Visibility, not activeness, is the gate:
+  // a freshly-split blank SECONDARY pane is visible yet never the active tab, so
+  // an activeness gate would leave it permanently terminal-less.
   const isActive = tabId === activeTabId;
   const spawningDefault = useRef(false);
   useEffect(() => {
@@ -48,11 +62,11 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
       spawningDefault.current = false;
       return;
     }
-    if (!isActive) return;
+    if (!isVisible) return;
     if (spawningDefault.current) return;
     spawningDefault.current = true;
-    addTerminal();
-  }, [terminals.length, addTerminal, isActive]);
+    addTerminal(tabId);
+  }, [terminals.length, addTerminal, isVisible, tabId]);
 
   const visible = (id: string) =>
     id === activeTerminalId || id === splitTerminalId;
@@ -87,8 +101,18 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     useApp.getState().setRunningNotice(null);
   };
 
+  // Clicking anywhere in this pane's terminal area focuses the pane. ProjectPane
+  // already does this for its sidebar/viewer, but the terminals render through a
+  // PORTAL whose React events bubble to TerminalManager (not ProjectPane), so a
+  // click in pane B's terminal would otherwise leave pane A active -- the agent
+  // root, title, and per-pane terminal controls would target the wrong pane.
+  // switchTab no-ops when this tab is already active; the terminal host nodes are
+  // stable, so this re-render does not remount/blur xterm.
   return (
-    <div className="terminal-manager">
+    <div
+      className="terminal-manager"
+      onMouseDownCapture={() => switchTab(tabId)}
+    >
       {noticeTerminal && (
         <div className="terminal-notice" role="status">
           <span className="terminal-notice-text">

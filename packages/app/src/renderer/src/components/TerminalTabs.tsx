@@ -2,11 +2,11 @@ import { useState } from "react";
 import { EMPTY_TAB_TERMINALS, useApp } from "../store";
 
 // Scoped to a single tab's terminal slice (tabId). Rendered once per project
-// inside ProjectTerminals; only the active tab's copy is visible (the rest are
-// CSS-hidden), so the user-action handlers (addTerminal/setActiveTerminal/
-// setSplit), which operate on the ACTIVE tab in the store, are only reachable
-// for the active tab. kill() routes through removeTerminal, which finds the
-// owning tab by terminal id.
+// inside ProjectTerminals. In a PROJECT SPLIT both panes' TerminalTabs are
+// visible at once, so the user-action handlers MUST target THIS pane's tab, not
+// the globally-active one: every addTerminal/setActiveTerminal/setSplit call
+// passes `tabId`. kill() routes through removeTerminal, which finds the owning
+// tab by terminal id.
 export function TerminalTabs({ tabId }: { tabId: string }) {
   const terminals = useApp(
     (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).terminals,
@@ -34,13 +34,13 @@ export function TerminalTabs({ tabId }: { tabId: string }) {
 
   const splitActive = () => {
     if (splitTerminalId) {
-      setSplit(null);
+      setSplit(null, tabId);
       return;
     }
-    const id = addTerminal();
+    const id = addTerminal(tabId);
     // addTerminal made it active; keep the previous one active, show new in split.
-    if (activeTerminalId) setActiveTerminal(activeTerminalId);
-    setSplit(id);
+    if (activeTerminalId) setActiveTerminal(activeTerminalId, tabId);
+    setSplit(id, tabId);
   };
 
   return (
@@ -74,7 +74,7 @@ export function TerminalTabs({ tabId }: { tabId: string }) {
               <button
                 type="button"
                 className="terminal-tab-label"
-                onClick={() => setActiveTerminal(t.id)}
+                onClick={() => setActiveTerminal(t.id, tabId)}
                 onDoubleClick={() => {
                   setRenaming(t.id);
                   setDraft(t.title);
@@ -99,7 +99,7 @@ export function TerminalTabs({ tabId }: { tabId: string }) {
           type="button"
           className="terminal-tab-action"
           title="New terminal"
-          onClick={() => addTerminal()}
+          onClick={() => addTerminal(tabId)}
         >
           <i className="codicon codicon-add" />
         </button>

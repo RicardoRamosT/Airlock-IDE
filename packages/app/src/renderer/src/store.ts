@@ -193,16 +193,17 @@ interface AppState {
   setModal: (modal: AppState["modal"]) => void;
 
   // --- Terminal setters ---
-  // addTerminal/setActiveTerminal/setSplit act on the ACTIVE tab (user actions
-  // in the focused project). setTerminalPty/Title/removeTerminal find the tab
-  // that OWNS the terminal id (a background tab's pane can fire these on adopt /
-  // OSC title / process exit), so they must NOT assume the active tab.
-  addTerminal: () => string; // returns new id, sets active (in the active tab)
+  // addTerminal/setActiveTerminal/setSplit take the PANE's tabId (the terminal-
+  // tabs UI passes ITS tabId) so they hit the right pane even in a project split;
+  // tabId defaults to the active tab. setTerminalPty/Title/removeTerminal find the
+  // tab that OWNS the terminal id (a background tab's pane can fire these on adopt
+  // / OSC title / process exit), so they must NOT assume the active tab.
+  addTerminal: (tabId?: string) => string; // returns new id, sets it active (in tabId or the active tab)
   removeTerminal: (id: string) => void;
-  setActiveTerminal: (id: string) => void;
+  setActiveTerminal: (id: string, tabId?: string) => void;
   setTerminalPty: (id: string, ptyId: string) => void;
   setTerminalTitle: (id: string, title: string, fromUser: boolean) => void;
-  setSplit: (id: string | null) => void;
+  setSplit: (id: string | null, tabId?: string) => void;
 
   // --- App-global setters ---
   setSidebarVisible: (v: boolean) => void;
@@ -675,15 +676,17 @@ export const useApp = create<AppState>((set) => ({
   setRunningNotice: (runningNotice) => set({ runningNotice }),
 
   // --- Terminal setters ---
-  addTerminal: () => {
+  addTerminal: (tabId) => {
     const entry = newEntry();
     set((s) => {
-      const tabId = s.activeTabId;
-      const tt = s.tabTerminals[tabId] ?? emptyTabTerminals();
+      // Target the given pane's tab (the terminal-tabs UI passes ITS tabId), so
+      // adding a terminal in a SPLIT pane hits that pane -- not the focused one.
+      const tid = tabId ?? s.activeTabId;
+      const tt = s.tabTerminals[tid] ?? emptyTabTerminals();
       return {
         tabTerminals: {
           ...s.tabTerminals,
-          [tabId]: {
+          [tid]: {
             ...tt,
             terminals: [...tt.terminals, entry],
             activeTerminalId: entry.id,
@@ -703,10 +706,10 @@ export const useApp = create<AppState>((set) => ({
         tabTerminals: { ...s.tabTerminals, [tabId]: removeFromTab(tt, id) },
       };
     }),
-  setActiveTerminal: (id) =>
+  setActiveTerminal: (id, tabId) =>
     set((s) => {
-      const tabId = s.activeTabId;
-      const tt = s.tabTerminals[tabId];
+      const tid = tabId ?? s.activeTabId;
+      const tt = s.tabTerminals[tid];
       if (!tt) return {};
       // Clicking the tab that is currently in the split slot swaps the two
       // slots: the split pane becomes active and the previous active pane moves
@@ -720,7 +723,7 @@ export const useApp = create<AppState>((set) => ({
               splitTerminalId: tt.activeTerminalId,
             }
           : { ...tt, activeTerminalId: id };
-      return { tabTerminals: { ...s.tabTerminals, [tabId]: next } };
+      return { tabTerminals: { ...s.tabTerminals, [tid]: next } };
     }),
   setTerminalPty: (id, ptyId) =>
     set((s) => {
@@ -760,15 +763,15 @@ export const useApp = create<AppState>((set) => ({
         },
       };
     }),
-  setSplit: (id) =>
+  setSplit: (id, tabId) =>
     set((s) => {
-      const tabId = s.activeTabId;
-      const tt = s.tabTerminals[tabId];
+      const tid = tabId ?? s.activeTabId;
+      const tt = s.tabTerminals[tid];
       if (!tt) return {};
       return {
         tabTerminals: {
           ...s.tabTerminals,
-          [tabId]: { ...tt, splitTerminalId: id },
+          [tid]: { ...tt, splitTerminalId: id },
         },
       };
     }),

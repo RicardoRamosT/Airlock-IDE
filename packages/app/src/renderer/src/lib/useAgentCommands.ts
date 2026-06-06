@@ -69,10 +69,11 @@ async function applyCommand(cmd: AgentCommand): Promise<void> {
       else s.toggleProjectSplit();
       break;
     case "open_terminal":
-      // addTerminal targets the ACTIVE tab, so focus the requested tab first when
-      // it is not already active; then add the terminal there.
+      // Focus the requested tab so the new terminal is visible, and pass the
+      // tabId to addTerminal so it targets that exact pane (robust even when the
+      // tab is the secondary half of a split, where it is visible but not active).
       if (cmd.tabId && cmd.tabId !== s.activeTabId) s.switchTab(cmd.tabId);
-      useApp.getState().addTerminal();
+      useApp.getState().addTerminal(cmd.tabId);
       break;
     case "close_terminal":
       s.removeTerminal(cmd.terminalId);

@@ -562,6 +562,39 @@ describe("project split + focus (pair model)", () => {
     expect(s.activeTabId).toBe(cId); // active unchanged
     expect(s.tabState[aId]).toBeUndefined();
   });
+
+  // Regression: splitting/adding a terminal in the SECONDARY pane must hit that
+  // pane, not the focused one. addTerminal/setActiveTerminal/setSplit took the
+  // active tab, so the in-pane terminal controls of a non-active split pane
+  // operated on the wrong project (the user's "split the 2nd terminal bugs out").
+  it("terminal actions target the passed pane's tab, not the active one", () => {
+    get().openProject("/a");
+    get().openProject("/b"); // active /b
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+
+    get().splitActiveWith(aId); // split = { a: b (active/primary), b: a (secondary) }
+    expect(get().split).toEqual({ a: bId, b: aId });
+    expect(get().activeTabId).toBe(bId); // the secondary (aId) is NOT active
+
+    // addTerminal(secondary) lands in the secondary's slice; the active tab is
+    // untouched (pre-fix this spawned into bId, the focused pane).
+    const term1 = get().addTerminal(aId);
+    expect(tt(aId).terminals.map((t) => t.id)).toContain(term1);
+    expect(tt(aId).activeTerminalId).toBe(term1);
+    expect(tt(bId).terminals).toHaveLength(0);
+
+    // The terminal-split flow (add second, keep first active, show second in the
+    // split slot), all scoped to the secondary -- mirrors TerminalTabs.splitActive.
+    const term2 = get().addTerminal(aId);
+    get().setActiveTerminal(term1, aId);
+    get().setSplit(term2, aId);
+    expect(tt(aId).activeTerminalId).toBe(term1);
+    expect(tt(aId).splitTerminalId).toBe(term2);
+    // Focused pane b never grew a terminal or a split.
+    expect(tt(bId).terminals).toHaveLength(0);
+    expect(tt(bId).splitTerminalId).toBeNull();
+  });
 });
 
 describe("per-project setters: explicit tabId vs active", () => {
