@@ -64,19 +64,31 @@ terminals keep their existing env).
 
 ## Projects
 
-Open more than one project at once. By default each folder you open becomes a
-**tab** in the current window (like browser tabs): a strip below the title bar
-shows one tab per project, `+` opens another, `✕` closes one. Click a tab to
-switch projects — the file tree, git, secrets, viewer, and the agent all follow
-the active tab — while every tab's terminals keep running in the background, so
-nothing is lost when you switch away.
+Open more than one project at once. A strip below the title bar shows one
+**tab** per project (like browser tabs); click a tab to switch — the file tree,
+git, secrets, viewer, and the agent all follow the active tab — while every
+tab's terminals keep running in the background, so nothing is lost when you
+switch away. The `✕` closes a tab; the OS window title and dock both read
+`airlock — <project>` so you can tell windows apart.
 
-Prefer separate windows? **New Window** (`⌘⇧N`, or the dock icon's right-click
-menu) always opens a fresh window, and **Settings ▸ Layout ▸ Open projects as
-tabs** turns tabs off entirely so each folder opens in its own window instead
-(the strip hides itself). Either way airlock runs **one agent at a time**: it
-operates on the project you're currently looking at — the active tab in the
-focused window — so switching projects switches what the agent sees and acts on.
+**Blank tabs.** The `+` (or **New Tab**, `⌘T`) opens an empty tab — just a
+terminal, no folder required — so you can run a shell or start `claude` without
+opening anything. Click **Open Folder…** in that tab whenever you want to give
+it a project. Opening a folder into a blank tab **keeps a running terminal
+alive**: if `claude` (or a dev server) is running in it, that terminal is kept
+and a fresh folder-rooted terminal opens alongside, with a one-time reminder
+that the running session stays in its original directory (a running process
+can't be relocated — restart it in the folder, or open the folder first). The
+reminder has a **Do not show again** (re-enable under Settings ▸ Layout).
+
+**Tabs or windows.** By default everything stays in one window as tabs, and
+**New Window** becomes **New Tab**. Flip **Settings ▸ Layout ▸ Open projects as
+tabs** off to get a separate OS window per project instead (`⌘⇧N` opens a fresh
+window, the strip hides itself). The dock icon's right-click menu lists your
+**recent projects** — click one to open it straight away. Either way airlock
+runs **one agent at a time**: it operates on the project you're currently
+looking at — the active tab in the focused window — so switching projects
+switches what the agent sees and acts on.
 
 ## Secrets
 
@@ -178,13 +190,16 @@ credentials. Needs the GitHub CLI (`gh`) installed.
 ## File menu
 
 The menubar's **File** menu drives the workspace and viewer: **Open Folder**
-(`⌘O`) and **Open Recent** swap the open folder, **Open File** (`⌘⇧O`) opens any
-file in the read-only viewer, **Close Editor** (`⌘W`) returns the viewer split to
-the full terminal, **Close Folder** clears the workspace, and **Close Window**
-(`⌘⇧W`) closes the window. **New Window** (`⌘⇧N`, also on the dock icon's
-right-click menu) opens a fresh window with no folder — each window opens its own
-project, and the agent follows the last-focused window. The create/save items
-(New File, Save) are deferred to later phases.
+(`⌘O`) and **Open Recent** open a folder (a new tab in tabs mode, or replacing
+the window's project in windows mode), **Open File** (`⌘⇧O`) opens any file in
+the read-only viewer, **Close Editor** (`⌘W`) returns the viewer split to the
+full terminal, **Close Folder** clears the active project, and **Close Window**
+(`⌘⇧W`) closes the window. The first item follows the **Open projects as tabs**
+setting: in tabs mode it is **New Tab** (`⌘T`) — a blank tab in the current
+window; in windows mode it is **New Window** (`⌘⇧N`) — a fresh window, with the
+agent following the last-focused window. The dock icon's right-click menu mirrors
+this and also lists recent projects. The create/save items (New File, Save) are
+deferred to later phases.
 
 ## Settings & Themes
 
