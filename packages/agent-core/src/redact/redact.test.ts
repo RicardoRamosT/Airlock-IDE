@@ -67,3 +67,80 @@ describe("redactSecrets defense-in-depth pattern pack", () => {
     expect(out).not.toContain("abcdef12345678");
   });
 });
+
+describe("redactSecrets - encoded forms", () => {
+  const SECRET = "testtesttest"; // 12 chars, a realistic vaulted value
+
+  it("redacts base64 of the value (printf-style, exact)", () => {
+    const b64 = Buffer.from(SECRET).toString("base64");
+    const out = redactSecrets(`token=${b64}`, [SECRET]);
+    expect(out).not.toContain(b64);
+    expect(out).not.toContain(SECRET);
+    expect(out).toContain("***");
+  });
+
+  it("redacts base64 of the value with a trailing newline (echo | base64)", () => {
+    const b64 = Buffer.from(`${SECRET}\n`).toString("base64");
+    const out = redactSecrets(`LEAKTEST=${b64}`, [SECRET]);
+    expect(out).not.toContain(b64);
+    expect(out).toContain("***");
+  });
+
+  it("redacts base64 for a non-3-aligned value length", () => {
+    const v = "abcd"; // len 4, not a multiple of 3
+    const b64 = Buffer.from(`${v}\n`).toString("base64");
+    const out = redactSecrets(`x ${b64} y`, [v]);
+    expect(out).not.toContain(b64);
+    expect(out).toContain("***");
+  });
+
+  it("redacts base64url of the value", () => {
+    const b64url = Buffer.from(SECRET)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    const out = redactSecrets(`h=${b64url}`, [SECRET]);
+    expect(out).not.toContain(b64url);
+    expect(out).toContain("***");
+  });
+
+  it("redacts hex of the value (xxd-style, with/without trailing newline)", () => {
+    const hex = Buffer.from(SECRET).toString("hex");
+    const hexNl = Buffer.from(`${SECRET}\n`).toString("hex");
+    expect(redactSecrets(`v=${hex}`, [SECRET])).not.toContain(hex);
+    expect(redactSecrets(`v=${hexNl}`, [SECRET])).not.toContain(SECRET);
+    expect(redactSecrets(`v=${hex}`, [SECRET])).toContain("***");
+  });
+
+  it("redacts the percent-encoded form", () => {
+    const v = "p@ss/w&rd=1!"; // has chars that percent-encode
+    const enc = encodeURIComponent(v);
+    const out = redactSecrets(`url?x=${enc}`, [v]);
+    expect(out).not.toContain(enc);
+    expect(out).toContain("***");
+  });
+
+  it("does NOT over-redact a base64 blob that lacks the secret", () => {
+    const innocent = Buffer.from("hello world, nothing secret here").toString(
+      "base64",
+    );
+    const out = redactSecrets(`data=${innocent}`, [SECRET]);
+    expect(out).toContain(innocent); // preserved
+  });
+
+  it("does NOT over-redact a hex hash that lacks the secret", () => {
+    const sha = "a".repeat(40); // 40-char hex, decodes to non-secret bytes
+    const out = redactSecrets(`sha=${sha}`, [SECRET]);
+    expect(out).toContain(sha);
+  });
+
+  it("still redacts the literal value (existing behavior intact)", () => {
+    expect(redactSecrets(`raw ${SECRET} here`, [SECRET])).toBe("raw *** here");
+  });
+
+  it("no values -> text unchanged by the encoded pass", () => {
+    const b64 = Buffer.from(SECRET).toString("base64");
+    expect(redactSecrets(`x ${b64}`, [])).toBe(`x ${b64}`);
+  });
+});

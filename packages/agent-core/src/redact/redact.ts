@@ -11,12 +11,81 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Decode a base64 run to bytes (standard or url-safe); null if it yields nothing.
+// Buffer.from(.,"base64") is lenient -- a non-base64 run just yields junk bytes
+// that will not contain a secret, so a bad guess is harmless.
+function decodeBase64(run: string, urlSafe: boolean): Buffer | null {
+  const norm = urlSafe ? run.replace(/-/g, "+").replace(/_/g, "/") : run;
+  const buf = Buffer.from(norm, "base64");
+  return buf.length > 0 ? buf : null;
+}
+
+function containsAny(buf: Buffer, valueBufs: Buffer[]): boolean {
+  for (const vb of valueBufs) {
+    if (buf.includes(vb)) return true;
+  }
+  return false;
+}
+
+// Encode-aware pass (defense-in-depth): a command that HAS a secret can print an
+// ENCODED form that exact-match redaction misses. We know each secret's value, so
+// we catch its common encodings -- base64/base64url/hex via decode-and-check
+// (robust to alignment + trailing newlines), and percent-encoding via forward
+// match. This does NOT catch arbitrary transforms (reverse/split/gzip/custom) --
+// once a process holds a value it can emit it in unbounded disguises that no
+// output filter can fully catch. Only masks a run that DECODES to bytes
+// containing a secret, so innocent blobs are preserved.
+function redactEncoded(text: string, vals: string[]): string {
+  // 4-char floor: shorter values base64/hex to runs too short to tell apart from
+  // ordinary tokens, and the literal pass already masks them verbatim. Run-length
+  // floors below are derived from the shortest kept value so its encoded form
+  // (which can be only a few chars) still matches; decode-and-check -- not these
+  // floors -- is what prevents over-redacting innocent blobs.
+  const use = vals.filter((v) => v.length >= 4);
+  if (use.length === 0) return text;
+  const valueBufs = use.map((v) => Buffer.from(v, "utf8"));
+  const minBytes = Math.min(...use.map((v) => Buffer.byteLength(v, "utf8")));
+  let out = text;
+
+  // base64 + base64url: one scan over the superset alphabet, try both decodings.
+  // ceil(4*minBytes/3) - 1 lower-bounds the alphabet chars an unpadded encoding
+  // of the shortest value can have (a 4-byte value -> 6 chars), floored at 4.
+  const b64min = Math.max(4, Math.ceil((4 * minBytes) / 3) - 1);
+  out = out.replace(
+    new RegExp(`[A-Za-z0-9+/_-]{${b64min},}={0,2}`, "g"),
+    (run) => {
+      const std = decodeBase64(run, false);
+      if (std && containsAny(std, valueBufs)) return PLACEHOLDER;
+      const url = decodeBase64(run, true);
+      if (url && containsAny(url, valueBufs)) return PLACEHOLDER;
+      return run;
+    },
+  );
+
+  // hex: even-length runs, decode, redact if they carry a secret.
+  const hexmin = Math.max(8, 2 * (minBytes - 1));
+  out = out.replace(new RegExp(`[0-9a-fA-F]{${hexmin},}`, "g"), (run) => {
+    const even = run.length % 2 === 0 ? run : run.slice(0, -1);
+    const buf = Buffer.from(even, "hex");
+    return buf.length > 0 && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
+  });
+
+  // percent / URL-encoding: byte-local, so forward-encode + exact-match.
+  for (const v of use) {
+    const enc = encodeURIComponent(v);
+    if (enc !== v) {
+      out = out.replace(new RegExp(escapeRegExp(enc), "g"), PLACEHOLDER);
+    }
+  }
+  return out;
+}
+
 // Redact secret VALUES from text before it can reach the agent. Exact-match
 // every non-empty value (all occurrences) -> ***, longest-first so a value that
-// contains a shorter one is fully masked. Then a defense-in-depth pattern pass
-// for secret-shaped strings that were NOT in the injected set. Over-redaction is
-// safe; under-redaction leaks. Empty/whitespace-only values are skipped so we
-// never mask the whole output.
+// contains a shorter one is fully masked. Then an encode-aware pass (base64/hex/
+// url forms of each value), then a defense-in-depth pattern pass for
+// secret-shaped strings. Over-redaction is safe; under-redaction leaks.
+// Empty/whitespace-only values are skipped so we never mask the whole output.
 export function redactSecrets(text: string, values: string[]): string {
   let out = text;
   const vals = [...new Set(values)]
@@ -25,6 +94,7 @@ export function redactSecrets(text: string, values: string[]): string {
   for (const v of vals) {
     out = out.replace(new RegExp(escapeRegExp(v), "g"), PLACEHOLDER);
   }
+  out = redactEncoded(out, vals);
   out = redactConnStrings(out);
   out = out.replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/g, `$1${PLACEHOLDER}`);
   return out;
