@@ -485,3 +485,28 @@ describe("runningNotice", () => {
     expect(get().runningNotice).toBeNull();
   });
 });
+
+describe("showRunningProcessNotice", () => {
+  it("defaults true and setShowRunningProcessNotice toggles the field", () => {
+    expect(get().showRunningProcessNotice).toBe(true);
+
+    get().setShowRunningProcessNotice(false);
+    expect(get().showRunningProcessNotice).toBe(false);
+
+    get().setShowRunningProcessNotice(true);
+    expect(get().showRunningProcessNotice).toBe(true);
+  });
+
+  it("is independent of the runningNotice field", () => {
+    // Disabling the pref does not touch a set notice, and clearing the notice
+    // does not touch the pref -- they are separate concerns (the banner gates on
+    // both, but the store fields do not interact).
+    get().setRunningNotice({ terminalId: "term-1" });
+    get().setShowRunningProcessNotice(false);
+    expect(get().runningNotice).toEqual({ terminalId: "term-1" });
+
+    get().setShowRunningProcessNotice(true);
+    get().setRunningNotice(null);
+    expect(get().showRunningProcessNotice).toBe(true);
+  });
+});

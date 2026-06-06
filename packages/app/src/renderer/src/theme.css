@@ -916,6 +916,66 @@ body,
   font-family: inherit;
 }
 
+/* Running-process notice (T3): a dismissible banner above a tab's terminal
+   tabs/panes, shown on the folder-rooted terminal kept alongside a busy one. */
+.terminal-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--selected);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.terminal-notice-text code {
+  background: var(--hover);
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.terminal-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.terminal-notice-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.terminal-notice-btn:hover {
+  background: var(--hover);
+}
+
+.terminal-notice-close {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.terminal-notice-close:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

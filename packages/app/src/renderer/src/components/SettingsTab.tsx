@@ -18,6 +18,10 @@ export function SettingsTab() {
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
   const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
   const setOpenProjectsAsTabs = useApp((s) => s.setOpenProjectsAsTabs);
+  const showRunningProcessNotice = useApp((s) => s.showRunningProcessNotice);
+  const setShowRunningProcessNotice = useApp(
+    (s) => s.setShowRunningProcessNotice,
+  );
   const root = useApp((s) => s.root);
   const config = useApp((s) => s.config);
   const setConfig = useApp((s) => s.setConfig);
@@ -119,6 +123,28 @@ export function SettingsTab() {
             opens on its own and "New Window" gives you a separate window per
             project. The agent always operates on the project you are currently
             viewing.
+          </p>
+          <div className="settings-row">
+            <label htmlFor="show-running-notice">
+              Show running-process notice
+            </label>
+            <input
+              id="show-running-notice"
+              type="checkbox"
+              checked={showRunningProcessNotice}
+              onChange={(e) => {
+                const v = e.target.checked;
+                useApp.getState().setLayoutHydrated(true);
+                setShowRunningProcessNotice(v);
+                void window.airlock.prefsSet({ showRunningProcessNotice: v });
+              }}
+            />
+          </div>
+          <p className="settings-note">
+            When opening a folder keeps a terminal that has a running session
+            (e.g. <code>claude</code>), show a reminder that the session stays
+            in its old directory and must be restarted in the new folder to get
+            its context.
           </p>
           <div className="settings-sublabel">Sidebar position</div>
           <label className="settings-row">

@@ -24,6 +24,7 @@ describe("app prefs", () => {
       },
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
+      showRunningProcessNotice: true,
       recentFolders: [],
     });
   });
@@ -50,6 +51,7 @@ describe("app prefs", () => {
       },
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
+      showRunningProcessNotice: true,
       recentFolders: [],
     });
   });
@@ -82,6 +84,7 @@ describe("app prefs", () => {
       },
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
+      showRunningProcessNotice: true,
       recentFolders: [],
     });
   });
@@ -106,6 +109,7 @@ describe("app prefs", () => {
       },
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
+      showRunningProcessNotice: true,
       recentFolders: [],
     });
   });

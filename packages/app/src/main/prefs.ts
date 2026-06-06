@@ -39,6 +39,7 @@ const DEFAULTS: AppPrefs = {
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
   clipboardClearSeconds: 30,
   openProjectsAsTabs: true,
+  showRunningProcessNotice: true,
   recentFolders: [],
 };
 
@@ -113,6 +114,10 @@ function sanitize(raw: unknown): AppPrefs {
       typeof r.openProjectsAsTabs === "boolean"
         ? r.openProjectsAsTabs
         : DEFAULTS.openProjectsAsTabs,
+    showRunningProcessNotice:
+      typeof r.showRunningProcessNotice === "boolean"
+        ? r.showRunningProcessNotice
+        : DEFAULTS.showRunningProcessNotice,
     recentFolders: sanitizeRecentFolders(r.recentFolders),
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so

@@ -124,6 +124,7 @@ interface AppState {
   tabSnapshots: Record<string, Snapshot>; // parked non-terminal state of INACTIVE tabs
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   openProjectsAsTabs: boolean; // app-global (persisted); used by later tasks
+  showRunningProcessNotice: boolean; // app-global (persisted); gates the kept-busy-terminal notice
 
   // --- App-global (shared across tabs) ---
   sidebarVisible: boolean; // app-global (persisted), not per-project
@@ -159,6 +160,7 @@ interface AppState {
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
   setOpenProjectsAsTabs: (v: boolean) => void;
+  setShowRunningProcessNotice: (v: boolean) => void;
 
   // --- Per-project setters (operate on the active tab's top-level state) ---
   setRoot: (root: string | null) => void; // thin adapter -> openProject/closeTab
@@ -275,6 +277,7 @@ export const useApp = create<AppState>((set) => ({
   tabSnapshots: {},
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   openProjectsAsTabs: true,
+  showRunningProcessNotice: true,
 
   // app-global
   modal: null,
@@ -462,6 +465,8 @@ export const useApp = create<AppState>((set) => ({
     else if (clearMain) void window.airlock.workspaceClose();
   },
   setOpenProjectsAsTabs: (openProjectsAsTabs) => set({ openProjectsAsTabs }),
+  setShowRunningProcessNotice: (showRunningProcessNotice) =>
+    set({ showRunningProcessNotice }),
 
   // Thin adapter so existing callers (Sidebar / menu open-folder / open-recent)
   // keep working. Routes a string root by the ACTIVE tab; null closes the active

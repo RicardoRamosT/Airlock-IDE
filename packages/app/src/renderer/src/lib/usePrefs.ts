@@ -8,6 +8,9 @@ export function usePrefs(): void {
   const setTheme = useApp((s) => s.setTheme);
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
   const setOpenProjectsAsTabs = useApp((s) => s.setOpenProjectsAsTabs);
+  const setShowRunningProcessNotice = useApp(
+    (s) => s.setShowRunningProcessNotice,
+  );
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const theme = useApp((s) => s.theme);
 
@@ -28,6 +31,7 @@ export function usePrefs(): void {
         setTheme(p.theme);
         setClipboardClearSeconds(p.clipboardClearSeconds);
         setOpenProjectsAsTabs(p.openProjectsAsTabs);
+        setShowRunningProcessNotice(p.showRunningProcessNotice);
         setSectionVisibility(p.sectionVisibility);
         useApp.getState().setLayoutHydrated(true);
       })
@@ -41,6 +45,7 @@ export function usePrefs(): void {
     setTheme,
     setClipboardClearSeconds,
     setOpenProjectsAsTabs,
+    setShowRunningProcessNotice,
     setSectionVisibility,
   ]);
 

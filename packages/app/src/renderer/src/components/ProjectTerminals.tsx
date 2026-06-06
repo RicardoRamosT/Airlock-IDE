@@ -24,6 +24,12 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   );
   const addTerminal = useApp((s) => s.addTerminal);
   const activeTabId = useApp((s) => s.activeTabId);
+  // Running-process notice (T3): shown on the folder-rooted terminal that was
+  // spawned alongside a KEPT busy terminal when a folder was opened into this
+  // (blank) tab. runningNotice.terminalId is that new terminal's renderer id.
+  const runningNotice = useApp((s) => s.runningNotice);
+  const showRunningProcessNotice = useApp((s) => s.showRunningProcessNotice);
+  const root = useApp((s) => s.root);
 
   // Always keep at least one terminal alive in THIS tab. The ref guards against
   // React 19 StrictMode replaying this mount effect with a stale (length === 0)
@@ -51,8 +57,72 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const visible = (id: string) =>
     id === activeTerminalId || id === splitTerminalId;
 
+  // The notice belongs to THIS tab only when its terminal is one of ours, and
+  // is gated on being the active tab + the pref still enabled. Resolving the
+  // owning terminal here also gives us its ptyId for the "Start Claude here"
+  // write (a clean existing API; no new IPC needed).
+  const noticeTerminal =
+    isActive && showRunningProcessNotice && runningNotice
+      ? (terminals.find((t) => t.id === runningNotice.terminalId) ?? null)
+      : null;
+  // basename of the active tab's root for the message; root is non-null whenever
+  // a notice exists (it is set only after a folder is attached to this tab).
+  const folder = root ? (root.split("/").filter(Boolean).pop() ?? root) : "";
+
+  const dismissNotice = () => {
+    useApp.getState().setRunningNotice(null);
+  };
+  const dismissForever = () => {
+    // Mark hydrated first so an in-flight startup prefsGet cannot clobber this
+    // persisted choice (same race the other persisted toggles guard against).
+    useApp.getState().setLayoutHydrated(true);
+    useApp.getState().setShowRunningProcessNotice(false);
+    void window.airlock.prefsSet({ showRunningProcessNotice: false });
+    useApp.getState().setRunningNotice(null);
+  };
+  const startClaudeHere = () => {
+    if (noticeTerminal?.ptyId) {
+      window.airlock.ptyInput(noticeTerminal.ptyId, "claude\n");
+    }
+    useApp.getState().setRunningNotice(null);
+  };
+
   return (
     <div className="terminal-manager">
+      {noticeTerminal && (
+        <div className="terminal-notice" role="status">
+          <span className="terminal-notice-text">
+            Claude is still running in its previous directory. This terminal is
+            in <strong>{folder}</strong>. Run <code>claude</code> here to give
+            it this folder's context.
+          </span>
+          <span className="terminal-notice-actions">
+            <button
+              type="button"
+              className="terminal-notice-btn"
+              onClick={startClaudeHere}
+            >
+              Start Claude here
+            </button>
+            <button
+              type="button"
+              className="terminal-notice-btn"
+              onClick={dismissForever}
+            >
+              Do not show again
+            </button>
+            <button
+              type="button"
+              className="terminal-notice-close"
+              title="Dismiss"
+              aria-label="Dismiss"
+              onClick={dismissNotice}
+            >
+              <i className="codicon codicon-close" />
+            </button>
+          </span>
+        </div>
+      )}
       <TerminalTabs tabId={tabId} />
       <div className={`terminal-panes${splitTerminalId ? " split" : ""}`}>
         {terminals.map((t) => (
