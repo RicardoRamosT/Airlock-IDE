@@ -3,7 +3,7 @@
 // resolves to the LAST-FOCUSED window's root (the window you last used), which
 // survives alt-tabbing away from airlock. ASCII-only: CJS-bundled into Electron
 // main.
-import path from "node:path";
+import path, { basename } from "node:path";
 import { BrowserWindow, type WebContents } from "electron";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
@@ -25,11 +25,24 @@ export function setRootForEvent(
 ): void {
   const id = winIdForSender(e.sender);
   if (id !== null) workspaceRoots.set(id, root);
+  setWindowTitleFromRoot(e, root);
 }
 
 export function clearRootForEvent(e: { sender: WebContents }): void {
   const id = winIdForSender(e.sender);
   if (id !== null) workspaceRoots.delete(id);
+  setWindowTitleFromRoot(e, null);
+}
+
+// The OS window title (what the dock window-list + macOS Window menu show)
+// follows the window's active project; just "airlock" when no folder is open.
+function setWindowTitleFromRoot(
+  e: { sender: WebContents },
+  root: string | null,
+): void {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (!win || win.isDestroyed()) return;
+  win.setTitle(root ? `airlock - ${basename(root)}` : "airlock");
 }
 
 // The agent's window id = last-focused, with focused-window / any-window fallbacks.
