@@ -61,10 +61,15 @@ tool:
   CR-overwrites collapsed, so logs/errors/build output read cleanly, but
   full-screen TUIs (vim, htop, cursor-addressed UIs) are approximate. (The accurate
   upgrade -- reading the renderer's xterm buffer over a round-trip -- is deferred.)
-- LITERAL REDACTION: same as run_command -- a secret value transformed (base64/hex)
-  before it hit the terminal can defeat exact-match redaction; the deferred
-  command-risk classifier is the future mitigation. For v1 the agent is the owner's
-  helper, not an attacker.
+- REDACTION LIMIT: same as run_command -- redaction now catches a secret value's
+  LITERAL form plus its common single-shot encodings (base64/base64url/hex/percent-
+  encoding). Arbitrary transforms remain the limit: a value reversed, split across
+  lines, base32'd, gzipped, printed char-by-char, encrypted, or double-encoded before
+  it hit the terminal still slips. That is inherent (no output filter catches every
+  disguise); the standing guarantee is structural (no tool returns a raw value; inject
+  defaults OFF). The deferred command-risk classifier is a complementary future
+  mitigation. For v1 the agent is the owner's helper, not an attacker. See
+  `2026-06-05-encode-aware-redaction-design.md`.
 - AGENT'S OWN TERMINAL: main cannot distinguish the agent's PTY from the user's
   tabs (all spawned identically; the MCP connection is not tied to a PTY), so the
   agent's own terminal appears in the list. Reading it is redundant, not harmful.

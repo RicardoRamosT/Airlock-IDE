@@ -49,7 +49,8 @@ function redactEncoded(text: string, vals: string[]): string {
 
   // base64 + base64url: one scan over the superset alphabet, try both decodings.
   // ceil(4*minBytes/3) - 1 lower-bounds the alphabet chars an unpadded encoding
-  // of the shortest value can have (a 4-byte value -> 6 chars), floored at 4.
+  // of the shortest value can have (a safe lower bound on the encoded length),
+  // floored at 4.
   const b64min = Math.max(4, Math.ceil((4 * minBytes) / 3) - 1);
   out = out.replace(
     new RegExp(`[A-Za-z0-9+/_-]{${b64min},}={0,2}`, "g"),

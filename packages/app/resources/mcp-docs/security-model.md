@@ -35,9 +35,16 @@ holds. You name the secrets you need (`injectSecrets`, names from `list_secret_n
 **broker** resolves each name to its value **main-side** and injects it into the
 environment of a dedicated child process for that single command. Before the output is
 handed back to you it is run through airlock's redactor: **every injected value is
-exact-matched and replaced with `***`** (plus a defense-in-depth pattern pass for
-secret-shaped strings), in both stdout and stderr. So even a command that deliberately
-`echo`s the secret comes back redacted — **you use the secret, you never see it.**
+matched and replaced with `***`** — its literal form *and* its common single-shot
+encodings (base64, base64url, hex, percent/URL-encoding), plus a defense-in-depth
+pattern pass for secret-shaped strings — in both stdout and stderr. So even a command
+that deliberately `echo`s the secret (or base64/hex-encodes it once) comes back
+redacted — **you use the secret, you never see it.** (Honest limit: this is not a wall
+against a determined process. Something that *holds* the value can still disguise it
+with an arbitrary transform the filter can't anticipate — reversing it, splitting it
+across lines, base32, gzip, char-by-char printing, encryption, double-encoding. That is
+inherent; the redactor closes the casual/accidental cases. The real guarantee is
+structural — see below.)
 
 Three guarantees ride along:
 
@@ -65,9 +72,10 @@ that lets you *observe* the user's session rather than run your own command. It 
 same boundary the rest of airlock does:
 
 - **Value-redacted.** Before any tail (or list preview) reaches you, **all vaulted secret
-  values** are exact-matched and replaced with `***` — not just an injected subset, because
-  *any* vaulted value could have scrolled past in that terminal. Same redactor as
-  `run_command`.
+  values** are matched and replaced with `***` — their literal form *and* their common
+  single-shot encodings (base64/base64url/hex/percent-encoding) — not just an injected
+  subset, because *any* vaulted value could have scrolled past in that terminal. Same
+  redactor as `run_command`.
 - **Audited, ids/counts only.** Each read appends a `terminal.read` audit entry recording
   the terminal **id and the line count** — **never the terminal's content**.
 - **Source-guard green; allowlist 12.** The tool does **not** reference
@@ -77,8 +85,12 @@ same boundary the rest of airlock does:
 
 It is your **first capability to observe the user's session**, but it lives under the *same*
 redact + audit boundary as everything else — you can see what the user is running, never the
-secret values inside it. (Honest limit, same as `run_command`: redaction is literal/exact-
-match, so a value encoded or transformed before it hit the terminal can slip past.)
+secret values inside it. (Honest limit, same as `run_command`: redaction now catches a
+value's literal form *and* its common single-shot encodings (base64/hex/url), but **not**
+an arbitrary transform applied before it hit the terminal — reversed, split across lines,
+base32, gzipped, printed char-by-char, encrypted, or double-encoded. The structural
+guarantee is what holds: no tool returns a raw value, and inject-into-terminal defaults
+OFF. Treat the tail as helper context, not a hardened channel.)
 
 ## The owner can reveal/copy their own secrets — and you still can't
 The human **owner** can reveal a secret's value (the per-row eye toggle) and copy it (the

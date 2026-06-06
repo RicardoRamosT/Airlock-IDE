@@ -1,7 +1,7 @@
 # Encode-aware redaction (defense-in-depth)
 
 **Date:** 2026-06-05
-**Status:** Design approved. Building.
+**Status:** v1 complete.
 
 ## Overview
 Extend the shared redactor (`agent-core/redact/redactSecrets`) so it also catches

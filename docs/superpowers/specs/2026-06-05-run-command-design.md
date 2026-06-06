@@ -20,6 +20,7 @@ The terminal Claude already runs plain commands via its own Bash tool. With inje
 ## The redactor (new agent-core `redact/` module) -- the security-critical piece
 `redactSecrets(text, values: string[], opts?): string`:
 - Exact-match: replace every occurrence of each non-empty injected value with `***` (this is the must-have -- if a command echoes the injected secret, the agent must get `***`).
+- Encode-aware (defense-in-depth, added): also redact each value's common single-shot encodings -- base64/base64url/hex (decode-and-check) and percent/URL-encoding (forward-encode). LIMIT (was "INHERENT v1 LIMIT: exact-match only"): literal + common encodings (base64/hex/url) are now redacted; arbitrary transforms (reverse/split/base32/gzip/char-by-char/encrypt/double-encode) remain the limit -- a process holding the value can emit it in unbounded disguises no output filter catches. The standing guarantee is structural (inject defaults OFF; no tool returns a raw value). See `2026-06-05-encode-aware-redaction-design.md`.
 - Pattern-pack (defense-in-depth): reuse/extend `redactConnStrings` (scheme://user:pass@) + a few common shapes (e.g. `Bearer <token>`, long hex/base64 runs that look like keys) to catch secret-shaped strings NOT in the injected set.
 - Pure + heavily TDD'd. Adversarial test: a command that prints an injected value (and one split oddly) must come back redacted.
 
