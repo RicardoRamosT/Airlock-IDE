@@ -214,19 +214,23 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   // crosses to the agent.
   useEffect(() => {
     const SCAN_MS = 600;
-    const BOTTOM_ROWS = 10;
     const timer = setInterval(() => {
       const term = termRef.current;
       const ptyId = idRef.current;
       if (!term || !ptyId) return;
       const buf = term.buffer.active;
-      const rows = term.rows;
-      const start = Math.max(0, rows - BOTTOM_ROWS);
+      // Read the LIVE bottom of the terminal -- the last (rows + 2) buffer lines,
+      // where Claude's status line sits. Index off buffer.length, NOT baseY:
+      // baseY's scroll/scrollback semantics were reading the wrong region, so the
+      // dot never lit even with "esc to interrupt" plainly on screen. Collapse
+      // whitespace so a wrapped footer ("esc to\ninterrupt") still matches.
+      const total = buf.length;
+      const span = Math.min(total, (term.rows || 24) + 2);
       let text = "";
-      for (let i = start; i < rows; i++) {
-        text += `${buf.getLine(buf.baseY + i)?.translateToString(true) ?? ""}\n`;
+      for (let y = total - span; y < total; y++) {
+        text += `${buf.getLine(y)?.translateToString(true) ?? ""} `;
       }
-      const working = /esc to interrupt/i.test(text);
+      const working = /esc to interrupt/i.test(text.replace(/\s+/g, " "));
       if (working !== lastWorkingRef.current) {
         lastWorkingRef.current = working;
         useApp.getState().applyPtyStatus(ptyId, working);
