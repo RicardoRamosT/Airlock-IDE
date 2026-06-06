@@ -1,14 +1,12 @@
-import { DataGrid } from "./components/DataGrid";
 import { NeonConnectModal } from "./components/NeonConnectModal";
+import { ProjectPane } from "./components/ProjectPane";
 import { ProjectTabs } from "./components/ProjectTabs";
 import { RenderConnectModal } from "./components/RenderConnectModal";
 import { SecretModal } from "./components/SecretModal";
-import { SettingsTab } from "./components/SettingsTab";
-import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
-import { Viewer } from "./components/Viewer";
+import { TerminalSlotsProvider } from "./lib/terminalSlots";
 import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
 import { usePrefs } from "./lib/usePrefs";
@@ -18,53 +16,47 @@ export function App() {
   useGitStatus();
   usePrefs();
   useMenuActions();
-  const selectedFile = useApp((s) => s.selectedFile);
-  const diff = useApp((s) => s.diff);
-  const settingsOpen = useApp((s) => s.settingsOpen);
-  const dbView = useApp((s) => s.dbView);
   const modal = useApp((s) => s.modal);
-  const sidebarVisible = useApp((s) => s.sidebarVisible);
-  const sidebarPosition = useApp((s) => s.sidebarPosition);
+  const activeTabId = useApp((s) => s.activeTabId);
+  const splitTabId = useApp((s) => s.splitTabId);
   return (
-    <div className="app-shell">
-      <TitleBar />
-      <ProjectTabs />
-      <div
-        className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
-      >
-        <Sidebar />
-        <div
-          className={`main${selectedFile || diff || settingsOpen || dbView ? " split" : ""}`}
-        >
-          <div className="viewer-pane">
-            {dbView ? (
-              <DataGrid />
-            ) : settingsOpen ? (
-              <SettingsTab />
-            ) : (
-              <Viewer />
-            )}
+    <TerminalSlotsProvider>
+      <div className="app-shell">
+        <TitleBar />
+        <ProjectTabs />
+        {/* The content row: one ProjectPane (single, focused -- identical to the
+            pre-split layout) or two side by side when splitTabId is set. Each
+            pane is a full project view scoped to its tab via ProjectPaneContext.
+            The focused pane (tabId === activeTabId) is the left one and drives
+            the agent / window title. */}
+        {splitTabId ? (
+          <div className="project-split">
+            <ProjectPane tabId={activeTabId} focused />
+            <ProjectPane tabId={splitTabId} focused={false} />
           </div>
-          <div className="terminal-slot">
-            <TerminalManager />
-          </div>
-        </div>
+        ) : (
+          <ProjectPane tabId={activeTabId} focused />
+        )}
+        {/* Mounted ONCE here (NOT inside a pane): it portals every tab's
+            terminals into the pane that currently holds that tab, so the ptys
+            survive split toggles / focus swaps / tab switches. */}
+        <TerminalManager />
+        <StatusBar />
+        {(modal === "add-secret" ||
+          (typeof modal === "object" && modal !== null)) && (
+          <SecretModal
+            key={
+              typeof modal === "string"
+                ? modal
+                : "requestSecret" in modal
+                  ? modal.requestSecret.requestId
+                  : modal.update
+            }
+          />
+        )}
+        {modal === "connect-neon" && <NeonConnectModal />}
+        {modal === "connect-render" && <RenderConnectModal />}
       </div>
-      <StatusBar />
-      {(modal === "add-secret" ||
-        (typeof modal === "object" && modal !== null)) && (
-        <SecretModal
-          key={
-            typeof modal === "string"
-              ? modal
-              : "requestSecret" in modal
-                ? modal.requestSecret.requestId
-                : modal.update
-          }
-        />
-      )}
-      {modal === "connect-neon" && <NeonConnectModal />}
-      {modal === "connect-render" && <RenderConnectModal />}
-    </div>
+    </TerminalSlotsProvider>
   );
 }

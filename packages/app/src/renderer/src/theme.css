@@ -243,6 +243,15 @@ body,
   color: var(--fg);
 }
 
+/* The split toggle when split is on: accent-tinted so the on state reads. */
+.project-tab-action.active {
+  color: var(--accent);
+}
+
+.project-tab-action.active:hover {
+  color: var(--accent);
+}
+
 .statusbar {
   display: flex;
   justify-content: space-between;
@@ -269,6 +278,40 @@ body,
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
   min-height: 0;
+}
+
+/* Two-project split: the content row becomes two equal ProjectPane columns with
+   a 1px divider (the column-gap exposes the container background, mirroring
+   .terminal-panes.split). Each pane fills its column. */
+.project-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+  column-gap: 1px;
+  background: var(--border);
+}
+
+/* A ProjectPane wraps the existing .layout (sidebar + main) for one tab. It
+   fills its column (the single-pane case) or its half of .project-split, with
+   min-height:0 so the viewer/terminal size correctly. */
+.project-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-pane > .layout {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* The focused pane gets a subtle inset ring so it is obvious which pane drives
+   the agent / title. Scoped to split only: a single pane is always focused, and
+   ringing the whole content area would change the non-split look (which must be
+   identical to before). Inset so it does not nudge layout. */
+.project-split .project-pane.focused {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .sidebar {
@@ -1229,28 +1272,20 @@ textarea:focus-visible {
    container fills the terminal slot; each per-project slot also fills it and is
    hidden (display:none) when its project is not the active tab -- same pattern
    as .terminal-pane-slot.hidden, one level up. */
-.terminal-projects {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  /* One explicit row stretched to the full height so the stacked slots (all in
-     row 1 / column 1) fill the terminal area instead of collapsing to content
-     height. */
-  grid-template-rows: minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-}
-
-.terminal-project-slot {
-  /* Stack all project slots in the single grid cell so the active one occupies
-     the full area; hidden ones are removed from layout below. */
-  grid-row: 1;
-  grid-column: 1;
-  min-width: 0;
-  min-height: 0;
-}
-
-.terminal-project-slot.hidden {
+/* TerminalManager's only in-flow DOM is this hidden keep-alive div: every tab's
+   ProjectTerminals is PORTALED out of TerminalManager into a pane's
+   .pane-terminal-slot, and tabs not in a visible pane portal into here. It is
+   display:none so it neither shows nor consumes an .app-shell grid row, while
+   keeping those tabs' TerminalPanes mounted (ptys alive). */
+.terminal-keepalive {
   display: none;
+}
+
+/* The portal target inside a ProjectPane's .main grid. It holds the portaled
+   .terminal-manager (height:100%), so it must fill the grid cell exactly like
+   the old .terminal-slot did (it also carries .terminal-slot). */
+.pane-terminal-slot {
+  min-height: 0;
 }
 
 .terminal-manager {

@@ -9,6 +9,7 @@ import { useApp } from "../store";
 export function ProjectTabs() {
   const tabs = useApp((s) => s.tabs);
   const activeTabId = useApp((s) => s.activeTabId);
+  const splitTabId = useApp((s) => s.splitTabId);
   const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
   // terminals' ptyIds working in sessionWorking); the glow is the stored flag.
@@ -75,6 +76,19 @@ export function ProjectTabs() {
       >
         <i className="codicon codicon-add" />
       </button>
+      {/* Split toggle: needs a second project to split with, so only shown with
+          >= 2 tabs. Reflects the on/off state (active when splitTabId set). */}
+      {tabs.length >= 2 && (
+        <button
+          type="button"
+          className={`project-tab-action${splitTabId ? " active" : ""}`}
+          title={splitTabId ? "Close split" : "Split projects"}
+          aria-pressed={!!splitTabId}
+          onClick={() => useApp.getState().toggleProjectSplit()}
+        >
+          <i className="codicon codicon-split-horizontal" />
+        </button>
+      )}
     </div>
   );
 }
