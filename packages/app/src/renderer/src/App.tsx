@@ -1,5 +1,6 @@
 import { DataGrid } from "./components/DataGrid";
 import { NeonConnectModal } from "./components/NeonConnectModal";
+import { ProjectTabs } from "./components/ProjectTabs";
 import { RenderConnectModal } from "./components/RenderConnectModal";
 import { SecretModal } from "./components/SecretModal";
 import { SettingsTab } from "./components/SettingsTab";
@@ -27,6 +28,7 @@ export function App() {
   return (
     <div className="app-shell">
       <TitleBar />
+      <ProjectTabs />
       <div
         className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
       >
