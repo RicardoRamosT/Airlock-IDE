@@ -361,7 +361,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "open_tab",
     {
       description:
-        "Open a project folder as a new tab (pass path), or a blank tab (no path), in the focused airlock window. Returns the new tab layout. Acts on the FOCUSED window.",
+        "Open a project folder as a new tab (pass path), or a blank tab with no folder (no path), in the focused airlock window. The new tab is focused, and -- like every tab and split pane -- comes with one default terminal already running (so list_tabs will show 1 terminal, not 0). Returns the new tab layout. Acts on the FOCUSED window.",
       inputSchema: { path: z.string().optional() },
     },
     async ({ path }) => drive({ type: "open_tab", path }),
@@ -391,7 +391,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "split_view",
     {
       description:
-        "Toggle the split view in the focused airlock window: with a tabId, split the focused tab beside that tab; with no tabId, split with a new blank tab (or collapse the split if it is already showing). Returns the resulting layout. Acts on the FOCUSED window.",
+        "Toggle the split view in the focused airlock window. With a tabId, split the focused tab beside that tab. With no tabId, either collapse the split if it is already showing, or create a new blank secondary tab beside the focused one -- no folder, but (like every tab/pane) with one default terminal already running, so a freshly-split pane shows 1 terminal, not 0. Returns the resulting layout. Acts on the FOCUSED window.",
       inputSchema: { tabId: z.string().optional() },
     },
     async ({ tabId }) => drive({ type: "split_view", tabId }),
