@@ -1,8 +1,9 @@
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import path from "node:path";
 import {
   appendAudit,
   commitStaged,
+  computeSessionWorking,
   createBranch,
   createPtySession,
   deleteSecret,
@@ -88,6 +89,14 @@ const DEFAULT_TAIL_LINES = 40;
 const MAX_TAIL_LINES = 400;
 const PREVIEW_LINES = 3;
 
+// Per-PTY last-output wall-clock time (ms), teed from onData. Feeds the
+// Claude-activity monitor: a session is "working" only if its claude child
+// produced output recently. Deleted on exit / killAllSessions.
+const sessionLastOutput = new Map<string, number>();
+// Per-PTY last-pushed "claude is working" boolean. The monitor pushes
+// pty:status ONLY when this changes. Deleted on exit / killAllSessions.
+const sessionWorking = new Map<string, boolean>();
+
 function requireRoot(e: { sender: Electron.WebContents }): string {
   const root = rootForEvent(e);
   if (!root) throw new Error("No workspace open");
@@ -108,6 +117,59 @@ function ptyHasChild(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+// Claude-activity monitor (Feature A). A single interval runs ONE async ps
+// snapshot per tick (NOT spawnSync -- it must not block the main thread; NOT
+// per-session pgrep) and pushes a boolean per pty id to that session's window
+// ONLY when it changes. It carries NO output content, NO pid, and is NOT an MCP
+// tool: the renderer turns this into a per-tab status dot.
+
+// Re-entrancy guard: skip a tick if the previous ps is still running, so a slow
+// ps can never pile up overlapping spawns.
+let psInFlight = false;
+
+// Push the per-session working boolean to the session's owning window. No-op if
+// the session has no recorded window or that window is gone/destroyed.
+function pushPtyStatus(id: string, working: boolean): void {
+  const winId = sessionWindows.get(id);
+  if (winId === undefined) return;
+  const win = BrowserWindow.fromId(winId);
+  if (win && !win.webContents.isDestroyed())
+    win.webContents.send("pty:status", { id, working });
+}
+
+// One monitor tick: snapshot the process table once, recompute each live
+// session's working flag via the pure agent-core helper, and push only the ones
+// that changed. Skips entirely when no sessions are live or a ps is in flight.
+function tickClaudeStatus(): void {
+  if (psInFlight || sessions.size === 0) return;
+  psInFlight = true;
+  execFile(
+    "ps",
+    ["-axo", "pid=,ppid=,command="],
+    { maxBuffer: 8 * 1024 * 1024 },
+    (err, stdout) => {
+      psInFlight = false;
+      if (err) return; // leave statuses as-is on a transient ps failure
+      const live = [...sessions.values()].map((s) => ({
+        id: s.id,
+        pid: s.pid,
+      }));
+      const now = Date.now();
+      for (const { id, working } of computeSessionWorking(
+        stdout,
+        live,
+        sessionLastOutput,
+        now,
+      )) {
+        if (sessionWorking.get(id) !== working) {
+          sessionWorking.set(id, working);
+          pushPtyStatus(id, working);
+        }
+      }
+    },
+  );
 }
 
 const NEON_KEY = "NEON_API_KEY";
@@ -709,6 +771,8 @@ export function registerIpc(
         s.id,
         next.length > TAIL_CAP ? next.slice(-TAIL_CAP) : next,
       );
+      // Cheap timestamp for the Claude-activity monitor (no spawn here).
+      sessionLastOutput.set(s.id, Date.now());
       if (!wc.isDestroyed()) wc.send("pty:data", { id: s.id, data });
     });
     const exitSub = s.onExit((exitCode) => {
@@ -716,6 +780,8 @@ export function registerIpc(
       ptyBuffers.delete(s.id);
       sessionWindows.delete(s.id);
       sessionRoots.delete(s.id);
+      sessionLastOutput.delete(s.id);
+      sessionWorking.delete(s.id);
       if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
       // Release the listeners explicitly. node-pty has no destroy(); kill()
       // is teardown, but the onData/onExit subscriptions are IDisposables
@@ -772,6 +838,11 @@ export function registerIpc(
     sessions.get(id)?.kill();
     // onExit cleanup (sessions.delete + pty:exit notify) already wired in pty:create.
   });
+
+  // Long-lived Claude-activity monitor. ~900ms cadence; tickClaudeStatus
+  // itself no-ops when there are no live sessions, so the idle cost is a bare
+  // timer check (no ps spawn).
+  setInterval(tickClaudeStatus, 900);
 }
 
 export function killAllSessions(): void {
@@ -780,6 +851,8 @@ export function killAllSessions(): void {
   ptyBuffers.clear();
   sessionWindows.clear();
   sessionRoots.clear();
+  sessionLastOutput.clear();
+  sessionWorking.clear();
 }
 
 // Resolve EVERY vaulted secret value (any could appear in terminal output) so
