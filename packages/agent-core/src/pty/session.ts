@@ -23,6 +23,11 @@ export interface PtyOptions {
 
 export class PtySession {
   readonly id: string = randomUUID();
+  // Underlying child process pid (node-pty IPty.pid). Exposed so the main
+  // process can ask whether the shell has a running child (pty:isBusy ->
+  // pgrep -P <pid>); never used to signal/kill the process here. ASCII-only:
+  // this module is CJS-bundled into Electron main.
+  readonly pid: number;
   private readonly pty: IPty;
 
   constructor(opts: PtyOptions = {}) {
@@ -47,6 +52,7 @@ export class PtySession {
       // appear in normal program output.
       handleFlowControl: opts.handleFlowControl ?? true,
     });
+    this.pid = this.pty.pid;
   }
 
   onData(cb: (data: string) => void): IDisposable {

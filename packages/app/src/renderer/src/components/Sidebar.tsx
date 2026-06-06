@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import type { Section as SectionId } from "../../../shared/ipc";
+import { openPickedFolder } from "../lib/openFolder";
 import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
@@ -76,13 +77,13 @@ function Section({
 }
 
 export function Sidebar() {
-  const { root, setRoot } = useApp();
+  const root = useApp((s) => s.root);
   const vis = useApp((s) => s.sectionVisibility);
 
   const openFolder = async () => {
     try {
       const picked = await window.airlock.openFolder();
-      if (picked) setRoot(picked);
+      if (picked) await openPickedFolder(picked);
     } catch (err) {
       console.error("openFolder failed", err);
     }

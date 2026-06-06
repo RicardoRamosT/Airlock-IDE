@@ -472,3 +472,16 @@ describe("terminal preservation across switches", () => {
     expect(tt(aId).activeTerminalId).toBe(t1);
   });
 });
+
+describe("runningNotice", () => {
+  it("setRunningNotice sets and clears the field", () => {
+    // starts cleared
+    expect(get().runningNotice).toBeNull();
+
+    get().setRunningNotice({ terminalId: "term-7" });
+    expect(get().runningNotice).toEqual({ terminalId: "term-7" });
+
+    get().setRunningNotice(null);
+    expect(get().runningNotice).toBeNull();
+  });
+});

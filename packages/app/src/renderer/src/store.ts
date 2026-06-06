@@ -146,6 +146,11 @@ interface AppState {
     | "connect-render"
     | null;
 
+  // Set when opening a folder KEPT a busy terminal (a running session was not
+  // killed); the T3 notice renders on this terminal. Cleared on dismiss/replace.
+  runningNotice: { terminalId: string } | null;
+  setRunningNotice: (v: { terminalId: string } | null) => void;
+
   // --- Tab actions ---
   openProject: (root: string) => void;
   openBlankTab: () => void;
@@ -288,6 +293,7 @@ export const useApp = create<AppState>((set) => ({
     audit: true,
   },
   layoutHydrated: false,
+  runningNotice: null,
 
   // --- Tab actions ---
   // Append a PROJECT tab (used when the active tab already has a project, tabs
@@ -489,6 +495,7 @@ export const useApp = create<AppState>((set) => ({
   setConfig: (config) => set({ config }),
   setGitStatus: (gitStatus) => set({ gitStatus }),
   setModal: (modal) => set({ modal }),
+  setRunningNotice: (runningNotice) => set({ runningNotice }),
 
   // --- Terminal setters ---
   addTerminal: () => {

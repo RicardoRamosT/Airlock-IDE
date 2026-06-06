@@ -176,6 +176,11 @@ export interface AirlockApi {
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
   ptyKill(id: string): void;
+  // Whether a terminal's shell has a running child process (e.g. a live
+  // `claude`). Renderer UI only (consulted by the open-folder flow so a busy
+  // terminal is kept, not killed); not an agent/MCP surface. Returns false for
+  // an unknown id or any error -- never throws.
+  ptyIsBusy(id: string): Promise<boolean>;
   onPtyData(cb: (e: PtyDataEvent) => void): () => void;
   onPtyExit(cb: (e: PtyExitEvent) => void): () => void;
   secretsList(): Promise<SecretMeta[]>;

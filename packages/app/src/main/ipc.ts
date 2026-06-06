@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import {
   appendAudit,
@@ -91,6 +92,22 @@ function requireRoot(e: { sender: Electron.WebContents }): string {
   const root = rootForEvent(e);
   if (!root) throw new Error("No workspace open");
   return root;
+}
+
+// Whether the shell with this pid has a running child process. Used by
+// pty:isBusy so opening a folder into a blank tab does not kill a terminal
+// that is busy (e.g. a live `claude`). Synchronous `pgrep -P <pid>`: a child
+// exists iff pgrep exits 0 with non-empty stdout. Missing pgrep / any error ->
+// false (treat as idle). NEVER throws.
+function ptyHasChild(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    const r = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" });
+    if (r.error) return false;
+    return r.status === 0 && (r.stdout ?? "").trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 const NEON_KEY = "NEON_API_KEY";
@@ -687,6 +704,23 @@ export function registerIpc(
       exitSub.dispose();
     });
     return s.id;
+  });
+
+  // Whether a terminal's shell has a running child (e.g. a live `claude`).
+  // Renderer->main UI ONLY (the open-folder helper consults it so a busy
+  // terminal is preserved); the agent never calls this -- it is NOT an MCP tool
+  // and carries only a session id. Scoped to the sender window's own sessions
+  // (consistent with the other pty/terminal handlers). Returns a plain boolean;
+  // never throws.
+  ipcMain.handle("pty:isBusy", (e, id: unknown) => {
+    if (typeof id !== "string") return false;
+    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
+    if (ownerId !== undefined && sessionWindows.get(id) !== ownerId) {
+      return false;
+    }
+    const s = sessions.get(id);
+    if (!s) return false;
+    return ptyHasChild(s.pid);
   });
 
   ipcMain.on("pty:input", (_e, payload: unknown) => {

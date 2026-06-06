@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useApp } from "../store";
+import { openPickedFolder } from "./openFolder";
 
 // Dispatch File-menu actions (pushed from main as "menu:action") to store + IPC.
 // Mirrors the existing onSectionsChanged subscriber: subscribe on mount, return
@@ -11,12 +12,12 @@ export function useMenuActions(): void {
       switch (a.type) {
         case "open-folder": {
           const picked = await window.airlock.openFolder();
-          if (picked) s.setRoot(picked);
+          if (picked) await openPickedFolder(picked);
           break;
         }
         case "open-recent": {
           const root = await window.airlock.workspaceOpen(a.path);
-          if (root) s.setRoot(root);
+          if (root) await openPickedFolder(root);
           break;
         }
         case "open-file": {
