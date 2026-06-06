@@ -23,6 +23,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      openProjectsAsTabs: true,
       recentFolders: [],
     });
   });
@@ -48,6 +49,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      openProjectsAsTabs: true,
       recentFolders: [],
     });
   });
@@ -79,6 +81,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      openProjectsAsTabs: true,
       recentFolders: [],
     });
   });
@@ -102,6 +105,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      openProjectsAsTabs: true,
       recentFolders: [],
     });
   });

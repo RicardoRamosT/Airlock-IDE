@@ -149,6 +149,7 @@ interface AppState {
 
   // --- Tab actions ---
   openProject: (root: string) => void;
+  replaceActiveProject: (root: string) => void;
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
   setOpenProjectsAsTabs: (v: boolean) => void;
@@ -315,6 +316,25 @@ export const useApp = create<AppState>((set) => ({
         modal: null,
       };
     }),
+  // Windows-mode "replace the window's single project in place": swap the
+  // ACTIVE tab's root rather than appending a tab. Capture the id up front so
+  // TS narrowing holds inside set(). With no active tab, delegate to openProject
+  // (creates the first/only tab, incl. the implicit-tab terminal reset).
+  // Otherwise reset the tab's terminals to a fresh empty set so the old
+  // project's TerminalPanes unmount and their ptys die (correct for replace).
+  replaceActiveProject: (root) => {
+    const id = useApp.getState().activeTabId;
+    if (id === null) {
+      useApp.getState().openProject(root);
+      return;
+    }
+    set((s) => ({
+      tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
+      tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
+      ...loadSnapshot(root, freshSnapshot()),
+      modal: null,
+    }));
+  },
   switchTab: (id) => {
     set((s) => {
       if (id === s.activeTabId) return {};
@@ -405,7 +425,11 @@ export const useApp = create<AppState>((set) => ({
   setRoot: (root) => {
     const s = useApp.getState();
     if (typeof root === "string") {
-      s.openProject(root);
+      // Tabs mode (default): add a tab. Windows mode: replace the active tab's
+      // single project in place (replaceActiveProject delegates to openProject
+      // when there is no active tab, so the first open still works either way).
+      if (s.openProjectsAsTabs) s.openProject(root);
+      else s.replaceActiveProject(root);
       return;
     }
     if (s.activeTabId !== null) s.closeTab(s.activeTabId);

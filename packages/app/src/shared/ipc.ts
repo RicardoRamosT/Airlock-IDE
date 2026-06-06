@@ -140,6 +140,7 @@ export interface AppPrefs {
   theme: "dark" | "light";
   sectionVisibility: SectionVisibility; // app-global; default all true
   clipboardClearSeconds: number; // app-global; 0 = never auto-clear the clipboard
+  openProjectsAsTabs: boolean; // app-global; true = open folders as tabs, false = separate windows
   recentFolders: string[]; // app-global; most-recent-first, capped, deduped
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the

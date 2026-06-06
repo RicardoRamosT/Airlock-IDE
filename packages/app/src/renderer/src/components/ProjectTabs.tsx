@@ -9,13 +9,21 @@ import { useApp } from "../store";
 export function ProjectTabs() {
   const tabs = useApp((s) => s.tabs);
   const activeTabId = useApp((s) => s.activeTabId);
+  const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
+
+  // Render gate: show the strip in tabs mode, or while >1 tab exists (leftover
+  // tabs from a prior tabs-mode session stay navigable in windows mode). When
+  // hidden, returning null collapses App.tsx's auto-sized grid row -- no layout
+  // change is needed elsewhere.
+  if (!openProjectsAsTabs && tabs.length <= 1) return null;
 
   // Mirrors Sidebar's Open Folder flow: openFolder shows the dialog + sets the
-  // main window root; openProject adds the renderer tab (and makes it active).
+  // main window root; setRoot honors the open mode (tabs -> add a tab; windows
+  // -> replace the active tab's single project in place).
   const openProject = async () => {
     try {
       const picked = await window.airlock.openFolder();
-      if (picked) useApp.getState().openProject(picked);
+      if (picked) useApp.getState().setRoot(picked);
     } catch (err) {
       console.error("openFolder failed", err);
     }

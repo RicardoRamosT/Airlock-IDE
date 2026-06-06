@@ -38,6 +38,7 @@ const DEFAULTS: AppPrefs = {
   theme: "dark",
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
   clipboardClearSeconds: 30,
+  openProjectsAsTabs: true,
   recentFolders: [],
 };
 
@@ -108,6 +109,10 @@ function sanitize(raw: unknown): AppPrefs {
       Number.isFinite(r.clipboardClearSeconds)
         ? Math.min(3600, Math.max(0, Math.floor(r.clipboardClearSeconds)))
         : DEFAULTS.clipboardClearSeconds,
+    openProjectsAsTabs:
+      typeof r.openProjectsAsTabs === "boolean"
+        ? r.openProjectsAsTabs
+        : DEFAULTS.openProjectsAsTabs,
     recentFolders: sanitizeRecentFolders(r.recentFolders),
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so

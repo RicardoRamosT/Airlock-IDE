@@ -7,6 +7,7 @@ export function usePrefs(): void {
   const setSidebarPosition = useApp((s) => s.setSidebarPosition);
   const setTheme = useApp((s) => s.setTheme);
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
+  const setOpenProjectsAsTabs = useApp((s) => s.setOpenProjectsAsTabs);
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const theme = useApp((s) => s.theme);
 
@@ -26,6 +27,7 @@ export function usePrefs(): void {
         setSidebarPosition(p.sidebarPosition);
         setTheme(p.theme);
         setClipboardClearSeconds(p.clipboardClearSeconds);
+        setOpenProjectsAsTabs(p.openProjectsAsTabs);
         setSectionVisibility(p.sectionVisibility);
         useApp.getState().setLayoutHydrated(true);
       })
@@ -38,6 +40,7 @@ export function usePrefs(): void {
     setSidebarPosition,
     setTheme,
     setClipboardClearSeconds,
+    setOpenProjectsAsTabs,
     setSectionVisibility,
   ]);
 

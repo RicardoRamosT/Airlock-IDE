@@ -16,6 +16,8 @@ export function SettingsTab() {
   const setSidebarVisible = useApp((s) => s.setSidebarVisible);
   const clipboardClearSeconds = useApp((s) => s.clipboardClearSeconds);
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
+  const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
+  const setOpenProjectsAsTabs = useApp((s) => s.setOpenProjectsAsTabs);
   const root = useApp((s) => s.root);
   const config = useApp((s) => s.config);
   const setConfig = useApp((s) => s.setConfig);
@@ -93,6 +95,31 @@ export function SettingsTab() {
             />
             Light
           </label>
+        </section>
+
+        <section className="settings-section">
+          <h3>Layout</h3>
+          <div className="settings-row">
+            <label htmlFor="open-as-tabs">Open projects as tabs</label>
+            <input
+              id="open-as-tabs"
+              type="checkbox"
+              checked={openProjectsAsTabs}
+              onChange={(e) => {
+                const v = e.target.checked;
+                useApp.getState().setLayoutHydrated(true);
+                setOpenProjectsAsTabs(v);
+                void window.airlock.prefsSet({ openProjectsAsTabs: v });
+              }}
+            />
+          </div>
+          <p className="settings-note">
+            On: opening a folder adds it as a tab in this window, so you can
+            switch between projects without juggling windows. Off: each project
+            opens on its own and "New Window" gives you a separate window per
+            project. The agent always operates on the project you are currently
+            viewing.
+          </p>
         </section>
 
         <section className="settings-section">
