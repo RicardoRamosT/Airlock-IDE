@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import type { Section as SectionId } from "../../../shared/ipc";
 import { openPickedFolder } from "../lib/openFolder";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
@@ -77,7 +78,11 @@ function Section({
 }
 
 export function Sidebar() {
-  const root = useApp((s) => s.root);
+  // Scope the empty-state check to the pane's tab (each pane's sidebar shows its
+  // own project's Files). The openFolder handler stays as-is for now -- per-pane
+  // opening is a later task and single pane is unaffected.
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const vis = useApp((s) => s.sectionVisibility);
 
   const openFolder = async () => {

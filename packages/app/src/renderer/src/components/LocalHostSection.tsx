@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useProjectTab } from "../lib/projectPane";
+import { useApp } from "../store";
 
 // The local dev-server group of the Host section. Mirrors DockerSection's
 // refresh-on-focus + busy guard (the server may be started/stopped outside the
@@ -12,6 +14,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 //   editing/draft : the inline URL editor. Save persists via configSet({devUrl})
 //          then re-refreshes; Cancel discards.
 export function LocalHostSection() {
+  // The dev-server URL is per-root (config.devUrl, else a guess from the root's
+  // server). The host IPC still resolves the window root for T2 (single pane =>
+  // window root === the pane's root); scoping to the pane's root here keys the
+  // probe so a future second pane re-probes when ITS project changes.
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [url, setUrl] = useState<string | null>(null);
   const [up, setUp] = useState<boolean | null>(null);
   const [editing, setEditing] = useState(false);
@@ -46,15 +54,17 @@ export function LocalHostSection() {
     }
   }, []);
 
-  // Fetch on mount and re-fetch whenever the window regains focus (the dev
-  // server may have been started/stopped outside the app). The focus listener
-  // is added and removed together so it never outlives the section.
+  // Fetch on mount, when the pane's project changes, and whenever the window
+  // regains focus (the dev server may have been started/stopped outside the
+  // app). The focus listener is added and removed together so it never outlives
+  // the section. `root` is a dep so a pane that swaps projects re-probes.
   useEffect(() => {
+    void root; // re-probe when the pane's project changes
     void refresh();
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [refresh]);
+  }, [refresh, root]);
 
   const save = async () => {
     const next = draft.trim();

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DirEntry } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 function join(parent: string, name: string): string {
@@ -14,11 +15,16 @@ function Node({ entry, parent }: { entry: DirEntry; parent: string }) {
 }
 
 function FileNode({ name, relPath }: { name: string; relPath: string }) {
-  const { selectedFile, setSelected } = useApp();
+  const tabId = useProjectTab();
+  const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
+  const setSelected = useApp((s) => s.setSelected);
   const select = async () => {
     try {
+      // IPC still resolves the window root (explicit-root is a later task); for
+      // single pane the window root === the pane's root so this reads the right
+      // file. Only the STATE write is scoped to the pane via tabId.
       const file = await window.airlock.readFile(relPath);
-      setSelected(relPath, file);
+      setSelected(relPath, file, tabId);
     } catch (err) {
       console.error("readFile failed", err);
     }
@@ -69,7 +75,8 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
 }
 
 export function FileTree() {
-  const root = useApp((s) => s.root);
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
 
   useEffect(() => {

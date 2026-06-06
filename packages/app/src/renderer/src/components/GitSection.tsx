@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GitStatus } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 const NEW_BRANCH = "__new__";
 
 export function GitSection() {
-  const root = useApp((s) => s.root);
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const setDiff = useApp((s) => s.setDiff);
   const setGitStatus = useApp((s) => s.setGitStatus);
   const [isRepo, setIsRepo] = useState(false);
@@ -21,18 +23,18 @@ export function GitSection() {
       const repo = await window.airlock.gitIsRepo();
       setIsRepo(repo);
       if (!repo) {
-        setGitStatus(null);
+        setGitStatus(null, tabId);
         return;
       }
       const s = await window.airlock.gitStatus();
       setStatus(s);
-      setGitStatus(s);
+      setGitStatus(s, tabId);
       setBranches(await window.airlock.gitBranches());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [root, setGitStatus]);
+  }, [root, setGitStatus, tabId]);
 
   useEffect(() => {
     refresh().catch(console.error);
@@ -64,7 +66,10 @@ export function GitSection() {
         setError(`${path}: file exceeds 1 MB, diff unavailable`);
         return;
       }
-      setDiff({ path, which, original: v.original, modified: v.modified });
+      setDiff(
+        { path, which, original: v.original, modified: v.modified },
+        tabId,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

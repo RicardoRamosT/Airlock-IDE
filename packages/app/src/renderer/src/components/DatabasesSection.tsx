@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DbEntry, DbTable } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 type PingState = "checking" | "ok" | "fail";
 
 export function DatabasesSection() {
-  const root = useApp((s) => s.root);
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [dbs, setDbs] = useState<DbEntry[]>([]);
   const [pings, setPings] = useState<Record<string, PingState>>({});
   const [tables, setTables] = useState<Record<string, DbTable[]>>({});
@@ -70,7 +72,10 @@ export function DatabasesSection() {
   const openTable = (id: string, t: DbTable) => {
     useApp
       .getState()
-      .setDbView({ kind: "secret", id, schema: t.schema, table: t.name });
+      .setDbView(
+        { kind: "secret", id, schema: t.schema, table: t.name },
+        tabId,
+      );
   };
 
   return (

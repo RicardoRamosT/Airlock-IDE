@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AuditEntry } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 function shortTime(iso: string): string {
@@ -7,8 +8,9 @@ function shortTime(iso: string): string {
 }
 
 export function AuditSection() {
-  const root = useApp((s) => s.root);
-  const secrets = useApp((s) => s.secrets);
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const secrets = useApp((s) => s.tabState[tabId]?.secrets ?? []);
   const [entries, setEntries] = useState<AuditEntry[]>([]);
 
   useEffect(() => {

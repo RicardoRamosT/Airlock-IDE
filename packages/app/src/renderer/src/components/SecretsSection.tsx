@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
+import { useProjectTab } from "../lib/projectPane";
 import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
 
 export function SecretsSection() {
-  const { root, secrets, setSecrets, config, setConfig, setModal } = useApp();
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const secrets = useApp((s) => s.tabState[tabId]?.secrets ?? []);
+  const config = useApp((s) => s.tabState[tabId]?.config ?? null);
+  const setSecrets = useApp((s) => s.setSecrets);
+  const setConfig = useApp((s) => s.setConfig);
+  const setModal = useApp((s) => s.setModal); // app-global -- NOT scoped to a tab
   const clipboardClearSeconds = useApp((s) => s.clipboardClearSeconds);
   const [needsRestart, setNeedsRestart] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
@@ -11,12 +18,12 @@ export function SecretsSection() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setSecrets(await window.airlock.secretsList());
-    setConfig(await window.airlock.configGet());
+    setSecrets(await window.airlock.secretsList(), tabId);
+    setConfig(await window.airlock.configGet(), tabId);
     // A refreshed list may drop or change secrets; clear inline reveals so a
     // stale plaintext value can never linger next to a renamed/removed row.
     setRevealed({});
-  }, [setSecrets, setConfig]);
+  }, [setSecrets, setConfig, tabId]);
 
   useEffect(() => {
     if (root) refresh().catch(console.error);
@@ -28,7 +35,7 @@ export function SecretsSection() {
     const next = await window.airlock.configSet({
       injectSecretsIntoTerminal: !(config?.injectSecretsIntoTerminal ?? false),
     });
-    setConfig(next);
+    setConfig(next, tabId);
     setNeedsRestart(true);
   };
 

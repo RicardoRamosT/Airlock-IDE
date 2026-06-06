@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 // The Settings tab opens in the viewer-pane slot (mutually exclusive with a
@@ -22,17 +23,24 @@ export function SettingsTab() {
   const setShowRunningProcessNotice = useApp(
     (s) => s.setShowRunningProcessNotice,
   );
-  const root = useApp((s) => s.root);
-  const config = useApp((s) => s.config);
+  // Per-project bits are scoped to the pane's tab; the app-global controls above
+  // (theme, sidebar, clipboard, openProjectsAsTabs, showRunningProcessNotice)
+  // stay app-global and are deliberately NOT tied to a tab.
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const config = useApp((s) => s.tabState[tabId]?.config ?? null);
   const setConfig = useApp((s) => s.setConfig);
 
   // Populate config when a folder is open but the store has not loaded it yet
   // (e.g. the user never opened the secrets section). No-op when already set.
   useEffect(() => {
     if (root && !config) {
-      window.airlock.configGet().then(setConfig).catch(console.error);
+      window.airlock
+        .configGet()
+        .then((c) => setConfig(c, tabId))
+        .catch(console.error);
     }
-  }, [root, config, setConfig]);
+  }, [root, config, setConfig, tabId]);
 
   // Each persisted change marks layoutHydrated so a still-in-flight startup
   // prefsGet cannot clobber a fast user choice (same race the layout buttons
@@ -61,7 +69,7 @@ export function SettingsTab() {
     const next = await window.airlock.configSet({
       injectSecretsIntoTerminal: !(config?.injectSecretsIntoTerminal ?? false),
     });
-    setConfig(next);
+    setConfig(next, tabId);
   };
 
   return (

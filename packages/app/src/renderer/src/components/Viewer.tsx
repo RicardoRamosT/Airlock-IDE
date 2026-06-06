@@ -10,6 +10,7 @@ import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef } from "react";
 import { type LanguageKey, languageKeyForPath } from "../lib/language";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 const LANGUAGES: Record<LanguageKey, () => Extension> = {
@@ -21,7 +22,12 @@ const LANGUAGES: Record<LanguageKey, () => Extension> = {
 };
 
 export function Viewer() {
-  const { selectedFile, file, setSelected, diff, setDiff } = useApp();
+  const tabId = useProjectTab();
+  const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
+  const file = useApp((s) => s.tabState[tabId]?.file ?? null);
+  const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
+  const setSelected = useApp((s) => s.setSelected);
+  const setDiff = useApp((s) => s.setDiff);
   const theme = useApp((s) => s.theme);
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +81,9 @@ export function Viewer() {
         <button
           type="button"
           className="viewer-close"
-          onClick={() => (diff ? setDiff(null) : setSelected(null, null))}
+          onClick={() =>
+            diff ? setDiff(null, tabId) : setSelected(null, null, tabId)
+          }
           title="Close viewer (back to full terminal)"
         >
           <i className="codicon codicon-close" />

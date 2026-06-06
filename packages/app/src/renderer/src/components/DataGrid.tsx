@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { QueryResult } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 const MAX_CELL = 200; // chars before a string cell is truncated (full text in title)
@@ -28,7 +29,8 @@ function Cell({ value }: { value: unknown }) {
 }
 
 export function DataGrid() {
-  const dbView = useApp((s) => s.dbView);
+  const tabId = useProjectTab();
+  const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
   const setDbView = useApp((s) => s.setDbView);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,7 +90,7 @@ export function DataGrid() {
         <button
           type="button"
           className="viewer-close"
-          onClick={() => setDbView(null)}
+          onClick={() => setDbView(null, tabId)}
           title="Close data grid (back to full terminal)"
         >
           <i className="codicon codicon-close" />
