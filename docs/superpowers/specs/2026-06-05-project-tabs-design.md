@@ -26,7 +26,8 @@ Lift the per-project subset (exactly the current `setRoot` reset list) into a
 - `projects: Project[]` (ordered = tab order) + `activeId: string`.
 - APP-GLOBAL stays top-level (shared across tabs): `theme`, `sectionVisibility`,
   `sidebarVisible`, `sidebarPosition`, `clipboardClearSeconds`, `layoutHydrated`,
-  and `modal` (one modal window-wide).
+  `modal` (one modal window-wide), and `openProjectsAsTabs` (the tabs-vs-windows
+  toggle -- see below).
 - `setRoot` is replaced by:
   - `openProject(root)` -- add a tab (a fresh Project from the old reset list) +
     main `workspace:open` (recents + MCP register) + make it active.
@@ -80,8 +81,28 @@ Sidebar collapse/position = GLOBAL chrome (unchanged); sidebar CONTENTS =
 per-project. Settings tab content = global (its open/closed slot is per-project).
 `modal` = global. `termCounter` stays a global unique counter (no id collisions).
 
+## Toggle: tabs vs separate windows (Settings)
+A new app-global pref `openProjectsAsTabs: boolean` (DEFAULT true), surfaced in
+Settings (Layout section) as "Open projects as tabs". It selects what opening a
+project does:
+- **true (default) = tabs mode:** the project-tab strip shows; Open Folder / Open
+  Recent / the tab "+" open the project as a TAB in the current window (this whole
+  spec). A separate "New Window" (dock / File menu) still opens a new window, which
+  itself uses tabs.
+- **false = separate-windows mode (today's behavior, preserved exactly):** the tab
+  strip is hidden; each window holds ONE project; Open Folder replaces the current
+  window's project and "New Window" opens a separate window -- the multi-window
+  feature exactly as it ships now. No behavior change vs the multi-window baseline.
+Live + persisted to prefs like the other app-global settings; flipping it
+shows/hides the tab strip and switches the open behavior. Edge: switching to
+windows-mode while a window already has >1 tab keeps those tabs reachable (the
+strip stays while >1 tab exists); new opens follow the new mode. Implementation:
+the open dispatch (`openProject` / the menu:action handlers) branches on
+`openProjectsAsTabs`; the tab strip renders only in tabs mode (or while >1 tab).
+
 ## Honest scope / limits
 - ONE agent at a time (the active tab) -- same model as multi-window-follows-focus.
+- The tabs/windows toggle (openProjectsAsTabs) lets users keep separate windows.
 - The file tree re-fetches on tab switch (v1); viewer/secrets/git restore from
   cache instantly. Tree caching is a later polish.
 - Split-view (two projects visible at once) is DEFERRED (the "Tabs + split" option).
