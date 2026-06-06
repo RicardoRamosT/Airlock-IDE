@@ -18,21 +18,22 @@ export function App() {
   useMenuActions();
   const modal = useApp((s) => s.modal);
   const activeTabId = useApp((s) => s.activeTabId);
-  const splitTabId = useApp((s) => s.splitTabId);
+  const split = useApp((s) => s.split);
+  // Show the split ONLY when the focused tab is a member of the pair: switching
+  // to a non-pair tab hides the split (the pair persists in `split`), switching
+  // back to a member shows it again. Left = a (primary), right = b (secondary);
+  // the focused pane (=== activeTabId) drives the agent / window title.
+  const showSplit =
+    split !== null && (activeTabId === split.a || activeTabId === split.b);
   return (
     <TerminalSlotsProvider>
       <div className="app-shell">
         <TitleBar />
         <ProjectTabs />
-        {/* The content row: one ProjectPane (single, focused -- identical to the
-            pre-split layout) or two side by side when splitTabId is set. Each
-            pane is a full project view scoped to its tab via ProjectPaneContext.
-            The focused pane (tabId === activeTabId) is the left one and drives
-            the agent / window title. */}
-        {splitTabId ? (
+        {showSplit && split ? (
           <div className="project-split">
-            <ProjectPane tabId={activeTabId} focused />
-            <ProjectPane tabId={splitTabId} focused={false} />
+            <ProjectPane tabId={split.a} focused={activeTabId === split.a} />
+            <ProjectPane tabId={split.b} focused={activeTabId === split.b} />
           </div>
         ) : (
           <ProjectPane tabId={activeTabId} focused />

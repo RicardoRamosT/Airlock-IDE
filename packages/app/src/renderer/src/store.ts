@@ -126,7 +126,7 @@ interface AppState {
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
   activeTabId: string; // non-null (FOCUSED pane): the window always has >= 1 tab
-  splitTabId: string | null; // the tab in the second pane (null = single pane)
+  split: { a: string; b: string } | null; // the split PAIR (a=left/primary, b=right/secondary); null = no split. Shown iff activeTabId is a or b.
   tabState: Record<string, ProjectState>; // SOURCE OF TRUTH: per-project state for EVERY tab
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
@@ -172,8 +172,8 @@ interface AppState {
   setShowRunningProcessNotice: (v: boolean) => void;
 
   // --- Split actions ---
-  toggleProjectSplit: () => void; // open/close the second pane (picks a neighbor)
-  setSplitTab: (id: string) => void; // assign the right pane to tab id
+  toggleProjectSplit: () => void; // un-split if the split is showing, else split the active tab with a NEW blank secondary
+  splitActiveWith: (partnerId: string) => void; // split active (primary) + partnerId (secondary); blank secondary if partnerId is the active tab / unknown
 
   // --- Per-project setters ---
   // Each updates tabState[tabId] (default = the ACTIVE tab) and mirrors to the
@@ -328,10 +328,10 @@ export const useApp = create<AppState>((set) => ({
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
   // working terminal, so a default shell can spawn before any folder is opened.
-  // tabState is the source of truth (one entry per tab); splitTabId starts null.
+  // tabState is the source of truth (one entry per tab); split starts null.
   tabs: [{ id: INITIAL_TAB_ID, root: null }],
   activeTabId: INITIAL_TAB_ID,
-  splitTabId: null,
+  split: null,
   tabState: { [INITIAL_TAB_ID]: freshProjectState(null) },
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   sessionWorking: {},
@@ -437,22 +437,20 @@ export const useApp = create<AppState>((set) => ({
     // The active tab's root was swapped -> the open-roots set changed.
     reportOpenRoots(useApp.getState().tabs);
   },
-  // Focus tab id (clicking a tab OR a pane). The mirror just re-points at the
-  // newly-focused tab's tabState entry (no parking -- every tab's state is
-  // always live). Mirrors the terminal-split swap:
-  //  - clicking the SPLIT pane swaps the two panes so activeTabId stays focused;
-  //  - clicking a THIRD tab replaces the active (focused) pane, split unchanged.
+  // Focus tab id (clicking a tab OR a pane). Every tab's state is always live in
+  // tabState, so this just re-points the top-level mirror at the focused tab. It
+  // does NOT touch `split`: the pair persists, and the layout shows the split iff
+  // the focused tab is a member of the pair -- so focusing a non-pair tab HIDES
+  // the split (it stays in the strip) and focusing a pair member shows it again.
   switchTab: (id) => {
     set((s) => {
       if (id === s.activeTabId) return {};
       if (!s.tabs.some((t) => t.id === id)) return {}; // unknown id -> no-op
-      const splitTabId = id === s.splitTabId ? s.activeTabId : s.splitTabId;
       // Activating a tab dismisses its finished-glow (the user is now looking).
       const tabGlow = { ...s.tabGlow };
       delete tabGlow[id];
       return {
         activeTabId: id,
-        splitTabId,
         tabGlow,
         ...mirrorOf(s.tabState[id] ?? freshProjectState(null)),
       };
@@ -489,31 +487,36 @@ export const useApp = create<AppState>((set) => ({
       // Drop the closed tab's glow flag (cosmetic cleanup; no tab references it).
       const tabGlow = { ...s.tabGlow };
       delete tabGlow[id];
-      // Closing the RIGHT pane (split) un-splits.
-      let splitTabId = id === s.splitTabId ? null : s.splitTabId;
+      // Closing either member dissolves the split; the OTHER member stays a
+      // normal tab. otherId is the survivor, promoted when the closed tab was
+      // the focused one (so the survivor becomes the single view).
+      const pair = s.split;
+      const split = pair && (pair.a === id || pair.b === id) ? null : pair;
+      const otherId =
+        pair && pair.a === id ? pair.b : pair && pair.b === id ? pair.a : null;
 
       if (id !== s.activeTabId) {
         // Closing a background tab: active stays put, mirror unchanged.
-        return { tabs, tabState, tabTerminals, tabGlow, splitTabId };
+        return { tabs, tabState, tabTerminals, tabGlow, split };
       }
 
-      // Closing the active (focused) tab: promote a neighbor (prefer the
-      // previous tab, else the next).
-      const neighbor = tabs[idx - 1] ?? tabs[idx] ?? null;
-      if (neighbor) {
-        promotedRoot = neighbor.root; // may be null (blank neighbor)
-        clearMain = neighbor.root === null;
-        // A tab cannot be both panes: if the promoted neighbor is the current
-        // split pane, collapse the split.
-        if (neighbor.id === splitTabId) splitTabId = null;
+      // Closing the active (focused) tab: promote the surviving split member if
+      // there was one, else the tab-order neighbor (prev, then next).
+      const survivor = otherId
+        ? (tabs.find((t) => t.id === otherId) ?? null)
+        : null;
+      const promote = survivor ?? tabs[idx - 1] ?? tabs[idx] ?? null;
+      if (promote) {
+        promotedRoot = promote.root; // may be null (blank)
+        clearMain = promote.root === null;
         return {
           tabs,
           tabState,
           tabTerminals,
           tabGlow,
-          activeTabId: neighbor.id,
-          splitTabId,
-          ...mirrorOf(tabState[neighbor.id] ?? freshProjectState(null)),
+          split,
+          activeTabId: promote.id,
+          ...mirrorOf(tabState[promote.id] ?? freshProjectState(null)),
         };
       }
       // Closed the LAST tab -> open a fresh BLANK tab so the window keeps >= 1
@@ -527,7 +530,7 @@ export const useApp = create<AppState>((set) => ({
         tabTerminals: { [blankId]: emptyTabTerminals() },
         tabGlow: {},
         activeTabId: blankId,
-        splitTabId: null,
+        split: null,
         ...mirrorOf(blankState),
         modal: null,
       };
@@ -576,30 +579,51 @@ export const useApp = create<AppState>((set) => ({
     set({ showRunningProcessNotice }),
 
   // --- Split actions ---
-  // Toggle the second pane. If already split, collapse it (splitTabId -> null).
-  // Otherwise need >= 2 tabs: pick a neighbor (the tab AFTER the active one in
-  // `tabs`, else the one before, else any other tab) as the right pane. With
-  // < 2 tabs there is nothing to split with -> no-op.
-  toggleProjectSplit: () =>
+  // The split button. If the split is currently SHOWING (the active tab is a
+  // member of the pair), collapse it (split -> null; both tabs stay separate).
+  // Otherwise split the active tab (primary/left) with a brand-new BLANK
+  // secondary (right) and keep the active focused.
+  toggleProjectSplit: () => {
+    let added = false;
     set((s) => {
-      if (s.splitTabId !== null) return { splitTabId: null };
-      const idx = s.tabs.findIndex((t) => t.id === s.activeTabId);
-      const neighbor =
-        s.tabs[idx + 1] ??
-        s.tabs[idx - 1] ??
-        s.tabs.find((t) => t.id !== s.activeTabId) ??
-        null;
-      if (!neighbor) return {}; // < 2 tabs -> nothing to split with
-      return { splitTabId: neighbor.id };
-    }),
-  // Assign the right pane to a specific tab (must be a real tab and not the
-  // focused/active one -- a tab cannot occupy both panes).
-  setSplitTab: (id) =>
+      const showing =
+        s.split !== null &&
+        (s.split.a === s.activeTabId || s.split.b === s.activeTabId);
+      if (showing) return { split: null };
+      const b = newTabId();
+      added = true;
+      return {
+        tabs: [...s.tabs, { id: b, root: null }],
+        tabState: { ...s.tabState, [b]: freshProjectState(null) },
+        tabTerminals: { ...s.tabTerminals, [b]: emptyTabTerminals() },
+        split: { a: s.activeTabId, b },
+      };
+    });
+    if (added) reportOpenRoots(useApp.getState().tabs);
+  },
+  // Split the active tab (primary/left) with `partnerId` (secondary/right) -- the
+  // right-click "Split" path. If partnerId is the active tab or not a real tab,
+  // fall back to a fresh blank secondary (same as the button).
+  splitActiveWith: (partnerId) => {
+    let added = false;
     set((s) => {
-      if (id === s.activeTabId) return {};
-      if (!s.tabs.some((t) => t.id === id)) return {};
-      return { splitTabId: id };
-    }),
+      if (
+        partnerId !== s.activeTabId &&
+        s.tabs.some((t) => t.id === partnerId)
+      ) {
+        return { split: { a: s.activeTabId, b: partnerId } };
+      }
+      const b = newTabId();
+      added = true;
+      return {
+        tabs: [...s.tabs, { id: b, root: null }],
+        tabState: { ...s.tabState, [b]: freshProjectState(null) },
+        tabTerminals: { ...s.tabTerminals, [b]: emptyTabTerminals() },
+        split: { a: s.activeTabId, b },
+      };
+    });
+    if (added) reportOpenRoots(useApp.getState().tabs);
+  },
 
   // Thin adapter so existing callers (Sidebar / menu open-folder / open-recent)
   // keep working. Routes a string root by the ACTIVE tab; null closes the active

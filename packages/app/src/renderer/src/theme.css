@@ -252,6 +252,19 @@ body,
   color: var(--accent);
 }
 
+/* Push the split toggle to the FAR RIGHT of the strip (above the terminal split
+   button); the + stays right after the tabs. */
+.project-split-toggle {
+  margin-left: auto;
+}
+
+/* The combined split-pair tab shows both project names with a dim separator. */
+.project-tab-pair-sep {
+  margin: 0 4px;
+  color: var(--fg-dim);
+  opacity: 0.7;
+}
+
 .statusbar {
   display: flex;
   justify-content: space-between;

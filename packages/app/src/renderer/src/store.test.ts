@@ -81,7 +81,7 @@ describe("initial state", () => {
     // activeTabId is a non-null string pointing at that blank tab; no split.
     expect(s.activeTabId).toBe(id);
     expect(typeof s.activeTabId).toBe("string");
-    expect(s.splitTabId).toBeNull();
+    expect(s.split).toBeNull();
 
     // top-level per-project state is the no-folder state (mirror of tabState)
     expect(s.root).toBeNull();
@@ -377,7 +377,7 @@ describe("closeTab", () => {
     expect(s.tabs[0]?.root).toBeNull();
     expect(s.activeTabId).toBe(blankId);
     expect(s.root).toBeNull();
-    expect(s.splitTabId).toBeNull();
+    expect(s.split).toBeNull();
     // the fresh blank tab has an empty terminal set; closed tab's maps gone
     expect(tt(blankId)).toEqual(EMPTY);
     expect(s.tabTerminals[aId]).toBeUndefined();
@@ -469,132 +469,98 @@ describe("setRoot dispatch (tabs vs windows mode)", () => {
   });
 });
 
-describe("project split + focus", () => {
-  it("toggleProjectSplit picks a neighbor as splitTabId and toggles off", () => {
+describe("project split + focus (pair model)", () => {
+  it("toggleProjectSplit splits the active tab with a NEW blank secondary, then un-splits", () => {
     get().openProject("/a"); // tabs: [blank, /a], active /a
     const aId = tabIdAt(1);
+    const before = get().tabs.length;
 
     get().toggleProjectSplit();
-    // active is the last tab, so the neighbor is the one BEFORE it (the blank).
-    const blankId = tabIdAt(0);
-    expect(get().splitTabId).toBe(blankId);
-    expect(get().activeTabId).toBe(aId); // focus unchanged
+    const s = get();
+    expect(s.split?.a).toBe(aId); // active is the primary (left)
+    expect(s.tabs.length).toBe(before + 1); // a new blank secondary was added
+    const bId = s.split?.b;
+    expect(s.tabs.some((t) => t.id === bId && t.root === null)).toBe(true);
+    expect(s.activeTabId).toBe(aId); // focus unchanged (still primary)
 
-    get().toggleProjectSplit();
-    expect(get().splitTabId).toBeNull();
+    get().toggleProjectSplit(); // showing the split -> un-split
+    expect(get().split).toBeNull();
   });
 
-  it("toggleProjectSplit is a no-op with only one tab", () => {
-    // initial state: a single blank tab
-    get().toggleProjectSplit();
-    expect(get().splitTabId).toBeNull();
+  it("splitActiveWith pairs the active (primary) with a given tab; blank fallback otherwise", () => {
+    get().openProject("/a");
+    get().openProject("/b"); // active /b
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+
+    get().splitActiveWith(aId);
+    expect(get().split).toEqual({ a: bId, b: aId }); // active=b primary, a secondary
+    expect(get().tabs).toHaveLength(3); // no new tab
+
+    // splitActiveWith(active) -> a fresh blank secondary, not an existing tab
+    get().splitActiveWith(bId);
+    const s = get();
+    expect(s.split?.a).toBe(bId);
+    expect(s.split?.b).not.toBe(aId);
+    expect(s.tabs).toHaveLength(4); // a blank was added
   });
 
-  it("toggleProjectSplit prefers the tab AFTER the active one", () => {
+  it("switchTab to a non-pair tab hides the split (pair persists); to a member shows it", () => {
     get().openProject("/a");
     get().openProject("/b");
-    get().openProject("/c");
+    get().openProject("/c"); // active /c
     const aId = tabIdAt(1);
     const bId = tabIdAt(2);
     const cId = tabIdAt(3);
 
-    // focus the middle tab, then split -> neighbor is the one AFTER it (/c)
+    get().splitActiveWith(aId); // split = { a: c, b: a }, active c
+    expect(get().split).toEqual({ a: cId, b: aId });
+
+    // switch to a NON-pair tab (b): split persists, active=b, mirror=/b
     get().switchTab(bId);
+    expect(get().split).toEqual({ a: cId, b: aId }); // unchanged (no swap)
     expect(get().activeTabId).toBe(bId);
-    get().toggleProjectSplit();
-    expect(get().splitTabId).toBe(cId);
-    // (aId is the tab before; the after-tab is preferred)
-    expect(get().splitTabId).not.toBe(aId);
-  });
+    expect(get().root).toBe("/b");
 
-  it("setSplitTab assigns the right pane; rejects the active tab + unknown ids", () => {
-    get().openProject("/a");
-    get().openProject("/b");
-    const aId = tabIdAt(1);
-    const bId = tabIdAt(2); // active
-
-    get().setSplitTab(aId);
-    expect(get().splitTabId).toBe(aId);
-
-    // assigning the active tab is rejected (a tab cannot be both panes)
-    get().setSplitTab(bId);
-    expect(get().splitTabId).toBe(aId);
-
-    // unknown id is rejected
-    get().setSplitTab("nope");
-    expect(get().splitTabId).toBe(aId);
-  });
-
-  it("switchTab(splitTabId) SWAPS the active and split panes", () => {
-    get().openProject("/a");
-    get().openProject("/b");
-    const aId = tabIdAt(1);
-    const bId = tabIdAt(2); // active
-
-    get().setSplitTab(aId); // panes: active=b, split=a
-    expect(get().activeTabId).toBe(bId);
-    expect(get().splitTabId).toBe(aId);
-
-    // clicking the split pane (a) focuses it; b moves into the split slot
+    // switch back to a pair member (a): active=a, split unchanged
     get().switchTab(aId);
+    expect(get().split).toEqual({ a: cId, b: aId });
     expect(get().activeTabId).toBe(aId);
-    expect(get().splitTabId).toBe(bId);
-    // mirror follows the newly-focused pane
     expect(get().root).toBe("/a");
   });
 
-  it("switchTab(third tab) replaces the active pane, split unchanged", () => {
-    get().openProject("/a");
-    get().openProject("/b");
-    get().openProject("/c");
-    const aId = tabIdAt(1);
-    const bId = tabIdAt(2);
-    const cId = tabIdAt(3); // active
-
-    get().setSplitTab(aId); // panes: active=c, split=a
-    expect(get().activeTabId).toBe(cId);
-    expect(get().splitTabId).toBe(aId);
-
-    // focusing a THIRD tab (b) replaces the active pane; split stays a
-    get().switchTab(bId);
-    expect(get().activeTabId).toBe(bId);
-    expect(get().splitTabId).toBe(aId);
-  });
-
-  it("closeTab(splitTabId) clears splitTabId (closing the right pane un-splits)", () => {
+  it("closeTab the ACTIVE pair member dissolves the split + promotes the survivor", () => {
     get().openProject("/a");
     get().openProject("/b");
     const aId = tabIdAt(1);
     const bId = tabIdAt(2); // active
 
-    get().setSplitTab(aId); // panes: active=b, split=a
-    expect(get().splitTabId).toBe(aId);
+    get().splitActiveWith(aId); // split = { a: b, b: a }, active b
+    expect(get().split).toEqual({ a: bId, b: aId });
 
-    get().closeTab(aId); // close the right (background) pane
+    get().closeTab(bId); // close the active member -> promote the survivor a
     const s = get();
-    expect(s.splitTabId).toBeNull();
-    // a was a background tab -> active stays b, mirror unchanged
-    expect(s.activeTabId).toBe(bId);
-    expect(s.root).toBe("/b");
-    expect(s.tabState[aId]).toBeUndefined();
-  });
-
-  it("closeTab(active) promoting the split neighbor clears splitTabId", () => {
-    get().openProject("/a");
-    get().openProject("/b");
-    const aId = tabIdAt(1);
-    const bId = tabIdAt(2); // active
-
-    get().setSplitTab(aId); // panes: active=b, split=a
-    expect(get().splitTabId).toBe(aId);
-
-    // closing b (active) promotes the previous neighbor a -- which is the split
-    // pane -- so a tab cannot be both panes: splitTabId collapses to null.
-    get().closeTab(bId);
-    const s = get();
+    expect(s.split).toBeNull();
     expect(s.activeTabId).toBe(aId);
-    expect(s.splitTabId).toBeNull();
     expect(s.root).toBe("/a");
+    expect(s.tabState[bId]).toBeUndefined();
+  });
+
+  it("closeTab a NON-active pair member dissolves the split, active unchanged", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    get().openProject("/c"); // active /c
+    const aId = tabIdAt(1);
+    const cId = tabIdAt(3);
+
+    get().splitActiveWith(aId); // split = { a: c, b: a }, active c
+    expect(get().split).toEqual({ a: cId, b: aId });
+
+    get().closeTab(aId); // a is the non-active (secondary) member
+    const s = get();
+    expect(s.split).toBeNull();
+    expect(s.activeTabId).toBe(cId); // active unchanged
+    expect(s.tabState[aId]).toBeUndefined();
   });
 });
 
