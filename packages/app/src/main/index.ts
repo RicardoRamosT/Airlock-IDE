@@ -1,11 +1,13 @@
 import path from "node:path";
 import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
+import { activityStatus, addDismissedActivity } from "./activity";
 import {
   registerAgentRequestIpc,
   requestSecretFromUser,
 } from "./agent-requests";
 import {
+  broadcastActivityChanged,
   getTerminalTail,
   killAllSessions,
   listTerminals,
@@ -133,6 +135,15 @@ function bootstrap(): void {
       requestSecretFromUser,
       getTerminalTail,
       listTerminals,
+      // activityStatus self-filters dismissed ids, so the read tool reflects
+      // dismissals automatically (same list the sidebar shows).
+      getActivity: (root) => activityStatus(root),
+      // Reuse B1's dismiss path: add the id + broadcast so an agent dismiss
+      // updates every window's Activity panel live, exactly like activity:dismiss.
+      dismissActivity: (entryId) => {
+        addDismissedActivity(entryId);
+        broadcastActivityChanged();
+      },
       token,
     }).catch((e) => {
       console.error(

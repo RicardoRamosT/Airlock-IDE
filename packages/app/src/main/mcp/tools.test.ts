@@ -3,7 +3,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it, vi } from "vitest";
-import type { Section, SectionVisibility } from "../../shared/ipc";
+import type {
+  ActivityItem,
+  Section,
+  SectionVisibility,
+} from "../../shared/ipc";
 import { SECTIONS } from "../prefs";
 import { registerTools, TOOL_NAMES } from "./tools";
 
@@ -48,21 +52,25 @@ const baseDeps = {
     async () => ({ tail: "" }) as { tail: string } | { error: string },
   ),
   listTerminals: vi.fn(async () => [] as { id: string; preview: string }[]),
+  getActivity: vi.fn(async () => [] as ActivityItem[]),
+  dismissActivity: vi.fn((_entryId: string) => {}),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twelve v1 tools. A 13th tool (e.g. a future secret-value drill-down) or a
-  // removed one fails this immediately.
-  it("registers exactly the twelve allowlisted tools and nothing else", () => {
+  // fourteen allowlisted tools. A 15th tool (e.g. a future secret-value
+  // drill-down) or a removed one fails this immediately.
+  it("registers exactly the fourteen allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(12);
+    expect(registered).toHaveLength(14);
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
+    expect(registered).toContain("activity_status");
+    expect(registered).toContain("dismiss_activity");
   });
 
   it("registers no duplicate tool names", () => {
@@ -314,5 +322,90 @@ describe("get_terminal_tail tool", () => {
     };
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toBe("No such terminal");
+  });
+});
+
+describe("activity_status tool", () => {
+  // Build the tool against a deps object whose getWorkspaceRoot/getActivity are
+  // spies, so each test can assert what the read forwarded and returned.
+  function getActivityTool(deps: typeof baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const tool = tools.find((t) => t.name === "activity_status");
+    if (!tool) throw new Error("activity_status tool not registered");
+    return tool;
+  }
+
+  it("declares an empty input schema (no args)", () => {
+    const tool = getActivityTool(baseDeps);
+    expect(tool.config.inputSchema).toEqual({});
+  });
+
+  it("returns the items from deps.getActivity, passing the workspace root", async () => {
+    const items: ActivityItem[] = [
+      {
+        id: "ci:abc123",
+        kind: "ci",
+        title: "CI",
+        subtitle: "main",
+        state: "running",
+        progress: { kind: "indeterminate" },
+      },
+    ];
+    const getActivity = vi.fn(async () => items);
+    const tool = getActivityTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      getActivity,
+    });
+    const res = (await tool.handler({})) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    // activity_status handles a null root itself (like render_services), so it
+    // forwards the root verbatim rather than short-circuiting on no workspace.
+    expect(getActivity).toHaveBeenCalledWith("/repo");
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual(items);
+  });
+
+  it("forwards a null root (no folder open) without erroring", async () => {
+    const getActivity = vi.fn(async () => [] as ActivityItem[]);
+    const tool = getActivityTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => null,
+      getActivity,
+    });
+    const res = (await tool.handler({})) as { isError?: boolean };
+    expect(getActivity).toHaveBeenCalledWith(null);
+    expect(res.isError).toBeUndefined();
+  });
+});
+
+describe("dismiss_activity tool", () => {
+  function getDismissTool(deps: typeof baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const tool = tools.find((t) => t.name === "dismiss_activity");
+    if (!tool) throw new Error("dismiss_activity tool not registered");
+    return tool;
+  }
+
+  it("declares the entryId input schema", () => {
+    const tool = getDismissTool(baseDeps);
+    expect(tool.config.inputSchema).toBeDefined();
+    expect(tool.config.inputSchema?.entryId).toBeDefined();
+  });
+
+  it("calls deps.dismissActivity with the entryId and echoes it back", async () => {
+    const dismissActivity = vi.fn((_entryId: string) => {});
+    const tool = getDismissTool({ ...baseDeps, dismissActivity });
+    const res = (await tool.handler({ entryId: "ci:abc123" })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(dismissActivity).toHaveBeenCalledWith("ci:abc123");
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual({ dismissed: "ci:abc123" });
   });
 });

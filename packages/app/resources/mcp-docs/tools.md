@@ -1,12 +1,12 @@
 # MCP tools
 
-airlock exposes 12 tools over this MCP server. Eight are **read-only status** tools; one
-(`set_sidebar_section_visibility`) drives the sidebar UI; one (`run_command`) runs a shell
-command with named vaulted secrets injected and the output returned with those values
-**redacted**; one (`request_secret`) asks the user to vault a secret you need (you get back
-only whether it was vaulted, never the value); one (`get_terminal_tail`) reads a terminal
-tab's recent output, with every vaulted secret value **redacted**. **None returns a secret
-value.**
+airlock exposes 14 tools over this MCP server. Nine are **read-only status** tools; two
+curate the UI (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
+an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
+injected and the output returned with those values **redacted**; one (`request_secret`) asks
+the user to vault a secret you need (you get back only whether it was vaulted, never the
+value); one (`get_terminal_tail`) reads a terminal tab's recent output, with every vaulted
+secret value **redacted**. **None returns a secret value.**
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
 yet; the app-global tools work regardless.
@@ -29,6 +29,12 @@ yet; the app-global tools work regardless.
   Use it before reasoning about Neon databases.
 - **`render_services`** — the Render services with deploy state (filtered to this repo when
   a folder is open and its origin matches). Use it to check deploy status vs local HEAD.
+- **`activity_status`** — the focused project's Activity feed: in-progress CI runs, Render
+  deploys, and transitional Docker containers, each with its state and a **stable entry id**.
+  This is the same list the Activity panel shows (`sidebar-activity.md`) — status metadata
+  only (titles, states, branches, urls), never a secret value. App-global: CI is skipped when
+  no folder is open; Render/Docker still report. Use it to watch live build/deploy/container
+  progress, and to get the entry ids you pass to `dismiss_activity`.
 
 ## Status reads — workspace-rooted (need an open folder)
 
@@ -109,11 +115,24 @@ yet; the app-global tools work regardless.
       other windows are not visible here, and each window's tail is redacted against
       that window's own vaulted secrets.
 
+## Curating the Activity feed
+
+- **`dismiss_activity`** — hide one Activity entry by its **id** (the `id` field from
+  `activity_status`, e.g. `ci:<sha>`, `render:<id>`, `docker:<id>`). Arg: `entryId`. It
+  removes that entry from the Activity panel for everyone (the dismissed set is app-global,
+  in-memory) and the UI updates live. Use it to clear a finished or no-longer-interesting
+  row — a passed CI run, a completed deploy — so the panel shows only what still matters.
+  Dismissal is **not sticky to new work**: a later run/deploy/container gets a **new id** and
+  reappears, and the set is **not persisted** across an app restart. Call `activity_status`
+  first to get the id; the id is opaque and carries no secret value.
+
 ## Picking a tool
 
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
 - "Is X set up / reachable?" → the matching status read (`database_status`, `host_status`,
   `docker_status`, `render_services`, `neon_status`).
+- "What is building / deploying right now?" → `activity_status` (the live CI/deploy/container
+  feed with entry ids); to clear a finished row from the panel, `dismiss_activity` with its id.
 - "What does this project use?" → `list_secret_names` + the status reads together paint the
   picture (e.g. a `postgres-url` secret + a reachable DB ⇒ surface Databases).
 - "Run something that needs a credential" → `run_command` with the secret **names** in

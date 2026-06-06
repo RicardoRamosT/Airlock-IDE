@@ -1,7 +1,7 @@
 // The airlock IDE "manual" exposed as MCP resources: the markdown files under
 // resources/mcp-docs/ are registered one-per-file so the terminal Claude can
 // read about the IDE (its panes, the sidebar sections + when each is useful, the
-// 9 tools, and the no-secrets security model) via resources/list + resources/read.
+// tool set, and the no-secrets security model) via resources/list + resources/read.
 //
 // These are pure docs -- read-only text, no secret values, no app state. The
 // content lives in .md files (NOT bundled into this JS), so only this loader is

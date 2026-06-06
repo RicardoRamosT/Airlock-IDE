@@ -1,8 +1,9 @@
-// The v1 airlock MCP tool set: read-status tools, the UI-control tool, the
-// command runner, and the request-secret prompt. Every tool is a THIN wrapper
-// over the shared read layer (main/ide-state), main/menu's
-// changeSectionVisibility, or an injected resolver -- there is no business logic
-// here, only argument plumbing and the SDK result shape.
+// The airlock MCP tool set: read-status tools, the UI-curate tools (sidebar
+// visibility + activity dismiss), the command runner, and the request-secret
+// prompt. Every tool is a THIN wrapper over the shared read layer
+// (main/ide-state), the activity feed, main/menu's changeSectionVisibility, or an
+// injected resolver -- there is no business logic here, only argument plumbing
+// and the SDK result shape.
 //
 // SECURITY INVARIANT (enforced by tools.test.ts): no tool returns a secret
 // value. This module imports ONLY ide-state read functions + the visibility
@@ -18,13 +19,17 @@
 import { runCommand } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { Section, SectionVisibility } from "../../shared/ipc";
+import type {
+  ActivityItem,
+  Section,
+  SectionVisibility,
+} from "../../shared/ipc";
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
 import { SECTIONS } from "../prefs";
 
 // The exact, locked v1 tool set. tools.test.ts asserts the registered names
-// equal this list, so a 12th tool or a missing one fails the allowlist guard.
+// equal this list, so a 15th tool or a missing one fails the allowlist guard.
 export const TOOL_NAMES: string[] = [
   "list_sidebar_sections",
   "set_sidebar_section_visibility",
@@ -38,6 +43,8 @@ export const TOOL_NAMES: string[] = [
   "run_command",
   "request_secret",
   "get_terminal_tail",
+  "activity_status",
+  "dismiss_activity",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -56,6 +63,14 @@ export interface ToolDeps {
     lines: number,
   ) => Promise<{ tail: string } | { error: string }>;
   listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  // The focused project's Activity feed (CI/Render/Docker), already filtered of
+  // dismissed ids (activityStatus self-filters). Status metadata only -- no
+  // secret values, consistent with the other status reads.
+  getActivity: (root: string | null) => Promise<ActivityItem[]>;
+  // Dismiss an Activity entry by id: add it to the app-global dismissed set and
+  // broadcast so the UI refetches the filtered feed live. Carries an opaque id,
+  // never a secret value. Sync (it mutates the in-memory set + fans out).
+  dismissActivity: (entryId: string) => void;
   changeVisibility?: (
     prefsFile: string,
     id: Section,
@@ -120,7 +135,21 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     async () => ok(await ide.renderServicesStatus(deps.getWorkspaceRoot())),
   );
 
-  // --- The single UI-control tool ----------------------------------------
+  // The aggregated Activity feed. Like render_services it handles a null root
+  // itself (CI is skipped with no folder; render/docker still report), and the
+  // dep self-filters dismissed ids so this read reflects dismissals. Returns the
+  // same ActivityItem[] the sidebar shows -- status metadata only, no secrets.
+  mcp.registerTool(
+    "activity_status",
+    {
+      description:
+        "List the Activity feed for the focused project: in-progress CI runs, Render deploys, and Docker containers, with their state and a stable entry id. Status metadata only -- no secret values.",
+      inputSchema: {},
+    },
+    async () => ok(await deps.getActivity(deps.getWorkspaceRoot())),
+  );
+
+  // --- The UI-control / curate tools -------------------------------------
 
   mcp.registerTool(
     "set_sidebar_section_visibility",
@@ -139,6 +168,23 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
         return err(`Unknown section: ${section}`);
       }
       return ok(await changeVisibility(deps.prefsFile, section, visible));
+    },
+  );
+
+  // Curate the Activity feed: hide one entry by its id (from activity_status).
+  // The dep adds the id to the app-global dismissed set and broadcasts, so the
+  // UI updates live exactly like the activity:dismiss IPC path. The id is opaque
+  // ("ci:<sha>" / "render:<id>" / "docker:<id>") -- no secret value crosses here.
+  mcp.registerTool(
+    "dismiss_activity",
+    {
+      description:
+        "Dismiss an Activity entry by its id (from activity_status) so it disappears from the Activity panel. A later run/deploy with a new id reappears.",
+      inputSchema: { entryId: z.string() },
+    },
+    async ({ entryId }) => {
+      deps.dismissActivity(entryId);
+      return ok({ dismissed: entryId });
     },
   );
 

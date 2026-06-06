@@ -22,9 +22,10 @@ the latest CI run for the branch (in progress, or its most recent passed/failed
 result), plus any Render deploy that is mid-build and any container that is still
 starting/restarting — so when there is no such work it shows "Nothing active"
 (Render services that are live and containers that are simply running are not
-listed; they are not in-progress). There is no separate MCP status tool for it in
-v1; it is a human-facing panel. Like the other sections it is toggleable —
-`set_sidebar_section_visibility` accepts `activity`.
+listed; they are not in-progress). You can read this same feed over MCP with
+`activity_status` and hide an entry with `dismiss_activity` (see `tools.md` →
+"Observing the Activity feed" and "Curating the Activity feed"). Like the other
+sections it is toggleable — `set_sidebar_section_visibility` accepts `activity`.
 
 ## When it's useful
 Useful for any project with a pipeline worth watching live — one with GitHub Actions

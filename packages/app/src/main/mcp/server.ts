@@ -28,6 +28,7 @@ import {
 } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { ActivityItem } from "../../shared/ipc";
 import { savePrefs } from "../prefs";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
@@ -45,6 +46,8 @@ export interface McpDeps {
     lines: number,
   ) => Promise<{ tail: string } | { error: string }>;
   listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  getActivity: (root: string | null) => Promise<ActivityItem[]>;
+  dismissActivity: (entryId: string) => void;
   token: string;
 }
 
@@ -67,8 +70,8 @@ const MAX_BODY_BYTES = 4 * 1024 * 1024;
 // Called PER REQUEST: the stateless SDK transport cannot be reused, so each request
 // gets its own server connected to its own transport. registerTools is the SAME
 // allowlist-locked registration used everywhere (tools.test.ts asserts it stays at
-// exactly the twelve v1 tools and that none returns a secret value), so the security
-// invariant holds identically on every per-request server.
+// exactly the fourteen allowlisted tools and that none returns a secret value), so the
+// security invariant holds identically on every per-request server.
 function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
   const mcp = new McpServer({ name: "airlock", version: "1.0.0" });
 
@@ -82,6 +85,8 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     requestSecretFromUser: deps.requestSecretFromUser,
     getTerminalTail: deps.getTerminalTail,
     listTerminals: deps.listTerminals,
+    getActivity: deps.getActivity,
+    dismissActivity: deps.dismissActivity,
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list
