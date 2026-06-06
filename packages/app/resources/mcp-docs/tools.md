@@ -53,10 +53,11 @@ yet; the app-global tools work regardless.
   credential to work: a `psql`/migration against `DATABASE_URL`, a `curl` that needs an API
   key, a script that reads a token from its env. You name the secret; **airlock injects the
   value main-side, you never see it**, and if the command echoes it — literally, or in a
-  common single-shot encoding (base64/base64url/hex/percent-encoding) — the output comes
+  common single-shot encoding (base64/base64url/hex/base32/percent-encoding) — the output comes
   back redacted (`***`). (Not a wall against a determined process: an arbitrary transform
-  it applies once it holds the value — reverse, split, base32, gzip, char-by-char,
-  double-encode — can still slip; the structural guarantee is that no tool returns a raw
+  it applies once it holds the value — reverse, split, gzip, char-by-char, or nested/
+  double-encode (the encoding passes are single-layer, decoding a run once, not recursively)
+  — can still slip; the structural guarantee is that no tool returns a raw
   value.) **Fail-closed:** if a requested name isn't vaulted, the command does **not** run
   and you get a clean error naming the missing secret (the name is safe; a value never is).
   **Every run is audited** (`command.run` — the command and the secret *names*, never the
@@ -86,7 +87,7 @@ yet; the app-global tools work regardless.
     running in another tab: a dev server's errors, a build/test run, log output.
   - **Secret values are redacted.** Every vaulted secret value is matched and replaced
     with `***` before the text reaches you — its literal form *and* its common single-shot
-    encodings (base64/base64url/hex/percent-encoding) — same redactor as `run_command`.
+    encodings (base64/base64url/hex/base32/percent-encoding) — same redactor as `run_command`.
   - **Honest limits — read before you rely on it:**
     - **Great for logs / errors / build output;** APPROXIMATE for full-screen TUIs
       (vim, htop, cursor-addressed UIs). airlock strips ANSI escapes and collapses
@@ -94,9 +95,10 @@ yet; the app-global tools work regardless.
       redrawing TUI reads only roughly.
     - **Redaction is defense-in-depth, not a wall** (same as `run_command`). It catches
       a secret's literal value and its common single-shot encodings (base64/base64url/
-      hex/percent-encoding), but **not** an arbitrary transform applied before it hit the
-      terminal — reversed, split across lines, base32, gzipped, printed char-by-char,
-      encrypted, or double-encoded. Treat the tail as helper context, not a hardened
+      hex/base32/percent-encoding), but **not** an arbitrary transform applied before it hit
+      the terminal — reversed, split across lines, gzipped, printed char-by-char, encrypted,
+      or nested/double-encoded (e.g. base64 of base64; the encoding passes are single-layer,
+      not recursive). Treat the tail as helper context, not a hardened
       channel; the structural guarantee is that no tool returns a raw value.
     - **Your OWN terminal appears in the list.** airlock can't distinguish the PTY
       you're running in from the user's other tabs, so your own terminal shows up —

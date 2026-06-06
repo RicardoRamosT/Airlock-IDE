@@ -36,13 +36,15 @@ holds. You name the secrets you need (`injectSecrets`, names from `list_secret_n
 environment of a dedicated child process for that single command. Before the output is
 handed back to you it is run through airlock's redactor: **every injected value is
 matched and replaced with `***`** — its literal form *and* its common single-shot
-encodings (base64, base64url, hex, percent/URL-encoding), plus a defense-in-depth
+encodings (base64, base64url, hex, base32, percent/URL-encoding), plus a defense-in-depth
 pattern pass for secret-shaped strings — in both stdout and stderr. So even a command
-that deliberately `echo`s the secret (or base64/hex-encodes it once) comes back
+that deliberately `echo`s the secret (or base64/hex/base32-encodes it once) comes back
 redacted — **you use the secret, you never see it.** (Honest limit: this is not a wall
 against a determined process. Something that *holds* the value can still disguise it
 with an arbitrary transform the filter can't anticipate — reversing it, splitting it
-across lines, base32, gzip, char-by-char printing, encryption, double-encoding. That is
+across lines, gzip, char-by-char printing, encryption, or nested/double-encoding (e.g.
+base64 of base64 -- the encoding passes are single-layer, decoding a run once without
+re-scanning for a further layer). That is
 inherent; the redactor closes the casual/accidental cases. The real guarantee is
 structural — see below.)
 
@@ -73,7 +75,7 @@ same boundary the rest of airlock does:
 
 - **Value-redacted.** Before any tail (or list preview) reaches you, **all vaulted secret
   values** are matched and replaced with `***` — their literal form *and* their common
-  single-shot encodings (base64/base64url/hex/percent-encoding) — not just an injected
+  single-shot encodings (base64/base64url/hex/base32/percent-encoding) — not just an injected
   subset, because *any* vaulted value could have scrolled past in that terminal. Same
   redactor as `run_command`.
 - **Audited, ids/counts only.** Each read appends a `terminal.read` audit entry recording
@@ -86,9 +88,10 @@ same boundary the rest of airlock does:
 It is your **first capability to observe the user's session**, but it lives under the *same*
 redact + audit boundary as everything else — you can see what the user is running, never the
 secret values inside it. (Honest limit, same as `run_command`: redaction now catches a
-value's literal form *and* its common single-shot encodings (base64/hex/url), but **not**
-an arbitrary transform applied before it hit the terminal — reversed, split across lines,
-base32, gzipped, printed char-by-char, encrypted, or double-encoded. The structural
+value's literal form *and* its common single-shot encodings (base64/base64url/hex/base32/url),
+but **not** an arbitrary transform applied before it hit the terminal — reversed, split across
+lines, gzipped, printed char-by-char, encrypted, or nested/double-encoded (e.g. base64 of
+base64; the encoding passes are single-layer, not recursive). The structural
 guarantee is what holds: no tool returns a raw value, and inject-into-terminal defaults
 OFF. Treat the tail as helper context, not a hardened channel.)
 

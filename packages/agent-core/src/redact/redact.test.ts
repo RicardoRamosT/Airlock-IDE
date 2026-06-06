@@ -113,6 +113,21 @@ describe("redactSecrets - encoded forms", () => {
     expect(redactSecrets(`v=${hex}`, [SECRET])).toContain("***");
   });
 
+  it("redacts base32 of the value", () => {
+    // base32 of "testtesttest" (RFC 4648, uppercase). Verified by roundtrip:
+    // node decode of this string yields "testtesttest".
+    const b32 = "ORSXG5DUMVZXI5DFON2A";
+    const out = redactSecrets(`v=${b32}`, [SECRET]);
+    expect(out).not.toContain(b32);
+    expect(out).toContain("***");
+  });
+
+  it("does NOT over-redact an innocent uppercase base32-ish run", () => {
+    const innocent = "MAXBUFFERSIZECONSTANT2345"; // not the secret
+    const out = redactSecrets(`X=${innocent}`, [SECRET]);
+    expect(out).toContain(innocent);
+  });
+
   it("redacts the percent-encoded form", () => {
     const v = "p@ss/w&rd=1!"; // has chars that percent-encode
     const enc = encodeURIComponent(v);

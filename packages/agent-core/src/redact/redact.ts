@@ -20,6 +20,30 @@ function decodeBase64(run: string, urlSafe: boolean): Buffer | null {
   return buf.length > 0 ? buf : null;
 }
 
+// RFC 4648 base32 alphabet (uppercase). Node's Buffer has no base32, so decode
+// by hand: 5 bits per char, emit a byte whenever >= 8 bits are buffered. The
+// buffer is masked to the pending bits each step so it never overflows 32-bit.
+const B32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function decodeBase32(run: string): Buffer | null {
+  const clean = run.replace(/=+$/, "").toUpperCase();
+  if (clean.length === 0) return null;
+  let buffer = 0;
+  let bitsLeft = 0;
+  const out: number[] = [];
+  for (const ch of clean) {
+    const idx = B32_ALPHABET.indexOf(ch);
+    if (idx === -1) return null; // not valid base32
+    buffer = (buffer << 5) | idx;
+    bitsLeft += 5;
+    if (bitsLeft >= 8) {
+      bitsLeft -= 8;
+      out.push((buffer >> bitsLeft) & 0xff);
+      buffer &= (1 << bitsLeft) - 1;
+    }
+  }
+  return out.length > 0 ? Buffer.from(out) : null;
+}
+
 function containsAny(buf: Buffer, valueBufs: Buffer[]): boolean {
   for (const vb of valueBufs) {
     if (buf.includes(vb)) return true;
@@ -29,12 +53,14 @@ function containsAny(buf: Buffer, valueBufs: Buffer[]): boolean {
 
 // Encode-aware pass (defense-in-depth): a command that HAS a secret can print an
 // ENCODED form that exact-match redaction misses. We know each secret's value, so
-// we catch its common encodings -- base64/base64url/hex via decode-and-check
+// we catch its common encodings -- base64/base64url/hex/base32 via decode-and-check
 // (robust to alignment + trailing newlines), and percent-encoding via forward
-// match. This does NOT catch arbitrary transforms (reverse/split/gzip/custom) --
-// once a process holds a value it can emit it in unbounded disguises that no
-// output filter can fully catch. Only masks a run that DECODES to bytes
-// containing a secret, so innocent blobs are preserved.
+// match. This is SINGLE-LAYER only: a run is decoded once and checked; nested or
+// double-encoding (e.g. base64 of base64) is not unwrapped recursively. It also
+// does NOT catch arbitrary transforms (reverse/split/gzip/custom) -- once a
+// process holds a value it can emit it in unbounded disguises that no output
+// filter can fully catch. Only masks a run that DECODES to bytes containing a
+// secret, so innocent blobs are preserved.
 function redactEncoded(text: string, vals: string[]): string {
   // 4-char floor: shorter values base64/hex to runs too short to tell apart from
   // ordinary tokens, and the literal pass already masks them verbatim. Run-length
@@ -69,6 +95,14 @@ function redactEncoded(text: string, vals: string[]): string {
     const even = run.length % 2 === 0 ? run : run.slice(0, -1);
     const buf = Buffer.from(even, "hex");
     return buf.length > 0 && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
+  });
+
+  // base32 (RFC 4648, uppercase): runs of [A-Z2-7], decode, redact if they
+  // carry a secret. Same tier as base64 (ubiquitous `base32` CLI).
+  const b32min = Math.max(8, Math.ceil((minBytes * 8) / 5));
+  out = out.replace(new RegExp(`[A-Z2-7]{${b32min},}={0,6}`, "g"), (run) => {
+    const buf = decodeBase32(run);
+    return buf && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
   });
 
   // percent / URL-encoding: byte-local, so forward-encode + exact-match.
