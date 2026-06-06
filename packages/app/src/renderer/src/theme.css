@@ -1285,13 +1285,21 @@ textarea:focus-visible {
    container fills the terminal slot; each per-project slot also fills it and is
    hidden (display:none) when its project is not the active tab -- same pattern
    as .terminal-pane-slot.hidden, one level up. */
-/* TerminalManager's only in-flow DOM is this hidden keep-alive div: every tab's
-   ProjectTerminals is PORTALED out of TerminalManager into a pane's
-   .pane-terminal-slot, and tabs not in a visible pane portal into here. It is
-   display:none so it neither shows nor consumes an .app-shell grid row, while
-   keeping those tabs' TerminalPanes mounted (ptys alive). */
+/* TerminalManager portals each tab's ProjectTerminals into a STABLE per-tab host
+   node (.terminal-host-node); that node is then reparented (appendChild) into a
+   pane's .pane-terminal-slot, or into this hidden keep-alive when the tab is not
+   in a visible pane. Reparenting (vs re-targeting the portal) is what keeps the
+   ptys alive across split/switch. display:none keeps off-pane terminals mounted
+   without showing or consuming an .app-shell grid row. */
 .terminal-keepalive {
   display: none;
+}
+
+/* The stable per-tab host node. display:contents makes it layout-transparent, so
+   the .terminal-manager inside fills the pane slot exactly as a direct child
+   would (no extra box to size). */
+.terminal-host-node {
+  display: contents;
 }
 
 /* The portal target inside a ProjectPane's .main grid. It holds the portaled

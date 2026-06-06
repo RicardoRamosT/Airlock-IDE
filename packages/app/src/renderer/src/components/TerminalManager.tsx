@@ -1,49 +1,74 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
 import { useApp } from "../store";
 import { ProjectTerminals } from "./ProjectTerminals";
 
-// Renders EVERY tab's terminals at once -- one ProjectTerminals subtree per tab
-// -- and is mounted exactly ONCE at the app root (NOT inside a pane). Each
-// subtree is React-PORTALED into the element a ProjectPane registered for that
-// tab; tabs not currently in a visible pane portal into a single hidden
-// keep-alive <div> instead.
+// Renders EVERY tab's terminals once, mounted exactly ONCE at the app root, and
+// keeps them alive across split toggles / focus swaps / tab switches. A pty dies
+// only when its TerminalPane unmounts, so the terminals must NOT remount when the
+// layout changes.
 //
-// Keeping every tab's ProjectTerminals MOUNTED here is the whole point: a pty
-// dies only when its TerminalPane unmounts. The React elements live in THIS
-// component's stable tree forever; only their portal TARGET changes as split
-// toggles / focus swaps / tabs switch. The DOM nodes move between containers
-// (an element move, not a remount), so React never unmounts a TerminalPane and
-// the ptys survive. The window always has >= 1 tab (a blank tab covers the
-// no-folder state with a real id), so there is no implicit-tab special case.
-//
-// Each portal's content is wrapped in <ProjectPaneContext value={tabId}> so the
-// per-pane chrome inside ProjectTerminals (the running-process notice etc.)
-// resolves to the right tab when it renders into a split pane.
+// CRITICAL (this was a bug): React portals REMOUNT their children when the
+// portal's CONTAINER changes. So we must NOT re-point a single createPortal at
+// different pane slots -- doing that remounted ProjectTerminals on every split /
+// switch and killed the running terminal (closed Claude). Instead each tab gets
+// ONE stable detached host node; createPortal renders into THAT node (the
+// container never changes -> the content never remounts), and we relocate the
+// node between pane slots (or a hidden keep-alive) with appendChild -- a DOM
+// reparent that leaves the React tree untouched. (The react-reverse-portal
+// pattern, inlined.)
 export function TerminalManager() {
   const tabs = useApp((s) => s.tabs);
   const { slots } = useTerminalSlots();
-  // The fallback target for any tab not currently shown in a visible pane: one
-  // stable hidden div (display:none) keeps those tabs' terminals mounted+alive.
-  // A STATE-backed callback ref (not useRef) is required so that attaching the
-  // div triggers a re-render -- a plain ref is null on first render and would
-  // never let the portals mount (setting a ref does not re-render).
-  const [keepAlive, setKeepAlive] = useState<HTMLDivElement | null>(null);
+  const keepAliveRef = useRef<HTMLDivElement>(null);
+  // One stable host node per tab id, created lazily and reused forever.
+  const nodesRef = useRef(new Map<string, HTMLDivElement>());
+  const nodeFor = (tabId: string): HTMLDivElement => {
+    const map = nodesRef.current;
+    let node = map.get(tabId);
+    if (!node) {
+      node = document.createElement("div");
+      node.className = "terminal-host-node";
+      map.set(tabId, node);
+    }
+    return node;
+  };
+
+  // After each render, move every tab's stable node into its current pane slot
+  // (or the hidden keep-alive when the tab is not visible). appendChild relocates
+  // the node WITHOUT changing the createPortal container, so ProjectTerminals --
+  // and its ptys -- are never torn down. Layout effect so the move lands before
+  // paint. Also GC nodes for tabs that no longer exist.
+  useLayoutEffect(() => {
+    const keepAlive = keepAliveRef.current;
+    for (const tab of tabs) {
+      const node = nodeFor(tab.id);
+      const target = slots[tab.id] ?? keepAlive;
+      if (target && node.parentElement !== target) target.appendChild(node);
+    }
+    const live = new Set(tabs.map((t) => t.id));
+    for (const [id, node] of nodesRef.current) {
+      if (!live.has(id)) {
+        node.remove();
+        nodesRef.current.delete(id);
+      }
+    }
+  }, [tabs, slots]);
 
   return (
     <>
-      <div ref={setKeepAlive} className="terminal-keepalive" aria-hidden />
-      {tabs.map((tab) => {
-        const target = slots[tab.id] ?? keepAlive;
-        if (!target) return null; // keep-alive not attached yet (first paint)
-        return (
-          <ProjectPaneContext.Provider key={tab.id} value={tab.id}>
-            {createPortal(<ProjectTerminals tabId={tab.id} />, target)}
-          </ProjectPaneContext.Provider>
-        );
-      })}
+      <div ref={keepAliveRef} className="terminal-keepalive" aria-hidden />
+      {tabs.map((tab) =>
+        createPortal(
+          <ProjectPaneContext.Provider value={tab.id}>
+            <ProjectTerminals tabId={tab.id} />
+          </ProjectPaneContext.Provider>,
+          nodeFor(tab.id),
+          tab.id,
+        ),
+      )}
     </>
   );
 }

@@ -16,10 +16,11 @@
 // minimal stub stands in for the @xterm packages (and ONLY those) while every
 // layer above the TerminalPane host renders for real.
 
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AppPrefs } from "../../shared/ipc";
 import { App } from "./App";
+import { useApp } from "./store";
 
 // --- xterm leaf mock (jsdom has no canvas / text-measurement) ---------------
 // TerminalPane news up a Terminal and calls loadAddon/open/write/onData/
@@ -93,6 +94,12 @@ const DEFAULT_PREFS: AppPrefs = {
 // shape. Note: the mount-time IPC surface is small (most sidebar sections are
 // defaultOpen={false} and never mount), but these cover the ones that do plus
 // the store/hook hydrate path.
+// Counters for the pty-preservation test: a terminal is torn down (ptyKill) only
+// when its TerminalPane unmounts, so "ptyKill not called across a split toggle"
+// proves the terminals did NOT remount (the portal-remount bug this guards).
+let ptyCreateCalls = 0;
+let ptyKillCalls = 0;
+
 const overrides: Record<string, unknown> = {
   prefsGet: () => Promise.resolve(DEFAULT_PREFS),
   gitIsRepo: () => Promise.resolve(false),
@@ -103,7 +110,11 @@ const overrides: Record<string, unknown> = {
     Promise.resolve({ installed: false, running: false, containers: [] }),
   renderStatus: () => Promise.resolve({ connected: false }),
   neonStatus: () => Promise.resolve({ connected: false }),
-  ptyCreate: () => Promise.resolve("pty-smoke-1"),
+  ptyCreate: () => Promise.resolve(`pty-smoke-${++ptyCreateCalls}`),
+  ptyKill: () => {
+    ptyKillCalls += 1;
+    return Promise.resolve(undefined);
+  },
   workspaceRoots: () => Promise.resolve(undefined),
 };
 
@@ -136,6 +147,8 @@ beforeEach(() => {
   globalThis.ResizeObserver =
     ResizeObserverStub as unknown as typeof ResizeObserver;
   installAirlockStub();
+  ptyCreateCalls = 0;
+  ptyKillCalls = 0;
 });
 
 afterEach(() => {
@@ -156,4 +169,29 @@ it("mounts <App/> without crashing (white-screen guard)", async () => {
   // render() would have thrown "Maximum update depth exceeded" above.
   expect(container.querySelector(".project-pane")).toBeTruthy();
   expect(container.querySelector(".terminal-keepalive")).toBeTruthy();
+});
+
+it("keeps terminals alive across a split toggle (no pty teardown)", async () => {
+  render(<App />);
+  // Let the initial blank tab's terminal mount + adopt its pty.
+  await act(async () => {});
+  ptyKillCalls = 0; // measure only the toggle, not any mount churn
+
+  // Toggle split ON: adds a blank secondary pane + shows the split. The existing
+  // terminal must NOT be torn down. Re-targeting a portal (the old bug) would
+  // remount TerminalPane and call ptyKill here, closing the running session.
+  await act(async () => {
+    useApp.getState().toggleProjectSplit();
+  });
+  expect(ptyKillCalls).toBe(0);
+
+  // Toggle split OFF: the second pane's terminal relocates to the hidden
+  // keep-alive (appendChild), still mounted -- not killed.
+  await act(async () => {
+    useApp.getState().toggleProjectSplit();
+  });
+  expect(ptyKillCalls).toBe(0);
+
+  // Sanity: terminals WERE created (the guard is meaningful, not vacuous).
+  expect(ptyCreateCalls).toBeGreaterThan(0);
 });
