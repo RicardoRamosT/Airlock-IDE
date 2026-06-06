@@ -242,7 +242,7 @@ const findOwningTabId = (
 
 // The tab that owns a pty id (its terminal list contains a terminal with that
 // ptyId). Like findOwningTabId but keyed by ptyId rather than the renderer uid;
-// used to route a per-session pty:status push to the tab whose dot it drives.
+// used to route a per-session working update to the tab whose dot it drives.
 const findTabByPtyId = (
   tabTerminals: Record<string, TabTerminals>,
   ptyId: string,
@@ -502,8 +502,9 @@ export const useApp = create<AppState>((set) => ({
     if (promotedRoot) void window.airlock.workspaceSetActive(promotedRoot);
     else if (clearMain) void window.airlock.workspaceClose();
   },
-  // A1's per-session pty:status push -> per-tab state. Record the session's
-  // working bit, then drive the OWNING tab's glow on a working->done edge:
+  // Per-session working update (from TerminalPane's indicator scan) -> per-tab
+  // state. Record the session's working bit, then drive the OWNING tab's glow
+  // on a working->done edge:
   // - working (after): clear any finished-glow (it is busy, not waiting).
   // - just finished (before working, after not) in a BACKGROUND tab: glow, so
   //   the user knows to switch back. An active tab never glows (they can see

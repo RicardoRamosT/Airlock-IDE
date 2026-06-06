@@ -15,35 +15,30 @@ Each project tab shows a small status dot for the Claude session in that tab:
   know to switch back. The glow clears when you click/activate that tab. If you
   are already on the tab when Claude finishes, no glow (you can see it).
 
-### The signal (Claude-scoped, inferred -- honest limit)
+### The signal (Claude-scoped, on-screen indicator)
 airlock has no direct line into Claude's state; Claude is just a process in a
-pty. So the dot is inferred from the terminal, scoped to Claude specifically:
-- WORKING = a terminal in the tab is running `claude` AND that terminal produced
-  output recently (Claude continuously redraws while working: spinner, tokens).
-- not working = `claude` not running, or running but output has been quiet past a
-  threshold (idle at the prompt / finished).
-This is a close heuristic with ~1s lag, not a hook. A dev server / build does NOT
-turn the dot yellow because the dot only counts terminals whose child is `claude`.
+pty. So the dot is read off Claude Code's OWN on-screen working indicator:
+- WORKING = Claude Code's "esc to interrupt" status line is visible in the
+  rendered terminal. While Claude is processing a turn it shows that line near
+  the bottom; when it finishes, the line is replaced by the input prompt.
+- not working = that marker is absent (idle at the prompt / finished).
+Detected by a renderer-side scan of the xterm buffer's bottom rows (scoped to
+the current screen via `baseY`, so scrolling into scrollback never
+false-triggers). This is accurate and inherently Claude-scoped: output activity
+would false-yellow on any keystroke/redraw because Claude Code is the running
+process throughout the session. Honest limit: it is coupled to Claude Code's
+wording -- if that status text changes, the marker must be updated.
 
-### Main: a Claude-activity monitor (non-blocking)
-- Per-session last-output timestamp: `sessionLastOutput: Map<sessionId, number>`,
-  updated in the EXISTING pty `onData` tee in ipc.ts (next to the ring-buffer
-  write). Cheap (a timestamp), no spawn.
-- A single interval (~900ms) does ONE async `ps -axo pid=,ppid=,command=`
-  (NOT spawnSync -- must not block the main thread; NOT per-session pgrep), parses
-  it into a ppid -> child-commands map, and for each live session computes:
-  `working = childIsClaude(session.pid) && (now - lastOutput < ~1200ms)`.
-  `childIsClaude` = any process whose ppid === the session's shell pid and whose
-  command matches claude (comm "claude", or a command line containing a claude
-  binary). Heuristic; acceptable.
-- It keeps `sessionWorking: Map<sessionId, boolean>` and pushes ONLY on change:
-  `webContents.send("pty:status", { id, working })` to that session's window
-  (sessionWindows). The interval runs only while there are live sessions.
-- No new secret surface: it reports a boolean per pty id; never output content,
-  never a pid, never an MCP tool.
-
-### Renderer: map sessions -> tabs, drive the dot + glow
-- preload `onPtyStatus(cb)` subscribes to `pty:status`; shared type added.
+### Renderer: scan the buffer, map sessions -> tabs, drive the dot + glow
+- TerminalPane owns the xterm `Terminal`. A periodic scan (~600ms) reads the
+  bottom ~10 rows of the live screen (`buffer.active.baseY + i`,
+  `translateToString(true)`), tests `/esc to interrupt/i`, and calls
+  `applyPtyStatus(ptyId, working)` ONLY on change. It runs for background
+  (hidden) panes too -- their buffers keep updating under `display:none`, so the
+  finish-glow fires for a tab you are not looking at; the scan is NOT gated on
+  visibility. No main round-trip and no new secret surface: it reads the user's
+  own terminal buffer in the renderer to set a boolean; never crosses to the
+  agent, never an MCP tool.
 - store: `sessionWorking: Record<sessionId, boolean>` + `tabGlow: Record<tabId,
   boolean>` + an action `applyPtyStatus(id, working)`:
   - compute the OWNING tab's working BEFORE the update (any of that tab's
@@ -58,8 +53,7 @@ turn the dot yellow because the dot only counts terminals whose child is `claude
 - ProjectTabs.tsx renders, per tab: a status dot (yellow when the tab is working,
   else gray) and a `glow` class on the tab when `tabGlow[tab.id]`. Dot color is
   DERIVED (any session in the tab working); glow is the stored flag.
-- A subscription hook (e.g. in usePrefs or a new useClaudeStatus) wires
-  onPtyStatus -> applyPtyStatus.
+- The TerminalPane scan (above) calls `applyPtyStatus` directly; no IPC hook.
 
 ### CSS
 Reuse the `.status-dot` vocabulary. Add `.project-tab-status` (gray default,
@@ -67,11 +61,10 @@ Reuse the `.status-dot` vocabulary. Add `.project-tab-status` (gray default,
 box-shadow/border keyframe in theme vars). Renderer/.css is ASCII-exempt.
 
 ### Honest limits
-- ~1s lag (the poll + the quiet threshold). A very brief Claude turn may not flip
-  the dot. Acceptable.
-- `childIsClaude` is a process-name heuristic (`claude` binary or a command line
-  containing claude). A process that merely has "claude" in its path could
-  false-positive; rare.
+- Up to ~600ms lag (the scan cadence). A very brief Claude turn may not flip the
+  dot. Acceptable.
+- Coupled to Claude Code's wording: the marker is the literal "esc to interrupt"
+  status text. If Claude Code changes that phrasing, the marker must be updated.
 - One agent at a time today, but the dot is per tab so several tabs can each show
   their own session's state.
 
@@ -122,7 +115,7 @@ sources but not the aggregated feed). So:
 - No secret-value surface. activity_status returns the same metadata the sidebar
   shows (CI/deploy/container status). dismiss_activity carries an opaque entry id.
   getSecretValue/getGlobalSecret remain non-tools; the source-guard test still
-  passes. pty:status (Feature A) is a renderer-only boolean push, never an MCP tool.
+  passes. The Feature A dot is a renderer-only buffer scan, never an MCP tool.
 
 ## Out of scope
 - Persisting dismissed activity across restart; per-window dismiss (it is app-global).

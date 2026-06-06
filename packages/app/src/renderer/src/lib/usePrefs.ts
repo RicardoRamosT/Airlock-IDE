@@ -59,14 +59,6 @@ export function usePrefs(): void {
     });
   }, []);
 
-  // A1's main-side Claude-activity monitor pushes pty:status { id, working }
-  // per pty session on change. Map it into per-tab state (dot + finish glow).
-  useEffect(() => {
-    return window.airlock.onPtyStatus(({ id, working }) => {
-      useApp.getState().applyPtyStatus(id, working);
-    });
-  }, []);
-
   // The agent (via the request_secret MCP tool) asks the user to vault a secret.
   // Main pushes agent:request-secret; open the secure modal for it. SecretModal
   // reports the outcome back so the awaiting agent is never stranded.

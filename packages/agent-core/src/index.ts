@@ -138,12 +138,6 @@ export {
   renderFetchTransport,
 } from "./render/client";
 export { normalizeRepoUrl } from "./render/parse";
-export {
-  CLAUDE_WORKING_QUIET_MS,
-  commandsIncludeClaude,
-  computeSessionWorking,
-  parsePsChildren,
-} from "./terminal/claudeStatus";
 export { redactedPreview, redactedTail } from "./terminal/tail";
 export {
   type FileContent,

@@ -26,6 +26,14 @@ const XTERM_THEMES: Record<"dark" | "light", ITheme> = {
 export function TerminalPane({ terminalId }: { terminalId: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+  // The resolved pty id, shared between the main PTY-lifecycle effect (which sets
+  // it once ptyCreate resolves) and the working-indicator scan effect below
+  // (which reads it). A component-level ref so both effects see the same value;
+  // a fresh mount gets a fresh ref, so no stale id can leak across remounts.
+  const idRef = useRef<string | null>(null);
+  // Last working state pushed to the store, so the scan only calls applyPtyStatus
+  // on a change (not every tick).
+  const lastWorkingRef = useRef(false);
   const setTerminalPty = useApp((s) => s.setTerminalPty);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
   const removeTerminal = useApp((s) => s.removeTerminal);
@@ -66,7 +74,9 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // adopt. This is safe without keying on id because each TerminalPane owns
     // its own preload subscription and has exactly one in-flight ptyCreate, so
     // any pre-adopt pty:data reaching THIS pane's listener belongs to THIS pane.
-    const idRef = { current: null as string | null };
+    // idRef is the component-level ref declared above (shared with the scan
+    // effect); reset it here so a remount of this pane starts unadopted.
+    idRef.current = null;
     let exited = false;
     let disposed = false;
     const pending: string[] = [];
@@ -171,6 +181,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       if (idRef.current && !exited) window.airlock.ptyKill(idRef.current);
       term.dispose();
       termRef.current = null;
+      idRef.current = null;
     };
   }, [terminalId, setTerminalPty, setTerminalTitle, removeTerminal]);
 
@@ -181,6 +192,48 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   useEffect(() => {
     if (termRef.current) termRef.current.options.theme = XTERM_THEMES[theme];
   }, [theme]);
+
+  // Per-tab Claude status: derive "working" from Claude Code's OWN on-screen
+  // indicator rather than from output activity. While Claude is processing a
+  // turn it shows an "esc to interrupt" status line near the bottom of the
+  // terminal; when it finishes, that line is replaced by the input prompt. So
+  // we periodically scan the rendered xterm buffer's bottom rows for that
+  // marker -> working = marker present. This is accurate and inherently
+  // Claude-scoped (Claude Code is the running process the whole session, so
+  // "recent output" would false-trigger on every keystroke/redraw).
+  //
+  // Reads `baseY` (the top of the CURRENT screen) not the viewport scroll
+  // position, so scrolling up into old scrollback never false-triggers. Scans
+  // only the bottom ~10 rows: cheap, targeted (Claude's status line sits at the
+  // bottom), and avoids matching the phrase elsewhere in history. Calls
+  // applyPtyStatus ONLY on a change. Runs for background (hidden) panes too --
+  // their xterm buffers keep updating from pty data while display:none, so the
+  // finish-glow still fires for a tab the user is not looking at; the scan is
+  // deliberately NOT gated on visibility. No secret surface: this reads the
+  // user's own terminal buffer in the renderer to set a boolean; nothing
+  // crosses to the agent.
+  useEffect(() => {
+    const SCAN_MS = 600;
+    const BOTTOM_ROWS = 10;
+    const timer = setInterval(() => {
+      const term = termRef.current;
+      const ptyId = idRef.current;
+      if (!term || !ptyId) return;
+      const buf = term.buffer.active;
+      const rows = term.rows;
+      const start = Math.max(0, rows - BOTTOM_ROWS);
+      let text = "";
+      for (let i = start; i < rows; i++) {
+        text += `${buf.getLine(buf.baseY + i)?.translateToString(true) ?? ""}\n`;
+      }
+      const working = /esc to interrupt/i.test(text);
+      if (working !== lastWorkingRef.current) {
+        lastWorkingRef.current = working;
+        useApp.getState().applyPtyStatus(ptyId, working);
+      }
+    }, SCAN_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   return <div ref={hostRef} className="terminal-host" />;
 }

@@ -32,8 +32,6 @@ const api: AirlockApi = {
   ptyIsBusy: (id) => ipcRenderer.invoke("pty:isBusy", id),
   onPtyData: (cb) => subscribe<PtyDataEvent>("pty:data", cb),
   onPtyExit: (cb) => subscribe<PtyExitEvent>("pty:exit", cb),
-  onPtyStatus: (cb) =>
-    subscribe<{ id: string; working: boolean }>("pty:status", cb),
   secretsList: () => ipcRenderer.invoke("secrets:list"),
   secretsSet: (name, value) => ipcRenderer.invoke("secrets:set", name, value),
   secretsDelete: (name) => ipcRenderer.invoke("secrets:delete", name),

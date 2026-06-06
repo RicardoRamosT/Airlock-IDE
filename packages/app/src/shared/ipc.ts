@@ -185,10 +185,6 @@ export interface AirlockApi {
   ptyIsBusy(id: string): Promise<boolean>;
   onPtyData(cb: (e: PtyDataEvent) => void): () => void;
   onPtyExit(cb: (e: PtyExitEvent) => void): () => void;
-  // Per-PTY Claude-activity status pushed from main: working = the terminal's
-  // shell is running `claude` AND it produced output recently. Renderer-only
-  // (drives the per-tab status dot); a boolean per pty id, never an MCP tool.
-  onPtyStatus(cb: (e: { id: string; working: boolean }) => void): () => void;
   secretsList(): Promise<SecretMeta[]>;
   secretsSet(name: string, value: string): Promise<SecretMeta>;
   secretsDelete(name: string): Promise<void>;
