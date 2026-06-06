@@ -37,6 +37,7 @@ export const TOOL_NAMES: string[] = [
   "list_secret_names",
   "run_command",
   "request_secret",
+  "get_terminal_tail",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -50,6 +51,11 @@ export interface ToolDeps {
     name: string,
     providerHint?: string,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
+  getTerminalTail: (
+    termId: string,
+    lines: number,
+  ) => Promise<{ tail: string } | { error: string }>;
+  listTerminals: () => Promise<{ id: string; preview: string }[]>;
   changeVisibility?: (
     prefsFile: string,
     id: Section,
@@ -214,6 +220,29 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
       }
+    },
+  );
+
+  // Read the recent output of a terminal tab so the agent can see what the user
+  // is running (dev server, build, tests, logs). No terminalId -> list terminals
+  // (id + redacted preview); with terminalId -> that terminal's redacted tail.
+  // Resolution + redaction live behind the deps (getTerminalTail/listTerminals),
+  // so this handler references no value-returning identifier (source-guard green).
+  mcp.registerTool(
+    "get_terminal_tail",
+    {
+      description:
+        "Read the recent output (tail) of a terminal tab so you can see what the user is running (dev server, build, tests, logs). Call with no terminalId to list terminals (each with a short preview); call with a terminalId to get that terminal's recent output. Secret values are redacted -- you never see them.",
+      inputSchema: {
+        terminalId: z.string().optional(),
+        lines: z.number().optional(),
+      },
+    },
+    async ({ terminalId, lines }) => {
+      if (!deps.getWorkspaceRoot()) return err(NO_WORKSPACE);
+      if (!terminalId) return ok(await deps.listTerminals());
+      const res = await deps.getTerminalTail(terminalId, lines ?? 40);
+      return "error" in res ? err(res.error) : ok(res);
     },
   );
 

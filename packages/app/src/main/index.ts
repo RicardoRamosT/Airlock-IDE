@@ -5,7 +5,13 @@ import {
   registerAgentRequestIpc,
   requestSecretFromUser,
 } from "./agent-requests";
-import { getWorkspaceRoot, killAllSessions, registerIpc } from "./ipc";
+import {
+  getTerminalTail,
+  getWorkspaceRoot,
+  killAllSessions,
+  listTerminals,
+  registerIpc,
+} from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu } from "./menu";
@@ -145,6 +151,8 @@ function bootstrap(): void {
       getWorkspaceRoot,
       getBaseEnv: () => loginEnv,
       requestSecretFromUser,
+      getTerminalTail,
+      listTerminals,
       token,
     }).catch((e) => {
       console.error(

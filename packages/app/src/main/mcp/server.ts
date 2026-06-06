@@ -40,6 +40,11 @@ export interface McpDeps {
     name: string,
     providerHint?: string,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
+  getTerminalTail: (
+    termId: string,
+    lines: number,
+  ) => Promise<{ tail: string } | { error: string }>;
+  listTerminals: () => Promise<{ id: string; preview: string }[]>;
   token: string;
 }
 
@@ -75,6 +80,8 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     getWorkspaceRoot: deps.getWorkspaceRoot,
     getBaseEnv: deps.getBaseEnv,
     requestSecretFromUser: deps.requestSecretFromUser,
+    getTerminalTail: deps.getTerminalTail,
+    listTerminals: deps.listTerminals,
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

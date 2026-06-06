@@ -44,19 +44,23 @@ const baseDeps = {
   getWorkspaceRoot: () => null as string | null,
   getBaseEnv: () => ({}) as Record<string, string>,
   requestSecretFromUser: vi.fn(async () => ({ vaulted: true })),
+  getTerminalTail: vi.fn(
+    async () => ({ tail: "" }) as { tail: string } | { error: string },
+  ),
+  listTerminals: vi.fn(async () => [] as { id: string; preview: string }[]),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // eleven v1 tools. A 12th tool (e.g. a future secret-value drill-down) or a
+  // twelve v1 tools. A 13th tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the eleven allowlisted tools and nothing else", () => {
+  it("registers exactly the twelve allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(11);
+    expect(registered).toHaveLength(12);
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
   });
@@ -201,5 +205,114 @@ describe("request_secret tool", () => {
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toBe("No workspace open");
     expect(requestSecretFromUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("get_terminal_tail tool", () => {
+  // Build the tool against a deps object whose getWorkspaceRoot/getTerminalTail/
+  // listTerminals are spies, so each test can assert which dep the handler
+  // reached (and which it did NOT) on a given branch.
+  function getTerminalTailTool(deps: typeof baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const tool = tools.find((t) => t.name === "get_terminal_tail");
+    if (!tool) throw new Error("get_terminal_tail tool not registered");
+    return tool;
+  }
+
+  it("declares the terminalId/lines input schema", () => {
+    const tool = getTerminalTailTool(baseDeps);
+    expect(tool.config.inputSchema).toBeDefined();
+    expect(tool.config.inputSchema?.terminalId).toBeDefined();
+    expect(tool.config.inputSchema?.lines).toBeDefined();
+  });
+
+  it("returns NO_WORKSPACE and calls NEITHER dep with no workspace open", async () => {
+    // baseDeps.getWorkspaceRoot() is null, so the handler must short-circuit
+    // before reaching listTerminals/getTerminalTail (which read PTY buffers).
+    const getTerminalTail = vi.fn(async () => ({ tail: "x" }));
+    const listTerminals = vi.fn(async () => []);
+    const tool = getTerminalTailTool({
+      ...baseDeps,
+      getTerminalTail,
+      listTerminals,
+    });
+    const res = (await tool.handler({})) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toBe("No workspace open");
+    expect(getTerminalTail).not.toHaveBeenCalled();
+    expect(listTerminals).not.toHaveBeenCalled();
+  });
+
+  it("with a root and NO terminalId, calls listTerminals and returns the list", async () => {
+    const list = [{ id: "t1", preview: "npm run dev" }];
+    const getTerminalTail = vi.fn(async () => ({ tail: "x" }));
+    const listTerminals = vi.fn(async () => list);
+    const tool = getTerminalTailTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      getTerminalTail,
+      listTerminals,
+    });
+    const res = (await tool.handler({})) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(listTerminals).toHaveBeenCalledTimes(1);
+    expect(getTerminalTail).not.toHaveBeenCalled();
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual(list);
+  });
+
+  it("with a root and a terminalId, calls getTerminalTail(id, lines) and returns the tail", async () => {
+    const getTerminalTail = vi.fn(async () => ({ tail: "build ok" }));
+    const listTerminals = vi.fn(async () => []);
+    const tool = getTerminalTailTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      getTerminalTail,
+      listTerminals,
+    });
+    const res = (await tool.handler({ terminalId: "t1", lines: 10 })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(getTerminalTail).toHaveBeenCalledWith("t1", 10);
+    expect(listTerminals).not.toHaveBeenCalled();
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual({ tail: "build ok" });
+  });
+
+  it("defaults lines to 40 when only a terminalId is given", async () => {
+    const getTerminalTail = vi.fn(async () => ({ tail: "" }));
+    const listTerminals = vi.fn(async () => []);
+    const tool = getTerminalTailTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      getTerminalTail,
+      listTerminals,
+    });
+    await tool.handler({ terminalId: "t1" });
+    expect(getTerminalTail).toHaveBeenCalledWith("t1", 40);
+  });
+
+  it("surfaces a getTerminalTail {error} result as isError", async () => {
+    const getTerminalTail = vi.fn(async () => ({ error: "No such terminal" }));
+    const listTerminals = vi.fn(async () => []);
+    const tool = getTerminalTailTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      getTerminalTail,
+      listTerminals,
+    });
+    const res = (await tool.handler({ terminalId: "nope" })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toBe("No such terminal");
   });
 });
