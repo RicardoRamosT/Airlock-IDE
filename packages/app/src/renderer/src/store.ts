@@ -370,12 +370,14 @@ export const useApp = create<AppState>((set) => ({
     if (root) void window.airlock.workspaceSetActive(root);
   },
   closeTab: (id) => {
-    // Capture the root of the neighbor that gets promoted (if any) so we can
-    // re-point main + the agent at it AFTER the set. null means either a
-    // background tab was closed (active unchanged -> main already correct) or the
-    // last tab was closed (no project left -> nothing to point main at; we must
-    // NOT call setActive with null here, just skip).
+    // After the set we re-sync main + the agent (MCP) to the now-active project.
+    // promotedRoot != null: a neighbor was promoted -> point main at it.
+    // clearMain: the LAST tab closed -> no project left, so CLEAR main's root
+    // (workspace:close); otherwise main + the agent would keep resolving git /
+    // secrets / run_command against the just-closed project. A background-tab
+    // close leaves both unset (active unchanged -> main already correct).
     let promotedRoot: string | null = null;
+    let clearMain = false;
     set((s) => {
       const idx = s.tabs.findIndex((t) => t.id === id);
       if (idx === -1) return {}; // unknown id (e.g. implicit) -> no-op
@@ -408,6 +410,7 @@ export const useApp = create<AppState>((set) => ({
       // No tabs left -> no-project state. Reset the implicit terminal tab to
       // empty so the renderer mounts exactly one fresh scratch shell (matching
       // the launch state), not whatever was left from before any project.
+      clearMain = true;
       return {
         tabs,
         tabSnapshots,
@@ -420,10 +423,12 @@ export const useApp = create<AppState>((set) => ({
         modal: null,
       };
     });
-    // Closing the active tab promoted a neighbor: point main + the agent (MCP)
-    // at it, same as switchTab. Skipped (promotedRoot null) when a background tab
-    // was closed (active root unchanged) or the last tab closed (no active root).
+    // Re-sync main + the agent (MCP): a promoted neighbor becomes the active
+    // root; closing the last tab CLEARS the root so the agent stops resolving
+    // against the closed project; a background-tab close does neither (the
+    // active root is unchanged).
     if (promotedRoot) void window.airlock.workspaceSetActive(promotedRoot);
+    else if (clearMain) void window.airlock.workspaceClose();
   },
   setOpenProjectsAsTabs: (openProjectsAsTabs) => set({ openProjectsAsTabs }),
 

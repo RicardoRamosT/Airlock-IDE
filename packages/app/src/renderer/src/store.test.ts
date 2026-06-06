@@ -6,10 +6,12 @@ import { IMPLICIT_TAB_ID, type TabTerminals, useApp } from "./store";
 // before every test via setState(initialState, true).
 const initialState = useApp.getState();
 
-// The store calls window.airlock.workspaceSetActive in switchTab/closeTab. The
-// test env is environment:"node" -> no window global, so define one and record
-// every root it is pointed at.
+// The store calls window.airlock.workspaceSetActive (switchTab / closeTab
+// neighbor-promote) and workspaceClose (closeTab last-tab). The test env is
+// environment:"node" -> no window global, so define one and record both: the
+// roots main is pointed at, and how many times the root is cleared.
 const setActiveCalls: string[] = [];
+let closeCalls = 0;
 
 beforeEach(() => {
   (globalThis as { window?: unknown }).window = {
@@ -18,9 +20,14 @@ beforeEach(() => {
         setActiveCalls.push(p);
         return Promise.resolve();
       },
+      workspaceClose: () => {
+        closeCalls += 1;
+        return Promise.resolve();
+      },
     },
   };
   setActiveCalls.length = 0;
+  closeCalls = 0;
   useApp.setState(initialState, true);
 });
 
@@ -199,6 +206,11 @@ describe("closeTab", () => {
     expect(s.tabs).toHaveLength(0);
     // implicit tab reset to a fresh empty terminal set
     expect(tt(IMPLICIT_TAB_ID)).toEqual(EMPTY);
+    // Note A regression guard: the last-tab close must CLEAR main's root (so the
+    // agent stops resolving git/secrets/run_command against the closed project),
+    // not point it anywhere.
+    expect(closeCalls).toBe(1);
+    expect(setActiveCalls).toEqual([]);
   });
 });
 
