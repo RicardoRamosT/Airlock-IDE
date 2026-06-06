@@ -120,10 +120,6 @@ export function SettingsTab() {
             project. The agent always operates on the project you are currently
             viewing.
           </p>
-        </section>
-
-        <section className="settings-section">
-          <h3>Layout</h3>
           <div className="settings-sublabel">Sidebar position</div>
           <label className="settings-row">
             <input
