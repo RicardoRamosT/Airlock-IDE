@@ -1,7 +1,7 @@
 # get_terminal_tail (Agent capability) Design
 
 **Date:** 2026-06-05
-**Status:** Design approved. Building.
+**Status:** v1 complete.
 
 ## Overview
 A new MCP tool, `get_terminal_tail`, that lets the terminal Claude (the agent) read

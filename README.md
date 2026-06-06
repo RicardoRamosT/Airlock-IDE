@@ -206,6 +206,13 @@ can ask you to vault a secret it needs (a secure prompt opens with the name
 pre-filled); you provide the value and it goes straight to your keychain — the
 agent only learns whether it was vaulted, never the value.
 
+**Read your terminals' recent output.** With `get_terminal_tail`, the terminal
+Claude can read the recent output of your terminal tabs — a dev server's errors,
+a build/test run, logs — so it can see what you're running elsewhere. It lists the
+tabs (by a short redacted preview) or reads one tab's tail, and **every vaulted
+secret value is redacted out** before it reaches the agent; each read is audited
+(ids and counts only, never the content).
+
 **The security boundary.** Claude can never read a secret value through airlock —
 **the tools to do that do not exist.** Every read returns names, hosts, and
 status only; `getSecretValue`/`getGlobalSecret` are never exposed as tools, and a

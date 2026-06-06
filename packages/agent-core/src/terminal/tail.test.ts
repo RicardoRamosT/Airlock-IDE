@@ -14,6 +14,9 @@ describe("cleanTerminalOutput", () => {
   it("strips OSC title sequences", () => {
     expect(cleanTerminalOutput("\x1b]0;a title\x07hello")).toBe("hello");
   });
+  it("strips OSC sequences terminated by ST (ESC backslash)", () => {
+    expect(cleanTerminalOutput("\x1b]0;title\x1b\\hello")).toBe("hello");
+  });
   it("collapses carriage-return overwrites to the last write", () => {
     expect(cleanTerminalOutput("loading 10%\rloading 100%")).toBe(
       "loading 100%",

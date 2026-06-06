@@ -1,10 +1,12 @@
 # MCP tools
 
-airlock exposes 11 tools over this MCP server. Eight are **read-only status** tools; one
+airlock exposes 12 tools over this MCP server. Eight are **read-only status** tools; one
 (`set_sidebar_section_visibility`) drives the sidebar UI; one (`run_command`) runs a shell
 command with named vaulted secrets injected and the output returned with those values
 **redacted**; one (`request_secret`) asks the user to vault a secret you need (you get back
-only whether it was vaulted, never the value). **None returns a secret value.**
+only whether it was vaulted, never the value); one (`get_terminal_tail`) reads a terminal
+tab's recent output, with every vaulted secret value **redacted**. **None returns a secret
+value.**
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
 yet; the app-global tools work regardless.
@@ -68,6 +70,30 @@ yet; the app-global tools work regardless.
   once it reports vaulted. Workspace-rooted (the secret is vaulted into the open project).
   See `security-model.md`.
 
+## Observing — read a terminal tab's recent output
+
+- **`get_terminal_tail`** — read the recent output of a terminal tab. Two modes:
+  - **No `terminalId` → LIST the terminals.** Returns one entry per live terminal:
+    `{ id, preview }`, where the preview is a short **redacted** snippet (the last few
+    non-empty lines of that terminal's output). Use it to tell tabs apart — the one
+    streaming dev-server logs vs. an idle shell — and pick the `id` you want.
+  - **With a `terminalId` → that terminal's redacted tail.** Returns the last `lines`
+    of its cleaned, **redacted** output (default `40`). Use it to see what the user is
+    running in another tab: a dev server's errors, a build/test run, log output.
+  - **Secret values are redacted.** Every vaulted secret value is exact-matched and
+    replaced with `***` before the text reaches you — same redactor as `run_command`.
+  - **Honest limits — read before you rely on it:**
+    - **Great for logs / errors / build output;** APPROXIMATE for full-screen TUIs
+      (vim, htop, cursor-addressed UIs). airlock strips ANSI escapes and collapses
+      carriage-return overwrites — it is **not** a full terminal emulator, so a
+      redrawing TUI reads only roughly.
+    - **Literal redaction.** Exact-match only (same as `run_command`): a secret that
+      was **encoded or transformed** (base64/hex) before it hit the terminal can slip
+      past. Treat the tail as helper context, not a hardened channel.
+    - **Your OWN terminal appears in the list.** airlock can't distinguish the PTY
+      you're running in from the user's other tabs, so your own terminal shows up —
+      reading it is just redundant, not harmful.
+
 ## Picking a tool
 
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
@@ -80,5 +106,8 @@ yet; the app-global tools work regardless.
   output.
 - "The secret I need isn't vaulted yet" → `request_secret` with the name (a secure prompt
   opens for the user to vault it); when it reports vaulted, retry the action that needed it.
+- "What is the user running in another tab / what does that error say?" → `get_terminal_tail`
+  with no `terminalId` to list the tabs (by redacted preview), then with the chosen `id` to
+  read its redacted tail.
 - You will **never** find a tool that hands you a secret value — that is by design.
   `run_command` *uses* a secret on your behalf but redacts it out of what you get back.

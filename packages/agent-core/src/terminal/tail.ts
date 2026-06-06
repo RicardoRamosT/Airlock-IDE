@@ -3,10 +3,11 @@
 // CJS-bundled into the Electron main process (cjs_lexer crashes on multibyte).
 import { redactSecrets } from "../redact/redact";
 
-// CSI (ESC [ ... final), OSC (ESC ] ... BEL), and other 2-char ESC sequences.
+// CSI (ESC [ ... final), OSC (ESC ] ... BEL/ST), and other 2-char ESC sequences.
 // The regex source is ASCII; it matches the ESC control byte at runtime.
-// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping real ANSI.
-const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[@-Z\\-_]/g;
+const ANSI_RE =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping real ANSI.
+  /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]/g;
 
 // Strip ANSI escapes; normalize CRLF; collapse bare-CR overwrites per line
 // (keep the text after the last CR -- approximates what the terminal displays).
