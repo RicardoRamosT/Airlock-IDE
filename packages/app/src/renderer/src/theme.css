@@ -168,16 +168,20 @@ body,
    while it was NOT active. Set in store.tabGlow; cleared when the tab is
    activated (or resumes working). A few pulses then it settles. */
 .project-tab.glow {
-  animation: tab-finish-glow 1.4s ease-in-out 3;
+  /* Pulse until the tab is activated -- switchTab clears the glow flag, which
+     removes this class and stops the animation. INSET so the glow follows the
+     tab's border-radius and stays inside the element (an outer box-shadow gets
+     clipped by .project-tabs-list's overflow and shows as cut-off slivers). */
+  animation: tab-finish-glow 1.5s ease-in-out infinite;
 }
 
 @keyframes tab-finish-glow {
   0%,
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    box-shadow: inset 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 0 2px var(--accent);
+    box-shadow: inset 0 0 6px 1px var(--accent);
   }
 }
 
@@ -1856,9 +1860,14 @@ textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .progress-bar.indeterminate .fill,
   .status-dot.running,
-  .project-tab.glow,
   .step-spin {
     animation: none;
+  }
+  /* No pulse under reduced motion, but keep a STATIC inset ring so a finished
+     background tab is still visibly marked until the user opens it. */
+  .project-tab.glow {
+    animation: none;
+    box-shadow: inset 0 0 0 1.5px var(--accent);
   }
   .progress-bar.indeterminate .fill {
     transform: none;
