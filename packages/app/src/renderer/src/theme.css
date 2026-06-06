@@ -919,6 +919,7 @@ body,
 /* Running-process notice (T3): a dismissible banner above a tab's terminal
    tabs/panes, shown on the folder-rooted terminal kept alongside a busy one. */
 .terminal-notice {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1215,12 +1216,17 @@ textarea:focus-visible {
 }
 
 .terminal-manager {
-  display: grid;
-  grid-template-rows: 30px minmax(0, 1fr);
+  /* Flex column (not a fixed-row grid) so an OPTIONAL running-process notice --
+     a 3rd child rendered above the tabs -- does not shift the tabs/panes into the
+     wrong rows. Each child pins its own size below. */
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 .terminal-panes {
+  flex: 1 1 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-height: 0;
@@ -1250,6 +1256,7 @@ textarea:focus-visible {
 }
 
 .terminal-tabs {
+  flex: 0 0 30px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1257,6 +1264,7 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--border);
   padding: 0 6px;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .terminal-tabs-list {
