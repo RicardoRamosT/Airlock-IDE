@@ -26,7 +26,7 @@ exfil path the live gates kept surfacing. Because `run_command` and
   their own output for a further encoding layer.
 - **percent/URL-encoding: forward-encode.** Percent-encoding is byte-local, so
   `encodeURIComponent(value)` is exact -- redact it literally.
-- Skip values shorter than 6 chars in the encoded passes (their encodings are
+- Skip values shorter than 4 chars in the encoded passes (their encodings are
   short + noisy; the literal pass still covers the raw form).
 
 ## No over-redaction
