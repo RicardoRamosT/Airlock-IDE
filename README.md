@@ -71,6 +71,13 @@ tab's terminals keep running in the background, so nothing is lost when you
 switch away. The `✕` closes a tab; the OS window title and dock both read
 `airlock — <project>` so you can tell windows apart.
 
+Each tab carries a small **Claude status dot**: gray when Claude is idle or not
+running, **yellow** while it's actively working. When Claude finishes in a tab you
+*aren't* looking at, that tab briefly **glows** so you know to switch back; the
+glow clears the moment you open it. (airlock has no direct line into Claude — it
+infers this from the terminal: `claude` running plus live output — so it's a close
+read, not a hook.)
+
 **Blank tabs.** The `+` (or **New Tab**, `⌘T`) opens an empty tab — just a
 terminal, no folder required — so you can run a shell or start `claude` without
 opening anything. Click **Open Folder…** in that tab whenever you want to give
@@ -176,7 +183,10 @@ honest progress. **GitHub CI** shows the latest Actions run for the current bran
 a `steps done / total` bar. **Render** shows a deploy mid-build, and **Docker**
 shows containers that are starting/restarting; both animate without faking a
 percentage the source doesn't give. It polls while expanded and something is
-running, refreshes on focus, then goes quiet when everything's idle.
+running, refreshes on focus, then goes quiet when everything's idle. Hover an
+entry for an **✕** to dismiss it (or **Clear finished** to drop all the done/failed
+ones); a later run or deploy — a new id — reappears on its own. The terminal Claude
+can dismiss entries too, when you ask it to (see below).
 
 ## GitHub accounts
 
@@ -228,13 +238,16 @@ the tool and resource provider.
 **What it can see.** Every live status the sidebar shows: your databases (host
 and reachability), Neon projects/branches/databases, Docker containers, Render
 deploy status, the git branch and changes, the local dev-server host and
-up/down, which sidebar sections are visible, and your secret *names*. It also
-reads a built-in manual (one page per sidebar section, plus the security model)
-so it understands the IDE without you explaining it.
+up/down, the **Activity** feed (in-progress CI/deploys/containers), which sidebar
+sections are visible, and your secret *names*. It also reads a built-in manual
+(one page per sidebar section, plus the security model) so it understands the IDE
+without you explaining it.
 
 **What it can do.** Curate the sidebar for the project — show or hide any
 section. So you can ask "set up my sidebar for this project" and it will turn
 on Databases and Docker, hide what you don't need, and the sidebar updates live.
+It can also **dismiss Activity entries** when you ask ("clear that finished CI
+run") — the entry disappears from the panel; a new run reappears on its own.
 
 **Run commands that need your secrets.** With `run_command`, the terminal Claude
 can run a shell command that needs a credential — a migration against your
