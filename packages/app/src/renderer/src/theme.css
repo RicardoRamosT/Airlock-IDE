@@ -1747,6 +1747,25 @@ textarea:focus-visible {
 .activity-link:hover {
   color: var(--accent);
 }
+/* Hover-revealed per-entry dismiss, mirroring .project-tab-close. */
+.activity-dismiss {
+  flex: none;
+  margin-left: 4px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+.activity-row:hover .activity-dismiss,
+.activity-row:focus-within .activity-dismiss {
+  opacity: 1;
+}
+.activity-dismiss:hover {
+  color: #f85149;
+}
 .activity-progress-label {
   font-size: 10px;
   color: var(--fg-dim);

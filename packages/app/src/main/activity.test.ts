@@ -1,12 +1,25 @@
 import type { CiRun } from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
+import type { ActivityItem } from "../shared/ipc";
 import {
+  addDismissedActivity,
   ciRunState,
   ciRunToItem,
   dockerContainerToItem,
+  filterDismissed,
+  isActivityDismissed,
   renderDeployState,
   renderServiceToItem,
 } from "./activity";
+
+const item = (id: string): ActivityItem => ({
+  id,
+  kind: "ci",
+  title: "CI",
+  subtitle: "main",
+  state: "running",
+  progress: null,
+});
 
 const ci = (over: Partial<CiRun>): CiRun => ({
   workflowName: "CI",
@@ -166,5 +179,35 @@ describe("dockerContainerToItem", () => {
         status: "Exited (0)",
       }),
     ).toBeNull();
+  });
+});
+
+describe("filterDismissed", () => {
+  it("excludes ids in the dismissed set, keeps the rest", () => {
+    const items = [item("ci:abc"), item("render:s1"), item("docker:c1")];
+    const out = filterDismissed(items, new Set(["ci:abc"]));
+    expect(out.map((i) => i.id)).toEqual(["render:s1", "docker:c1"]);
+  });
+  it("returns all items when nothing is dismissed", () => {
+    const items = [item("ci:abc"), item("render:s1")];
+    expect(filterDismissed(items, new Set()).map((i) => i.id)).toEqual([
+      "ci:abc",
+      "render:s1",
+    ]);
+  });
+});
+
+describe("addDismissedActivity / isActivityDismissed", () => {
+  it("marks an id dismissed so the module set filters it out", () => {
+    expect(isActivityDismissed("ci:dismiss-me")).toBe(false);
+    addDismissedActivity("ci:dismiss-me");
+    expect(isActivityDismissed("ci:dismiss-me")).toBe(true);
+    // The same set activityStatus uses, so a list built with that id is excluded.
+    const items = [item("ci:dismiss-me"), item("ci:keep-me")];
+    const out = filterDismissed(
+      items,
+      new Set(items.filter((i) => isActivityDismissed(i.id)).map((i) => i.id)),
+    );
+    expect(out.map((i) => i.id)).toEqual(["ci:keep-me"]);
   });
 });

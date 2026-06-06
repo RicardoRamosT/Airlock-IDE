@@ -45,7 +45,7 @@ import {
 } from "@airlock/agent-core";
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
-import { activityStatus } from "./activity";
+import { activityStatus, addDismissedActivity } from "./activity";
 import {
   dockerStatus,
   gitStatusFor,
@@ -137,6 +137,16 @@ function pushPtyStatus(id: string, working: boolean): void {
   const win = BrowserWindow.fromId(winId);
   if (win && !win.webContents.isDestroyed())
     win.webContents.send("pty:status", { id, working });
+}
+
+// Tell every window the activity feed changed (no payload) so each ActivitySection
+// refetches the now-filtered list. The dismissed set is app-global, so this fans
+// out to ALL windows (like sections:changed). Reused by the activity:dismiss IPC
+// and the later MCP dismiss tool.
+export function broadcastActivityChanged(): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.webContents.isDestroyed()) w.webContents.send("activity:changed");
+  }
 }
 
 // One monitor tick: snapshot the process table once, recompute each live
@@ -706,6 +716,16 @@ export function registerIpc(
   // activity:status -> ActivityItem[]; NOT requireRoot-gated (render/docker work
   // with no folder; activityStatus skips CI itself when the window has no root).
   ipcMain.handle("activity:status", (e) => activityStatus(rootForEvent(e)));
+
+  // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
+  // so every window's ActivitySection refetches the filtered feed live. The same
+  // path the later MCP dismiss tool will reuse. A new run/deploy (new id) reappears.
+  ipcMain.handle("activity:dismiss", (_e, id: unknown) => {
+    if (typeof id === "string") {
+      addDismissedActivity(id);
+      broadcastActivityChanged();
+    }
+  });
 
   ipcMain.handle("docker:start", (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");

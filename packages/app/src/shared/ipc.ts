@@ -264,7 +264,11 @@ export interface AirlockApi {
   renderServices(): Promise<RenderServiceStatus[]>;
   // Activity: aggregated in-progress operations (CI + Render + Docker) for the
   // Activity panel. NOT root-gated; CI is skipped when no folder is open.
+  // activityDismiss hides an entry by id (app-global, in-memory) and broadcasts
+  // activity:changed to all windows; a new run/deploy (new id) reappears.
   activityStatus(): Promise<ActivityItem[]>;
+  activityDismiss(id: string): Promise<void>;
+  onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
   // http(s) URLs in the system browser.

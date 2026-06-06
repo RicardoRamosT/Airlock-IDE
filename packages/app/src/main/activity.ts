@@ -6,6 +6,31 @@ import { type CiRun, latestCiRun } from "@airlock/agent-core";
 import type { ActivityItem } from "../shared/ipc";
 import { dockerStatus, gitStatusFor, renderServicesStatus } from "./ide-state";
 
+// App-global, in-memory set of dismissed activity ids (e.g. "ci:<sha>",
+// "render:<id>", "docker:<id>"). Activity is ephemeral, so this is NOT persisted
+// across restart -- the feed rebuilds. activityStatus filters these out, so every
+// reader (the activity:status IPC and the future MCP read tool) sees the filtered
+// feed automatically. addDismissedActivity is reused by the dismiss IPC and the
+// later MCP dismiss tool.
+const dismissed = new Set<string>();
+
+export function addDismissedActivity(id: string): void {
+  dismissed.add(id);
+}
+
+export function isActivityDismissed(id: string): boolean {
+  return dismissed.has(id);
+}
+
+// Pure filter, unit-testable without driving the gh/render/docker I/O in
+// activityStatus. Keeps the dismissed-id logic in one place.
+export function filterDismissed(
+  items: ActivityItem[],
+  dismissedSet: Set<string>,
+): ActivityItem[] {
+  return items.filter((i) => !dismissedSet.has(i.id));
+}
+
 export function ciRunState(run: CiRun): ActivityItem["state"] {
   if (run.status !== "completed") return "running";
   if (run.conclusion === "success") return "done";
@@ -137,5 +162,7 @@ export async function activityStatus(
     // docker not installed -> no docker items
   }
 
-  return items;
+  // Hide anything the user (or the agent) dismissed; a NEW state has a new id and
+  // reappears. Applied last so it covers every source.
+  return filterDismissed(items, dismissed);
 }

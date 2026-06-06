@@ -57,6 +57,13 @@ export function ActivitySection() {
     return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
 
+  // A dismiss in ANY window (or the agent's MCP tool) broadcasts activity:changed;
+  // refetch so the dismissed entry disappears here live.
+  useEffect(
+    () => window.airlock.onActivityChanged(() => void refresh()),
+    [refresh],
+  );
+
   // Poll every 3s while something is running; stop when all idle. Collapsing the
   // section unmounts this component, so the timer is torn down automatically.
   const anyRunning = items.some((i) => i.state === "running");
@@ -65,6 +72,15 @@ export function ActivitySection() {
     const id = setInterval(() => void refresh(), 3000);
     return () => clearInterval(id);
   }, [anyRunning, refresh]);
+
+  // Dismiss every currently-shown finished entry (done/failed). Reuses the
+  // per-entry dismiss path -- no new IPC; the broadcast refetches the list.
+  const finished = items.filter(
+    (i) => i.state === "done" || i.state === "failed",
+  );
+  const clearFinished = () => {
+    for (const i of finished) void window.airlock.activityDismiss(i.id);
+  };
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -86,6 +102,16 @@ export function ActivitySection() {
         >
           ↻ Refresh
         </button>
+        {finished.length > 0 && (
+          <button
+            type="button"
+            className="btn"
+            onClick={clearFinished}
+            title="Dismiss all finished entries"
+          >
+            Clear finished
+          </button>
+        )}
       </div>
       {!loaded && <div className="section-note">Loading…</div>}
       {loaded && items.length === 0 && (
@@ -133,6 +159,17 @@ export function ActivitySection() {
                   ↗
                 </button>
               )}
+              <button
+                type="button"
+                className="activity-dismiss"
+                title="Dismiss"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void window.airlock.activityDismiss(item.id);
+                }}
+              >
+                <i className="codicon codicon-close" />
+              </button>
             </div>
             {item.progress && (
               <div
