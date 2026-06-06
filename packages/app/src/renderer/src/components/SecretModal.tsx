@@ -20,7 +20,10 @@ const COMMON_NAMES = [
 ];
 
 export function SecretModal() {
-  const { modal, setModal, setSecrets, config } = useApp();
+  // The modal is app-global chrome that acts on the FOCUSED project, so it uses
+  // the active tab's root (the top-level mirror) -- which equals the window
+  // root, so resolveRoot resolves it identically.
+  const { modal, setModal, setSecrets, config, root } = useApp();
   const updating =
     typeof modal === "object" && modal !== null && "update" in modal
       ? modal.update
@@ -67,10 +70,14 @@ export function SecretModal() {
   if (modal === null) return null;
 
   const submit = async () => {
+    if (!root) {
+      setError("Open a folder before vaulting a secret.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const meta = await window.airlock.secretsSet(name.trim(), value);
+      const meta = await window.airlock.secretsSet(root, name.trim(), value);
       // Requested mode: secretsSet RESOLVED, so the keychain write happened --
       // the agent's request is fulfilled even if the value looks unusual. Report
       // vaulted:true and close; do NOT keep the modal open on the !valid warning
@@ -78,7 +85,7 @@ export function SecretModal() {
       if (requested) {
         resolvedRef.current = true;
         await window.airlock.requestSecretResolve(requested.requestId, true);
-        setSecrets(await window.airlock.secretsList());
+        setSecrets(await window.airlock.secretsList(root));
         setModal(null);
         // A newly vaulted secret only reaches the shell on spawn, so replace the
         // active terminal when injection is on.
@@ -90,7 +97,7 @@ export function SecretModal() {
           "Saved, but the value looks unusual for this name. Check the provider hint.",
         );
       } else {
-        setSecrets(await window.airlock.secretsList());
+        setSecrets(await window.airlock.secretsList(root));
         setModal(null);
         // A newly vaulted secret only reaches the shell on spawn, so replace
         // the active terminal when injection is on.
@@ -188,7 +195,7 @@ export function SecretModal() {
                 await cancelRequested();
                 return;
               }
-              setSecrets(await window.airlock.secretsList());
+              if (root) setSecrets(await window.airlock.secretsList(root));
               setModal(null);
             }}
             disabled={busy}

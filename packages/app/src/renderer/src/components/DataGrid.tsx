@@ -30,6 +30,7 @@ function Cell({ value }: { value: unknown }) {
 
 export function DataGrid() {
   const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
   const setDbView = useApp((s) => s.setDbView);
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -39,6 +40,10 @@ export function DataGrid() {
   useEffect(() => {
     if (!dbView) return;
     const view = dbView;
+    // The secret-vaulted DB branch is per-project: it needs the pane's root.
+    // (The neon branch is account-global and takes no root.) A secret dbView is
+    // only ever set when this pane has a project open, so root is present here.
+    if (view.kind === "secret" && !root) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -54,7 +59,13 @@ export function DataGrid() {
             view.table,
             100,
           )
-        : window.airlock.dbRows(view.id, view.schema, view.table, 100);
+        : window.airlock.dbRows(
+            root as string,
+            view.id,
+            view.schema,
+            view.table,
+            100,
+          );
     rows
       .then((r) => {
         if (!cancelled) setResult(r);
@@ -71,7 +82,7 @@ export function DataGrid() {
     return () => {
       cancelled = true;
     };
-  }, [dbView]);
+  }, [dbView, root]);
 
   if (!dbView) return null;
 

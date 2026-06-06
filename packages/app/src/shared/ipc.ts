@@ -170,10 +170,19 @@ export interface AirlockApi {
   // with NO recents/menu changes (switching is not opening).
   workspaceSetActive(path: string): Promise<void>;
   workspaceClose(): Promise<void>;
+  // Report the full set of roots open in this window (every tab's root). The
+  // store calls this on tab open/close so main can validate a per-project
+  // handler's explicit root against the set the user actually opened.
+  workspaceRoots(roots: string[]): Promise<void>;
   openFile(): Promise<string | null>;
   onMenuAction(cb: (a: MenuAction) => void): () => void;
-  listDir(relPath: string): Promise<DirEntry[]>;
-  readFile(relPath: string): Promise<FileContent>;
+  // Per-project methods below take a leading `root` (the calling pane's): two
+  // panes share one window, so the window root alone is ambiguous. Main accepts
+  // it only if it is a root the user opened in this window, else falls back to
+  // the window root -- single-pane callers pass their window root, so behavior
+  // is identical.
+  listDir(root: string, relPath: string): Promise<DirEntry[]>;
+  readFile(root: string, relPath: string): Promise<FileContent>;
   ptyCreate(cols: number, rows: number): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
@@ -185,38 +194,46 @@ export interface AirlockApi {
   ptyIsBusy(id: string): Promise<boolean>;
   onPtyData(cb: (e: PtyDataEvent) => void): () => void;
   onPtyExit(cb: (e: PtyExitEvent) => void): () => void;
-  secretsList(): Promise<SecretMeta[]>;
-  secretsSet(name: string, value: string): Promise<SecretMeta>;
-  secretsDelete(name: string): Promise<void>;
+  secretsList(root: string): Promise<SecretMeta[]>;
+  secretsSet(root: string, name: string, value: string): Promise<SecretMeta>;
+  secretsDelete(root: string, name: string): Promise<void>;
   secretsImportEnv(
     relPath: string,
     deleteAfter: boolean,
   ): Promise<ImportResult>;
-  secretsReveal(name: string): Promise<string | null>;
+  secretsReveal(root: string, name: string): Promise<string | null>;
   clipboardCopySecret(
     name: string,
   ): Promise<{ copied: boolean; clearAfterSeconds: number }>;
-  configGet(): Promise<ProjectConfig>;
-  configSet(patch: Partial<ProjectConfig>): Promise<ProjectConfig>;
-  auditRead(limit: number): Promise<AuditEntry[]>;
-  gitIsRepo(): Promise<boolean>;
-  gitStatus(): Promise<GitStatus>;
-  gitStage(paths: string[]): Promise<void>;
-  gitUnstage(paths: string[]): Promise<void>;
-  gitCommit(message: string): Promise<string>;
-  gitBranches(): Promise<string[]>;
-  gitSwitchBranch(name: string): Promise<void>;
-  gitCreateBranch(name: string): Promise<void>;
-  gitFileVersions(relPath: string, which: DiffSide): Promise<FileVersions>;
+  configGet(root: string): Promise<ProjectConfig>;
+  configSet(
+    root: string,
+    patch: Partial<ProjectConfig>,
+  ): Promise<ProjectConfig>;
+  auditRead(root: string, limit: number): Promise<AuditEntry[]>;
+  gitIsRepo(root: string): Promise<boolean>;
+  gitStatus(root: string): Promise<GitStatus>;
+  gitStage(root: string, paths: string[]): Promise<void>;
+  gitUnstage(root: string, paths: string[]): Promise<void>;
+  gitCommit(root: string, message: string): Promise<string>;
+  gitBranches(root: string): Promise<string[]>;
+  gitSwitchBranch(root: string, name: string): Promise<void>;
+  gitCreateBranch(root: string, name: string): Promise<void>;
+  gitFileVersions(
+    root: string,
+    relPath: string,
+    which: DiffSide,
+  ): Promise<FileVersions>;
   githubInfo(): Promise<GithubInfo>;
   githubSwitch(host: string, username: string): Promise<void>;
   // Databases: id is the secret NAME; no password ever crosses these. dbList
   // returns redacted projections; ping/tables/rows return data or a
   // message-only error -- never the connection string.
-  dbList(): Promise<DbEntry[]>;
-  dbPing(id: string): Promise<{ ok: boolean; error?: string }>;
-  dbTables(id: string): Promise<DbTable[]>;
+  dbList(root: string): Promise<DbEntry[]>;
+  dbPing(root: string, id: string): Promise<{ ok: boolean; error?: string }>;
+  dbTables(root: string, id: string): Promise<DbTable[]>;
   dbRows(
+    root: string,
     id: string,
     schema: string,
     table: string,
@@ -268,7 +285,7 @@ export interface AirlockApi {
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
   // http(s) URLs in the system browser.
-  hostLocalUrl(): Promise<string | null>;
+  hostLocalUrl(root: string): Promise<string | null>;
   hostProbe(url: string): Promise<{ up: boolean }>;
   hostOpenExternal(url: string): Promise<void>;
   // Docker: machine-global (NOT root-gated); ids are opaque container ids.

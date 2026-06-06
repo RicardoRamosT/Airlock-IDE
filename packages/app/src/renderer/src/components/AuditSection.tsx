@@ -22,7 +22,7 @@ export function AuditSection() {
       return;
     }
     window.airlock
-      .auditRead(20)
+      .auditRead(root, 20)
       .then((e) => setEntries(e.reverse()))
       .catch(console.error);
   }, [root, secrets]);

@@ -20,8 +20,8 @@ export function useGitStatus(): void {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const repo = await window.airlock.gitIsRepo();
-        const status = repo ? await window.airlock.gitStatus() : null;
+        const repo = await window.airlock.gitIsRepo(root);
+        const status = repo ? await window.airlock.gitStatus(root) : null;
         if (!cancelled) setGitStatus(status, tabId);
       } catch (err) {
         console.error("git status refresh failed", err);

@@ -21,7 +21,7 @@ export function DatabasesSection() {
     if (!root) return;
     setBusy(true);
     try {
-      const list = await window.airlock.dbList();
+      const list = await window.airlock.dbList(root);
       setDbs(list);
       setPings(Object.fromEntries(list.map((d) => [d.id, "checking"])));
       // Drop any cached tables for DBs that vanished; collapse all rows so a
@@ -31,7 +31,7 @@ export function DatabasesSection() {
       await Promise.all(
         list.map(async (d) => {
           try {
-            const r = await window.airlock.dbPing(d.id);
+            const r = await window.airlock.dbPing(root, d.id);
             setPings((p) => ({ ...p, [d.id]: r.ok ? "ok" : "fail" }));
           } catch (err) {
             console.error("dbPing failed", d.id, err);
@@ -59,7 +59,7 @@ export function DatabasesSection() {
     if (next && !tables[id]) {
       setBusy(true);
       try {
-        const t = await window.airlock.dbTables(id);
+        const t = await window.airlock.dbTables(root, id);
         setTables((m) => ({ ...m, [id]: t }));
       } catch (err) {
         console.error("dbTables failed", id, err);

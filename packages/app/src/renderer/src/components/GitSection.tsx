@@ -20,16 +20,16 @@ export function GitSection() {
   const refresh = useCallback(async () => {
     if (!root) return;
     try {
-      const repo = await window.airlock.gitIsRepo();
+      const repo = await window.airlock.gitIsRepo(root);
       setIsRepo(repo);
       if (!repo) {
         setGitStatus(null, tabId);
         return;
       }
-      const s = await window.airlock.gitStatus();
+      const s = await window.airlock.gitStatus(root);
       setStatus(s);
       setGitStatus(s, tabId);
-      setBranches(await window.airlock.gitBranches());
+      setBranches(await window.airlock.gitBranches(root));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -57,7 +57,7 @@ export function GitSection() {
 
   const showDiff = async (path: string, which: "staged" | "unstaged") => {
     try {
-      const v = await window.airlock.gitFileVersions(path, which);
+      const v = await window.airlock.gitFileVersions(root, path, which);
       if (v.binary) {
         setError(`${path}: binary file, no diff`);
         return;
@@ -81,7 +81,7 @@ export function GitSection() {
       return;
     }
     if (value !== status.branch.head)
-      void run(() => window.airlock.gitSwitchBranch(value));
+      void run(() => window.airlock.gitSwitchBranch(root, value));
   };
 
   return (
@@ -113,7 +113,8 @@ export function GitSection() {
             e.preventDefault();
             const name = newBranch.trim();
             setNewBranch(null);
-            if (name) void run(() => window.airlock.gitCreateBranch(name));
+            if (name)
+              void run(() => window.airlock.gitCreateBranch(root, name));
           }}
         >
           <input
@@ -145,7 +146,7 @@ export function GitSection() {
                 className="git-action"
                 title="Unstage"
                 onClick={() =>
-                  void run(() => window.airlock.gitUnstage([c.path]))
+                  void run(() => window.airlock.gitUnstage(root, [c.path]))
                 }
               >
                 <i className="codicon codicon-remove" />
@@ -174,7 +175,7 @@ export function GitSection() {
                 className="git-action"
                 title="Stage"
                 onClick={() =>
-                  void run(() => window.airlock.gitStage([c.path]))
+                  void run(() => window.airlock.gitStage(root, [c.path]))
                 }
               >
                 <i className="codicon codicon-add" />
@@ -196,7 +197,9 @@ export function GitSection() {
                 type="button"
                 className="git-action"
                 title="Stage"
-                onClick={() => void run(() => window.airlock.gitStage([p]))}
+                onClick={() =>
+                  void run(() => window.airlock.gitStage(root, [p]))
+                }
               >
                 <i className="codicon codicon-add" />
               </button>
@@ -219,7 +222,7 @@ export function GitSection() {
         disabled={status.staged.length === 0 || message.trim() === ""}
         onClick={() =>
           void run(async () => {
-            await window.airlock.gitCommit(message);
+            await window.airlock.gitCommit(root, message);
             setMessage("");
           })
         }

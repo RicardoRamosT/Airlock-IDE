@@ -16,14 +16,15 @@ function Node({ entry, parent }: { entry: DirEntry; parent: string }) {
 
 function FileNode({ name, relPath }: { name: string; relPath: string }) {
   const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const setSelected = useApp((s) => s.setSelected);
   const select = async () => {
+    if (!root) return;
     try {
-      // IPC still resolves the window root (explicit-root is a later task); for
-      // single pane the window root === the pane's root so this reads the right
-      // file. Only the STATE write is scoped to the pane via tabId.
-      const file = await window.airlock.readFile(relPath);
+      // Pass the PANE's root so the read resolves THIS pane's project (two panes
+      // share one window). The state write is scoped to the same pane via tabId.
+      const file = await window.airlock.readFile(root, relPath);
       setSelected(relPath, file, tabId);
     } catch (err) {
       console.error("readFile failed", err);
@@ -42,15 +43,17 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
 }
 
 function DirNode({ name, relPath }: { name: string; relPath: string }) {
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
   const toggle = async () => {
     const next = !open;
     setOpen(next);
     // TODO: invalidate on workspace:changed once file-watching lands
-    if (next && children === null) {
+    if (next && children === null && root) {
       try {
-        setChildren(await window.airlock.listDir(relPath));
+        setChildren(await window.airlock.listDir(root, relPath));
       } catch (err) {
         console.error("listDir failed", err);
         setOpen(false); // collapse back; otherwise arrow shows open with no children
@@ -84,7 +87,7 @@ export function FileTree() {
       setEntries(null);
       return;
     }
-    window.airlock.listDir(".").then(setEntries).catch(console.error);
+    window.airlock.listDir(root, ".").then(setEntries).catch(console.error);
   }, [root]);
 
   if (!root) return null;

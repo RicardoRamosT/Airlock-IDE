@@ -36,7 +36,7 @@ export function SettingsTab() {
   useEffect(() => {
     if (root && !config) {
       window.airlock
-        .configGet()
+        .configGet(root)
         .then((c) => setConfig(c, tabId))
         .catch(console.error);
     }
@@ -66,7 +66,8 @@ export function SettingsTab() {
   };
 
   const toggleInject = async () => {
-    const next = await window.airlock.configSet({
+    if (!root) return;
+    const next = await window.airlock.configSet(root, {
       injectSecretsIntoTerminal: !(config?.injectSecretsIntoTerminal ?? false),
     });
     setConfig(next, tabId);

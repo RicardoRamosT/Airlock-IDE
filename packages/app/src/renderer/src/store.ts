@@ -280,6 +280,18 @@ const tabIsWorking = (
     (t) => t.ptyId !== null && sessionWorking[t.ptyId] === true,
   );
 
+// Report the window's full set of OPEN tab roots to main (every tab that has a
+// folder). Main validates a per-project IPC's explicit root against this set
+// (resolveRoot), so the renderer can only point a handler at a project the user
+// actually opened. Called at the end of every action that can change the set of
+// open roots (openProject/openBlankTab/fillActiveTab/replaceActiveProject/
+// closeTab). Fire-and-forget; guarded so a missing API (e.g. tests) never
+// throws, mirroring how switchTab fires workspaceSetActive.
+const reportOpenRoots = (tabs: { root: string | null }[]): void => {
+  const roots = tabs.map((t) => t.root).filter((r): r is string => !!r);
+  void window.airlock?.workspaceRoots?.(roots);
+};
+
 // Apply removeTerminal's promote-active / collapse-split logic to a single
 // tab's terminal state. Extracted so it can run against the OWNING tab (which
 // may be a background tab) rather than always the active tab.
@@ -351,7 +363,7 @@ export const useApp = create<AppState>((set) => ({
   // mode) and make it active with fresh empty terminals. The outgoing active
   // tab's state already lives in tabState (no parking); we add the new tab's
   // ProjectState and mirror it to the top level.
-  openProject: (root) =>
+  openProject: (root) => {
     set((s) => {
       const id = newTabId();
       const state = freshProjectState(root);
@@ -365,10 +377,13 @@ export const useApp = create<AppState>((set) => ({
         // a freshly opened project starts with no modal carried over
         modal: null,
       };
-    }),
+    });
+    // The set of open roots grew -> tell main (for resolveRoot validation).
+    reportOpenRoots(useApp.getState().tabs);
+  },
   // Append a BLANK tab (no folder) and make it active. The tab-strip `+` calls
   // this -- NO folder picker. Fresh ProjectState + empty terminals.
-  openBlankTab: () =>
+  openBlankTab: () => {
     set((s) => {
       const id = newTabId();
       const state = freshProjectState(null);
@@ -380,11 +395,14 @@ export const useApp = create<AppState>((set) => ({
         ...mirrorOf(state),
         modal: null,
       };
-    }),
+    });
+    // A blank tab adds no root, but reporting keeps main's set authoritative.
+    reportOpenRoots(useApp.getState().tabs);
+  },
   // Attach a folder to the active BLANK tab IN PLACE, KEEPING its terminals (so
   // a live `claude`/server in the blank tab's shell survives the attach). The
   // tab gets fresh project fields for the new root. (Idle/busy handling later.)
-  fillActiveTab: (root) =>
+  fillActiveTab: (root) => {
     set((s) => {
       const id = s.activeTabId;
       const state = freshProjectState(root);
@@ -396,12 +414,15 @@ export const useApp = create<AppState>((set) => ({
         ...mirrorOf(state),
         modal: null,
       };
-    }),
+    });
+    // A blank tab gained a folder -> the open-roots set changed.
+    reportOpenRoots(useApp.getState().tabs);
+  },
   // Windows-mode "replace the window's single project in place" (active tab
   // already HAS a project): swap the ACTIVE tab's root rather than appending a
   // tab, give it fresh project fields, and reset that tab's terminals to a fresh
   // empty set so the old project's TerminalPanes unmount and their ptys die.
-  replaceActiveProject: (root) =>
+  replaceActiveProject: (root) => {
     set((s) => {
       const id = s.activeTabId;
       const state = freshProjectState(root);
@@ -412,7 +433,10 @@ export const useApp = create<AppState>((set) => ({
         ...mirrorOf(state),
         modal: null,
       };
-    }),
+    });
+    // The active tab's root was swapped -> the open-roots set changed.
+    reportOpenRoots(useApp.getState().tabs);
+  },
   // Focus tab id (clicking a tab OR a pane). The mirror just re-points at the
   // newly-focused tab's tabState entry (no parking -- every tab's state is
   // always live). Mirrors the terminal-split swap:
@@ -515,6 +539,9 @@ export const useApp = create<AppState>((set) => ({
     // active root is unchanged).
     if (promotedRoot) void window.airlock.workspaceSetActive(promotedRoot);
     else if (clearMain) void window.airlock.workspaceClose();
+    // A tab was removed (or the last close replaced it with a blank) -> the
+    // open-roots set changed; re-report so main's resolveRoot stays in sync.
+    reportOpenRoots(useApp.getState().tabs);
   },
   // Per-session working update (from TerminalPane's indicator scan) -> per-tab
   // state. Record the session's working bit, then drive the OWNING tab's glow

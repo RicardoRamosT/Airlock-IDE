@@ -36,9 +36,14 @@ export function LocalHostSection() {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!root) {
+      setUrl(null);
+      setUp(null);
+      return;
+    }
     setBusy(true);
     try {
-      const u = await window.airlock.hostLocalUrl();
+      const u = await window.airlock.hostLocalUrl(root);
       if (!mounted.current) return;
       setUrl(u);
       if (u) {
@@ -52,7 +57,7 @@ export function LocalHostSection() {
     } finally {
       if (mounted.current) setBusy(false);
     }
-  }, []);
+  }, [root]);
 
   // Fetch on mount, when the pane's project changes, and whenever the window
   // regains focus (the dev server may have been started/stopped outside the
@@ -68,9 +73,9 @@ export function LocalHostSection() {
 
   const save = async () => {
     const next = draft.trim();
-    if (!next) return;
+    if (!next || !root) return;
     try {
-      await window.airlock.configSet({ devUrl: next });
+      await window.airlock.configSet(root, { devUrl: next });
       if (mounted.current) setEditing(false);
       await refresh();
     } catch (err) {

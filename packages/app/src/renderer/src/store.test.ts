@@ -13,6 +13,11 @@ const initialState = useApp.getState();
 // many times the root is cleared.
 const setActiveCalls: string[] = [];
 let closeCalls = 0;
+// The store also reports the window's open-tab roots via window.airlock
+// .workspaceRoots on every set-changing tab action (open/fill/replace/close).
+// Record the latest reported set so the stub satisfies those calls (without it
+// the actions would call an undefined and throw).
+let lastReportedRoots: string[] | null = null;
 
 beforeEach(() => {
   (globalThis as { window?: unknown }).window = {
@@ -25,10 +30,15 @@ beforeEach(() => {
         closeCalls += 1;
         return Promise.resolve();
       },
+      workspaceRoots: (roots: string[]) => {
+        lastReportedRoots = roots;
+        return Promise.resolve();
+      },
     },
   };
   setActiveCalls.length = 0;
   closeCalls = 0;
+  lastReportedRoots = null;
   useApp.setState(initialState, true);
 });
 
@@ -377,6 +387,25 @@ describe("closeTab", () => {
     // the last-tab close CLEARS main's root (agent stops resolving the project)
     expect(closeCalls).toBe(1);
     expect(setActiveCalls).toEqual([]);
+  });
+});
+
+describe("workspace:roots reporting (resolveRoot validation set)", () => {
+  it("reports the window's open folder roots on open and close", () => {
+    // initial blank tab -> opening /a then /b reports the growing folder set
+    get().openProject("/a");
+    expect(lastReportedRoots).toEqual(["/a"]);
+
+    get().openProject("/b");
+    expect(lastReportedRoots).toEqual(["/a", "/b"]);
+
+    // closing the active /b leaves /a as the only open folder
+    get().closeTab(tabIdAt(2));
+    expect(lastReportedRoots).toEqual(["/a"]);
+
+    // blank tabs contribute no root (filtered out)
+    get().openBlankTab();
+    expect(lastReportedRoots).toEqual(["/a"]);
   });
 });
 

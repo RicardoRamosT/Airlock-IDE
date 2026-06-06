@@ -22,8 +22,11 @@ export function useMenuActions(): void {
         }
         case "open-file": {
           const rel = await window.airlock.openFile();
-          if (rel) {
-            const file = await window.airlock.readFile(rel);
+          // openFile only resolves a path when a folder is open, so s.root (the
+          // focused project's root) is present; pass it so the read resolves the
+          // focused project (== the window root, so resolveRoot is identical).
+          if (rel && s.root) {
+            const file = await window.airlock.readFile(s.root, rel);
             s.setSelected(rel, file);
           }
           break;

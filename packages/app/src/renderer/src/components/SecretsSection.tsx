@@ -18,12 +18,13 @@ export function SecretsSection() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setSecrets(await window.airlock.secretsList(), tabId);
-    setConfig(await window.airlock.configGet(), tabId);
+    if (!root) return;
+    setSecrets(await window.airlock.secretsList(root), tabId);
+    setConfig(await window.airlock.configGet(root), tabId);
     // A refreshed list may drop or change secrets; clear inline reveals so a
     // stale plaintext value can never linger next to a renamed/removed row.
     setRevealed({});
-  }, [setSecrets, setConfig, tabId]);
+  }, [root, setSecrets, setConfig, tabId]);
 
   useEffect(() => {
     if (root) refresh().catch(console.error);
@@ -32,7 +33,7 @@ export function SecretsSection() {
   if (!root) return <div className="section-note">open a folder first</div>;
 
   const toggleInject = async () => {
-    const next = await window.airlock.configSet({
+    const next = await window.airlock.configSet(root, {
       injectSecretsIntoTerminal: !(config?.injectSecretsIntoTerminal ?? false),
     });
     setConfig(next, tabId);
@@ -40,7 +41,7 @@ export function SecretsSection() {
   };
 
   const removeSecret = async (name: string) => {
-    await window.airlock.secretsDelete(name);
+    await window.airlock.secretsDelete(root, name);
     await refresh();
     if (config?.injectSecretsIntoTerminal) setNeedsRestart(true);
   };
@@ -56,7 +57,7 @@ export function SecretsSection() {
       });
       return;
     }
-    const value = await window.airlock.secretsReveal(name);
+    const value = await window.airlock.secretsReveal(root, name);
     setRevealed((r) => ({ ...r, [name]: value ?? "(not found)" }));
   };
 

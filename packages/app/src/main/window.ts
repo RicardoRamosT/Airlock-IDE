@@ -7,10 +7,34 @@ import path, { basename } from "node:path";
 import { BrowserWindow, type WebContents } from "electron";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
+// The SET of roots the user currently has open in each window (every tab's
+// root). The renderer reports it on tab changes via the workspace:roots IPC.
+// resolveRoot consults it so a per-project handler's explicit root must be one
+// the user actually opened in that window (defense in depth -- no arbitrary
+// path). Distinct from workspaceRoots, which is the window's single FOCUSED
+// root used by requireRoot / the agent.
+const windowRoots = new Map<number, Set<string>>(); // BrowserWindow.id -> open tab roots
 let lastFocusedId: number | null = null;
 
 function winIdForSender(sender: WebContents): number | null {
   return BrowserWindow.fromWebContents(sender)?.id ?? null;
+}
+
+// Record the full set of roots open in the sender's window (from the store on
+// every tab open/close). Replaces the prior set wholesale.
+export function setWindowRoots(
+  e: { sender: WebContents },
+  roots: string[],
+): void {
+  const id = winIdForSender(e.sender);
+  if (id !== null) windowRoots.set(id, new Set(roots));
+}
+
+// Whether `root` is one of the roots the sender's window currently has open.
+// Used by resolveRoot to validate a renderer-supplied explicit root.
+export function isOpenRoot(e: { sender: WebContents }, root: string): boolean {
+  const id = winIdForSender(e.sender);
+  return id === null ? false : (windowRoots.get(id)?.has(root) ?? false);
 }
 
 // The folder open in the window that sent an IPC event (or null).
@@ -87,6 +111,7 @@ export function createWindow(): BrowserWindow {
   });
   win.on("closed", () => {
     workspaceRoots.delete(win.id);
+    windowRoots.delete(win.id);
     if (lastFocusedId === win.id) {
       lastFocusedId =
         BrowserWindow.getFocusedWindow()?.id ??
