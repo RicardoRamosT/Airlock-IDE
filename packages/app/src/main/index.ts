@@ -1,6 +1,6 @@
 import path from "node:path";
 import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
-import { app, BrowserWindow, nativeImage } from "electron";
+import { app, BrowserWindow, Menu, nativeImage } from "electron";
 import {
   registerAgentRequestIpc,
   requestSecretFromUser,
@@ -69,6 +69,15 @@ function bootstrap(): void {
         nativeImage.createFromPath(
           path.join(__dirname, "../../build/icon-512.png"),
         ),
+      );
+    }
+    // Dock right-click menu (macOS): always set, packaged or not. "New Window"
+    // opens a fresh, no-folder airlock window.
+    if (process.platform === "darwin" && app.dock) {
+      app.dock.setMenu(
+        Menu.buildFromTemplate([
+          { label: "New Window", click: () => createWindow() },
+        ]),
       );
     }
     // App-global prefs live in userData (NOT per-project .airlock/). getPath

@@ -41,7 +41,7 @@ import {
   withDb,
   writeProjectConfig,
 } from "@airlock/agent-core";
-import { clipboard, dialog, ipcMain, shell } from "electron";
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus } from "./activity";
 import {
@@ -59,11 +59,17 @@ import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
 import {
   clearRootForEvent,
   lastFocusedRoot,
+  lastFocusedWindowId,
   rootForEvent,
   setRootForEvent,
 } from "./window";
 
 const sessions = new Map<string, PtySession>();
+
+// Per-PTY owning window (sessionId -> BrowserWindow id). Terminal-reading agent
+// tools are scoped to the agent's (last-focused) window, so a window only ever
+// sees + reads its OWN terminals. Recorded in pty:create, deleted on exit.
+const sessionWindows = new Map<string, number>();
 
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
 // cannot grow unbounded; read (redacted) by get_terminal_tail. Deleted on exit.
@@ -629,6 +635,8 @@ export function registerIpc(
       env: secretEnv,
     });
     sessions.set(s.id, s);
+    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
+    if (ownerId !== undefined) sessionWindows.set(s.id, ownerId);
     const wc = e.sender;
     const dataSub = s.onData((data) => {
       const prev = ptyBuffers.get(s.id) ?? "";
@@ -642,6 +650,7 @@ export function registerIpc(
     const exitSub = s.onExit((exitCode) => {
       sessions.delete(s.id);
       ptyBuffers.delete(s.id);
+      sessionWindows.delete(s.id);
       if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
       // Release the listeners explicitly. node-pty has no destroy(); kill()
       // is teardown, but the onData/onExit subscriptions are IDisposables
@@ -687,6 +696,7 @@ export function killAllSessions(): void {
   for (const s of sessions.values()) s.kill();
   sessions.clear();
   ptyBuffers.clear();
+  sessionWindows.clear();
 }
 
 // Resolve EVERY vaulted secret value (any could appear in terminal output) so
@@ -710,6 +720,10 @@ export async function getTerminalTail(
 ): Promise<{ tail: string } | { error: string }> {
   const root = lastFocusedRoot();
   if (!root) return { error: "No workspace open" };
+  const winId = lastFocusedWindowId();
+  if (winId !== null && sessionWindows.get(termId) !== winId) {
+    return { error: "No such terminal" };
+  }
   const raw = ptyBuffers.get(termId);
   if (raw === undefined) return { error: "No such terminal" };
   const n = Math.min(
@@ -731,9 +745,11 @@ export async function listTerminals(): Promise<
   { id: string; preview: string }[]
 > {
   const root = lastFocusedRoot();
+  const winId = lastFocusedWindowId();
   const values = root ? await allVaultedValues(root) : [];
   const out: { id: string; preview: string }[] = [];
   for (const id of sessions.keys()) {
+    if (winId !== null && sessionWindows.get(id) !== winId) continue;
     const raw = ptyBuffers.get(id) ?? "";
     out.push({ id, preview: redactedPreview(raw, values, PREVIEW_LINES) });
   }

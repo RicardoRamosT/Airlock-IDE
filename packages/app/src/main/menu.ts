@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
 import type { MenuAction, Section, SectionVisibility } from "../shared/ipc";
 import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
+import { createWindow } from "./window";
 
 export const SECTION_LABELS: Record<Section, string> = {
   files: "Files",
@@ -66,6 +67,12 @@ export function applyAppMenu(
     {
       label: "File",
       submenu: [
+        {
+          label: "New Window",
+          accelerator: "CmdOrCtrl+Shift+N",
+          click: () => createWindow(),
+        },
+        { type: "separator" },
         {
           label: "Open Folder...",
           accelerator: "CmdOrCtrl+O",
@@ -135,7 +142,10 @@ export async function changeSectionVisibility(
   const next: SectionVisibility = { ...cur.sectionVisibility, [id]: visible };
   await savePrefs(prefsFile, { sectionVisibility: next });
   applyAppMenu(prefsFile, next, cur.recentFolders);
-  const wc = BrowserWindow.getAllWindows()[0]?.webContents;
-  if (wc && !wc.isDestroyed()) wc.send("sections:changed", next);
+  // Sidebar visibility is app-global, so fan the new map out to every window.
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.webContents.isDestroyed())
+      w.webContents.send("sections:changed", next);
+  }
   return next;
 }

@@ -42,7 +42,9 @@ export type RequestNotifier = (payload: {
 }) => boolean;
 
 const realNotify: RequestNotifier = (payload) => {
-  const wc = BrowserWindow.getAllWindows()[0]?.webContents;
+  const win =
+    BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const wc = win?.webContents;
   if (!wc || wc.isDestroyed()) return false;
   wc.send("agent:request-secret", payload);
   return true;
