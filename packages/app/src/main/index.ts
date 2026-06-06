@@ -19,7 +19,12 @@ import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs } from "./prefs";
 import { createWindow, lastFocusedRoot } from "./window";
 
-app.setName("airlock");
+app.setName("AirLock");
+// The display name is "AirLock", but keep userData (prefs.json + the persisted
+// MCP port/token) at the original lowercase "airlock" path so the rename does not
+// orphan saved prefs or invalidate the already-registered MCP server URL. Keychain
+// (service "airlock") and per-project .airlock/ dirs are separate and unaffected.
+app.setPath("userData", path.join(app.getPath("appData"), "airlock"));
 
 // Single-instance lock (#13): two Airlocks would contend over the same
 // project's .airlock/ files (secrets meta, audit chain). If we don't get the

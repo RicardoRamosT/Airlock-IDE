@@ -38,8 +38,8 @@ npm run package   # → packages/app/release/mac-arm64/airlock.app
 
 Drag it to /Applications (or the dock). Unsigned — local use only.
 Note: in `npm run dev` the dock may still show "Electron" (the dev binary's
-identity); the packaged app shows the airlock name + icon everywhere.
-To rebrand: replace `packages/app/build/icon.svg`, run
+identity); the packaged app shows the AirLock name + icon everywhere.
+To rebrand: replace `packages/app/build/icon.png` (1024x1024), run
 `bash packages/app/scripts/make-icon.sh`, re-package.
 
 ## Terminal

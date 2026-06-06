@@ -42,7 +42,7 @@ function setWindowTitleFromRoot(
 ): void {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (!win || win.isDestroyed()) return;
-  win.setTitle(root ? `airlock - ${basename(root)}` : "airlock");
+  win.setTitle(root ? `AirLock - ${basename(root)}` : "AirLock");
 }
 
 // The agent's window id = last-focused, with focused-window / any-window fallbacks.
@@ -68,7 +68,7 @@ export function createWindow(): BrowserWindow {
     width: 1400,
     height: 900,
     backgroundColor: "#0d1117",
-    title: "airlock",
+    title: "AirLock",
     titleBarStyle: "hiddenInset",
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),

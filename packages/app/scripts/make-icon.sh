@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Regenerate build/icon.png, the .iconset sizes, build/icon-512.png (dev dock),
-# and build/icon.icns from build/icon.svg. Replace icon.svg to rebrand.
+# Regenerate the .iconset sizes, build/icon-512.png (dev dock), and
+# build/icon.icns from build/icon.png (the 1024x1024 master).
+# To rebrand: drop a new 1024x1024 build/icon.png and run this script.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-npx electron scripts/render-icon.cjs
-cd build
+cd "$(dirname "$0")/../build"
 rm -rf icon.iconset && mkdir icon.iconset
 for s in 16 32 128 256 512; do
   sips -z $s $s icon.png --out "icon.iconset/icon_${s}x${s}.png" >/dev/null
@@ -13,4 +12,4 @@ for s in 16 32 128 256 512; do
 done
 cp "icon.iconset/icon_512x512.png" icon-512.png
 iconutil -c icns icon.iconset -o icon.icns
-echo "icon.icns + icon-512.png regenerated"
+echo "icon.icns + icon-512.png regenerated from icon.png"

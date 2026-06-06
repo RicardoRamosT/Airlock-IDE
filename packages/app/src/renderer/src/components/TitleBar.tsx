@@ -7,7 +7,7 @@ export function TitleBar() {
   return (
     <header className="titlebar">
       <span className="titlebar-title">
-        {project ? `airlock - ${project}` : "airlock"}
+        {project ? `AirLock - ${project}` : "AirLock"}
       </span>
       <LayoutControls />
     </header>

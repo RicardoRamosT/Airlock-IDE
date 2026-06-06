@@ -11,7 +11,7 @@
   },
   "build": {
     "appId": "com.ricardoramos.airlock",
-    "productName": "airlock",
+    "productName": "AirLock",
     "electronVersion": "42.3.2",
     "directories": {
       "output": "release",
