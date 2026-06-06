@@ -56,8 +56,13 @@ import {
 } from "./ide-state";
 import { applyAppMenu, changeSectionVisibility } from "./menu";
 import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
+import {
+  clearRootForEvent,
+  lastFocusedRoot,
+  rootForEvent,
+  setRootForEvent,
+} from "./window";
 
-let workspaceRoot: string | null = null;
 const sessions = new Map<string, PtySession>();
 
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
@@ -68,20 +73,10 @@ const DEFAULT_TAIL_LINES = 40;
 const MAX_TAIL_LINES = 400;
 const PREVIEW_LINES = 3;
 
-function requireRoot(): string {
-  if (!workspaceRoot) throw new Error("No workspace open");
-  return workspaceRoot;
-}
-
-// Accessor for the module-private workspaceRoot. The MCP server reads the
-// current workspace root through this rather than holding its own copy, so
-// there is one source of truth for the open folder.
-export function getWorkspaceRoot(): string | null {
-  return workspaceRoot;
-}
-
-export function setWorkspaceRoot(root: string | null): void {
-  workspaceRoot = root;
+function requireRoot(e: { sender: Electron.WebContents }): string {
+  const root = rootForEvent(e);
+  if (!root) throw new Error("No workspace open");
+  return root;
 }
 
 const NEON_KEY = "NEON_API_KEY";
@@ -128,8 +123,11 @@ export function registerIpc(
   // Open a workspace at a known path: set root, re-register MCP (onFolderOpen),
   // record the folder in recents (most-recent-first, deduped, capped), and
   // rebuild the menu so Open Recent reflects it.
-  async function recordAndOpen(root: string): Promise<void> {
-    workspaceRoot = root;
+  async function recordAndOpen(
+    e: { sender: Electron.WebContents },
+    root: string,
+  ): Promise<void> {
+    setRootForEvent(e, root);
     onFolderOpen?.(root);
     const prev = await loadPrefs(prefsFile);
     const recents = [
@@ -140,71 +138,72 @@ export function registerIpc(
     applyAppMenu(prefsFile, prev.sectionVisibility, recents);
   }
 
-  ipcMain.handle("dialog:openFolder", async () => {
+  ipcMain.handle("dialog:openFolder", async (e) => {
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
     if (r.canceled || r.filePaths.length === 0) return null;
     const picked = r.filePaths[0];
     if (!picked) return null;
-    await recordAndOpen(picked);
+    await recordAndOpen(e, picked);
     return picked;
   });
 
-  ipcMain.handle("workspace:open", async (_e, p: unknown) => {
+  ipcMain.handle("workspace:open", async (e, p: unknown) => {
     if (typeof p !== "string") throw new Error("Invalid payload");
-    await recordAndOpen(p);
+    await recordAndOpen(e, p);
     return p;
   });
 
-  ipcMain.handle("workspace:close", () => {
-    workspaceRoot = null;
+  ipcMain.handle("workspace:close", (e) => {
+    clearRootForEvent(e);
   });
 
   // Pick a file to view; return it RELATIVE to the open folder (the viewer read
   // path is workspace-confined). null if cancelled, no folder open, or outside.
-  ipcMain.handle("dialog:openFile", async () => {
-    if (!workspaceRoot) return null;
+  ipcMain.handle("dialog:openFile", async (e) => {
+    const root = rootForEvent(e);
+    if (!root) return null;
     const r = await dialog.showOpenDialog({
       properties: ["openFile"],
-      defaultPath: workspaceRoot,
+      defaultPath: root,
     });
     if (r.canceled || r.filePaths.length === 0) return null;
     const picked = r.filePaths[0];
     if (!picked) return null;
-    const rel = path.relative(workspaceRoot, picked);
+    const rel = path.relative(root, picked);
     if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
     return rel;
   });
 
-  ipcMain.handle("fs:listDir", (_e, relPath: unknown) => {
+  ipcMain.handle("fs:listDir", (e, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
-    return listDirectory(requireRoot(), relPath);
+    return listDirectory(requireRoot(e), relPath);
   });
 
-  ipcMain.handle("fs:readFile", (_e, relPath: unknown) => {
+  ipcMain.handle("fs:readFile", (e, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
-    return readWorkspaceFile(requireRoot(), relPath);
+    return readWorkspaceFile(requireRoot(e), relPath);
   });
 
-  ipcMain.handle("secrets:list", () => listSecrets(requireRoot()));
+  ipcMain.handle("secrets:list", (e) => listSecrets(requireRoot(e)));
 
-  ipcMain.handle("secrets:set", (_e, name: string, value: string) => {
+  ipcMain.handle("secrets:set", (e, name: string, value: string) => {
     if (typeof name !== "string" || typeof value !== "string") {
       throw new Error("Invalid payload");
     }
-    return setSecret(requireRoot(), name, value);
+    return setSecret(requireRoot(e), name, value);
   });
 
-  ipcMain.handle("secrets:delete", (_e, name: string) => {
+  ipcMain.handle("secrets:delete", (e, name: string) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    return deleteSecret(requireRoot(), name);
+    return deleteSecret(requireRoot(e), name);
   });
 
   // OWNER-ONLY value path. The renderer is the human's surface; the agent (a
   // separate process, reachable only over MCP) cannot call this IPC and is NOT
   // given any value tool. Audited (name only). See broker.getSecretValue banner.
-  ipcMain.handle("secrets:reveal", async (_e, name: unknown) => {
+  ipcMain.handle("secrets:reveal", async (e, name: unknown) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    const root = requireRoot();
+    const root = requireRoot(e);
     await appendAudit(root, "user", "secret.reveal", { name });
     return getSecretValue(root, name);
   });
@@ -212,9 +211,9 @@ export function registerIpc(
   // Copy by NAME so the value never enters the renderer: main resolves it, puts
   // it on the clipboard, and conditionally auto-clears after the configured delay
   // (0 = never; clears only if the clipboard still holds this exact value).
-  ipcMain.handle("clipboard:copySecret", async (_e, name: unknown) => {
+  ipcMain.handle("clipboard:copySecret", async (e, name: unknown) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    const root = requireRoot();
+    const root = requireRoot(e);
     const value = await getSecretValue(root, name);
     if (value === null) return { copied: false, clearAfterSeconds: 0 };
     clipboard.writeText(value);
@@ -230,17 +229,17 @@ export function registerIpc(
 
   ipcMain.handle(
     "secrets:importEnv",
-    (_e, relPath: string, deleteAfter: boolean) => {
+    (e, relPath: string, deleteAfter: boolean) => {
       if (typeof relPath !== "string") throw new Error("Invalid payload");
-      return importDotEnv(requireRoot(), relPath, {
+      return importDotEnv(requireRoot(e), relPath, {
         deleteAfter: deleteAfter === true,
       });
     },
   );
 
-  ipcMain.handle("config:get", () => readProjectConfig(requireRoot()));
+  ipcMain.handle("config:get", (e) => readProjectConfig(requireRoot(e)));
 
-  ipcMain.handle("config:set", (_e, patch: unknown) => {
+  ipcMain.handle("config:set", (e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
     const p = patch as {
       injectSecretsIntoTerminal?: unknown;
@@ -250,7 +249,7 @@ export function registerIpc(
     if (typeof p.injectSecretsIntoTerminal === "boolean")
       clean.injectSecretsIntoTerminal = p.injectSecretsIntoTerminal;
     if (typeof p.devUrl === "string") clean.devUrl = p.devUrl;
-    return writeProjectConfig(requireRoot(), clean);
+    return writeProjectConfig(requireRoot(e), clean);
   });
 
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
@@ -275,74 +274,72 @@ export function registerIpc(
     return changeSectionVisibility(prefsFile, id as Section, visible);
   });
 
-  ipcMain.handle("audit:read", (_e, limit: number) =>
+  ipcMain.handle("audit:read", (e, limit: number) =>
     readAudit(
-      requireRoot(),
+      requireRoot(e),
       Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 50,
     ),
   );
 
-  ipcMain.handle("git:isRepo", () => isGitRepo(requireRoot()));
+  ipcMain.handle("git:isRepo", (e) => isGitRepo(requireRoot(e)));
 
-  ipcMain.handle("git:status", () => gitStatusFor(requireRoot()));
+  ipcMain.handle("git:status", (e) => gitStatusFor(requireRoot(e)));
 
-  ipcMain.handle("git:stage", (_e, paths: unknown) => {
+  ipcMain.handle("git:stage", (e, paths: unknown) => {
     if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
       throw new Error("Invalid payload");
     }
-    return stageFiles(requireRoot(), paths as string[]);
+    return stageFiles(requireRoot(e), paths as string[]);
   });
 
-  ipcMain.handle("git:unstage", (_e, paths: unknown) => {
+  ipcMain.handle("git:unstage", (e, paths: unknown) => {
     if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
       throw new Error("Invalid payload");
     }
-    return unstageFiles(requireRoot(), paths as string[]);
+    return unstageFiles(requireRoot(e), paths as string[]);
   });
 
-  ipcMain.handle("git:commit", (_e, message: unknown) => {
+  ipcMain.handle("git:commit", (e, message: unknown) => {
     if (typeof message !== "string") throw new Error("Invalid payload");
-    return commitStaged(requireRoot(), message);
+    return commitStaged(requireRoot(e), message);
   });
 
-  ipcMain.handle("git:branches", () => listBranches(requireRoot()));
+  ipcMain.handle("git:branches", (e) => listBranches(requireRoot(e)));
 
-  ipcMain.handle("git:switchBranch", (_e, name: unknown) => {
+  ipcMain.handle("git:switchBranch", (e, name: unknown) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    return switchBranch(requireRoot(), name);
+    return switchBranch(requireRoot(e), name);
   });
 
-  ipcMain.handle("git:createBranch", (_e, name: unknown) => {
+  ipcMain.handle("git:createBranch", (e, name: unknown) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    return createBranch(requireRoot(), name);
+    return createBranch(requireRoot(e), name);
   });
 
-  ipcMain.handle("git:fileVersions", (_e, relPath: unknown, which: unknown) => {
+  ipcMain.handle("git:fileVersions", (e, relPath: unknown, which: unknown) => {
     if (
       typeof relPath !== "string" ||
       (which !== "staged" && which !== "unstaged")
     ) {
       throw new Error("Invalid payload");
     }
-    return gitFileVersions(requireRoot(), relPath, which);
+    return gitFileVersions(requireRoot(e), relPath, which);
   });
 
   // GitHub accounts + commit identity: NOT requireRoot-gated. gh accounts are
   // app-global and must list with no folder open; the repo identity is just
   // null then. gh redacts tokens, so airlock never sees credentials.
-  ipcMain.handle("github:info", async () => {
+  ipcMain.handle("github:info", async (e) => {
     const gh = await ghAccounts();
     let name: string | null = null;
     let email: string | null = null;
-    if (workspaceRoot) {
+    const root = rootForEvent(e);
+    if (root) {
       try {
-        name =
-          (await runGit(workspaceRoot, ["config", "user.name"])).trim() || null;
+        name = (await runGit(root, ["config", "user.name"])).trim() || null;
       } catch {}
       try {
-        email =
-          (await runGit(workspaceRoot, ["config", "user.email"])).trim() ||
-          null;
+        email = (await runGit(root, ["config", "user.email"])).trim() || null;
       } catch {}
     }
     return { gh, identity: { name, email } };
@@ -363,15 +360,18 @@ export function registerIpc(
 
   // Resolve a vaulted postgres-url secret to its connection string, MAIN-SIDE
   // only. The string (with password) is used to connect and never leaves main.
-  async function dbConnString(id: string): Promise<string> {
-    const root = requireRoot();
+  async function dbConnString(
+    e: { sender: Electron.WebContents },
+    id: string,
+  ): Promise<string> {
+    const root = requireRoot(e);
     const value = await getSecretValue(root, id);
     if (!value) throw new Error("Database secret not found");
     return value;
   }
 
-  ipcMain.handle("db:list", async () => {
-    const root = requireRoot();
+  ipcMain.handle("db:list", async (e) => {
+    const root = requireRoot(e);
     const metas = (await listSecrets(root)).filter(
       (m) => m.provider === "postgres-url",
     );
@@ -401,10 +401,10 @@ export function registerIpc(
     return out; // NO password field
   });
 
-  ipcMain.handle("db:ping", async (_e, id: unknown) => {
+  ipcMain.handle("db:ping", async (e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
     try {
-      await withDb(await dbConnString(id), (run) => pingDb(run));
+      await withDb(await dbConnString(e, id), (run) => pingDb(run));
       return { ok: true };
     } catch (err) {
       // Message-only: never the connection string / stack / error object.
@@ -420,10 +420,10 @@ export function registerIpc(
     }
   });
 
-  ipcMain.handle("db:tables", async (_e, id: unknown) => {
+  ipcMain.handle("db:tables", async (e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
     try {
-      return await withDb(await dbConnString(id), (run) => listTables(run));
+      return await withDb(await dbConnString(e, id), (run) => listTables(run));
     } catch (err) {
       // Message-only, never the connection string / stack. redactConnStrings is
       // the enforcing layer; we deliberately do NOT attach `cause` so the raw
@@ -436,13 +436,7 @@ export function registerIpc(
 
   ipcMain.handle(
     "db:rows",
-    async (
-      _e,
-      id: unknown,
-      schema: unknown,
-      table: unknown,
-      limit: unknown,
-    ) => {
+    async (e, id: unknown, schema: unknown, table: unknown, limit: unknown) => {
       if (
         typeof id !== "string" ||
         typeof schema !== "string" ||
@@ -458,7 +452,7 @@ export function registerIpc(
       // fresh Error with NO `cause` so the raw error object (which could carry
       // the connstr) never crosses IPC.
       try {
-        return await withDb(await dbConnString(id), (run) =>
+        return await withDb(await dbConnString(e, id), (run) =>
           readRows(run, schema, table, lim),
         );
       } catch (err) {
@@ -550,7 +544,9 @@ export function registerIpc(
     await setGlobalSecret(RENDER_KEY, key.trim(), { auditLog: globalAuditLog });
     return { connected: true };
   });
-  ipcMain.handle("render:services", () => renderServicesStatus(workspaceRoot));
+  ipcMain.handle("render:services", (e) =>
+    renderServicesStatus(rootForEvent(e)),
+  );
 
   // Host/local dev server: host:probe + host:openExternal are global (NOT
   // requireRoot-gated). host:localUrl resolves the per-project dev URL so it IS
@@ -558,7 +554,7 @@ export function registerIpc(
   // Per-project dev URL (config.devUrl, else guessed from package.json). Shape
   // is unchanged (string | null); the resolution logic lives in ide-state's
   // resolveDevUrl so hostStatus (MCP) shares the exact same URL guess.
-  ipcMain.handle("host:localUrl", () => resolveDevUrl(requireRoot()));
+  ipcMain.handle("host:localUrl", (e) => resolveDevUrl(requireRoot(e)));
   ipcMain.handle("host:probe", async (_e, url: unknown) => {
     if (typeof url !== "string") throw new Error("Invalid payload");
     let u: URL;
@@ -581,8 +577,8 @@ export function registerIpc(
   ipcMain.handle("docker:list", () => dockerStatus());
 
   // activity:status -> ActivityItem[]; NOT requireRoot-gated (render/docker work
-  // with no folder; activityStatus skips CI itself when workspaceRoot is null).
-  ipcMain.handle("activity:status", () => activityStatus(workspaceRoot));
+  // with no folder; activityStatus skips CI itself when the window has no root).
+  ipcMain.handle("activity:status", (e) => activityStatus(rootForEvent(e)));
 
   ipcMain.handle("docker:start", (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
@@ -595,16 +591,17 @@ export function registerIpc(
   });
 
   ipcMain.handle("pty:create", async (e, cols: number, rows: number) => {
+    const root = rootForEvent(e);
     let secretEnv: Record<string, string> | undefined;
-    if (workspaceRoot) {
-      const cfg = await readProjectConfig(workspaceRoot);
+    if (root) {
+      const cfg = await readProjectConfig(root);
       if (cfg.injectSecretsIntoTerminal) {
         try {
-          const r = await injectInto(workspaceRoot, {});
+          const r = await injectInto(root, {});
           const { safe, blocked } = filterDangerousEnv(r.env);
           secretEnv = safe;
           if (blocked.length > 0) {
-            await appendAudit(workspaceRoot, "user", "secret.inject.blocked", {
+            await appendAudit(root, "user", "secret.inject.blocked", {
               names: blocked,
               reason: "dangerous env name at spawn site",
             });
@@ -622,7 +619,7 @@ export function registerIpc(
       }
     }
     const s = createPtySession({
-      cwd: workspaceRoot ?? undefined,
+      cwd: root ?? undefined,
       cols,
       rows,
       // Captured login-shell env (legitimate PATH/locale) is the base; it is
@@ -711,16 +708,17 @@ export async function getTerminalTail(
   termId: string,
   lines: number,
 ): Promise<{ tail: string } | { error: string }> {
-  if (!workspaceRoot) return { error: "No workspace open" };
+  const root = lastFocusedRoot();
+  if (!root) return { error: "No workspace open" };
   const raw = ptyBuffers.get(termId);
   if (raw === undefined) return { error: "No such terminal" };
   const n = Math.min(
     MAX_TAIL_LINES,
     Math.max(1, Math.floor(lines) || DEFAULT_TAIL_LINES),
   );
-  const values = await allVaultedValues(workspaceRoot);
+  const values = await allVaultedValues(root);
   const tail = redactedTail(raw, values, n);
-  await appendAudit(workspaceRoot, "agent", "terminal.read", {
+  await appendAudit(root, "agent", "terminal.read", {
     termId,
     lines: n,
   });
@@ -732,7 +730,8 @@ export async function getTerminalTail(
 export async function listTerminals(): Promise<
   { id: string; preview: string }[]
 > {
-  const values = workspaceRoot ? await allVaultedValues(workspaceRoot) : [];
+  const root = lastFocusedRoot();
+  const values = root ? await allVaultedValues(root) : [];
   const out: { id: string; preview: string }[] = [];
   for (const id of sessions.keys()) {
     const raw = ptyBuffers.get(id) ?? "";

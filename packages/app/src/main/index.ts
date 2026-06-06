@@ -7,7 +7,6 @@ import {
 } from "./agent-requests";
 import {
   getTerminalTail,
-  getWorkspaceRoot,
   killAllSessions,
   listTerminals,
   registerIpc,
@@ -16,7 +15,7 @@ import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu } from "./menu";
 import { loadPrefs } from "./prefs";
-import { createWindow } from "./window";
+import { createWindow, lastFocusedRoot } from "./window";
 
 app.setName("airlock");
 
@@ -123,7 +122,7 @@ function bootstrap(): void {
     // log and continue; the IDE works without the agent bridge.
     await startMcpServer(port, {
       prefsFile,
-      getWorkspaceRoot,
+      getWorkspaceRoot: lastFocusedRoot,
       getBaseEnv: () => loginEnv,
       requestSecretFromUser,
       getTerminalTail,
