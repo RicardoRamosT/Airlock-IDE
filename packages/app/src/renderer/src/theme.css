@@ -147,6 +147,40 @@ body,
   background: var(--selected);
 }
 
+/* Per-tab Claude status dot (leads the tab label). Gray = idle/done/not
+   running; yellow = a Claude session in this tab is actively working. The
+   dim gray reads on both the active (--selected) and inactive tab grounds. */
+.project-tab-status {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  opacity: 0.5;
+}
+
+.project-tab-status.working {
+  background: #d2a106;
+  opacity: 1;
+}
+
+/* Finish glow: a brief attention pulse on a tab whose Claude session finished
+   while it was NOT active. Set in store.tabGlow; cleared when the tab is
+   activated (or resumes working). A few pulses then it settles. */
+.project-tab.glow {
+  animation: tab-finish-glow 1.4s ease-in-out 3;
+}
+
+@keyframes tab-finish-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
 .project-tab-label {
   display: flex;
   align-items: center;
@@ -1803,6 +1837,7 @@ textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .progress-bar.indeterminate .fill,
   .status-dot.running,
+  .project-tab.glow,
   .step-spin {
     animation: none;
   }

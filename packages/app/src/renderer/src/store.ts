@@ -123,6 +123,8 @@ interface AppState {
   activeTabId: string; // non-null: the window always has >= 1 tab
   tabSnapshots: Record<string, Snapshot>; // parked non-terminal state of INACTIVE tabs
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
+  sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
+  tabGlow: Record<string, boolean>; // tabId -> finished-in-background, awaiting a look
   openProjectsAsTabs: boolean; // app-global (persisted); used by later tasks
   showRunningProcessNotice: boolean; // app-global (persisted); gates the kept-busy-terminal notice
 
@@ -159,6 +161,7 @@ interface AppState {
   replaceActiveProject: (root: string) => void;
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
+  applyPtyStatus: (ptyId: string, working: boolean) => void;
   setOpenProjectsAsTabs: (v: boolean) => void;
   setShowRunningProcessNotice: (v: boolean) => void;
 
@@ -237,6 +240,30 @@ const findOwningTabId = (
   return null;
 };
 
+// The tab that owns a pty id (its terminal list contains a terminal with that
+// ptyId). Like findOwningTabId but keyed by ptyId rather than the renderer uid;
+// used to route a per-session pty:status push to the tab whose dot it drives.
+const findTabByPtyId = (
+  tabTerminals: Record<string, TabTerminals>,
+  ptyId: string,
+): string | null => {
+  for (const [tabId, tt] of Object.entries(tabTerminals)) {
+    if (tt.terminals.some((t) => t.ptyId === ptyId)) return tabId;
+  }
+  return null;
+};
+
+// Is any terminal in this tab's slice working (per the given sessionWorking
+// map)? The tab's dot is yellow iff this is true; the glow transition compares
+// this before vs after a status update.
+const tabIsWorking = (
+  tt: TabTerminals | undefined,
+  sessionWorking: Record<string, boolean>,
+): boolean =>
+  (tt?.terminals ?? []).some(
+    (t) => t.ptyId !== null && sessionWorking[t.ptyId] === true,
+  );
+
 // Apply removeTerminal's promote-active / collapse-split logic to a single
 // tab's terminal state. Extracted so it can run against the OWNING tab (which
 // may be a background tab) rather than always the active tab.
@@ -276,6 +303,8 @@ export const useApp = create<AppState>((set) => ({
   activeTabId: INITIAL_TAB_ID,
   tabSnapshots: {},
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
+  sessionWorking: {},
+  tabGlow: {},
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
 
@@ -387,9 +416,13 @@ export const useApp = create<AppState>((set) => ({
         [s.activeTabId]: snapshotActive(s),
       };
       const snap = tabSnapshots[id] ?? freshSnapshot();
+      // Activating a tab dismisses its finished-glow (the user is now looking).
+      const tabGlow = { ...s.tabGlow };
+      delete tabGlow[id];
       return {
         activeTabId: id,
         tabSnapshots,
+        tabGlow,
         ...loadSnapshot(target.root, snap),
       };
     });
@@ -422,10 +455,13 @@ export const useApp = create<AppState>((set) => ({
       delete tabTerminals[id];
       const tabSnapshots = { ...s.tabSnapshots };
       delete tabSnapshots[id];
+      // Drop the closed tab's glow flag (cosmetic cleanup; no tab references it).
+      const tabGlow = { ...s.tabGlow };
+      delete tabGlow[id];
 
       if (id !== s.activeTabId) {
         // Closing a background tab: active stays put, top-level unchanged.
-        return { tabs, tabTerminals, tabSnapshots };
+        return { tabs, tabTerminals, tabSnapshots, tabGlow };
       }
 
       // Closing the active tab: promote a neighbor (prefer the previous tab,
@@ -439,6 +475,7 @@ export const useApp = create<AppState>((set) => ({
           tabs,
           tabTerminals,
           tabSnapshots,
+          tabGlow,
           activeTabId: neighbor.id,
           ...loadSnapshot(neighbor.root, snap),
         };
@@ -451,6 +488,7 @@ export const useApp = create<AppState>((set) => ({
         tabs: [{ id: blankId, root: null }],
         tabSnapshots: {},
         tabTerminals: { [blankId]: emptyTabTerminals() },
+        tabGlow: {},
         activeTabId: blankId,
         ...loadSnapshot(null, freshSnapshot()),
         modal: null,
@@ -464,6 +502,33 @@ export const useApp = create<AppState>((set) => ({
     if (promotedRoot) void window.airlock.workspaceSetActive(promotedRoot);
     else if (clearMain) void window.airlock.workspaceClose();
   },
+  // A1's per-session pty:status push -> per-tab state. Record the session's
+  // working bit, then drive the OWNING tab's glow on a working->done edge:
+  // - working (after): clear any finished-glow (it is busy, not waiting).
+  // - just finished (before working, after not) in a BACKGROUND tab: glow, so
+  //   the user knows to switch back. An active tab never glows (they can see
+  //   it) -- that branch is guarded by owningTab !== activeTabId. The dot color
+  //   itself is derived in the view from sessionWorking; only the glow is stored.
+  applyPtyStatus: (ptyId, working) =>
+    set((s) => {
+      const owningTab = findTabByPtyId(s.tabTerminals, ptyId);
+      const sessionWorking = { ...s.sessionWorking, [ptyId]: working };
+      if (owningTab === null) return { sessionWorking };
+      const after = tabIsWorking(s.tabTerminals[owningTab], sessionWorking);
+      const before = tabIsWorking(s.tabTerminals[owningTab], s.sessionWorking);
+      let tabGlow = s.tabGlow;
+      if (after) {
+        // working -> no finished-glow
+        if (s.tabGlow[owningTab]) {
+          tabGlow = { ...s.tabGlow };
+          delete tabGlow[owningTab];
+        }
+      } else if (before && owningTab !== s.activeTabId) {
+        // just finished in a background tab -> glow
+        tabGlow = { ...s.tabGlow, [owningTab]: true };
+      }
+      return { sessionWorking, tabGlow };
+    }),
   setOpenProjectsAsTabs: (openProjectsAsTabs) => set({ openProjectsAsTabs }),
   setShowRunningProcessNotice: (showRunningProcessNotice) =>
     set({ showRunningProcessNotice }),

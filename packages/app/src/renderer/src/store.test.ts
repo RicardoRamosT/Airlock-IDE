@@ -473,6 +473,94 @@ describe("terminal preservation across switches", () => {
   });
 });
 
+describe("applyPtyStatus + tabGlow", () => {
+  // Helper: add a terminal to the ACTIVE tab and give it a ptyId, returning
+  // both ids. (addTerminal targets the active tab and returns the renderer uid;
+  // setTerminalPty routes by uid to the owning tab.)
+  const addTermWithPty = (ptyId: string): { termId: string; ptyId: string } => {
+    const termId = get().addTerminal();
+    get().setTerminalPty(termId, ptyId);
+    return { termId, ptyId };
+  };
+
+  it("working=true makes the tab derive-working with no glow", () => {
+    const aId = tabIdAt(0); // initial blank tab, active
+    addTermWithPty("pty-a");
+
+    get().applyPtyStatus("pty-a", true);
+    const s = get();
+
+    expect(s.sessionWorking["pty-a"]).toBe(true);
+    // derived tab-working: the tab has a terminal whose ptyId is working
+    const working = tt(aId).terminals.some(
+      (t) => t.ptyId !== null && s.sessionWorking[t.ptyId] === true,
+    );
+    expect(working).toBe(true);
+    // a working tab never glows
+    expect(s.tabGlow[aId]).toBeUndefined();
+  });
+
+  it("working->done in a BACKGROUND tab sets the glow", () => {
+    // terminal lands in the initial tab, then open /b so the initial tab is
+    // backgrounded.
+    const aId = tabIdAt(0);
+    addTermWithPty("pty-a");
+    get().openProject("/b");
+    expect(get().activeTabId).not.toBe(aId);
+
+    get().applyPtyStatus("pty-a", true); // working
+    expect(get().tabGlow[aId]).toBeUndefined();
+
+    get().applyPtyStatus("pty-a", false); // finished while backgrounded
+    expect(get().tabGlow[aId]).toBe(true);
+  });
+
+  it("working->done in the ACTIVE tab does NOT glow", () => {
+    const aId = tabIdAt(0); // active throughout
+    addTermWithPty("pty-a");
+
+    get().applyPtyStatus("pty-a", true);
+    get().applyPtyStatus("pty-a", false);
+
+    expect(get().activeTabId).toBe(aId);
+    expect(get().tabGlow[aId]).toBeUndefined();
+  });
+
+  it("switchTab to a glowing tab clears its glow", () => {
+    const aId = tabIdAt(0);
+    addTermWithPty("pty-a");
+    get().openProject("/b"); // background aId
+
+    get().applyPtyStatus("pty-a", true);
+    get().applyPtyStatus("pty-a", false);
+    expect(get().tabGlow[aId]).toBe(true);
+
+    get().switchTab(aId); // activating dismisses the glow
+    expect(get().tabGlow[aId]).toBeUndefined();
+    expect(get().activeTabId).toBe(aId);
+  });
+
+  it("a backgrounded glowing tab that resumes working clears its glow", () => {
+    const aId = tabIdAt(0);
+    addTermWithPty("pty-a");
+    get().openProject("/b"); // background aId
+
+    get().applyPtyStatus("pty-a", true);
+    get().applyPtyStatus("pty-a", false);
+    expect(get().tabGlow[aId]).toBe(true);
+
+    // resumes working -> it is busy, not finished-waiting -> glow cleared
+    get().applyPtyStatus("pty-a", true);
+    expect(get().tabGlow[aId]).toBeUndefined();
+  });
+
+  it("a pty id owned by no tab only records sessionWorking", () => {
+    get().applyPtyStatus("pty-orphan", true);
+    expect(get().sessionWorking["pty-orphan"]).toBe(true);
+    expect(get().tabGlow).toEqual({});
+  });
+});
+
 describe("runningNotice", () => {
   it("setRunningNotice sets and clears the field", () => {
     // starts cleared
