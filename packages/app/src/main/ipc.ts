@@ -174,6 +174,9 @@ export function registerIpc(
   // switching tabs is not opening, so it must not reorder Open Recent.
   ipcMain.handle("workspace:setActive", (e, p: unknown) => {
     if (typeof p !== "string") throw new Error("Invalid payload");
+    // Already the active root for this window (e.g. a no-op self-switch or rapid
+    // tab re-clicks): skip, so we do not re-spawn `claude mcp add` per click.
+    if (rootForEvent(e) === p) return;
     setRootForEvent(e, p);
     onFolderOpen?.(p);
   });
