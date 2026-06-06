@@ -328,12 +328,21 @@ export const useApp = create<AppState>((set) => ({
       useApp.getState().openProject(root);
       return;
     }
-    set((s) => ({
-      tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
-      tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
-      ...loadSnapshot(root, freshSnapshot()),
-      modal: null,
-    }));
+    set((s) => {
+      // Drop any parked snapshot for this tab from when it held the OLD
+      // project, so a later switch-away/back can never load the old project's
+      // file/secrets/git against the new root. (switchTab also overwrites it on
+      // park, but clearing here keeps replaceActiveProject correct on its own.)
+      const tabSnapshots = { ...s.tabSnapshots };
+      delete tabSnapshots[id];
+      return {
+        tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
+        tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
+        tabSnapshots,
+        ...loadSnapshot(root, freshSnapshot()),
+        modal: null,
+      };
+    });
   },
   switchTab: (id) => {
     set((s) => {
