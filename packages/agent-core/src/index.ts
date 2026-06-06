@@ -138,6 +138,7 @@ export {
   renderFetchTransport,
 } from "./render/client";
 export { normalizeRepoUrl } from "./render/parse";
+export { redactedPreview, redactedTail } from "./terminal/tail";
 export {
   type FileContent,
   MAX_FILE_BYTES,
