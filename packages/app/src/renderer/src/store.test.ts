@@ -60,7 +60,7 @@ const EMPTY: TabTerminals = {
 };
 
 describe("initial state", () => {
-  it("starts with exactly one blank tab, active, with empty terminals", () => {
+  it("starts with exactly one blank tab, active, mirrored, no split", () => {
     const s = get();
 
     // The window always has >= 1 tab: a single blank tab (root null).
@@ -68,23 +68,28 @@ describe("initial state", () => {
     const id = tabIdAt(0);
     expect(s.tabs[0]?.root).toBeNull();
 
-    // activeTabId is a non-null string pointing at that blank tab.
+    // activeTabId is a non-null string pointing at that blank tab; no split.
     expect(s.activeTabId).toBe(id);
     expect(typeof s.activeTabId).toBe("string");
+    expect(s.splitTabId).toBeNull();
 
-    // top-level per-project state is the no-folder state
+    // top-level per-project state is the no-folder state (mirror of tabState)
     expect(s.root).toBeNull();
     expect(s.selectedFile).toBeNull();
     expect(s.secrets).toEqual([]);
 
-    // the blank tab has a terminal slice keyed by its id; no parked snapshots
+    // tabState is the source of truth: one entry for the blank tab, root null
+    expect(Object.keys(s.tabState)).toEqual([id]);
+    expect(s.tabState[id]?.root).toBeNull();
+    expect(s.tabState[id]?.selectedFile).toBeNull();
+
+    // the blank tab has a terminal slice keyed by its id
     expect(tt(id)).toEqual(EMPTY);
-    expect(s.tabSnapshots).toEqual({});
   });
 });
 
 describe("openProject", () => {
-  it("appends a project tab and parks the outgoing (blank) tab's snapshot", () => {
+  it("appends a project tab, mirrors it, and keeps the prior tab's state in tabState", () => {
     const blankId = tabIdAt(0);
 
     get().openProject("/a");
@@ -101,11 +106,12 @@ describe("openProject", () => {
     expect(tt(aId)).toEqual(EMPTY);
     expect(tt(blankId)).toEqual(EMPTY);
 
-    // the outgoing blank tab's snapshot was parked
-    expect(s.tabSnapshots[blankId]).toBeDefined();
+    // both tabs live in tabState (no parking); /a is mirrored to the top level
+    expect(s.tabState[blankId]?.root).toBeNull();
+    expect(s.tabState[aId]?.root).toBe("/a");
   });
 
-  it("parks the outgoing tab's snapshot when opening a second project", () => {
+  it("keeps each opened project's state in tabState when opening a second", () => {
     get().openProject("/a");
     const aId = tabIdAt(1);
     get().openProject("/b");
@@ -114,14 +120,14 @@ describe("openProject", () => {
     expect(s.tabs).toHaveLength(3); // blank + /a + /b
     expect(s.activeTabId).toBe(tabIdAt(2));
     expect(s.root).toBe("/b");
-    // a was parked when b opened
-    expect(s.tabSnapshots[aId]).toBeDefined();
+    // a still lives in tabState with its root after b opened
+    expect(s.tabState[aId]?.root).toBe("/a");
   });
 });
 
 describe("openBlankTab", () => {
-  it("appends a blank tab, activates it, parks the previous tab's snapshot", () => {
-    // open a project first so the active tab has a snapshot worth parking
+  it("appends a blank tab, activates it, keeps the previous tab in tabState", () => {
+    // open a project first so the active tab has state worth keeping
     get().openProject("/a");
     const aId = tabIdAt(1);
 
@@ -138,8 +144,9 @@ describe("openBlankTab", () => {
     expect(s.root).toBeNull();
     expect(tt(blankId)).toEqual(EMPTY);
 
-    // the previous (project) tab's snapshot was parked
-    expect(s.tabSnapshots[aId]).toBeDefined();
+    // the previous (project) tab's state persists in tabState
+    expect(s.tabState[aId]?.root).toBe("/a");
+    expect(s.tabState[blankId]?.root).toBeNull();
   });
 });
 
@@ -160,25 +167,28 @@ describe("fillActiveTab / setRoot on a blank active tab", () => {
     expect(s.tabs[0]?.root).toBe("/a");
     expect(s.activeTabId).toBe(id);
     expect(s.root).toBe("/a");
+    // the tab's source-of-truth state has the new root too
+    expect(s.tabState[id]?.root).toBe("/a");
 
     // the blank tab's terminal SURVIVES the attach (not reset)
     expect(tt(id).terminals.map((t) => t.id)).toEqual([t1]);
     expect(tt(id).activeTerminalId).toBe(t1);
   });
 
-  it("fillActiveTab clears any parked snapshot for the tab", () => {
-    // Park a snapshot for the blank tab by opening a project (parks blank), then
-    // come back to it. Simpler: directly seed a snapshot via switch round-trip.
-    const blankId = tabIdAt(0);
-    get().openProject("/a"); // parks blankId's snapshot
-    expect(get().tabSnapshots[blankId]).toBeDefined();
-
-    get().switchTab(blankId); // back to the blank tab (still blank)
-    expect(get().activeTabId).toBe(blankId);
+  it("fillActiveTab resets the tab's project fields for the new root", () => {
+    // Give the blank tab a selectedFile, then attach a folder; the fill gives
+    // it fresh project fields keyed to the new root (no stale carry-over).
+    const id = tabIdAt(0);
+    get().setSelected("/scratch/file.ts", null);
+    expect(get().tabState[id]?.selectedFile).toBe("/scratch/file.ts");
 
     get().fillActiveTab("/b");
-    // the parked snapshot for the now-filled tab is cleared
-    expect(get().tabSnapshots[blankId]).toBeUndefined();
+    const s = get();
+    expect(s.tabState[id]?.root).toBe("/b");
+    expect(s.tabState[id]?.selectedFile).toBeNull();
+    // mirror tracks the fresh state
+    expect(s.root).toBe("/b");
+    expect(s.selectedFile).toBeNull();
   });
 
   it("setRoot(string) on a blank active tab routes to fillActiveTab", () => {
@@ -197,7 +207,7 @@ describe("fillActiveTab / setRoot on a blank active tab", () => {
 });
 
 describe("switchTab", () => {
-  it("round-trips per-project state across a park+restore (no bleed)", () => {
+  it("round-trips per-project state across a focus change (no bleed)", () => {
     // open A, give it a selectedFile
     get().openProject("/a");
     const aId = tabIdAt(1);
@@ -208,7 +218,7 @@ describe("switchTab", () => {
     const bId = tabIdAt(2);
     get().setSelected("/b/file.ts", null);
 
-    // switch back to A -> A's root + selectedFile restored
+    // switch back to A -> A's root + selectedFile mirrored to the top level
     get().switchTab(aId);
     expect(get().root).toBe("/a");
     expect(get().selectedFile).toBe("/a/file.ts");
@@ -266,7 +276,7 @@ describe("switchTab", () => {
 
   it("clears main when switching to a blank tab (root null)", () => {
     const blankId = tabIdAt(0); // initial blank tab
-    get().openProject("/a"); // now on /a; blank parked
+    get().openProject("/a"); // now on /a
     setActiveCalls.length = 0;
     closeCalls = 0;
 
@@ -292,9 +302,9 @@ describe("closeTab", () => {
     expect(s.activeTabId).toBe(bId);
     expect(s.root).toBe("/b");
     expect(s.tabs.map((t) => t.root)).toEqual([null, "/a", "/b"]);
-    // c's terminal + snapshot maps cleaned up
+    // c's terminal + tabState entries cleaned up
     expect(s.tabTerminals[cId]).toBeUndefined();
-    expect(s.tabSnapshots[cId]).toBeUndefined();
+    expect(s.tabState[cId]).toBeUndefined();
     // promoted a folder neighbor -> main pointed at it
     expect(setActiveCalls[setActiveCalls.length - 1]).toBe("/b");
   });
@@ -333,7 +343,7 @@ describe("closeTab", () => {
     expect(s.root).toBe("/b");
     expect(s.tabs.map((t) => t.root)).toEqual([null, "/b"]);
     expect(s.tabTerminals[aId]).toBeUndefined();
-    expect(s.tabSnapshots[aId]).toBeUndefined();
+    expect(s.tabState[aId]).toBeUndefined();
     // background close does NOT re-sync main (active root unchanged)
     expect(setActiveCalls).toEqual([]);
     expect(closeCalls).toBe(0);
@@ -357,10 +367,13 @@ describe("closeTab", () => {
     expect(s.tabs[0]?.root).toBeNull();
     expect(s.activeTabId).toBe(blankId);
     expect(s.root).toBeNull();
+    expect(s.splitTabId).toBeNull();
     // the fresh blank tab has an empty terminal set; closed tab's maps gone
     expect(tt(blankId)).toEqual(EMPTY);
     expect(s.tabTerminals[aId]).toBeUndefined();
-    expect(s.tabSnapshots).toEqual({});
+    // tabState now holds exactly the fresh blank tab
+    expect(Object.keys(s.tabState)).toEqual([blankId]);
+    expect(s.tabState[blankId]?.root).toBeNull();
     // the last-tab close CLEARS main's root (agent stops resolving the project)
     expect(closeCalls).toBe(1);
     expect(setActiveCalls).toEqual([]);
@@ -377,8 +390,8 @@ describe("setRoot dispatch (tabs vs windows mode)", () => {
     const id = tabIdAt(0);
     expect(get().root).toBe("/a");
 
-    // now the active tab HAS a project; park a snapshot so we can prove replace
-    // clears it
+    // now the active tab HAS a project; give it state so we can prove replace
+    // resets it
     get().setSelected("/a/file.ts", null);
     const t1 = get().addTerminal();
     expect(tt(id).terminals.map((t) => t.id)).toEqual([t1]);
@@ -391,8 +404,9 @@ describe("setRoot dispatch (tabs vs windows mode)", () => {
     expect(s.root).toBe("/b");
     // fresh empty terminals for the replaced tab (terminals RESET on replace)
     expect(tt(id)).toEqual(EMPTY);
-    // parked snapshot for this tab cleared
-    expect(s.tabSnapshots[id]).toBeUndefined();
+    // tabState for this tab reset to the new project
+    expect(s.tabState[id]?.root).toBe("/b");
+    expect(s.tabState[id]?.selectedFile).toBeNull();
     // live per-project state reset for the new project
     expect(s.selectedFile).toBeNull();
   });
@@ -423,6 +437,186 @@ describe("setRoot dispatch (tabs vs windows mode)", () => {
     expect(get().tabs[0]?.root).toBeNull();
     expect(get().activeTabId).toBe(tabIdAt(0));
     expect(get().root).toBeNull();
+  });
+});
+
+describe("project split + focus", () => {
+  it("toggleProjectSplit picks a neighbor as splitTabId and toggles off", () => {
+    get().openProject("/a"); // tabs: [blank, /a], active /a
+    const aId = tabIdAt(1);
+
+    get().toggleProjectSplit();
+    // active is the last tab, so the neighbor is the one BEFORE it (the blank).
+    const blankId = tabIdAt(0);
+    expect(get().splitTabId).toBe(blankId);
+    expect(get().activeTabId).toBe(aId); // focus unchanged
+
+    get().toggleProjectSplit();
+    expect(get().splitTabId).toBeNull();
+  });
+
+  it("toggleProjectSplit is a no-op with only one tab", () => {
+    // initial state: a single blank tab
+    get().toggleProjectSplit();
+    expect(get().splitTabId).toBeNull();
+  });
+
+  it("toggleProjectSplit prefers the tab AFTER the active one", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    get().openProject("/c");
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    const cId = tabIdAt(3);
+
+    // focus the middle tab, then split -> neighbor is the one AFTER it (/c)
+    get().switchTab(bId);
+    expect(get().activeTabId).toBe(bId);
+    get().toggleProjectSplit();
+    expect(get().splitTabId).toBe(cId);
+    // (aId is the tab before; the after-tab is preferred)
+    expect(get().splitTabId).not.toBe(aId);
+  });
+
+  it("setSplitTab assigns the right pane; rejects the active tab + unknown ids", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2); // active
+
+    get().setSplitTab(aId);
+    expect(get().splitTabId).toBe(aId);
+
+    // assigning the active tab is rejected (a tab cannot be both panes)
+    get().setSplitTab(bId);
+    expect(get().splitTabId).toBe(aId);
+
+    // unknown id is rejected
+    get().setSplitTab("nope");
+    expect(get().splitTabId).toBe(aId);
+  });
+
+  it("switchTab(splitTabId) SWAPS the active and split panes", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2); // active
+
+    get().setSplitTab(aId); // panes: active=b, split=a
+    expect(get().activeTabId).toBe(bId);
+    expect(get().splitTabId).toBe(aId);
+
+    // clicking the split pane (a) focuses it; b moves into the split slot
+    get().switchTab(aId);
+    expect(get().activeTabId).toBe(aId);
+    expect(get().splitTabId).toBe(bId);
+    // mirror follows the newly-focused pane
+    expect(get().root).toBe("/a");
+  });
+
+  it("switchTab(third tab) replaces the active pane, split unchanged", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    get().openProject("/c");
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    const cId = tabIdAt(3); // active
+
+    get().setSplitTab(aId); // panes: active=c, split=a
+    expect(get().activeTabId).toBe(cId);
+    expect(get().splitTabId).toBe(aId);
+
+    // focusing a THIRD tab (b) replaces the active pane; split stays a
+    get().switchTab(bId);
+    expect(get().activeTabId).toBe(bId);
+    expect(get().splitTabId).toBe(aId);
+  });
+
+  it("closeTab(splitTabId) clears splitTabId (closing the right pane un-splits)", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2); // active
+
+    get().setSplitTab(aId); // panes: active=b, split=a
+    expect(get().splitTabId).toBe(aId);
+
+    get().closeTab(aId); // close the right (background) pane
+    const s = get();
+    expect(s.splitTabId).toBeNull();
+    // a was a background tab -> active stays b, mirror unchanged
+    expect(s.activeTabId).toBe(bId);
+    expect(s.root).toBe("/b");
+    expect(s.tabState[aId]).toBeUndefined();
+  });
+
+  it("closeTab(active) promoting the split neighbor clears splitTabId", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2); // active
+
+    get().setSplitTab(aId); // panes: active=b, split=a
+    expect(get().splitTabId).toBe(aId);
+
+    // closing b (active) promotes the previous neighbor a -- which is the split
+    // pane -- so a tab cannot be both panes: splitTabId collapses to null.
+    get().closeTab(bId);
+    const s = get();
+    expect(s.activeTabId).toBe(aId);
+    expect(s.splitTabId).toBeNull();
+    expect(s.root).toBe("/a");
+  });
+});
+
+describe("per-project setters: explicit tabId vs active", () => {
+  it("a setter with an explicit non-active tabId updates that tab only (no mirror)", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1);
+    get().openProject("/b");
+    const bId = tabIdAt(2); // active
+
+    // target the BACKGROUND tab a explicitly
+    get().setSelected("/a/file.ts", null, aId);
+    const s = get();
+
+    // tabState[a] updated...
+    expect(s.tabState[aId]?.selectedFile).toBe("/a/file.ts");
+    // ...but the top-level mirror (tracking active b) is NOT touched
+    expect(s.selectedFile).toBeNull();
+    expect(s.root).toBe("/b");
+    // b's own state untouched
+    expect(s.tabState[bId]?.selectedFile).toBeNull();
+  });
+
+  it("a setter with no tabId updates the active tab AND the mirror", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1); // active
+
+    get().setSelected("/a/file.ts", null);
+    const s = get();
+
+    expect(s.tabState[aId]?.selectedFile).toBe("/a/file.ts");
+    expect(s.selectedFile).toBe("/a/file.ts"); // mirror synced
+  });
+
+  it("setGitStatus / setDbView with an explicit tabId stay off the mirror", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1);
+    get().openProject("/b"); // active b
+
+    get().setGitStatus(null, aId);
+    get().setDbView({ kind: "secret", id: "x", schema: "s", table: "t" }, aId);
+    const s = get();
+
+    expect(s.tabState[aId]?.dbView).toEqual({
+      kind: "secret",
+      id: "x",
+      schema: "s",
+      table: "t",
+    });
+    // active mirror (b) unaffected by the explicit-tab writes
+    expect(s.dbView).toBeNull();
   });
 });
 

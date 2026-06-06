@@ -62,22 +62,26 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
   splitTerminalId: null,
 };
 
-// The non-terminal per-project state that is saved/restored on tab switch. The
-// LIVE copy of this for the ACTIVE tab lives at the top level of the store (so
+// The full non-terminal per-project state for ONE tab. `tabState` keeps one of
+// these for EVERY tab (the source of truth); the top-level per-project fields
+// (root/selectedFile/...) are a MIRROR of the ACTIVE tab's ProjectState, so
 // Sidebar/Viewer/Git/Secrets/StatusBar/DataGrid keep reading `s.root` etc.
-// unchanged); INACTIVE tabs park their copy in `tabSnapshots`.
-export interface Snapshot {
+// unchanged (single-pane behavior). The split pane (a later task) reads
+// `tabState[tabId]` directly. (Replaces the old Snapshot park/load model.)
+export interface ProjectState {
+  root: string | null;
   selectedFile: string | null;
   file: FileContent | null;
   secrets: SecretMeta[];
   config: ProjectConfig | null;
   gitStatus: GitStatus | null;
-  diff: AppState["diff"];
+  diff: AppState["diff"]; // the {path,which,original,modified}|null shape
   dbView: DbView | null;
   settingsOpen: boolean;
 }
 
-const freshSnapshot = (): Snapshot => ({
+const freshProjectState = (root: string | null): ProjectState => ({
+  root,
   selectedFile: null,
   file: null,
   secrets: [],
@@ -98,8 +102,9 @@ const newTabId = (): string => `proj-${++projCounter}`;
 const INITIAL_TAB_ID = newTabId();
 
 interface AppState {
-  // --- Active-tab live per-project state (top level so existing components
-  // that read s.root / s.selectedFile / ... keep working unchanged). ---
+  // --- Active-tab per-project state MIRROR (top level so existing components
+  // that read s.root / s.selectedFile / ... keep working unchanged). This is a
+  // copy of tabState[activeTabId]; the SOURCE OF TRUTH is tabState. ---
   root: string | null;
   selectedFile: string | null;
   file: FileContent | null;
@@ -120,8 +125,9 @@ interface AppState {
 
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
-  activeTabId: string; // non-null: the window always has >= 1 tab
-  tabSnapshots: Record<string, Snapshot>; // parked non-terminal state of INACTIVE tabs
+  activeTabId: string; // non-null (FOCUSED pane): the window always has >= 1 tab
+  splitTabId: string | null; // the tab in the second pane (null = single pane)
+  tabState: Record<string, ProjectState>; // SOURCE OF TRUTH: per-project state for EVERY tab
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
   tabGlow: Record<string, boolean>; // tabId -> finished-in-background, awaiting a look
@@ -159,20 +165,31 @@ interface AppState {
   openBlankTab: () => void;
   fillActiveTab: (root: string) => void;
   replaceActiveProject: (root: string) => void;
-  switchTab: (id: string) => void;
+  switchTab: (id: string) => void; // focus tab id (clicking a tab OR a pane)
   closeTab: (id: string) => void;
   applyPtyStatus: (ptyId: string, working: boolean) => void;
   setOpenProjectsAsTabs: (v: boolean) => void;
   setShowRunningProcessNotice: (v: boolean) => void;
 
-  // --- Per-project setters (operate on the active tab's top-level state) ---
+  // --- Split actions ---
+  toggleProjectSplit: () => void; // open/close the second pane (picks a neighbor)
+  setSplitTab: (id: string) => void; // assign the right pane to tab id
+
+  // --- Per-project setters ---
+  // Each updates tabState[tabId] (default = the ACTIVE tab) and mirrors to the
+  // top level ONLY when tabId is the active tab. Existing callers omit tabId ->
+  // active -> identical single-pane behavior. The split pane passes its tabId.
   setRoot: (root: string | null) => void; // thin adapter -> openProject/closeTab
-  setSelected: (relPath: string | null, file: FileContent | null) => void;
-  setDiff: (diff: AppState["diff"]) => void;
-  setDbView: (v: DbView | null) => void;
-  setSecrets: (secrets: SecretMeta[]) => void;
-  setConfig: (config: ProjectConfig | null) => void;
-  setGitStatus: (gitStatus: GitStatus | null) => void;
+  setSelected: (
+    relPath: string | null,
+    file: FileContent | null,
+    tabId?: string,
+  ) => void;
+  setDiff: (diff: AppState["diff"], tabId?: string) => void;
+  setDbView: (v: DbView | null, tabId?: string) => void;
+  setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
+  setConfig: (config: ProjectConfig | null, tabId?: string) => void;
+  setGitStatus: (gitStatus: GitStatus | null, tabId?: string) => void;
   setModal: (modal: AppState["modal"]) => void;
 
   // --- Terminal setters ---
@@ -195,38 +212,37 @@ interface AppState {
   setTheme: (t: "dark" | "light") => void;
   setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
-  setSettingsOpen: (v: boolean) => void;
+  setSettingsOpen: (v: boolean, tabId?: string) => void;
   setLayoutHydrated: (v: boolean) => void;
 }
 
-// Read the active tab's live non-terminal state off the top level into a
-// Snapshot (parked when the tab is deactivated).
-const snapshotActive = (s: AppState): Snapshot => ({
-  selectedFile: s.selectedFile,
-  file: s.file,
-  secrets: s.secrets,
-  config: s.config,
-  gitStatus: s.gitStatus,
-  diff: s.diff,
-  dbView: s.dbView,
-  settingsOpen: s.settingsOpen,
+// The top-level mirror fields for a given ProjectState (root + the per-project
+// set). Spread into a set() to sync the top level to a tab's state.
+const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
+  root: ps.root,
+  selectedFile: ps.selectedFile,
+  file: ps.file,
+  secrets: ps.secrets,
+  config: ps.config,
+  gitStatus: ps.gitStatus,
+  diff: ps.diff,
+  dbView: ps.dbView,
+  settingsOpen: ps.settingsOpen,
 });
 
-// Map a Snapshot back into the top-level per-project fields (plus root).
-const loadSnapshot = (
-  root: string | null,
-  snap: Snapshot,
-): Pick<AppState, keyof Snapshot | "root"> => ({
-  root,
-  selectedFile: snap.selectedFile,
-  file: snap.file,
-  secrets: snap.secrets,
-  config: snap.config,
-  gitStatus: snap.gitStatus,
-  diff: snap.diff,
-  dbView: snap.dbView,
-  settingsOpen: snap.settingsOpen,
-});
+// Patch one tab's ProjectState (the source of truth); ALSO mirror to the top
+// level IFF that tab is the active (focused) one. Returns the partial set().
+const patchTab = (
+  s: AppState,
+  tabId: string,
+  patch: Partial<ProjectState>,
+): Partial<AppState> => {
+  const next = { ...(s.tabState[tabId] ?? freshProjectState(null)), ...patch };
+  const tabState = { ...s.tabState, [tabId]: next };
+  return tabId === s.activeTabId
+    ? { tabState, ...mirrorOf(next) }
+    : { tabState };
+};
 
 // Find the id of the tab whose terminal list contains `terminalId`. Used by the
 // ownership-routed setters so a background tab's pane updates the right tab.
@@ -285,7 +301,8 @@ const removeFromTab = (tt: TabTerminals, id: string): TabTerminals => {
 };
 
 export const useApp = create<AppState>((set) => ({
-  // active-tab live per-project state
+  // active-tab per-project MIRROR (a copy of tabState[INITIAL_TAB_ID], which is
+  // freshProjectState(null) for the initial blank tab).
   root: null,
   selectedFile: null,
   file: null,
@@ -299,9 +316,11 @@ export const useApp = create<AppState>((set) => ({
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
   // working terminal, so a default shell can spawn before any folder is opened.
+  // tabState is the source of truth (one entry per tab); splitTabId starts null.
   tabs: [{ id: INITIAL_TAB_ID, root: null }],
   activeTabId: INITIAL_TAB_ID,
-  tabSnapshots: {},
+  splitTabId: null,
+  tabState: { [INITIAL_TAB_ID]: freshProjectState(null) },
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   sessionWorking: {},
   tabGlow: {},
@@ -329,101 +348,89 @@ export const useApp = create<AppState>((set) => ({
 
   // --- Tab actions ---
   // Append a PROJECT tab (used when the active tab already has a project, tabs
-  // mode). Park the outgoing active tab's live non-terminal state, make the new
-  // tab active with fresh empty terminals + a fresh snapshot.
+  // mode) and make it active with fresh empty terminals. The outgoing active
+  // tab's state already lives in tabState (no parking); we add the new tab's
+  // ProjectState and mirror it to the top level.
   openProject: (root) =>
     set((s) => {
       const id = newTabId();
-      const tabSnapshots = {
-        ...s.tabSnapshots,
-        [s.activeTabId]: snapshotActive(s),
-      };
+      const state = freshProjectState(root);
       return {
         tabs: [...s.tabs, { id, root }],
         activeTabId: id,
-        tabSnapshots,
+        tabState: { ...s.tabState, [id]: state },
         tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
-        // fresh top-level per-project state for the new tab
-        ...loadSnapshot(root, freshSnapshot()),
+        // mirror the new tab's state to the top level
+        ...mirrorOf(state),
         // a freshly opened project starts with no modal carried over
         modal: null,
       };
     }),
   // Append a BLANK tab (no folder) and make it active. The tab-strip `+` calls
-  // this -- NO folder picker. Parks the outgoing snapshot, fresh empty terminals.
+  // this -- NO folder picker. Fresh ProjectState + empty terminals.
   openBlankTab: () =>
     set((s) => {
       const id = newTabId();
-      const tabSnapshots = {
-        ...s.tabSnapshots,
-        [s.activeTabId]: snapshotActive(s),
-      };
+      const state = freshProjectState(null);
       return {
         tabs: [...s.tabs, { id, root: null }],
         activeTabId: id,
-        tabSnapshots,
+        tabState: { ...s.tabState, [id]: state },
         tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
-        ...loadSnapshot(null, freshSnapshot()),
+        ...mirrorOf(state),
         modal: null,
       };
     }),
   // Attach a folder to the active BLANK tab IN PLACE, KEEPING its terminals (so
-  // a live `claude`/server in the blank tab's shell survives the attach). Clears
-  // any parked snapshot for the tab. (Idle/busy handling is a later task.)
+  // a live `claude`/server in the blank tab's shell survives the attach). The
+  // tab gets fresh project fields for the new root. (Idle/busy handling later.)
   fillActiveTab: (root) =>
     set((s) => {
       const id = s.activeTabId;
-      const tabSnapshots = { ...s.tabSnapshots };
-      delete tabSnapshots[id];
+      const state = freshProjectState(root);
       return {
         tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
-        tabSnapshots,
+        tabState: { ...s.tabState, [id]: state },
         // tabTerminals[id] is intentionally NOT reset -- the blank tab's
         // terminal(s) survive the attach.
-        ...loadSnapshot(root, freshSnapshot()),
+        ...mirrorOf(state),
         modal: null,
       };
     }),
   // Windows-mode "replace the window's single project in place" (active tab
   // already HAS a project): swap the ACTIVE tab's root rather than appending a
-  // tab, and reset that tab's terminals to a fresh empty set so the old
-  // project's TerminalPanes unmount and their ptys die (correct for replace).
+  // tab, give it fresh project fields, and reset that tab's terminals to a fresh
+  // empty set so the old project's TerminalPanes unmount and their ptys die.
   replaceActiveProject: (root) =>
     set((s) => {
       const id = s.activeTabId;
-      // Drop any parked snapshot for this tab from when it held the OLD
-      // project, so a later switch-away/back can never load the old project's
-      // file/secrets/git against the new root. (switchTab also overwrites it on
-      // park, but clearing here keeps replaceActiveProject correct on its own.)
-      const tabSnapshots = { ...s.tabSnapshots };
-      delete tabSnapshots[id];
+      const state = freshProjectState(root);
       return {
         tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
+        tabState: { ...s.tabState, [id]: state },
         tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
-        tabSnapshots,
-        ...loadSnapshot(root, freshSnapshot()),
+        ...mirrorOf(state),
         modal: null,
       };
     }),
+  // Focus tab id (clicking a tab OR a pane). The mirror just re-points at the
+  // newly-focused tab's tabState entry (no parking -- every tab's state is
+  // always live). Mirrors the terminal-split swap:
+  //  - clicking the SPLIT pane swaps the two panes so activeTabId stays focused;
+  //  - clicking a THIRD tab replaces the active (focused) pane, split unchanged.
   switchTab: (id) => {
     set((s) => {
       if (id === s.activeTabId) return {};
-      const target = s.tabs.find((t) => t.id === id);
-      if (!target) return {}; // unknown id -> no-op
-      // Park current active tab's live state, load the target's snapshot.
-      const tabSnapshots = {
-        ...s.tabSnapshots,
-        [s.activeTabId]: snapshotActive(s),
-      };
-      const snap = tabSnapshots[id] ?? freshSnapshot();
+      if (!s.tabs.some((t) => t.id === id)) return {}; // unknown id -> no-op
+      const splitTabId = id === s.splitTabId ? s.activeTabId : s.splitTabId;
       // Activating a tab dismisses its finished-glow (the user is now looking).
       const tabGlow = { ...s.tabGlow };
       delete tabGlow[id];
       return {
         activeTabId: id,
-        tabSnapshots,
+        splitTabId,
         tabGlow,
-        ...loadSnapshot(target.root, snap),
+        ...mirrorOf(s.tabState[id] ?? freshProjectState(null)),
       };
     });
     // Re-point main + the agent (MCP) at the now-active tab's project. Without
@@ -453,44 +460,51 @@ export const useApp = create<AppState>((set) => ({
       // Removing the tab's terminal state unmounts its panes -> its ptys die.
       const tabTerminals = { ...s.tabTerminals };
       delete tabTerminals[id];
-      const tabSnapshots = { ...s.tabSnapshots };
-      delete tabSnapshots[id];
+      const tabState = { ...s.tabState };
+      delete tabState[id];
       // Drop the closed tab's glow flag (cosmetic cleanup; no tab references it).
       const tabGlow = { ...s.tabGlow };
       delete tabGlow[id];
+      // Closing the RIGHT pane (split) un-splits.
+      let splitTabId = id === s.splitTabId ? null : s.splitTabId;
 
       if (id !== s.activeTabId) {
-        // Closing a background tab: active stays put, top-level unchanged.
-        return { tabs, tabTerminals, tabSnapshots, tabGlow };
+        // Closing a background tab: active stays put, mirror unchanged.
+        return { tabs, tabState, tabTerminals, tabGlow, splitTabId };
       }
 
-      // Closing the active tab: promote a neighbor (prefer the previous tab,
-      // else the next).
+      // Closing the active (focused) tab: promote a neighbor (prefer the
+      // previous tab, else the next).
       const neighbor = tabs[idx - 1] ?? tabs[idx] ?? null;
       if (neighbor) {
-        const snap = tabSnapshots[neighbor.id] ?? freshSnapshot();
         promotedRoot = neighbor.root; // may be null (blank neighbor)
         clearMain = neighbor.root === null;
+        // A tab cannot be both panes: if the promoted neighbor is the current
+        // split pane, collapse the split.
+        if (neighbor.id === splitTabId) splitTabId = null;
         return {
           tabs,
+          tabState,
           tabTerminals,
-          tabSnapshots,
           tabGlow,
           activeTabId: neighbor.id,
-          ...loadSnapshot(neighbor.root, snap),
+          splitTabId,
+          ...mirrorOf(tabState[neighbor.id] ?? freshProjectState(null)),
         };
       }
       // Closed the LAST tab -> open a fresh BLANK tab so the window keeps >= 1
       // tab (instead of the old activeTabId-null no-project state).
       const blankId = newTabId();
       clearMain = true;
+      const blankState = freshProjectState(null);
       return {
         tabs: [{ id: blankId, root: null }],
-        tabSnapshots: {},
+        tabState: { [blankId]: blankState },
         tabTerminals: { [blankId]: emptyTabTerminals() },
         tabGlow: {},
         activeTabId: blankId,
-        ...loadSnapshot(null, freshSnapshot()),
+        splitTabId: null,
+        ...mirrorOf(blankState),
         modal: null,
       };
     });
@@ -534,6 +548,32 @@ export const useApp = create<AppState>((set) => ({
   setShowRunningProcessNotice: (showRunningProcessNotice) =>
     set({ showRunningProcessNotice }),
 
+  // --- Split actions ---
+  // Toggle the second pane. If already split, collapse it (splitTabId -> null).
+  // Otherwise need >= 2 tabs: pick a neighbor (the tab AFTER the active one in
+  // `tabs`, else the one before, else any other tab) as the right pane. With
+  // < 2 tabs there is nothing to split with -> no-op.
+  toggleProjectSplit: () =>
+    set((s) => {
+      if (s.splitTabId !== null) return { splitTabId: null };
+      const idx = s.tabs.findIndex((t) => t.id === s.activeTabId);
+      const neighbor =
+        s.tabs[idx + 1] ??
+        s.tabs[idx - 1] ??
+        s.tabs.find((t) => t.id !== s.activeTabId) ??
+        null;
+      if (!neighbor) return {}; // < 2 tabs -> nothing to split with
+      return { splitTabId: neighbor.id };
+    }),
+  // Assign the right pane to a specific tab (must be a real tab and not the
+  // focused/active one -- a tab cannot occupy both panes).
+  setSplitTab: (id) =>
+    set((s) => {
+      if (id === s.activeTabId) return {};
+      if (!s.tabs.some((t) => t.id === id)) return {};
+      return { splitTabId: id };
+    }),
+
   // Thin adapter so existing callers (Sidebar / menu open-folder / open-recent)
   // keep working. Routes a string root by the ACTIVE tab; null closes the active
   // tab. Delegates to the tab actions directly (each performs its own set)
@@ -552,19 +592,34 @@ export const useApp = create<AppState>((set) => ({
     // null -> close the active tab (closing the last tab becomes a fresh blank).
     s.closeTab(s.activeTabId);
   },
-  setSelected: (selectedFile, file) =>
-    set({ selectedFile, file, diff: null, settingsOpen: false, dbView: null }),
-  setDiff: (diff) =>
-    set({
-      diff,
-      selectedFile: null,
-      file: null,
-      settingsOpen: false,
-      dbView: null,
-    }),
-  setSecrets: (secrets) => set({ secrets }),
-  setConfig: (config) => set({ config }),
-  setGitStatus: (gitStatus) => set({ gitStatus }),
+  // Per-project setters route through patchTab: update tabState[tabId] (default
+  // the active tab) and mirror to the top level only when tabId is active.
+  setSelected: (selectedFile, file, tabId) =>
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        selectedFile,
+        file,
+        diff: null,
+        settingsOpen: false,
+        dbView: null,
+      }),
+    ),
+  setDiff: (diff, tabId) =>
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        diff,
+        selectedFile: null,
+        file: null,
+        settingsOpen: false,
+        dbView: null,
+      }),
+    ),
+  setSecrets: (secrets, tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { secrets })),
+  setConfig: (config, tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { config })),
+  setGitStatus: (gitStatus, tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { gitStatus })),
   setModal: (modal) => set({ modal }),
   setRunningNotice: (runningNotice) => set({ runningNotice }),
 
@@ -681,21 +736,25 @@ export const useApp = create<AppState>((set) => ({
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   // Opening Settings clears the file/diff/dbView so the viewer-pane shows only
   // one thing at a time (mutual exclusion). Closing leaves the rest untouched.
-  setSettingsOpen: (v) =>
-    set({
-      settingsOpen: v,
-      ...(v
-        ? { selectedFile: null, file: null, diff: null, dbView: null }
-        : {}),
-    }),
+  setSettingsOpen: (v, tabId) =>
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        settingsOpen: v,
+        ...(v
+          ? { selectedFile: null, file: null, diff: null, dbView: null }
+          : {}),
+      }),
+    ),
   // Browsing a DB table clears file/diff/settings (mutual exclusion), exactly
   // like setSettingsOpen. Passing null closes the data grid (back to terminal).
-  setDbView: (v) =>
-    set({
-      dbView: v,
-      ...(v
-        ? { selectedFile: null, file: null, diff: null, settingsOpen: false }
-        : {}),
-    }),
+  setDbView: (v, tabId) =>
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        dbView: v,
+        ...(v
+          ? { selectedFile: null, file: null, diff: null, settingsOpen: false }
+          : {}),
+      }),
+    ),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
 }));
