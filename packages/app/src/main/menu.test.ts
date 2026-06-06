@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Section, SectionVisibility } from "../shared/ipc";
-import { sectionSubmenuItems } from "./menu";
+import { recentSubmenuItems, sectionSubmenuItems } from "./menu";
 
 const ALL_VISIBLE: SectionVisibility = {
   files: true,
@@ -59,5 +59,23 @@ describe("sectionSubmenuItems", () => {
       undefined as never,
     );
     expect(onToggle).toHaveBeenCalledWith("docker", false);
+  });
+});
+
+describe("recentSubmenuItems", () => {
+  it("renders an item per folder with a click that picks the path", () => {
+    const picked: string[] = [];
+    const items = recentSubmenuItems(["/a/proj", "/b/app"], (p) =>
+      picked.push(p),
+    );
+    expect(items).toHaveLength(2);
+    expect(items[0]?.label).toBe("proj");
+    (items[0]?.click as () => void)?.();
+    expect(picked).toEqual(["/a/proj"]);
+  });
+  it("shows a disabled placeholder when empty", () => {
+    const items = recentSubmenuItems([], () => {});
+    expect(items).toHaveLength(1);
+    expect(items[0]?.enabled).toBe(false);
   });
 });

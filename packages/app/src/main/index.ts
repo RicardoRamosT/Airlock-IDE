@@ -141,7 +141,7 @@ function bootstrap(): void {
     registerAgentRequestIpc();
     createWindow();
     const prefs = await loadPrefs(prefsFile);
-    applyAppMenu(prefsFile, prefs.sectionVisibility);
+    applyAppMenu(prefsFile, prefs.sectionVisibility, prefs.recentFolders);
 
     // Stand up the local MCP server (loopback, bearer-guarded). A start failure
     // (e.g. a busy port we could not bump past) must NOT take down the app --
