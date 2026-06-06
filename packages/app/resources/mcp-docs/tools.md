@@ -1,15 +1,18 @@
 # MCP tools
 
-airlock exposes 14 tools over this MCP server. Nine are **read-only status** tools; two
+airlock exposes 21 tools over this MCP server. Nine are **read-only status** tools; two
 curate the UI (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
 injected and the output returned with those values **redacted**; one (`request_secret`) asks
 the user to vault a secret you need (you get back only whether it was vaulted, never the
 value); one (`get_terminal_tail`) reads a terminal tab's recent output, with every vaulted
-secret value **redacted**. **None returns a secret value.**
+secret value **redacted**; and seven **IDE-control** tools (`list_tabs`, `open_tab`,
+`close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`) drive the focused
+window's tabs / split / terminals, returning layout metadata only. **None returns a secret
+value.**
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
-yet; the app-global tools work regardless.
+yet; the app-global tools (and the IDE-control tools) work regardless.
 
 ## Sidebar control
 
@@ -126,6 +129,30 @@ yet; the app-global tools work regardless.
   reappears, and the set is **not persisted** across an app restart. Call `activity_status`
   first to get the id; the id is opaque and carries no secret value.
 
+## Driving the IDE - tabs, split, terminals (focused window)
+
+Seven tools let you arrange the **layout** of the focused window. They carry only tab ids,
+terminal ids, and a folder path in, and return **layout metadata** out (each tab's id, name,
+root, focused/in-split flags, and its terminals as `{ id, title }`, plus the split pair) -
+**never a secret value**. Full reference + the layout shape: `ide-control.md`.
+
+- **`list_tabs`** - the focused window's layout (tabs + their terminals + the split pair).
+  No args. Call it first to learn the tab/terminal ids you pass to the others.
+- **`open_tab`** - open a project folder as a NEW tab (arg: `path`) or a blank tab (no arg)
+  in the focused window. Opening a path sets the window root, recents, and the MCP
+  registration, exactly like the human opening it.
+- **`close_tab`** - close a tab by `tabId`. Closing the last tab leaves a fresh blank tab.
+- **`switch_tab`** - focus a tab by `tabId` (your "current project" follows the focused tab).
+- **`split_view`** - toggle the split: with a `tabId`, split the focused tab beside it; with
+  no `tabId`, split beside a new blank tab (or collapse the split if already showing).
+- **`open_terminal`** - open a new terminal (arg: optional `tabId`, else the focused tab; the
+  tab is focused first). The reply's tab `terminals` include the new one. The shell gets the
+  project's secrets injected - you see no values.
+- **`close_terminal`** - close a terminal by `terminalId`.
+
+These change LAYOUT only. To run something that needs a credential use `run_command`; to read
+a terminal's output use `get_terminal_tail` (both redact). See `security-model.md`.
+
 ## Picking a tool
 
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
@@ -143,5 +170,8 @@ yet; the app-global tools work regardless.
 - "What is the user running in another tab / what does that error say?" → `get_terminal_tail`
   with no `terminalId` to list the tabs (by redacted preview), then with the chosen `id` to
   read its redacted tail.
+- "Open / arrange the IDE for me" → the IDE-control tools (`list_tabs` first, then
+  `open_tab` / `switch_tab` / `split_view` / `open_terminal` / `close_tab` / `close_terminal`).
+  They drive the focused window's layout and return metadata only (see `ide-control.md`).
 - You will **never** find a tool that hands you a secret value — that is by design.
   `run_command` *uses* a secret on your behalf but redacts it out of what you get back.

@@ -30,8 +30,9 @@ airlock's window has three regions:
 ## The one crucial fact
 
 You can **read every status** airlock tracks (git, databases, Docker, Neon, Render, the
-host dev server, secret *names*) and you can **drive the sidebar** (list sections, show or
-hide them). 
+host dev server, secret *names*), you can **drive the sidebar** (list sections, show or
+hide them), and you can **drive the focused window's layout** (open/close/switch tabs,
+split, open/close terminals - see `ide-control.md`). 
 
 But you can **never read a secret value.** That is airlock's entire reason to exist: the
 human's API keys, database passwords, and tokens live in the OS keychain and are only ever
@@ -44,7 +45,9 @@ try to read them from disk, and don't treat their absence as a problem to solve.
 
 ## How to use this manual
 
-- `tools.md` — the 9 MCP tools and when to reach for each.
+- `tools.md` — the MCP tools and when to reach for each.
+- `ide-control.md` — the seven tools that drive the focused window's tabs / split /
+  terminals (layout metadata only, no secret values).
 - `security-model.md` — the no-secrets invariant in plain terms.
 - `sidebar-*.md` — one file per sidebar section: what it shows and **when it is useful**
   for a given project, so you can curate the sidebar to match the project in front of you.

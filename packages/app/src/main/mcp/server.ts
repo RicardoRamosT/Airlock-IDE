@@ -28,7 +28,11 @@ import {
 } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { ActivityItem } from "../../shared/ipc";
+import type {
+  ActivityItem,
+  AgentCommand,
+  AgentCommandResult,
+} from "../../shared/ipc";
 import { savePrefs } from "../prefs";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
@@ -48,6 +52,9 @@ export interface McpDeps {
   listTerminals: () => Promise<{ id: string; preview: string }[]>;
   getActivity: (root: string | null) => Promise<ActivityItem[]>;
   dismissActivity: (entryId: string) => void;
+  // Drive the focused window's tab/split/terminal layout for the IDE-control
+  // tools. Resolves layout metadata (or an error result) -- never a secret value.
+  runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>;
   token: string;
 }
 
@@ -87,6 +94,7 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     listTerminals: deps.listTerminals,
     getActivity: deps.getActivity,
     dismissActivity: deps.dismissActivity,
+    runAgentCommand: deps.runAgentCommand,
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

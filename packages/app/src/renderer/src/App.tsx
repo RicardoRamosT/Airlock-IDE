@@ -7,6 +7,7 @@ import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
 import { TerminalSlotsProvider } from "./lib/terminalSlots";
+import { useAgentCommands } from "./lib/useAgentCommands";
 import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
 import { usePrefs } from "./lib/usePrefs";
@@ -16,6 +17,7 @@ export function App() {
   useGitStatus();
   usePrefs();
   useMenuActions();
+  useAgentCommands();
   const modal = useApp((s) => s.modal);
   const activeTabId = useApp((s) => s.activeTabId);
   const split = useApp((s) => s.split);

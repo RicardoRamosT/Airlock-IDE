@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  AgentCommand,
+  AgentCommandResult,
   AirlockApi,
   MenuAction,
   PtyDataEvent,
@@ -102,6 +104,10 @@ const api: AirlockApi = {
     ),
   requestSecretResolve: (requestId, vaulted) =>
     ipcRenderer.invoke("agent:request-secret-resolved", requestId, vaulted),
+  onAgentCommand: (cb) =>
+    subscribe<{ id: string; cmd: AgentCommand }>("agent:command", cb),
+  agentCommandResult: (id, result: AgentCommandResult) =>
+    ipcRenderer.send("agent:command-result", { id, result }),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

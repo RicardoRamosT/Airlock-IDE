@@ -86,6 +86,22 @@ export function lastFocusedRoot(): string | null {
   return id === null ? null : (workspaceRoots.get(id) ?? null);
 }
 
+// The last-focused BrowserWindow the IDE-control commands target. Unlike
+// lastFocusedWindowId (which requires the window to have a FOLDER open, since the
+// agent's status/run tools need a root), layout control applies to ANY window,
+// including a blank-tab one -- so this resolves a live window by last-focused id,
+// then the OS-focused window, then any open window, regardless of an open root.
+// Returns null only when no airlock window exists.
+export function lastFocusedWindow(): BrowserWindow | null {
+  if (lastFocusedId !== null) {
+    const win = BrowserWindow.fromId(lastFocusedId);
+    if (win && !win.isDestroyed()) return win;
+  }
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused && !focused.isDestroyed()) return focused;
+  return BrowserWindow.getAllWindows()[0] ?? null;
+}
+
 // New Window opens a fresh, no-folder airlock window.
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({

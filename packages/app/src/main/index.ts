@@ -2,6 +2,7 @@ import path from "node:path";
 import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
 import { activityStatus, addDismissedActivity } from "./activity";
+import { registerAgentCommandIpc, runAgentCommand } from "./agent-commands";
 import {
   registerAgentRequestIpc,
   requestSecretFromUser,
@@ -120,6 +121,10 @@ function bootstrap(): void {
     // save/cancel for a request_secret prompt). The MCP tool that drives this
     // is wired in via requestSecretFromUser in the startMcpServer deps below.
     registerAgentRequestIpc();
+    // Register the agent-command resolver IPC (renderer reports the resulting
+    // layout for an IDE-control command). The MCP tools that drive this are wired
+    // in via runAgentCommand in the startMcpServer deps below.
+    registerAgentCommandIpc();
     createWindow();
     const prefs = await loadPrefs(prefsFile);
     applyAppMenu(
@@ -149,6 +154,10 @@ function bootstrap(): void {
         addDismissedActivity(entryId);
         broadcastActivityChanged();
       },
+      // The IDE-control tools (tabs/split/terminals) drive the focused window via
+      // this command round-trip. Layout/terminal control only -- ids/paths in,
+      // layout metadata out; it never returns a secret value.
+      runAgentCommand,
       token,
     }).catch((e) => {
       console.error(

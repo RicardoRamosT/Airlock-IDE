@@ -21,6 +21,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type {
   ActivityItem,
+  AgentCommand,
+  AgentCommandResult,
   Section,
   SectionVisibility,
 } from "../../shared/ipc";
@@ -28,8 +30,11 @@ import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
 import { SECTIONS } from "../prefs";
 
-// The exact, locked v1 tool set. tools.test.ts asserts the registered names
-// equal this list, so a 15th tool or a missing one fails the allowlist guard.
+// The exact, locked tool set. tools.test.ts asserts the registered names equal
+// this list, so an extra tool or a missing one fails the allowlist guard. The
+// last seven are the IDE-control tools: they drive the focused window's tab/
+// split/terminal layout and carry only ids/paths in + layout metadata out -- NO
+// secret value, so the source-guard / redactor are untouched by them.
 export const TOOL_NAMES: string[] = [
   "list_sidebar_sections",
   "set_sidebar_section_visibility",
@@ -45,6 +50,13 @@ export const TOOL_NAMES: string[] = [
   "get_terminal_tail",
   "activity_status",
   "dismiss_activity",
+  "list_tabs",
+  "open_tab",
+  "close_tab",
+  "switch_tab",
+  "split_view",
+  "open_terminal",
+  "close_terminal",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -71,6 +83,12 @@ export interface ToolDeps {
   // broadcast so the UI refetches the filtered feed live. Carries an opaque id,
   // never a secret value. Sync (it mutates the in-memory set + fans out).
   dismissActivity: (entryId: string) => void;
+  // Drive the focused window's tab/split/terminal layout for the IDE-control
+  // tools. Sends an AgentCommand to the focused window and resolves the resulting
+  // layout metadata (or an error result). Carries ids/paths in + names/titles out
+  // -- NEVER a secret value, so this dep keeps the source-guard green. Never
+  // throws (a no-window / timeout / renderer error resolves { ok:false }).
+  runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>;
   changeVisibility?: (
     prefsFile: string,
     id: Section,
@@ -311,5 +329,91 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       if (!root) return err(NO_WORKSPACE);
       return ok(await deps.requestSecretFromUser(name, providerHint));
     },
+  );
+
+  // --- IDE-control tools: drive the FOCUSED window's layout ---------------
+  // Each forwards an AgentCommand to deps.runAgentCommand (the main->renderer
+  // command round-trip) and maps the result: ok -> the fresh TabsSnapshot,
+  // !ok -> a clean error (no window / timed out / renderer error). They carry
+  // only tab/terminal ids + a folder path in, and layout metadata (tab names +
+  // terminal titles) out -- NO secret value, so they reference no value-returning
+  // identifier and the source-guard stays green. NO workspace gate: layout
+  // control applies to any window, including a blank-tab one. runAgentCommand
+  // never throws, so a degraded call surfaces as a clean tool error.
+
+  // Run a command and return its result as the SDK shape (data on ok, error on !ok).
+  const drive = async (cmd: AgentCommand) => {
+    const r = await deps.runAgentCommand(cmd);
+    return r.ok ? ok(r.data) : err(r.error);
+  };
+
+  mcp.registerTool(
+    "list_tabs",
+    {
+      description:
+        "List the open tabs in the focused airlock window: each tab's id, name, root, whether it is focused / in the split, and its terminals (id + title), plus the split pair. Layout metadata only -- no secret values. Use it to see the current layout before driving it.",
+      inputSchema: {},
+    },
+    async () => drive({ type: "list_tabs" }),
+  );
+
+  mcp.registerTool(
+    "open_tab",
+    {
+      description:
+        "Open a project folder as a new tab (pass path), or a blank tab (no path), in the focused airlock window. Returns the new tab layout. Acts on the FOCUSED window.",
+      inputSchema: { path: z.string().optional() },
+    },
+    async ({ path }) => drive({ type: "open_tab", path }),
+  );
+
+  mcp.registerTool(
+    "close_tab",
+    {
+      description:
+        "Close a tab by its id (from list_tabs) in the focused airlock window; returns the resulting layout. Closing the last tab leaves a fresh blank tab. Acts on the FOCUSED window.",
+      inputSchema: { tabId: z.string() },
+    },
+    async ({ tabId }) => drive({ type: "close_tab", tabId }),
+  );
+
+  mcp.registerTool(
+    "switch_tab",
+    {
+      description:
+        "Focus a tab by its id (from list_tabs) in the focused airlock window; returns the resulting layout. Acts on the FOCUSED window.",
+      inputSchema: { tabId: z.string() },
+    },
+    async ({ tabId }) => drive({ type: "switch_tab", tabId }),
+  );
+
+  mcp.registerTool(
+    "split_view",
+    {
+      description:
+        "Toggle the split view in the focused airlock window: with a tabId, split the focused tab beside that tab; with no tabId, split with a new blank tab (or collapse the split if it is already showing). Returns the resulting layout. Acts on the FOCUSED window.",
+      inputSchema: { tabId: z.string().optional() },
+    },
+    async ({ tabId }) => drive({ type: "split_view", tabId }),
+  );
+
+  mcp.registerTool(
+    "open_terminal",
+    {
+      description:
+        "Open a new terminal in the focused airlock window. With a tabId, open it in that tab (it is focused first); with no tabId, open it in the focused tab. Returns the resulting layout (the tab's terminals include the new one). Spawns a shell with the project's secrets injected -- but exposes NO env values. Acts on the FOCUSED window.",
+      inputSchema: { tabId: z.string().optional() },
+    },
+    async ({ tabId }) => drive({ type: "open_terminal", tabId }),
+  );
+
+  mcp.registerTool(
+    "close_terminal",
+    {
+      description:
+        "Close a terminal by its id (from list_tabs / open_terminal) in the focused airlock window; returns the resulting layout. Acts on the FOCUSED window.",
+      inputSchema: { terminalId: z.string() },
+    },
+    async ({ terminalId }) => drive({ type: "close_terminal", terminalId }),
   );
 }

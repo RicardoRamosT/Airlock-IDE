@@ -5,8 +5,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it, vi } from "vitest";
 import type {
   ActivityItem,
+  AgentCommand,
+  AgentCommandResult,
   Section,
   SectionVisibility,
+  TabsSnapshot,
 } from "../../shared/ipc";
 import { SECTIONS } from "../prefs";
 import { registerTools, TOOL_NAMES } from "./tools";
@@ -54,23 +57,39 @@ const baseDeps = {
   listTerminals: vi.fn(async () => [] as { id: string; preview: string }[]),
   getActivity: vi.fn(async () => [] as ActivityItem[]),
   dismissActivity: vi.fn((_entryId: string) => {}),
+  // The IDE-control round-trip stub: resolves an ok result with an empty layout
+  // by default. Tests that assert the forwarded AgentCommand or the !ok mapping
+  // override this with their own spy.
+  runAgentCommand: vi.fn(
+    async () =>
+      ({ ok: true, data: { tabs: [], split: null } }) as AgentCommandResult,
+  ),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // fourteen allowlisted tools. A 15th tool (e.g. a future secret-value
-  // drill-down) or a removed one fails this immediately.
-  it("registers exactly the fourteen allowlisted tools and nothing else", () => {
+  // twenty-one allowlisted tools (fourteen read/curate/run + the seven IDE-control
+  // tools). An extra tool (e.g. a future secret-value drill-down) or a removed one
+  // fails this immediately.
+  it("registers exactly the twenty-one allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(14);
+    expect(registered).toHaveLength(21);
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
     expect(registered).toContain("activity_status");
     expect(registered).toContain("dismiss_activity");
+    // The seven IDE-control tools (tabs / split / terminals).
+    expect(registered).toContain("list_tabs");
+    expect(registered).toContain("open_tab");
+    expect(registered).toContain("close_tab");
+    expect(registered).toContain("switch_tab");
+    expect(registered).toContain("split_view");
+    expect(registered).toContain("open_terminal");
+    expect(registered).toContain("close_terminal");
   });
 
   it("registers no duplicate tool names", () => {
@@ -407,5 +426,156 @@ describe("dismiss_activity tool", () => {
     expect(dismissActivity).toHaveBeenCalledWith("ci:abc123");
     expect(res.isError).toBeUndefined();
     expect(JSON.parse(res.content[0].text)).toEqual({ dismissed: "ci:abc123" });
+  });
+});
+
+describe("IDE-control tools (tabs / split / terminals)", () => {
+  // A sample layout the round-trip resolves on the ok path; the handler must
+  // forward it verbatim as JSON (it is layout metadata -- names/titles only).
+  const SNAPSHOT: TabsSnapshot = {
+    tabs: [
+      {
+        id: "proj-1",
+        name: "repo",
+        root: "/repo",
+        focused: true,
+        inSplit: false,
+        terminals: [{ id: "term-1", title: "zsh" }],
+      },
+    ],
+    split: null,
+  };
+
+  // Build one IDE-control tool against a runAgentCommand spy so each test can
+  // assert the exact AgentCommand the handler forwarded and the result mapping.
+  function getTool(
+    name: string,
+    runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>,
+  ) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, { ...baseDeps, runAgentCommand });
+    const tool = tools.find((t) => t.name === name);
+    if (!tool) throw new Error(`${name} tool not registered`);
+    return tool;
+  }
+
+  // (toolName, handler args, expected AgentCommand) for the happy path: each tool
+  // builds the right command and returns r.data on ok.
+  const cases: Array<{
+    name: string;
+    args: Record<string, unknown>;
+    cmd: AgentCommand;
+  }> = [
+    { name: "list_tabs", args: {}, cmd: { type: "list_tabs" } },
+    {
+      name: "open_tab",
+      args: { path: "/x" },
+      cmd: { type: "open_tab", path: "/x" },
+    },
+    {
+      name: "open_tab",
+      args: {},
+      cmd: { type: "open_tab", path: undefined },
+    },
+    {
+      name: "close_tab",
+      args: { tabId: "proj-2" },
+      cmd: { type: "close_tab", tabId: "proj-2" },
+    },
+    {
+      name: "switch_tab",
+      args: { tabId: "proj-3" },
+      cmd: { type: "switch_tab", tabId: "proj-3" },
+    },
+    {
+      name: "split_view",
+      args: {},
+      cmd: { type: "split_view", tabId: undefined },
+    },
+    {
+      name: "split_view",
+      args: { tabId: "proj-4" },
+      cmd: { type: "split_view", tabId: "proj-4" },
+    },
+    {
+      name: "open_terminal",
+      args: {},
+      cmd: { type: "open_terminal", tabId: undefined },
+    },
+    {
+      name: "open_terminal",
+      args: { tabId: "proj-5" },
+      cmd: { type: "open_terminal", tabId: "proj-5" },
+    },
+    {
+      name: "close_terminal",
+      args: { terminalId: "term-9" },
+      cmd: { type: "close_terminal", terminalId: "term-9" },
+    },
+  ];
+
+  for (const { name, args, cmd } of cases) {
+    it(`${name}(${JSON.stringify(args)}) forwards ${JSON.stringify(
+      cmd,
+    )} and returns the snapshot on ok`, async () => {
+      const runAgentCommand = vi.fn(
+        async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
+      );
+      const tool = getTool(name, runAgentCommand);
+      const res = (await tool.handler(args)) as {
+        content: [{ text: string }];
+        isError?: boolean;
+      };
+      expect(runAgentCommand).toHaveBeenCalledTimes(1);
+      expect(runAgentCommand).toHaveBeenCalledWith(cmd);
+      expect(res.isError).toBeUndefined();
+      expect(JSON.parse(res.content[0].text)).toEqual(SNAPSHOT);
+    });
+  }
+
+  it("returns isError with the error message when the command result is !ok", async () => {
+    const runAgentCommand = vi.fn(
+      async () =>
+        ({ ok: false, error: "No airlock window" }) as AgentCommandResult,
+    );
+    const tool = getTool("list_tabs", runAgentCommand);
+    const res = (await tool.handler({})) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toBe("No airlock window");
+  });
+
+  it("does NOT gate the IDE-control tools on an open workspace (acts on the focused window)", async () => {
+    // baseDeps.getWorkspaceRoot() is null. Unlike the workspace-rooted reads the
+    // IDE-control tools must still reach runAgentCommand (layout control applies to
+    // any window, including a blank-tab one), so the call goes through.
+    const runAgentCommand = vi.fn(
+      async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
+    );
+    const tool = getTool("open_tab", runAgentCommand);
+    const res = (await tool.handler({ path: "/y" })) as { isError?: boolean };
+    expect(runAgentCommand).toHaveBeenCalledWith({
+      type: "open_tab",
+      path: "/y",
+    });
+    expect(res.isError).toBeUndefined();
+  });
+
+  it("declares the expected input schemas (optional path/tabId, required tabId/terminalId)", () => {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, baseDeps);
+    const byName = (n: string) => tools.find((t) => t.name === n);
+    // list_tabs: empty schema (no args).
+    expect(byName("list_tabs")?.config.inputSchema).toEqual({});
+    expect(byName("open_tab")?.config.inputSchema?.path).toBeDefined();
+    expect(byName("close_tab")?.config.inputSchema?.tabId).toBeDefined();
+    expect(byName("switch_tab")?.config.inputSchema?.tabId).toBeDefined();
+    expect(byName("split_view")?.config.inputSchema?.tabId).toBeDefined();
+    expect(byName("open_terminal")?.config.inputSchema?.tabId).toBeDefined();
+    expect(
+      byName("close_terminal")?.config.inputSchema?.terminalId,
+    ).toBeDefined();
   });
 });

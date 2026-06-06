@@ -131,6 +131,52 @@ export type MenuAction =
   | { type: "close-folder" };
 
 /**
+ * An IDE-control command dispatched main -> renderer over the agent:command
+ * channel (the agent-commands round-trip, mirroring request_secret). The
+ * terminal Claude (via the IDE-control MCP tools) drives the FOCUSED window's
+ * tab/split/terminal layout; the renderer's useAgentCommands hook runs the
+ * matching store action and replies with a fresh TabsSnapshot. Every variant
+ * carries only tab/terminal ids and a folder path -- NO secret value crosses.
+ */
+export type AgentCommand =
+  | { type: "list_tabs" }
+  | { type: "open_tab"; path?: string }
+  | { type: "close_tab"; tabId: string }
+  | { type: "switch_tab"; tabId: string }
+  | { type: "split_view"; tabId?: string }
+  | { type: "open_terminal"; tabId?: string }
+  | { type: "close_terminal"; terminalId: string };
+
+/**
+ * The layout metadata an IDE-control command returns: one entry per open tab
+ * (its id, display name, root, whether it is focused / in the split, and its
+ * terminals as {id,title}) plus the split pair. Names/titles only -- there is
+ * deliberately NO secret value, env value, or terminal output here, so these
+ * tools never widen the no-secret-value surface.
+ */
+export interface TabsSnapshot {
+  tabs: {
+    id: string;
+    name: string;
+    root: string | null;
+    focused: boolean;
+    inSplit: boolean;
+    terminals: { id: string; title: string }[];
+  }[];
+  split: { a: string; b: string } | null;
+}
+
+/**
+ * The result of an IDE-control command: the fresh layout metadata on success,
+ * or an error string (no live window, timed out, or a store-action throw). The
+ * round-trip NEVER rejects -- a failure resolves to { ok: false } so a tool call
+ * degrades gracefully.
+ */
+export type AgentCommandResult =
+  | { ok: true; data: TabsSnapshot }
+  | { ok: false; error: string };
+
+/**
  * App-global preferences (userData JSON) - distinct from per-project config
  * and the keychain. Defined here as the single source of truth so both the
  * main-process store (prefs.ts) and the renderer (via AirlockApi) share it.
@@ -312,4 +358,14 @@ export interface AirlockApi {
     cb: (p: { requestId: string; name: string; providerHint?: string }) => void,
   ): () => void;
   requestSecretResolve(requestId: string, vaulted: boolean): Promise<void>;
+  // Agent IDE-control command: main pushes agent:command when an IDE-control MCP
+  // tool (list_tabs/open_tab/close_tab/switch_tab/split_view/open_terminal/
+  // close_terminal) drives the focused window. The useAgentCommands hook runs the
+  // matching store action and reports the resulting layout via agentCommandResult.
+  // Only tab/terminal ids + a path cross in, and layout metadata (names/titles)
+  // crosses back -- NO secret value, consistent with the no-secrets invariant.
+  onAgentCommand(
+    cb: (p: { id: string; cmd: AgentCommand }) => void,
+  ): () => void;
+  agentCommandResult(id: string, result: AgentCommandResult): void;
 }
