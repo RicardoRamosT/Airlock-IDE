@@ -1,7 +1,7 @@
 # Multi-window (per-window workspace, one agent follows focus)
 
 **Date:** 2026-06-05
-**Status:** Design approved (Option B). Building.
+**Status:** v1 complete.
 
 ## Overview
 Each airlock window gets its OWN open folder. Renderer IPC operates on the SENDER

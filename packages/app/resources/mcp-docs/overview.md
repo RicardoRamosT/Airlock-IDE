@@ -5,6 +5,14 @@ terminal that airlock spawned. airlock is the workbench around that terminal: it
 the open project folder, the project's secrets, git, databases, Docker, the local dev
 server, and an audit log — and it exposes all of that to you over this MCP server.
 
+> **Multiple windows, one agent.** airlock can have several windows open at once, each
+> with its OWN open folder. There is still **one agent session at a time** (you), and you
+> operate on the **last-focused window's project** — the window the human is actually using.
+> If they switch windows, your "current project" follows: the folder, git, secrets,
+> databases, and `get_terminal_tail` all resolve to that last-focused window. So treat
+> "the project" below as the last-focused window's folder, and don't assume the human is
+> looking at the same window between calls.
+
 ## The panes
 
 airlock's window has three regions:

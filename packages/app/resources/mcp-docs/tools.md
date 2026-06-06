@@ -103,6 +103,11 @@ yet; the app-global tools work regardless.
     - **Your OWN terminal appears in the list.** airlock can't distinguish the PTY
       you're running in from the user's other tabs, so your own terminal shows up —
       reading it is just redundant, not harmful.
+    - **Only the last-focused window's terminals.** When airlock has multiple windows
+      open, this lists/tails the terminals of the **last-focused window** only — the
+      same window the rest of your tools resolve to (see `overview.md`). Terminals in
+      other windows are not visible here, and each window's tail is redacted against
+      that window's own vaulted secrets.
 
 ## Picking a tool
 
