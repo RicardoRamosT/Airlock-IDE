@@ -1,10 +1,22 @@
 import { useState } from "react";
-import { useApp } from "../store";
+import { EMPTY_TAB_TERMINALS, useApp } from "../store";
 
-export function TerminalTabs() {
-  const terminals = useApp((s) => s.terminals);
-  const activeTerminalId = useApp((s) => s.activeTerminalId);
-  const splitTerminalId = useApp((s) => s.splitTerminalId);
+// Scoped to a single tab's terminal slice (tabId). Rendered once per project
+// inside ProjectTerminals; only the active tab's copy is visible (the rest are
+// CSS-hidden), so the user-action handlers (addTerminal/setActiveTerminal/
+// setSplit), which operate on the ACTIVE tab in the store, are only reachable
+// for the active tab. kill() routes through removeTerminal, which finds the
+// owning tab by terminal id.
+export function TerminalTabs({ tabId }: { tabId: string }) {
+  const terminals = useApp(
+    (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).terminals,
+  );
+  const activeTerminalId = useApp(
+    (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).activeTerminalId,
+  );
+  const splitTerminalId = useApp(
+    (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).splitTerminalId,
+  );
   const addTerminal = useApp((s) => s.addTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
   const setActiveTerminal = useApp((s) => s.setActiveTerminal);

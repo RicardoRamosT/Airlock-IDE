@@ -1029,6 +1029,35 @@ textarea:focus-visible {
   outline-offset: -1px;
 }
 
+/* Project tabs: every project's terminal subtree is mounted at once so its
+   ptys survive a tab switch (a pty dies only on TerminalPane unmount). The
+   container fills the terminal slot; each per-project slot also fills it and is
+   hidden (display:none) when its project is not the active tab -- same pattern
+   as .terminal-pane-slot.hidden, one level up. */
+.terminal-projects {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* One explicit row stretched to the full height so the stacked slots (all in
+     row 1 / column 1) fill the terminal area instead of collapsing to content
+     height. */
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.terminal-project-slot {
+  /* Stack all project slots in the single grid cell so the active one occupies
+     the full area; hidden ones are removed from layout below. */
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.terminal-project-slot.hidden {
+  display: none;
+}
+
 .terminal-manager {
   display: grid;
   grid-template-rows: 30px minmax(0, 1fr);

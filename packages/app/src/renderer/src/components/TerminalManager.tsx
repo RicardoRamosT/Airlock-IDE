@@ -1,46 +1,36 @@
-import { useEffect, useRef } from "react";
-import { useApp } from "../store";
-import { TerminalPane } from "./TerminalPane";
-import { TerminalTabs } from "./TerminalTabs";
+import { IMPLICIT_TAB_ID, useApp } from "../store";
+import { ProjectTerminals } from "./ProjectTerminals";
 
+// Renders EVERY tab's terminals at once -- one ProjectTerminals subtree per tab,
+// each wrapped in a slot that is hidden (display:none) unless it is the active
+// tab. Keeping inactive tabs MOUNTED is the whole point: a pty dies only on
+// TerminalPane unmount, so a hidden tab's shells keep running across switches.
+//
+// No-project state: when no project is open (activeTabId === null and no tabs),
+// render a single implicit ProjectTerminals so the app still shows a working
+// terminal -- matching today's behavior where a shell exists even with no folder
+// open. As soon as a project opens, the implicit subtree unmounts (its scratch
+// shell dies, exactly as opening a folder reset terminals before).
 export function TerminalManager() {
-  const terminals = useApp((s) => s.terminals);
-  const activeTerminalId = useApp((s) => s.activeTerminalId);
-  const splitTerminalId = useApp((s) => s.splitTerminalId);
-  const addTerminal = useApp((s) => s.addTerminal);
+  const tabs = useApp((s) => s.tabs);
+  const activeTabId = useApp((s) => s.activeTabId);
 
-  // Always keep at least one terminal alive. The ref guards against React 19
-  // StrictMode replaying this mount effect with a stale (length === 0) closure,
-  // which would otherwise spawn two default tabs (and two PTYs) on boot. The
-  // guard is armed only while the list is empty and cleared once a terminal
-  // exists, so killing the last tab still respawns a fresh one.
-  const spawningDefault = useRef(false);
-  useEffect(() => {
-    if (terminals.length > 0) {
-      spawningDefault.current = false;
-      return;
-    }
-    if (spawningDefault.current) return;
-    spawningDefault.current = true;
-    addTerminal();
-  }, [terminals.length, addTerminal]);
-
-  const visible = (id: string) =>
-    id === activeTerminalId || id === splitTerminalId;
+  // Each rendered subtree's tab id + whether it is the visible (active) one.
+  const slots: { id: string; active: boolean }[] =
+    tabs.length === 0
+      ? [{ id: IMPLICIT_TAB_ID, active: true }]
+      : tabs.map((t) => ({ id: t.id, active: t.id === activeTabId }));
 
   return (
-    <div className="terminal-manager">
-      <TerminalTabs />
-      <div className={`terminal-panes${splitTerminalId ? " split" : ""}`}>
-        {terminals.map((t) => (
-          <div
-            key={t.id}
-            className={`terminal-pane-slot${visible(t.id) ? "" : " hidden"}`}
-          >
-            <TerminalPane terminalId={t.id} />
-          </div>
-        ))}
-      </div>
+    <div className="terminal-projects">
+      {slots.map((slot) => (
+        <div
+          key={slot.id}
+          className={`terminal-project-slot${slot.active ? "" : " hidden"}`}
+        >
+          <ProjectTerminals tabId={slot.id} />
+        </div>
+      ))}
     </div>
   );
 }
