@@ -78,6 +78,15 @@ glow clears the moment you open it. (airlock has no direct line into Claude — 
 infers this from the terminal: `claude` running plus live output — so it's a close
 read, not a hook.)
 
+**Split view.** With two or more projects open, the **split** button (next to
+`+`) shows two of them side by side — each a full project view with its own file
+tree, git, secrets, viewer, and terminals. Click a pane to focus it (the focused
+pane is ringed); the focused pane is what the agent, the window title, and the
+menu act on, so **one agent at a time** still holds — switching panes switches
+what Claude sees. Each pane's terminals keep running when you toggle split or
+swap focus (they're never torn down). Great for editing one project while
+watching another's tests or dev server.
+
 **Blank tabs.** The `+` (or **New Tab**, `⌘T`) opens an empty tab — just a
 terminal, no folder required — so you can run a shell or start `claude` without
 opening anything. Click **Open Folder…** in that tab whenever you want to give
