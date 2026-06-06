@@ -16,6 +16,7 @@ import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu } from "./menu";
 import { loadPrefs } from "./prefs";
+import { createWindow } from "./window";
 
 app.setName("airlock");
 
@@ -42,32 +43,6 @@ if (!gotLock) {
 // A Finder-launched app inherits launchd's minimal env, so spawned terminals
 // would otherwise miss the user's PATH and have a broken locale.
 let loginEnv: Record<string, string> = {};
-
-function createWindow(): void {
-  const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    backgroundColor: "#0d1117",
-    title: "airlock",
-    titleBarStyle: "hiddenInset",
-    webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-    },
-  });
-
-  // Security: never allow new windows or navigation away from the app.
-  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  win.webContents.on("will-navigate", (e) => e.preventDefault());
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    win.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    win.loadFile(path.join(__dirname, "../renderer/index.html"));
-  }
-}
 
 // Only invoked for the primary instance (we hold the single-instance lock).
 // The secondary-instance path early-returns via app.quit() above and must NOT
