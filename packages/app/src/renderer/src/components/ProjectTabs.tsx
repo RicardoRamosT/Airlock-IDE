@@ -1,11 +1,11 @@
 import { useApp } from "../store";
 
-// The project-tab strip (Chrome-style). One tab per open project; clicking
-// switches, the per-tab x closes, the trailing + opens a folder as a new tab.
-// Switching keeps every tab's terminals running (see store: switchTab parks the
-// outgoing tab's state, closeTab unmounts the closed tab's panes -> its ptys
-// die). When no project is open (tabs empty) only the + shows, so there is
-// always a way to open one.
+// The project-tab strip (Chrome-style). One tab per project (or blank tab);
+// clicking a tab switches to it, the per-tab x closes it, and the trailing +
+// opens a fresh blank tab (no folder dialog -- the blank tab's own Open Folder
+// flow attaches a project). Switching keeps every tab's terminals running (see
+// store: switchTab parks the outgoing tab's state, closeTab unmounts the closed
+// tab's panes -> its ptys die). The window always has >= 1 tab in tabs mode.
 export function ProjectTabs() {
   const tabs = useApp((s) => s.tabs);
   const activeTabId = useApp((s) => s.activeTabId);
@@ -16,18 +16,6 @@ export function ProjectTabs() {
   // hidden, returning null collapses App.tsx's auto-sized grid row -- no layout
   // change is needed elsewhere.
   if (!openProjectsAsTabs && tabs.length <= 1) return null;
-
-  // Mirrors Sidebar's Open Folder flow: openFolder shows the dialog + sets the
-  // main window root; setRoot honors the open mode (tabs -> add a tab; windows
-  // -> replace the active tab's single project in place).
-  const openProject = async () => {
-    try {
-      const picked = await window.airlock.openFolder();
-      if (picked) useApp.getState().setRoot(picked);
-    } catch (err) {
-      console.error("openFolder failed", err);
-    }
-  };
 
   return (
     <div className="project-tabs">
@@ -65,8 +53,8 @@ export function ProjectTabs() {
       <button
         type="button"
         className="project-tab-action"
-        title="Open project in new tab"
-        onClick={openProject}
+        title="New tab"
+        onClick={() => useApp.getState().openBlankTab()}
       >
         <i className="codicon codicon-add" />
       </button>

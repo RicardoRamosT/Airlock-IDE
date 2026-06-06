@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Section, SectionVisibility } from "../shared/ipc";
-import { recentSubmenuItems, sectionSubmenuItems } from "./menu";
+import { newMenuItem, recentSubmenuItems, sectionSubmenuItems } from "./menu";
 
 const ALL_VISIBLE: SectionVisibility = {
   files: true,
@@ -77,5 +77,22 @@ describe("recentSubmenuItems", () => {
     const items = recentSubmenuItems([], () => {});
     expect(items).toHaveLength(1);
     expect(items[0]?.enabled).toBe(false);
+  });
+});
+
+// newMenuItem is the exact item applyAppMenu uses as the File submenu's first
+// entry AND the only item applyDockMenu installs, so asserting on it directly
+// proves the relabel for both the menu and the dock without standing up
+// Electron's Menu.setApplicationMenu.
+describe("newMenuItem", () => {
+  it("is 'New Tab' (Cmd+T) when openProjectsAsTabs is true", () => {
+    const item = newMenuItem(true);
+    expect(item.label).toBe("New Tab");
+    expect(item.accelerator).toBe("CmdOrCtrl+T");
+  });
+  it("is 'New Window' (Cmd+Shift+N) when openProjectsAsTabs is false", () => {
+    const item = newMenuItem(false);
+    expect(item.label).toBe("New Window");
+    expect(item.accelerator).toBe("CmdOrCtrl+Shift+N");
   });
 });

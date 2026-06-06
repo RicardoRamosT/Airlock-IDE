@@ -1,6 +1,6 @@
 import path from "node:path";
 import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
-import { app, BrowserWindow, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, nativeImage } from "electron";
 import {
   registerAgentRequestIpc,
   requestSecretFromUser,
@@ -13,7 +13,7 @@ import {
 } from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
-import { applyAppMenu } from "./menu";
+import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs } from "./prefs";
 import { createWindow, lastFocusedRoot } from "./window";
 
@@ -71,15 +71,6 @@ function bootstrap(): void {
         ),
       );
     }
-    // Dock right-click menu (macOS): always set, packaged or not. "New Window"
-    // opens a fresh, no-folder airlock window.
-    if (process.platform === "darwin" && app.dock) {
-      app.dock.setMenu(
-        Menu.buildFromTemplate([
-          { label: "New Window", click: () => createWindow() },
-        ]),
-      );
-    }
     // App-global prefs live in userData (NOT per-project .airlock/). getPath
     // is only valid after the app is ready, so compute it here before wiring.
     const prefsFile = path.join(app.getPath("userData"), "prefs.json");
@@ -124,7 +115,13 @@ function bootstrap(): void {
     registerAgentRequestIpc();
     createWindow();
     const prefs = await loadPrefs(prefsFile);
-    applyAppMenu(prefsFile, prefs.sectionVisibility, prefs.recentFolders);
+    applyAppMenu(
+      prefsFile,
+      prefs.sectionVisibility,
+      prefs.recentFolders,
+      prefs.openProjectsAsTabs,
+    );
+    applyDockMenu(prefs.openProjectsAsTabs);
 
     // Stand up the local MCP server (loopback, bearer-guarded). A start failure
     // (e.g. a busy port we could not bump past) must NOT take down the app --

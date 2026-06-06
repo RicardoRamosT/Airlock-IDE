@@ -28,6 +28,12 @@ export function useMenuActions(): void {
           }
           break;
         }
+        case "new-tab": {
+          // tabs mode: the File menu / dock "New Tab" opens a blank tab in this
+          // (focused) window. Mirrors the tab-strip + button.
+          s.openBlankTab();
+          break;
+        }
         case "close-editor": {
           // Return the viewer-pane to the full-terminal state, exactly like the
           // Viewer's X button. setSelected(null, null) already clears

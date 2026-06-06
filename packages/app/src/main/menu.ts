@@ -1,5 +1,10 @@
 import { basename } from "node:path";
-import { BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  type MenuItemConstructorOptions,
+} from "electron";
 import type { MenuAction, Section, SectionVisibility } from "../shared/ipc";
 import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
 import { createWindow } from "./window";
@@ -53,6 +58,39 @@ function pushMenuAction(action: MenuAction): void {
   if (wc && !wc.isDestroyed()) wc.send("menu:action", action);
 }
 
+// tabs mode: New Tab in the focused window (or a new window if none open);
+// windows mode: a separate window. createWindow opens with a blank tab.
+function newTabOrWindow(openProjectsAsTabs: boolean): void {
+  if (openProjectsAsTabs) {
+    const win =
+      BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    if (win && !win.isDestroyed()) {
+      win.focus();
+      win.webContents.send("menu:action", { type: "new-tab" });
+      return;
+    }
+  }
+  createWindow();
+}
+
+// The File-menu / dock "New" item, relabelled by the openProjectsAsTabs pref:
+// "New Tab" (Cmd+T) in tabs mode, "New Window" (Cmd+Shift+N) in windows mode.
+export function newMenuItem(
+  openProjectsAsTabs: boolean,
+): MenuItemConstructorOptions {
+  return openProjectsAsTabs
+    ? {
+        label: "New Tab",
+        accelerator: "CmdOrCtrl+T",
+        click: () => newTabOrWindow(true),
+      }
+    : {
+        label: "New Window",
+        accelerator: "CmdOrCtrl+Shift+N",
+        click: () => createWindow(),
+      };
+}
+
 // Build + install the application menu. setApplicationMenu replaces the
 // default wholesale, so standard roles are re-declared to keep Reload / Zoom /
 // Full Screen / copy-paste. View also carries the Sidebar submenu.
@@ -60,6 +98,7 @@ export function applyAppMenu(
   prefsFile: string,
   visibility: SectionVisibility,
   recentFolders: string[],
+  openProjectsAsTabs: boolean,
 ): void {
   const isMac = process.platform === "darwin";
   const template: MenuItemConstructorOptions[] = [
@@ -67,11 +106,7 @@ export function applyAppMenu(
     {
       label: "File",
       submenu: [
-        {
-          label: "New Window",
-          accelerator: "CmdOrCtrl+Shift+N",
-          click: () => createWindow(),
-        },
+        newMenuItem(openProjectsAsTabs),
         { type: "separator" },
         {
           label: "Open Folder...",
@@ -130,6 +165,13 @@ export function applyAppMenu(
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// Build + install the macOS dock right-click menu. For now just the New item
+// (relabelled by the pref); T6 will prepend recent projects. No-op off darwin.
+export function applyDockMenu(openProjectsAsTabs: boolean): void {
+  if (process.platform !== "darwin") return;
+  app.dock?.setMenu(Menu.buildFromTemplate([newMenuItem(openProjectsAsTabs)]));
+}
+
 // The single funnel for a visibility change, from the menu OR (Task 3) the
 // renderer. Writes the complete map, rebuilds the menu so checkmarks track,
 // and pushes the authoritative map to the renderer.
@@ -141,7 +183,7 @@ export async function changeSectionVisibility(
   const cur = await loadPrefs(prefsFile);
   const next: SectionVisibility = { ...cur.sectionVisibility, [id]: visible };
   await savePrefs(prefsFile, { sectionVisibility: next });
-  applyAppMenu(prefsFile, next, cur.recentFolders);
+  applyAppMenu(prefsFile, next, cur.recentFolders, cur.openProjectsAsTabs);
   // Sidebar visibility is app-global, so fan the new map out to every window.
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.webContents.isDestroyed())

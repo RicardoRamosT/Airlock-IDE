@@ -126,6 +126,7 @@ export type MenuAction =
   | { type: "open-folder" }
   | { type: "open-recent"; path: string }
   | { type: "open-file" }
+  | { type: "new-tab" }
   | { type: "close-editor" }
   | { type: "close-folder" };
 

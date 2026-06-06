@@ -55,7 +55,7 @@ import {
   renderServicesStatus,
   resolveDevUrl,
 } from "./ide-state";
-import { applyAppMenu, changeSectionVisibility } from "./menu";
+import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
 import {
   clearRootForEvent,
@@ -166,7 +166,13 @@ export function registerIpc(
       ...prev.recentFolders.filter((p) => p !== root),
     ].slice(0, RECENT_CAP);
     await savePrefs(prefsFile, { recentFolders: recents });
-    applyAppMenu(prefsFile, prev.sectionVisibility, recents);
+    applyAppMenu(
+      prefsFile,
+      prev.sectionVisibility,
+      recents,
+      prev.openProjectsAsTabs,
+    );
+    applyDockMenu(prev.openProjectsAsTabs);
   }
 
   ipcMain.handle("dialog:openFolder", async (e) => {
@@ -300,9 +306,23 @@ export function registerIpc(
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
   ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
 
-  ipcMain.handle("prefs:set", (_e, patch: unknown) => {
+  ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
-    return savePrefs(prefsFile, patch as Partial<AppPrefs>);
+    const saved = await savePrefs(prefsFile, patch as Partial<AppPrefs>);
+    // Flipping the tabs-vs-windows toggle relabels the File-menu + dock "New"
+    // item (New Tab <-> New Window) live, so rebuild both menus from the
+    // freshly persisted prefs.
+    if ("openProjectsAsTabs" in (patch as object)) {
+      const p = await loadPrefs(prefsFile);
+      applyAppMenu(
+        prefsFile,
+        p.sectionVisibility,
+        p.recentFolders,
+        p.openProjectsAsTabs,
+      );
+      applyDockMenu(p.openProjectsAsTabs);
+    }
+    return saved;
   });
 
   // App-global (NOT requireRoot-gated): toggle a sidebar section's visibility.
