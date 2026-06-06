@@ -1,4 +1,4 @@
-import { IMPLICIT_TAB_ID, useApp } from "../store";
+import { useApp } from "../store";
 
 /**
  * Kill and replace the active terminal so the next shell picks up newly
@@ -9,7 +9,7 @@ import { IMPLICIT_TAB_ID, useApp } from "../store";
  */
 export function restartActiveTerminal(): void {
   const s = useApp.getState();
-  const tabId = s.activeTabId ?? IMPLICIT_TAB_ID;
+  const tabId = s.activeTabId;
   const tt = s.tabTerminals[tabId];
   if (!tt) return;
   const active = tt.terminals.find((t) => t.id === tt.activeTerminalId);

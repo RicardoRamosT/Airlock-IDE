@@ -1,4 +1,4 @@
-import { IMPLICIT_TAB_ID, useApp } from "../store";
+import { useApp } from "../store";
 import { ProjectTerminals } from "./ProjectTerminals";
 
 // Renders EVERY tab's terminals at once -- one ProjectTerminals subtree per tab,
@@ -6,20 +6,18 @@ import { ProjectTerminals } from "./ProjectTerminals";
 // tab. Keeping inactive tabs MOUNTED is the whole point: a pty dies only on
 // TerminalPane unmount, so a hidden tab's shells keep running across switches.
 //
-// No-project state: when no project is open (activeTabId === null and no tabs),
-// render a single implicit ProjectTerminals so the app still shows a working
-// terminal -- matching today's behavior where a shell exists even with no folder
-// open. As soon as a project opens, the implicit subtree unmounts (its scratch
-// shell dies, exactly as opening a folder reset terminals before).
+// The window always has >= 1 tab (a blank tab covers the no-folder state with a
+// real id), so there is no implicit-tab special case: a blank tab renders its
+// own ProjectTerminals subtree like any other tab.
 export function TerminalManager() {
   const tabs = useApp((s) => s.tabs);
   const activeTabId = useApp((s) => s.activeTabId);
 
   // Each rendered subtree's tab id + whether it is the visible (active) one.
-  const slots: { id: string; active: boolean }[] =
-    tabs.length === 0
-      ? [{ id: IMPLICIT_TAB_ID, active: true }]
-      : tabs.map((t) => ({ id: t.id, active: t.id === activeTabId }));
+  const slots: { id: string; active: boolean }[] = tabs.map((t) => ({
+    id: t.id,
+    active: t.id === activeTabId,
+  }));
 
   return (
     <div className="terminal-projects">

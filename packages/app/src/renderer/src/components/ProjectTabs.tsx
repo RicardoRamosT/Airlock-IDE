@@ -41,11 +41,11 @@ export function ProjectTabs() {
               type="button"
               className="project-tab-label"
               onClick={() => useApp.getState().switchTab(tab.id)}
-              title={tab.root}
+              title={tab.root ?? "New Tab"}
             >
               <i className="codicon codicon-folder" />
               <span className="project-tab-title">
-                {tab.root.split("/").pop()}
+                {tab.root ? (tab.root.split("/").pop() ?? tab.root) : "New Tab"}
               </span>
             </button>
             <button

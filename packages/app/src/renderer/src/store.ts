@@ -88,15 +88,14 @@ const freshSnapshot = (): Snapshot => ({
   settingsOpen: false,
 });
 
-// Reserved tab id for the implicit "no project open" terminal. The store's
-// `tabs`/`activeTabId` stay null-when-no-project (per the design), but terminals
-// must still render with no folder open (today's behavior: one shell exists even
-// without a project). The renderer mounts a ProjectTerminals under this id only
-// while `activeTabId === null`; its state lives in `tabTerminals` keyed here.
-export const IMPLICIT_TAB_ID = "__implicit__";
-
 let projCounter = 0;
 const newTabId = (): string => `proj-${++projCounter}`;
+
+// The window ALWAYS has >= 1 tab: the initial state is a single BLANK tab (root
+// null) with a real id, so a blank tab renders today's no-folder UI plus a
+// working terminal as a first-class tab in the strip. (The old implicit
+// activeTabId-null state and IMPLICIT_TAB_ID are retired.)
+const INITIAL_TAB_ID = newTabId();
 
 interface AppState {
   // --- Active-tab live per-project state (top level so existing components
@@ -120,8 +119,8 @@ interface AppState {
   } | null;
 
   // --- Tab model ---
-  tabs: { id: string; root: string }[]; // tab order; root is never null here
-  activeTabId: string | null; // null = no project open (implicit terminal tab)
+  tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
+  activeTabId: string; // non-null: the window always has >= 1 tab
   tabSnapshots: Record<string, Snapshot>; // parked non-terminal state of INACTIVE tabs
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   openProjectsAsTabs: boolean; // app-global (persisted); used by later tasks
@@ -149,6 +148,8 @@ interface AppState {
 
   // --- Tab actions ---
   openProject: (root: string) => void;
+  openBlankTab: () => void;
+  fillActiveTab: (root: string) => void;
   replaceActiveProject: (root: string) => void;
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
@@ -219,7 +220,6 @@ const loadSnapshot = (
 
 // Find the id of the tab whose terminal list contains `terminalId`. Used by the
 // ownership-routed setters so a background tab's pane updates the right tab.
-// Falls back to scanning the implicit tab too.
 const findOwningTabId = (
   tabTerminals: Record<string, TabTerminals>,
   terminalId: string,
@@ -262,13 +262,13 @@ export const useApp = create<AppState>((set) => ({
   dbView: null,
   diff: null,
 
-  // tab model — start with NO project (implicit terminal tab handles the
-  // no-folder state in the renderer). The implicit tab's terminal state must
-  // exist so a default shell can spawn before any folder is opened.
-  tabs: [],
-  activeTabId: null,
+  // tab model — start with ONE blank tab (root null). The window always has
+  // >= 1 tab; a blank tab renders the existing no-folder empty state and a
+  // working terminal, so a default shell can spawn before any folder is opened.
+  tabs: [{ id: INITIAL_TAB_ID, root: null }],
+  activeTabId: INITIAL_TAB_ID,
   tabSnapshots: {},
-  tabTerminals: { [IMPLICIT_TAB_ID]: emptyTabTerminals() },
+  tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   openProjectsAsTabs: true,
 
   // app-global
@@ -290,45 +290,69 @@ export const useApp = create<AppState>((set) => ({
   layoutHydrated: false,
 
   // --- Tab actions ---
+  // Append a PROJECT tab (used when the active tab already has a project, tabs
+  // mode). Park the outgoing active tab's live non-terminal state, make the new
+  // tab active with fresh empty terminals + a fresh snapshot.
   openProject: (root) =>
     set((s) => {
       const id = newTabId();
-      // Park the outgoing active tab's live non-terminal state.
-      const tabSnapshots =
-        s.activeTabId !== null
-          ? { ...s.tabSnapshots, [s.activeTabId]: snapshotActive(s) }
-          : s.tabSnapshots;
-      const tabTerminals = { ...s.tabTerminals, [id]: emptyTabTerminals() };
-      // Opening the FIRST project from the no-project state retires the implicit
-      // scratch tab: its ProjectTerminals unmounts (pane cleanup kills the
-      // scratch pty) and we drop its leftover entry so returning to no-project
-      // later starts clean with a single fresh shell.
-      if (s.activeTabId === null)
-        tabTerminals[IMPLICIT_TAB_ID] = emptyTabTerminals();
+      const tabSnapshots = {
+        ...s.tabSnapshots,
+        [s.activeTabId]: snapshotActive(s),
+      };
       return {
         tabs: [...s.tabs, { id, root }],
         activeTabId: id,
         tabSnapshots,
-        tabTerminals,
+        tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
         // fresh top-level per-project state for the new tab
         ...loadSnapshot(root, freshSnapshot()),
         // a freshly opened project starts with no modal carried over
         modal: null,
       };
     }),
-  // Windows-mode "replace the window's single project in place": swap the
-  // ACTIVE tab's root rather than appending a tab. Capture the id up front so
-  // TS narrowing holds inside set(). With no active tab, delegate to openProject
-  // (creates the first/only tab, incl. the implicit-tab terminal reset).
-  // Otherwise reset the tab's terminals to a fresh empty set so the old
-  // project's TerminalPanes unmount and their ptys die (correct for replace).
-  replaceActiveProject: (root) => {
-    const id = useApp.getState().activeTabId;
-    if (id === null) {
-      useApp.getState().openProject(root);
-      return;
-    }
+  // Append a BLANK tab (no folder) and make it active. The tab-strip `+` calls
+  // this -- NO folder picker. Parks the outgoing snapshot, fresh empty terminals.
+  openBlankTab: () =>
     set((s) => {
+      const id = newTabId();
+      const tabSnapshots = {
+        ...s.tabSnapshots,
+        [s.activeTabId]: snapshotActive(s),
+      };
+      return {
+        tabs: [...s.tabs, { id, root: null }],
+        activeTabId: id,
+        tabSnapshots,
+        tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
+        ...loadSnapshot(null, freshSnapshot()),
+        modal: null,
+      };
+    }),
+  // Attach a folder to the active BLANK tab IN PLACE, KEEPING its terminals (so
+  // a live `claude`/server in the blank tab's shell survives the attach). Clears
+  // any parked snapshot for the tab. (Idle/busy handling is a later task.)
+  fillActiveTab: (root) =>
+    set((s) => {
+      const id = s.activeTabId;
+      const tabSnapshots = { ...s.tabSnapshots };
+      delete tabSnapshots[id];
+      return {
+        tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
+        tabSnapshots,
+        // tabTerminals[id] is intentionally NOT reset -- the blank tab's
+        // terminal(s) survive the attach.
+        ...loadSnapshot(root, freshSnapshot()),
+        modal: null,
+      };
+    }),
+  // Windows-mode "replace the window's single project in place" (active tab
+  // already HAS a project): swap the ACTIVE tab's root rather than appending a
+  // tab, and reset that tab's terminals to a fresh empty set so the old
+  // project's TerminalPanes unmount and their ptys die (correct for replace).
+  replaceActiveProject: (root) =>
+    set((s) => {
+      const id = s.activeTabId;
       // Drop any parked snapshot for this tab from when it held the OLD
       // project, so a later switch-away/back can never load the old project's
       // file/secrets/git against the new root. (switchTab also overwrites it on
@@ -342,18 +366,17 @@ export const useApp = create<AppState>((set) => ({
         ...loadSnapshot(root, freshSnapshot()),
         modal: null,
       };
-    });
-  },
+    }),
   switchTab: (id) => {
     set((s) => {
       if (id === s.activeTabId) return {};
       const target = s.tabs.find((t) => t.id === id);
       if (!target) return {}; // unknown id -> no-op
       // Park current active tab's live state, load the target's snapshot.
-      const tabSnapshots =
-        s.activeTabId !== null
-          ? { ...s.tabSnapshots, [s.activeTabId]: snapshotActive(s) }
-          : s.tabSnapshots;
+      const tabSnapshots = {
+        ...s.tabSnapshots,
+        [s.activeTabId]: snapshotActive(s),
+      };
       const snap = tabSnapshots[id] ?? freshSnapshot();
       return {
         activeTabId: id,
@@ -361,18 +384,21 @@ export const useApp = create<AppState>((set) => ({
         ...loadSnapshot(target.root, snap),
       };
     });
-    // Point main + the agent (MCP) at the now-active tab's project. Without this
-    // the main side stays on whatever was last OPENED, so the renderer would
-    // show tab A while the agent still resolved git/secrets/terminals against B.
-    // Read post-set so we use the committed active root (and skip if the switch
-    // was a no-op above). Fire-and-forget: nothing in the UI awaits it.
+    // Re-point main + the agent (MCP) at the now-active tab's project. Without
+    // this the main side stays on whatever was last OPENED, so the renderer
+    // would show tab A while the agent still resolved git/secrets/terminals
+    // against B. Read post-set so we use the committed active root (and skip if
+    // the switch was a no-op above). A blank target (root null) CLEARS main.
+    // Fire-and-forget: nothing in the UI awaits it.
     const root = useApp.getState().root;
     if (root) void window.airlock.workspaceSetActive(root);
+    else void window.airlock.workspaceClose();
   },
   closeTab: (id) => {
     // After the set we re-sync main + the agent (MCP) to the now-active project.
-    // promotedRoot != null: a neighbor was promoted -> point main at it.
-    // clearMain: the LAST tab closed -> no project left, so CLEAR main's root
+    // promotedRoot != null: a neighbor with a folder was promoted -> point main
+    // at it. clearMain: the now-active tab is BLANK (a blank neighbor, or the
+    // fresh blank tab created when the LAST tab closed) -> CLEAR main's root
     // (workspace:close); otherwise main + the agent would keep resolving git /
     // secrets / run_command against the just-closed project. A background-tab
     // close leaves both unset (active unchanged -> main already correct).
@@ -380,7 +406,7 @@ export const useApp = create<AppState>((set) => ({
     let clearMain = false;
     set((s) => {
       const idx = s.tabs.findIndex((t) => t.id === id);
-      if (idx === -1) return {}; // unknown id (e.g. implicit) -> no-op
+      if (idx === -1) return {}; // unknown id -> no-op
       const tabs = s.tabs.filter((t) => t.id !== id);
       // Removing the tab's terminal state unmounts its panes -> its ptys die.
       const tabTerminals = { ...s.tabTerminals };
@@ -394,11 +420,12 @@ export const useApp = create<AppState>((set) => ({
       }
 
       // Closing the active tab: promote a neighbor (prefer the previous tab,
-      // else the next), or fall back to the no-project state if none remain.
+      // else the next).
       const neighbor = tabs[idx - 1] ?? tabs[idx] ?? null;
       if (neighbor) {
-        promotedRoot = neighbor.root;
         const snap = tabSnapshots[neighbor.id] ?? freshSnapshot();
+        promotedRoot = neighbor.root; // may be null (blank neighbor)
+        clearMain = neighbor.root === null;
         return {
           tabs,
           tabTerminals,
@@ -407,24 +434,22 @@ export const useApp = create<AppState>((set) => ({
           ...loadSnapshot(neighbor.root, snap),
         };
       }
-      // No tabs left -> no-project state. Reset the implicit terminal tab to
-      // empty so the renderer mounts exactly one fresh scratch shell (matching
-      // the launch state), not whatever was left from before any project.
+      // Closed the LAST tab -> open a fresh BLANK tab so the window keeps >= 1
+      // tab (instead of the old activeTabId-null no-project state).
+      const blankId = newTabId();
       clearMain = true;
       return {
-        tabs,
-        tabSnapshots,
-        tabTerminals: {
-          ...tabTerminals,
-          [IMPLICIT_TAB_ID]: emptyTabTerminals(),
-        },
-        activeTabId: null,
+        tabs: [{ id: blankId, root: null }],
+        tabSnapshots: {},
+        tabTerminals: { [blankId]: emptyTabTerminals() },
+        activeTabId: blankId,
         ...loadSnapshot(null, freshSnapshot()),
         modal: null,
       };
     });
-    // Re-sync main + the agent (MCP): a promoted neighbor becomes the active
-    // root; closing the last tab CLEARS the root so the agent stops resolving
+    // Re-sync main + the agent (MCP): a promoted folder-neighbor becomes the
+    // active root; a blank now-active tab (blank neighbor or the fresh blank
+    // tab from the last-tab close) CLEARS the root so the agent stops resolving
     // against the closed project; a background-tab close does neither (the
     // active root is unchanged).
     if (promotedRoot) void window.airlock.workspaceSetActive(promotedRoot);
@@ -432,21 +457,23 @@ export const useApp = create<AppState>((set) => ({
   },
   setOpenProjectsAsTabs: (openProjectsAsTabs) => set({ openProjectsAsTabs }),
 
-  // Thin adapter so existing callers (Sidebar / useMenuActions) keep working:
-  // a string root opens a project tab; null closes the active tab (or no-ops if
-  // already in the no-project state). Delegates to the tab actions directly
-  // (each performs its own set) rather than nesting set() calls.
+  // Thin adapter so existing callers (Sidebar / menu open-folder / open-recent)
+  // keep working. Routes a string root by the ACTIVE tab; null closes the active
+  // tab. Delegates to the tab actions directly (each performs its own set)
+  // rather than nesting set() calls.
   setRoot: (root) => {
     const s = useApp.getState();
     if (typeof root === "string") {
-      // Tabs mode (default): add a tab. Windows mode: replace the active tab's
-      // single project in place (replaceActiveProject delegates to openProject
-      // when there is no active tab, so the first open still works either way).
-      if (s.openProjectsAsTabs) s.openProject(root);
+      const active = s.tabs.find((t) => t.id === s.activeTabId);
+      // Blank active tab -> attach the folder in place (keep its terminals).
+      // Otherwise tabs mode -> a new tab; windows mode -> replace in place.
+      if (active && active.root === null) s.fillActiveTab(root);
+      else if (s.openProjectsAsTabs) s.openProject(root);
       else s.replaceActiveProject(root);
       return;
     }
-    if (s.activeTabId !== null) s.closeTab(s.activeTabId);
+    // null -> close the active tab (closing the last tab becomes a fresh blank).
+    s.closeTab(s.activeTabId);
   },
   setSelected: (selectedFile, file) =>
     set({ selectedFile, file, diff: null, settingsOpen: false, dbView: null }),
@@ -467,7 +494,7 @@ export const useApp = create<AppState>((set) => ({
   addTerminal: () => {
     const entry = newEntry();
     set((s) => {
-      const tabId = s.activeTabId ?? IMPLICIT_TAB_ID;
+      const tabId = s.activeTabId;
       const tt = s.tabTerminals[tabId] ?? emptyTabTerminals();
       return {
         tabTerminals: {
@@ -494,7 +521,7 @@ export const useApp = create<AppState>((set) => ({
     }),
   setActiveTerminal: (id) =>
     set((s) => {
-      const tabId = s.activeTabId ?? IMPLICIT_TAB_ID;
+      const tabId = s.activeTabId;
       const tt = s.tabTerminals[tabId];
       if (!tt) return {};
       // Clicking the tab that is currently in the split slot swaps the two
@@ -551,7 +578,7 @@ export const useApp = create<AppState>((set) => ({
     }),
   setSplit: (id) =>
     set((s) => {
-      const tabId = s.activeTabId ?? IMPLICIT_TAB_ID;
+      const tabId = s.activeTabId;
       const tt = s.tabTerminals[tabId];
       if (!tt) return {};
       return {

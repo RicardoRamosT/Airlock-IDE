@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { EMPTY_TAB_TERMINALS, IMPLICIT_TAB_ID, useApp } from "../store";
+import { EMPTY_TAB_TERMINALS, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
 import { TerminalTabs } from "./TerminalTabs";
 
@@ -33,9 +33,9 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   //
   // addTerminal acts on the ACTIVE tab, so only respawn for the tab that is
   // currently active (an empty background tab must not steal the respawn and
-  // spawn into itself). The implicit no-project tab counts as active when no
-  // project is open.
-  const isActive = tabId === (activeTabId ?? IMPLICIT_TAB_ID);
+  // spawn into itself). A blank tab is a real tab, so it matches activeTabId
+  // directly when it is the active one.
+  const isActive = tabId === activeTabId;
   const spawningDefault = useRef(false);
   useEffect(() => {
     if (terminals.length > 0) {
