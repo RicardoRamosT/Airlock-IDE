@@ -29,6 +29,8 @@ import {
   readRows,
   readWorkspaceFile,
   redactConnStrings,
+  redactedPreview,
+  redactedTail,
   runGit,
   setGlobalSecret,
   setSecret,
@@ -57,6 +59,14 @@ import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
 
 let workspaceRoot: string | null = null;
 const sessions = new Map<string, PtySession>();
+
+// Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
+// cannot grow unbounded; read (redacted) by get_terminal_tail. Deleted on exit.
+const ptyBuffers = new Map<string, string>();
+const TAIL_CAP = 256 * 1024; // bytes of raw output retained per terminal
+const DEFAULT_TAIL_LINES = 40;
+const MAX_TAIL_LINES = 400;
+const PREVIEW_LINES = 3;
 
 function requireRoot(): string {
   if (!workspaceRoot) throw new Error("No workspace open");
@@ -578,10 +588,17 @@ export function registerIpc(
     sessions.set(s.id, s);
     const wc = e.sender;
     const dataSub = s.onData((data) => {
+      const prev = ptyBuffers.get(s.id) ?? "";
+      const next = prev + data;
+      ptyBuffers.set(
+        s.id,
+        next.length > TAIL_CAP ? next.slice(-TAIL_CAP) : next,
+      );
       if (!wc.isDestroyed()) wc.send("pty:data", { id: s.id, data });
     });
     const exitSub = s.onExit((exitCode) => {
       sessions.delete(s.id);
+      ptyBuffers.delete(s.id);
       if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
       // Release the listeners explicitly. node-pty has no destroy(); kill()
       // is teardown, but the onData/onExit subscriptions are IDisposables
@@ -626,4 +643,54 @@ export function registerIpc(
 export function killAllSessions(): void {
   for (const s of sessions.values()) s.kill();
   sessions.clear();
+  ptyBuffers.clear();
+}
+
+// Resolve EVERY vaulted secret value (any could appear in terminal output) so
+// the tail/preview can be redacted. Mirrors the db:list value-gather. Main-only.
+async function allVaultedValues(root: string): Promise<string[]> {
+  const metas = await listSecrets(root);
+  const values: string[] = [];
+  for (const m of metas) {
+    const v = await getSecretValue(root, m.name);
+    if (v) values.push(v);
+  }
+  return values;
+}
+
+// The redacted tail of one terminal's recent output. Root-gated + audited
+// (ids/counts only -- never the content). The MCP tool calls THIS (not
+// getSecretValue), so the tools.ts source-guard stays green.
+export async function getTerminalTail(
+  termId: string,
+  lines: number,
+): Promise<{ tail: string } | { error: string }> {
+  if (!workspaceRoot) return { error: "No workspace open" };
+  const raw = ptyBuffers.get(termId);
+  if (raw === undefined) return { error: "No such terminal" };
+  const n = Math.min(
+    MAX_TAIL_LINES,
+    Math.max(1, Math.floor(lines) || DEFAULT_TAIL_LINES),
+  );
+  const values = await allVaultedValues(workspaceRoot);
+  const tail = redactedTail(raw, values, n);
+  await appendAudit(workspaceRoot, "agent", "terminal.read", {
+    termId,
+    lines: n,
+  });
+  return { tail };
+}
+
+// List live terminals with a short redacted content preview so the agent can
+// tell them apart (dev-server logs vs idle shell) and pick an id.
+export async function listTerminals(): Promise<
+  { id: string; preview: string }[]
+> {
+  const values = workspaceRoot ? await allVaultedValues(workspaceRoot) : [];
+  const out: { id: string; preview: string }[] = [];
+  for (const id of sessions.keys()) {
+    const raw = ptyBuffers.get(id) ?? "";
+    out.push({ id, preview: redactedPreview(raw, values, PREVIEW_LINES) });
+  }
+  return out;
 }
