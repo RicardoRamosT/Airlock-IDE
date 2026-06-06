@@ -18,6 +18,7 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 const api: AirlockApi = {
   openFolder: () => ipcRenderer.invoke("dialog:openFolder"),
   workspaceOpen: (path) => ipcRenderer.invoke("workspace:open", path),
+  workspaceSetActive: (path) => ipcRenderer.invoke("workspace:setActive", path),
   workspaceClose: () => ipcRenderer.invoke("workspace:close"),
   openFile: () => ipcRenderer.invoke("dialog:openFile"),
   onMenuAction: (cb) => subscribe<MenuAction>("menu:action", cb),

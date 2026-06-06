@@ -315,7 +315,7 @@ export const useApp = create<AppState>((set) => ({
         modal: null,
       };
     }),
-  switchTab: (id) =>
+  switchTab: (id) => {
     set((s) => {
       if (id === s.activeTabId) return {};
       const target = s.tabs.find((t) => t.id === id);
@@ -331,8 +331,22 @@ export const useApp = create<AppState>((set) => ({
         tabSnapshots,
         ...loadSnapshot(target.root, snap),
       };
-    }),
-  closeTab: (id) =>
+    });
+    // Point main + the agent (MCP) at the now-active tab's project. Without this
+    // the main side stays on whatever was last OPENED, so the renderer would
+    // show tab A while the agent still resolved git/secrets/terminals against B.
+    // Read post-set so we use the committed active root (and skip if the switch
+    // was a no-op above). Fire-and-forget: nothing in the UI awaits it.
+    const root = useApp.getState().root;
+    if (root) void window.airlock.workspaceSetActive(root);
+  },
+  closeTab: (id) => {
+    // Capture the root of the neighbor that gets promoted (if any) so we can
+    // re-point main + the agent at it AFTER the set. null means either a
+    // background tab was closed (active unchanged -> main already correct) or the
+    // last tab was closed (no project left -> nothing to point main at; we must
+    // NOT call setActive with null here, just skip).
+    let promotedRoot: string | null = null;
     set((s) => {
       const idx = s.tabs.findIndex((t) => t.id === id);
       if (idx === -1) return {}; // unknown id (e.g. implicit) -> no-op
@@ -352,6 +366,7 @@ export const useApp = create<AppState>((set) => ({
       // else the next), or fall back to the no-project state if none remain.
       const neighbor = tabs[idx - 1] ?? tabs[idx] ?? null;
       if (neighbor) {
+        promotedRoot = neighbor.root;
         const snap = tabSnapshots[neighbor.id] ?? freshSnapshot();
         return {
           tabs,
@@ -375,7 +390,12 @@ export const useApp = create<AppState>((set) => ({
         ...loadSnapshot(null, freshSnapshot()),
         modal: null,
       };
-    }),
+    });
+    // Closing the active tab promoted a neighbor: point main + the agent (MCP)
+    // at it, same as switchTab. Skipped (promotedRoot null) when a background tab
+    // was closed (active root unchanged) or the last tab closed (no active root).
+    if (promotedRoot) void window.airlock.workspaceSetActive(promotedRoot);
+  },
   setOpenProjectsAsTabs: (openProjectsAsTabs) => set({ openProjectsAsTabs }),
 
   // Thin adapter so existing callers (Sidebar / useMenuActions) keep working:

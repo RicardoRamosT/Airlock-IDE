@@ -71,6 +71,14 @@ const sessions = new Map<string, PtySession>();
 // sees + reads its OWN terminals. Recorded in pty:create, deleted on exit.
 const sessionWindows = new Map<string, number>();
 
+// Per-PTY owning project root (sessionId -> workspace root). One tabbed window
+// holds many projects' terminals at once, so window-scoping alone is too coarse:
+// the agent must see ONLY the active tab's terminals. switchTab fires
+// workspace:setActive, so lastFocusedRoot() == the active tab's root; a terminal
+// is the agent's iff sessionRoots.get(id) === lastFocusedRoot(). Recorded in
+// pty:create (from rootForEvent at spawn), deleted on exit / killAllSessions.
+const sessionRoots = new Map<string, string>();
+
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
 // cannot grow unbounded; read (redacted) by get_terminal_tail. Deleted on exit.
 const ptyBuffers = new Map<string, string>();
@@ -157,6 +165,17 @@ export function registerIpc(
     if (typeof p !== "string") throw new Error("Invalid payload");
     await recordAndOpen(e, p);
     return p;
+  });
+
+  // Point an already-open window at the project of the now-active tab. Unlike
+  // workspace:open (which OPENS a folder), this is the lean tab-switch path: it
+  // only moves the window's root + re-points the MCP/agent (onFolderOpen) at the
+  // active tab. It deliberately does NOT touch recents or rebuild the menu --
+  // switching tabs is not opening, so it must not reorder Open Recent.
+  ipcMain.handle("workspace:setActive", (e, p: unknown) => {
+    if (typeof p !== "string") throw new Error("Invalid payload");
+    setRootForEvent(e, p);
+    onFolderOpen?.(p);
   });
 
   ipcMain.handle("workspace:close", (e) => {
@@ -637,6 +656,11 @@ export function registerIpc(
     sessions.set(s.id, s);
     const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
     if (ownerId !== undefined) sessionWindows.set(s.id, ownerId);
+    // Tag the terminal with the project it was spawned under (the sender's root)
+    // so the agent's terminal tools can scope to the ACTIVE tab, not just the
+    // window. root is the same value pty:create used as the spawn cwd above.
+    const sr = rootForEvent(e);
+    if (sr) sessionRoots.set(s.id, sr);
     const wc = e.sender;
     const dataSub = s.onData((data) => {
       const prev = ptyBuffers.get(s.id) ?? "";
@@ -651,6 +675,7 @@ export function registerIpc(
       sessions.delete(s.id);
       ptyBuffers.delete(s.id);
       sessionWindows.delete(s.id);
+      sessionRoots.delete(s.id);
       if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
       // Release the listeners explicitly. node-pty has no destroy(); kill()
       // is teardown, but the onData/onExit subscriptions are IDisposables
@@ -697,6 +722,7 @@ export function killAllSessions(): void {
   sessions.clear();
   ptyBuffers.clear();
   sessionWindows.clear();
+  sessionRoots.clear();
 }
 
 // Resolve EVERY vaulted secret value (any could appear in terminal output) so
@@ -720,8 +746,16 @@ export async function getTerminalTail(
 ): Promise<{ tail: string } | { error: string }> {
   const root = lastFocusedRoot();
   if (!root) return { error: "No workspace open" };
+  // Scope to the ACTIVE tab: a terminal is the agent's iff it was spawned under
+  // the now-active project's root (sessionRoots === lastFocusedRoot, kept current
+  // by switchTab -> workspace:setActive). The window filter is kept too -- it
+  // composes cleanly since the active tab lives in the focused window -- but the
+  // root filter is the precise one for tabs (many projects share one window).
   const winId = lastFocusedWindowId();
   if (winId !== null && sessionWindows.get(termId) !== winId) {
+    return { error: "No such terminal" };
+  }
+  if (sessionRoots.get(termId) !== root) {
     return { error: "No such terminal" };
   }
   const raw = ptyBuffers.get(termId);
@@ -749,7 +783,11 @@ export async function listTerminals(): Promise<
   const values = root ? await allVaultedValues(root) : [];
   const out: { id: string; preview: string }[] = [];
   for (const id of sessions.keys()) {
+    // Same dual filter as getTerminalTail: window (kept, composes cleanly) plus
+    // the precise active-tab root filter so the agent lists ONLY the terminals
+    // of the project whose tab is active (sessionRoots === lastFocusedRoot).
     if (winId !== null && sessionWindows.get(id) !== winId) continue;
+    if (sessionRoots.get(id) !== root) continue;
     const raw = ptyBuffers.get(id) ?? "";
     out.push({ id, preview: redactedPreview(raw, values, PREVIEW_LINES) });
   }

@@ -162,6 +162,10 @@ export interface PtyExitEvent {
 export interface AirlockApi {
   openFolder(): Promise<string | null>;
   workspaceOpen(path: string): Promise<string | null>;
+  // Point main (and the agent/MCP) at the active tab's project on a tab switch.
+  // Lean vs workspaceOpen: it moves the window root + re-points the MCP only,
+  // with NO recents/menu changes (switching is not opening).
+  workspaceSetActive(path: string): Promise<void>;
   workspaceClose(): Promise<void>;
   openFile(): Promise<string | null>;
   onMenuAction(cb: (a: MenuAction) => void): () => void;
