@@ -38,7 +38,26 @@ const DEFAULTS: AppPrefs = {
   theme: "dark",
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
   clipboardClearSeconds: 30,
+  recentFolders: [],
 };
+
+// Most-recent-first list of opened folder paths. Drop non-strings and empty
+// strings, dedupe (keeping the first/most-recent occurrence), and cap the
+// length. Always returns a fresh array so DEFAULTS.recentFolders is not shared.
+export const RECENT_CAP = 10;
+function sanitizeRecentFolders(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v === "string" && v.length > 0 && !seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+      if (out.length >= RECENT_CAP) break;
+    }
+  }
+  return out;
+}
 
 // Allowlist per key: only a real boolean overrides the default; unknown keys
 // (and a non-object) are dropped. Always returns a COMPLETE map.
@@ -89,6 +108,7 @@ function sanitize(raw: unknown): AppPrefs {
       Number.isFinite(r.clipboardClearSeconds)
         ? Math.min(3600, Math.max(0, Math.floor(r.clipboardClearSeconds)))
         : DEFAULTS.clipboardClearSeconds,
+    recentFolders: sanitizeRecentFolders(r.recentFolders),
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.

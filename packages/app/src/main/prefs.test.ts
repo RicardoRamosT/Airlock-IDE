@@ -23,6 +23,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      recentFolders: [],
     });
   });
 
@@ -47,6 +48,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      recentFolders: [],
     });
   });
 
@@ -77,6 +79,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      recentFolders: [],
     });
   });
 
@@ -99,6 +102,7 @@ describe("app prefs", () => {
         audit: true,
       },
       clipboardClearSeconds: 30,
+      recentFolders: [],
     });
   });
 
@@ -218,5 +222,41 @@ describe("clipboardClearSeconds", () => {
     const frac = path.join(dir, "frac.json");
     await writeFile(frac, JSON.stringify({ clipboardClearSeconds: 45.7 }));
     expect((await loadPrefs(frac)).clipboardClearSeconds).toBe(45);
+  });
+});
+
+// sanitize() is not exported, so these go through loadPrefs against fixture
+// files (the same accessor the rest of the suite uses) and cover the recents
+// contract: default [], non-string/empty dropped, dedupe-keeps-first, cap at 10.
+describe("recentFolders", () => {
+  it("defaults to [] when absent or a non-array", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const absent = path.join(dir, "absent.json");
+    expect((await loadPrefs(absent)).recentFolders).toEqual([]);
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(wrong, JSON.stringify({ recentFolders: "x" }));
+    expect((await loadPrefs(wrong)).recentFolders).toEqual([]);
+  });
+  it("drops non-string and empty entries", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "mixed.json");
+    await writeFile(
+      file,
+      JSON.stringify({ recentFolders: ["/a", 5, "", "/b"] }),
+    );
+    expect((await loadPrefs(file)).recentFolders).toEqual(["/a", "/b"]);
+  });
+  it("dedupes (keeps first) and caps at 10", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const dupes = path.join(dir, "dupes.json");
+    await writeFile(
+      dupes,
+      JSON.stringify({ recentFolders: ["/a", "/a", "/b"] }),
+    );
+    expect((await loadPrefs(dupes)).recentFolders).toEqual(["/a", "/b"]);
+    const manyFile = path.join(dir, "many.json");
+    const many = Array.from({ length: 15 }, (_, i) => `/p${i}`);
+    await writeFile(manyFile, JSON.stringify({ recentFolders: many }));
+    expect((await loadPrefs(manyFile)).recentFolders).toHaveLength(10);
   });
 });

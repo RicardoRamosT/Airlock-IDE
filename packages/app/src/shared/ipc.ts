@@ -119,6 +119,17 @@ export type Section =
 export type SectionVisibility = Record<Section, boolean>;
 
 /**
+ * A File-menu command dispatched main -> renderer over the menu:action channel.
+ * The renderer's dispatcher maps each variant to the matching AirlockApi call.
+ */
+export type MenuAction =
+  | { type: "open-folder" }
+  | { type: "open-recent"; path: string }
+  | { type: "open-file" }
+  | { type: "close-editor" }
+  | { type: "close-folder" };
+
+/**
  * App-global preferences (userData JSON) - distinct from per-project config
  * and the keychain. Defined here as the single source of truth so both the
  * main-process store (prefs.ts) and the renderer (via AirlockApi) share it.
@@ -129,6 +140,7 @@ export interface AppPrefs {
   theme: "dark" | "light";
   sectionVisibility: SectionVisibility; // app-global; default all true
   clipboardClearSeconds: number; // app-global; 0 = never auto-clear the clipboard
+  recentFolders: string[]; // app-global; most-recent-first, capped, deduped
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
@@ -149,6 +161,10 @@ export interface PtyExitEvent {
 /** Exposed on window.airlock by the preload script. */
 export interface AirlockApi {
   openFolder(): Promise<string | null>;
+  workspaceOpen(path: string): Promise<string | null>;
+  workspaceClose(): Promise<void>;
+  openFile(): Promise<string | null>;
+  onMenuAction(cb: (a: MenuAction) => void): () => void;
   listDir(relPath: string): Promise<DirEntry[]>;
   readFile(relPath: string): Promise<FileContent>;
   ptyCreate(cols: number, rows: number): Promise<string>;

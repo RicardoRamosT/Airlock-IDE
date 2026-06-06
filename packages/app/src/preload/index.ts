@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   AirlockApi,
+  MenuAction,
   PtyDataEvent,
   PtyExitEvent,
   SectionVisibility,
@@ -16,6 +17,10 @@ function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
 
 const api: AirlockApi = {
   openFolder: () => ipcRenderer.invoke("dialog:openFolder"),
+  workspaceOpen: (path) => ipcRenderer.invoke("workspace:open", path),
+  workspaceClose: () => ipcRenderer.invoke("workspace:close"),
+  openFile: () => ipcRenderer.invoke("dialog:openFile"),
+  onMenuAction: (cb) => subscribe<MenuAction>("menu:action", cb),
   listDir: (relPath) => ipcRenderer.invoke("fs:listDir", relPath),
   readFile: (relPath) => ipcRenderer.invoke("fs:readFile", relPath),
   ptyCreate: (cols, rows) => ipcRenderer.invoke("pty:create", cols, rows),
