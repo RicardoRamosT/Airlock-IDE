@@ -102,6 +102,122 @@ strip stays while >1 tab exists); new opens follow the new mode. Implementation:
 the open dispatch (`openProject` / the menu:action handlers) branches on
 `openProjectsAsTabs`; the tab strip renders only in tabs mode (or while >1 tab).
 
+## Addendum (2026-06-05): blank tabs, unified New Window, window titles
+Owner feedback after the first gate: the dock "New Window" spawned a second,
+disconnected window (defeating the unify-into-tabs goal), and there was no way
+to open a tab WITHOUT immediately picking a folder -- and opening a folder from
+the no-folder scratch state KILLED a running terminal (e.g. a live `claude`
+session), forcing a restart. This addendum fixes all three.
+
+### Blank tabs (first-class)
+- A tab is `{ id, root: string | null }`; `root === null` is a BLANK tab (no
+  folder). The window always has >= 1 tab in tabs mode: fresh launch opens one
+  blank tab, and closing the last tab opens a fresh blank tab (instead of the old
+  activeTabId-null "implicit" state). The retired implicit state is replaced by a
+  real blank tab with a real id; `IMPLICIT_TAB_ID` is removed (or repurposed as
+  the initial blank tab's id -- implementer's call, but blank tabs must be real
+  `tabs[]` entries so the user can have several).
+- A blank tab renders today's no-folder UI (the "Open Folder..." button, the
+  "open a folder first" sidebar sections) AND a working terminal -- but as a real
+  tab in the strip, labeled "New Tab". Its terminals live under `tabTerminals[id]`
+  like any tab.
+
+### `+` and New Window open a blank tab (no forced dialog)
+- The tab-strip `+` calls a new `openBlankTab()` (append `{id, root:null}`, park
+  the outgoing snapshot, make it active, fresh empty snapshot + empty terminals)
+  -- NO folder picker.
+- Dock "New Window" + File-menu both branch on the `openProjectsAsTabs` pref
+  (main reads it via `loadPrefs`):
+  - tabs mode (default): open a blank tab in the focused window (create a window
+    only if none exists). The File-menu item reads "New Tab" (Cmd+T); the dock
+    menu is rebuilt to match.
+  - windows mode (toggle off): a separate OS window (today's behavior). The item
+    reads "New Window" (Cmd+Shift+N).
+  - The menu/dock relabel + accelerator swap happen when the pref changes and on
+    startup (rebuild the app menu + `app.dock.setMenu`).
+
+### Open Folder: keep a busy terminal, never kill a running session (the key fix)
+Opening a folder always lands you in a folder-rooted terminal (today's feel). The
+bug is that it does so by DISCARDING the current terminal and spawning a new one
+-- which kills a running `claude`. The fix: do not discard a BUSY terminal.
+- BLANK active tab + open folder: attach the folder to that tab (set root in
+  place) and:
+  - if the tab's active terminal is IDLE (no running child process): replace it
+    with a fresh folder-rooted terminal (exactly today's feel).
+  - if it is BUSY (a `claude`/server is running): KEEP that terminal and open a
+    NEW folder-rooted terminal alongside it (the new one becomes active; the busy
+    one stays reachable via the per-tab terminal tabs). Nothing is killed.
+- Active tab that already HAS a project + open folder: a NEW tab (tabs mode) or
+  replace-in-place (windows mode), exactly as today.
+- Busy/idle detection is main-side: a `pty:isBusy(sessionId)` IPC checks whether
+  the shell pid has a child process (`pgrep -P <pid>`). No process is auto-killed.
+- Agent visibility: the freshly spawned folder-rooted terminal carries the window
+  root at spawn, so `sessionRoots` maps it and the agent sees it. A preserved busy
+  terminal was spawned with a different/no root, so it is NOT in the folder's
+  `sessionRoots` and the agent does not see it -- correct, since it runs in a
+  different directory. No `pty:setRoot` adoption is needed.
+
+### Running-process notice (owner request)
+When opening a folder KEEPS a busy terminal (the `claude`-is-running case), show a
+small notice on the new folder-rooted terminal: the running session is still in
+its original directory and must be restarted here to work in this folder. Honest
+about the hard limit (a running process cannot be relocated), e.g.: "Claude is
+still running in <prev-dir>. This terminal is in <folder> -- run `claude` here to
+give it this folder's context." Optional affordance: a "Start Claude here" button
+that types `claude\n` into the new terminal.
+- Two dismiss controls: an "x" (dismiss this once) AND a "Do not show this again"
+  button that PERSISTS the choice so the notice NEVER appears again.
+- Persistence: a new app-global pref `showRunningProcessNotice: boolean` (default
+  true), plumbed like clipboardClearSeconds (AppPrefs + prefs default/sanitize +
+  prefs:get/set + usePrefs hydrate). "Do not show this again" sets it false; the
+  notice is gated on it. (Also surfaced as a re-enable toggle in Settings >
+  Layout, so it is recoverable.)
+- The notice shows only in the keep-a-busy-terminal case AND only when
+  `showRunningProcessNotice` is true.
+
+### Honest limit (unchanged, now surfaced in-app)
+A running process keeps the cwd it started in; airlock cannot move a live
+shell/`claude` into a newly opened folder (the sidebar + MCP tools follow the new
+root, but the process does not). The cleanest flow stays open-folder-then-run; the
+notice above makes this explicit at the moment it matters.
+
+### Window title = "airlock - <folder>" (dock + Window menu)
+- On every active-root change (open / setActive / attach-to-blank / close), main
+  sets the sender window's OS title via `win.setTitle(...)`:
+  `airlock - <basename(root)>`, or just `airlock` when the active tab is blank.
+  This is what the dock window-list and the macOS Window menu read, so windows
+  are named by their project. (The custom React titlebar already shows the name;
+  this fixes the OS-level title the dock uses.)
+
+### Dock menu: recent projects (owner request)
+The dock icon's right-click menu lists RECENT PROJECTS (from `recentFolders` in
+prefs), like VS Code, so a project opens in one click:
+- `app.dock.setMenu` items = the recent-project entries (label = folder basename;
+  on a basename collision, disambiguate with the parent dir), a separator, then
+  the New Tab / New Window item (per the openProjectsAsTabs mode).
+- Clicking a recent opens that folder via the normal open path (recents + MCP
+  register + window-root set + title): focus an existing airlock window and open
+  it there (a TAB in tabs mode; the window's project in windows mode), or create a
+  window if none is open.
+- Rebuild the dock menu when `recentFolders` changes (after any open), on startup,
+  and when `openProjectsAsTabs` flips (New Tab vs New Window relabel). Cap to the
+  existing recentFolders cap; a now-missing folder is skipped or surfaces an error
+  (v1 may simply attempt the open).
+
+### Security (unchanged invariant)
+- A blank tab has no project -> while it is active `lastFocusedRoot()` is null ->
+  the agent sees no workspace and no terminals. A folder-rooted terminal spawned
+  after attach maps into `sessionRoots` at spawn (agent sees it); a preserved busy
+  terminal stays unmapped (agent cannot see it). No new secret-value surface; the
+  new IPCs (`pty:isBusy`, dock open-recent) carry only a session id / a path;
+  `tools.ts` / the 12-tool allowlist / the redactor are untouched.
+
+### This re-gates project tabs
+- The store-model change (blank tabs replacing the implicit state) reworks
+  openProject/closeTab/setRoot/replaceActiveProject + the terminal rendering +
+  store.test.ts, so the whole feature is re-reviewed + repackaged before the next
+  owner gate.
+
 ## Honest scope / limits
 - ONE agent at a time (the active tab) -- same model as multi-window-follows-focus.
 - The tabs/windows toggle (openProjectsAsTabs) lets users keep separate windows.
