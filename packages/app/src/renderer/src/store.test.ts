@@ -940,14 +940,53 @@ describe("editor tabs (unified main pane)", () => {
     expect(get().tabState[id]?.mainSecondary).toBeNull();
   });
 
-  it("opening a file or clicking a tab collapses the split", () => {
+  it("scene model: opening a file solos it but PRESERVES the split", () => {
     const id = tabIdAt(0);
-    get().splitWith({ kind: "terminal", id: "term-x" });
-    get().openFile("a.ts", { content: "x", truncated: false });
-    expect(get().tabState[id]?.mainSecondary).toBeNull();
-    get().splitWith({ kind: "file", path: "a.ts" });
+    get().openFile("base.ts", { content: "x", truncated: false }); // primary editor
+    get().splitWith({ kind: "terminal", id: "term-x" }); // split [base.ts | term-x]
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-x",
+    });
+    expect(get().tabState[id]?.mainSolo).toBeNull();
+    // Opening another file SHOWS it (solo) without collapsing the split.
+    get().openFile("other.ts", { content: "y", truncated: false });
+    expect(get().tabState[id]?.mainSolo).toEqual({
+      kind: "file",
+      path: "other.ts",
+    });
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-x",
+    });
+    // setSolo(null) returns to the split; setMainPrimary explicitly collapses.
+    get().setSolo(null);
+    expect(get().tabState[id]?.mainSolo).toBeNull();
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-x",
+    });
     get().setMainPrimary("terminal");
     expect(get().tabState[id]?.mainSecondary).toBeNull();
+    expect(get().tabState[id]?.mainSolo).toBeNull();
+  });
+
+  it("closing/killing the solo item drops the override, split intact", () => {
+    const id = tabIdAt(0);
+    const FILE = { content: "x", truncated: false };
+    get().openFile("base.ts", FILE);
+    get().splitWith({ kind: "terminal", id: "term-x" }); // split [base.ts | term-x]
+    get().openFile("solo.ts", FILE); // solo solo.ts
+    expect(get().tabState[id]?.mainSolo).toEqual({
+      kind: "file",
+      path: "solo.ts",
+    });
+    get().closeEditorTab("solo.ts"); // closing the solo file drops the override
+    expect(get().tabState[id]?.mainSolo).toBeNull();
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-x",
+    });
   });
 
   it("splitting beside a primary keeps that primary (no collapse)", () => {

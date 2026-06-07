@@ -32,7 +32,7 @@ afterEach(() => cleanup());
 
 const get = () => useApp.getState();
 
-it("'+' full-screens a new terminal, collapsing a [terminal | file] split", () => {
+it("'+' on a [terminal | file] split solos the new terminal, split preserved", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
 
@@ -49,14 +49,40 @@ it("'+' full-screens a new terminal, collapsing a [terminal | file] split", () =
   const { getByTitle } = render(<MainTabs tabId={tabId} />);
   fireEvent.click(getByTitle("New terminal"));
 
-  // Collapsed to a single full-screen terminal: no secondary, the new terminal
-  // active and primary.
+  // The split is PRESERVED; the new terminal is shown solo on top of it, and the
+  // split's primary terminal is restored (not hijacked by the new one).
   const st = get().tabState[tabId];
-  expect(st?.mainPrimary).toBe("terminal");
-  expect(st?.mainSecondary).toBeNull();
+  expect(st?.mainSecondary).toEqual({ kind: "file", path: "LAYOUT.md" });
+  expect(st?.mainSolo?.kind).toBe("terminal");
+  expect(st?.mainSolo).not.toEqual({ kind: "terminal", id: t1 });
   const tt = get().tabTerminals[tabId];
   expect(tt?.terminals.length).toBe(2);
-  expect(tt?.activeTerminalId).not.toBe(t1);
+  expect(tt?.activeTerminalId).toBe(t1);
+});
+
+it("clicking a split-member tab returns to the split (drops the solo)", () => {
+  const tabId = get().tabs[0]?.id;
+  if (!tabId) throw new Error("no initial tab");
+  // Build a [t1 | t2] terminal split, then solo a third terminal (as '+' does).
+  const t1 = get().addTerminal(tabId);
+  const t2 = get().addTerminal(tabId);
+  get().setActiveTerminal(t1, tabId);
+  get().setMainPrimary("terminal", tabId);
+  get().splitWith({ kind: "terminal", id: t2 }, tabId); // [t1 | t2]
+  const t3 = get().addTerminal(tabId);
+  get().setActiveTerminal(t1, tabId); // keep t1 as the split's primary
+  get().setSolo({ kind: "terminal", id: t3 }, tabId); // soloing t3
+  expect(get().tabState[tabId]?.mainSolo).toEqual({ kind: "terminal", id: t3 });
+
+  // Tabs render in mainTabOrder [t1, t2, t3]; clicking t1 (a split member) returns.
+  const { getAllByTitle } = render(<MainTabs tabId={tabId} />);
+  const t1Tab = getAllByTitle("zsh")[0];
+  if (!t1Tab) throw new Error("no terminal tab");
+  fireEvent.click(t1Tab);
+
+  const st = get().tabState[tabId];
+  expect(st?.mainSolo).toBeNull(); // back to the split
+  expect(st?.mainSecondary).toEqual({ kind: "terminal", id: t2 });
 });
 
 it("toolbar split on a single file pane yields [file | new terminal]", () => {

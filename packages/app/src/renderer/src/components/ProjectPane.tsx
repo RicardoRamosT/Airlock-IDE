@@ -42,10 +42,13 @@ export function ProjectPane({
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
+  // Scene override: when set, this single item is shown full-screen on top of
+  // the (preserved) split.
+  const mainSolo = useApp((s) => s.tabState[tabId]?.mainSolo ?? null);
   const theme = useApp((s) => s.theme);
 
-  // The primary editor uses store.file (loaded by openFile); the SECONDARY pane's
-  // file content is loaded here on demand.
+  // The primary editor uses store.file (loaded by openFile); the SECONDARY pane
+  // and the SOLO override each load their file content here on demand.
   const secPath = mainSecondary?.kind === "file" ? mainSecondary.path : null;
   const [secContent, setSecContent] = useState<FileContent | null>(null);
   useEffect(() => {
@@ -66,6 +69,26 @@ export function ProjectPane({
     };
   }, [secPath, root]);
 
+  const soloPath = mainSolo?.kind === "file" ? mainSolo.path : null;
+  const [soloContent, setSoloContent] = useState<FileContent | null>(null);
+  useEffect(() => {
+    if (!soloPath || !root) {
+      setSoloContent(null);
+      return;
+    }
+    let cancelled = false;
+    setSoloContent(null);
+    window.airlock
+      .readFile(root, soloPath)
+      .then((f) => {
+        if (!cancelled) setSoloContent(f);
+      })
+      .catch((e) => console.error("read solo file failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [soloPath, root]);
+
   const slotRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
@@ -83,7 +106,10 @@ export function ProjectPane({
   const primaryEditorPath =
     mainPrimary === "editor" && selectedFile ? selectedFile : null;
   const bothTerminals =
-    !overlay && !primaryEditorPath && mainSecondary?.kind === "terminal";
+    !overlay &&
+    !mainSolo &&
+    !primaryEditorPath &&
+    mainSecondary?.kind === "terminal";
 
   // The single terminal slot (placed full, or in one sub-pane). Reused across
   // branches but only rendered once per layout.
@@ -120,6 +146,13 @@ export function ProjectPane({
   if (dbView) content = <DataGrid />;
   else if (settingsOpen) content = <SettingsTab />;
   else if (diff) content = <Viewer />;
+  // Scene override: show just the solo item full-screen (the split is preserved
+  // but hidden). A solo terminal uses the slot; a solo file loads its own content.
+  else if (mainSolo)
+    content =
+      mainSolo.kind === "terminal"
+        ? slot
+        : editorArea(mainSolo.path, soloContent);
   else if (bothTerminals)
     content = slot; // ProjectTerminals shows both
   else if (mainSecondary == null) content = leftPane;
@@ -131,7 +164,8 @@ export function ProjectPane({
       </>
     );
 
-  const split = !overlay && !bothTerminals && mainSecondary != null;
+  const split =
+    !overlay && !mainSolo && !bothTerminals && mainSecondary != null;
 
   return (
     <ProjectPaneContext.Provider value={tabId}>

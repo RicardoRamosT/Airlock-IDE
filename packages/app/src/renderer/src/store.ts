@@ -97,6 +97,13 @@ export interface ProjectState {
   // type). MainTabs renders in this order; terminal/file membership still lives
   // in tabTerminals / editorTabs, this is purely the left-to-right ordering.
   mainTabOrder: PaneItem[];
+  // "Scene" model: what the main area is CURRENTLY showing, as an OVERRIDE on
+  // top of the remembered split (mainPrimary/mainSecondary). When non-null, that
+  // single item is shown full-screen and the split is preserved-but-hidden;
+  // clicking a member of the split returns to it (sets this back to null). When
+  // null, the view is the split (or the single primary). This lets "+" / opening
+  // a file show that thing without ever destroying an existing split.
+  mainSolo: PaneItem | null;
 }
 
 const freshProjectState = (root: string | null): ProjectState => ({
@@ -113,6 +120,7 @@ const freshProjectState = (root: string | null): ProjectState => ({
   mainPrimary: "terminal", // a fresh tab shows its terminal until a file opens
   mainSecondary: null,
   mainTabOrder: [],
+  mainSolo: null,
 });
 
 let projCounter = 0;
@@ -150,6 +158,7 @@ interface AppState {
   mainPrimary: "terminal" | "editor";
   mainSecondary: PaneItem | null;
   mainTabOrder: PaneItem[];
+  mainSolo: PaneItem | null;
 
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
@@ -227,6 +236,10 @@ interface AppState {
   // Split: show `item` (any tab) as the SECONDARY pane beside the primary.
   splitWith: (item: PaneItem, tabId?: string) => void;
   unsplit: (tabId?: string) => void;
+  // Scene override: show `item` full-screen on top of the remembered split (or
+  // null to drop the override and show the split/primary again). See ProjectState
+  // .mainSolo. Splitting/unsplitting/showing-primary all reset this to null.
+  setSolo: (item: PaneItem | null, tabId?: string) => void;
   setDiff: (diff: AppState["diff"], tabId?: string) => void;
   setDbView: (v: DbView | null, tabId?: string) => void;
   setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
@@ -275,6 +288,7 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   mainPrimary: ps.mainPrimary,
   mainSecondary: ps.mainSecondary,
   mainTabOrder: ps.mainTabOrder,
+  mainSolo: ps.mainSolo,
 });
 
 // Patch one tab's ProjectState (the source of truth); ALSO mirror to the top
@@ -392,6 +406,7 @@ export const useApp = create<AppState>((set) => ({
   mainPrimary: "terminal",
   mainSecondary: null,
   mainTabOrder: [],
+  mainSolo: null,
 
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
@@ -748,13 +763,27 @@ export const useApp = create<AppState>((set) => ({
       )
         ? cur.mainTabOrder
         : [...cur.mainTabOrder, { kind: "file", path: relPath }];
+      // Scene model: when a split exists, opening a file SHOWS it (solo override)
+      // without touching the split -- the file's content is loaded by the pane on
+      // demand. With no split, the file becomes the single primary editor.
+      if (cur.mainSecondary != null) {
+        return patchTab(s, tid, {
+          editorTabs,
+          mainTabOrder,
+          mainSolo: { kind: "file", path: relPath },
+          diff: null,
+          settingsOpen: false,
+          dbView: null,
+        });
+      }
       return patchTab(s, tid, {
         editorTabs,
         mainTabOrder,
         selectedFile: relPath,
         file,
         mainPrimary: "editor",
-        mainSecondary: null, // opening a file as primary collapses any split
+        mainSecondary: null,
+        mainSolo: null,
         // Opening a file dismisses any overlay (diff/settings/db) so the editor shows.
         diff: null,
         settingsOpen: false,
@@ -775,6 +804,12 @@ export const useApp = create<AppState>((set) => ({
       const dropSecondary =
         cur.mainSecondary?.kind === "file" &&
         cur.mainSecondary.path === relPath;
+      // If the closed file was being shown SOLO, drop the override (fall back to
+      // the split / primary).
+      const dropSolo =
+        cur.mainSolo?.kind === "file" && cur.mainSolo.path === relPath
+          ? { mainSolo: null }
+          : {};
       // Closing the ACTIVE file clears the selection and falls back to the
       // terminal (the caller activates a neighbor file first when one exists).
       return patchTab(
@@ -787,11 +822,13 @@ export const useApp = create<AppState>((set) => ({
               selectedFile: null,
               file: null,
               mainPrimary: "terminal",
+              ...dropSolo,
               ...(dropSecondary ? { mainSecondary: null } : {}),
             }
           : {
               editorTabs,
               mainTabOrder,
+              ...dropSolo,
               ...(dropSecondary ? { mainSecondary: null } : {}),
             },
       );
@@ -800,7 +837,8 @@ export const useApp = create<AppState>((set) => ({
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         mainPrimary: primary,
-        mainSecondary: null, // clicking a tab collapses to a single pane
+        mainSecondary: null, // showing a single primary clears any split
+        mainSolo: null, // ...and any scene override
         // Showing the editor/terminal dismisses any overlay (diff/settings/db).
         diff: null,
         settingsOpen: false,
@@ -811,6 +849,7 @@ export const useApp = create<AppState>((set) => ({
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         mainSecondary: item,
+        mainSolo: null, // showing the split drops any scene override
         // The split shows the editor/terminal panes, so dismiss any overlay.
         diff: null,
         settingsOpen: false,
@@ -818,7 +857,14 @@ export const useApp = create<AppState>((set) => ({
       }),
     ),
   unsplit: (tabId) =>
-    set((s) => patchTab(s, tabId ?? s.activeTabId, { mainSecondary: null })),
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        mainSecondary: null,
+        mainSolo: null,
+      }),
+    ),
+  setSolo: (item, tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { mainSolo: item })),
   // Overlays (diff/settings/db) sit ON TOP of the editor/terminal: they clear
   // each other (one overlay at a time) but NOT selectedFile/editorTabs, so the
   // editor is restored when the overlay closes.
@@ -890,6 +936,9 @@ export const useApp = create<AppState>((set) => ({
           cur.mainSecondary.id === id
         )
           tabPatch.mainSecondary = null;
+        // If the killed terminal was being shown SOLO, drop the override.
+        if (cur.mainSolo?.kind === "terminal" && cur.mainSolo.id === id)
+          tabPatch.mainSolo = null;
       }
       return {
         tabTerminals: { ...s.tabTerminals, [tabId]: removeFromTab(tt, id) },
