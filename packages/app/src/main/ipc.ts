@@ -161,30 +161,23 @@ const allStr = (xs: unknown[]): boolean =>
 // prefsFile is the absolute path to the app-global prefs JSON (userData). The
 // prefs:get/set handlers below are NOT requireRoot-gated -- preferences are
 // app-global and must work before any folder is opened.
-//
-// onFolderOpen is an OPTIONAL callback invoked when the user opens a folder
-// (dialog:openFolder resolves to a non-null path). The MCP server uses it to
-// re-register with Claude Code keyed to the newly opened project dir. Omitting
-// it keeps the existing registerIpc(getBaseEnv, prefsFile) call valid.
 export function registerIpc(
   getBaseEnv: () => Record<string, string> = () => ({}),
   prefsFile = "",
-  onFolderOpen?: (root: string) => void,
 ): void {
   // App-global audit chain (userData-level), for global credential writes.
   const globalAuditLog = prefsFile
     ? path.join(path.dirname(prefsFile), "audit-global.jsonl")
     : "";
 
-  // Open a workspace at a known path: set root, re-register MCP (onFolderOpen),
-  // record the folder in recents (most-recent-first, deduped, capped), and
-  // rebuild the menu so Open Recent reflects it.
+  // Open a workspace at a known path: set root, record the folder in recents
+  // (most-recent-first, deduped, capped), and rebuild the menu so Open Recent
+  // reflects it.
   async function recordAndOpen(
     e: { sender: Electron.WebContents },
     root: string,
   ): Promise<void> {
     setRootForEvent(e, root);
-    onFolderOpen?.(root);
     const prev = await loadPrefs(prefsFile);
     const recents = [
       root,
@@ -217,16 +210,16 @@ export function registerIpc(
 
   // Point an already-open window at the project of the now-active tab. Unlike
   // workspace:open (which OPENS a folder), this is the lean tab-switch path: it
-  // only moves the window's root + re-points the MCP/agent (onFolderOpen) at the
-  // active tab. It deliberately does NOT touch recents or rebuild the menu --
-  // switching tabs is not opening, so it must not reorder Open Recent.
+  // only moves the window's root, which re-points the agent (the MCP server
+  // resolves the focused root dynamically via getWorkspaceRoot). It deliberately
+  // does NOT touch recents or rebuild the menu -- switching tabs is not opening,
+  // so it must not reorder Open Recent.
   ipcMain.handle("workspace:setActive", (e, p: unknown) => {
     if (typeof p !== "string") throw new Error("Invalid payload");
-    // Already the active root for this window (e.g. a no-op self-switch or rapid
-    // tab re-clicks): skip, so we do not re-spawn `claude mcp add` per click.
+    // Already the active root for this window (a no-op self-switch or rapid tab
+    // re-clicks): skip the redundant root write.
     if (rootForEvent(e) === p) return;
     setRootForEvent(e, p);
-    onFolderOpen?.(p);
   });
 
   ipcMain.handle("workspace:close", (e) => {

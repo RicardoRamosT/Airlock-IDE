@@ -1,5 +1,9 @@
 import path from "node:path";
-import { captureLoginEnv, registerMcpServer } from "@airlock/agent-core";
+import {
+  captureLoginEnv,
+  registerMcpServer,
+  unregisterMcpServer,
+} from "@airlock/agent-core";
 import { app, BrowserWindow, nativeImage } from "electron";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { registerAgentCommandIpc, runAgentCommand } from "./agent-commands";
@@ -87,36 +91,7 @@ function bootstrap(): void {
     // before registerIpc so the onFolderOpen callback below can close over it.
     const { port, token } = await ensureMcpConfig(prefsFile);
 
-    // onFolderOpen: when the user opens a folder, register airlock's MCP server
-    // with Claude Code at LOCAL scope keyed to that project dir, so the terminal
-    // Claude there can reach airlock's tools/resources. Use the live bound port
-    // (it may differ from the requested one after an EADDRINUSE bump), falling
-    // back to the requested port if the server is not up yet. Best-effort: a
-    // registration failure must not disrupt opening the folder.
-    const onFolderOpen = (root: string) => {
-      const livePort = getMcpPort() ?? port;
-      const url = `http://127.0.0.1:${livePort}/mcp`;
-      void registerMcpServer({ root, url, token })
-        .then((r) => {
-          if (!r.ok && r.reason === "not_found") {
-            // The `claude` CLI is not installed/on PATH; tell the user how to
-            // wire it up by hand. NEVER print the real token -- use a placeholder.
-            console.error(
-              `airlock: 'claude' CLI not found; to connect manually run: claude mcp add --transport http airlock ${url} --scope local --header "Authorization: Bearer <token>"`,
-            );
-          } else if (!r.ok) {
-            console.error("airlock: MCP registration failed:", r.message);
-          }
-        })
-        .catch((e) => {
-          console.error(
-            "airlock: MCP registration threw:",
-            e instanceof Error ? e.message : e,
-          );
-        });
-    };
-
-    registerIpc(() => loginEnv, prefsFile, onFolderOpen);
+    registerIpc(() => loginEnv, prefsFile);
     // Register the agent-request resolver IPC (renderer reports the user's
     // save/cancel for a request_secret prompt). The MCP tool that drives this
     // is wired in via requestSecretFromUser in the startMcpServer deps below.
@@ -165,6 +140,36 @@ function bootstrap(): void {
         e instanceof Error ? e.message : e,
       );
     });
+
+    // Make airlock's tools native to every terminal `claude` in this app:
+    // register the MCP server in the user's global claude config so any claude
+    // session here loads it on startup -- no per-project setup, no restart, no
+    // manual `claude mcp add`. Removed again on quit (below) so a closed AirLock
+    // leaves no dead "airlock" server in unrelated terminals. Gated on a live
+    // bound port (skip if the server did not come up); idempotent + best-effort,
+    // so a failure never disrupts the app.
+    const livePort = getMcpPort();
+    if (livePort) {
+      const url = `http://127.0.0.1:${livePort}/mcp`;
+      void registerMcpServer({ url, token, scope: "user" })
+        .then((r) => {
+          if (!r.ok && r.reason === "not_found") {
+            // The `claude` CLI is not installed/on PATH; tell the user how to
+            // wire it up by hand. NEVER print the real token -- use a placeholder.
+            console.error(
+              `airlock: 'claude' CLI not found; to connect manually run: claude mcp add --transport http airlock ${url} --scope user --header "Authorization: Bearer <token>"`,
+            );
+          } else if (!r.ok) {
+            console.error("airlock: MCP registration failed:", r.message);
+          }
+        })
+        .catch((err) => {
+          console.error(
+            "airlock: MCP registration threw:",
+            err instanceof Error ? err.message : err,
+          );
+        });
+    }
   });
 
   app.on("before-quit", killAllSessions);
@@ -172,6 +177,12 @@ function bootstrap(): void {
   // on darwin). Coexists with killAllSessions above.
   app.on("before-quit", () => {
     void stopMcpServer();
+  });
+  // Remove the user-scope MCP registration so a closed AirLock leaves no dead
+  // "airlock" server in unrelated terminals' claude sessions. Best-effort +
+  // idempotent (nothing-to-remove is fine).
+  app.on("before-quit", () => {
+    void unregisterMcpServer({ scope: "user" });
   });
 
   // macOS lifecycle (#12): on darwin the app stays alive when all windows close

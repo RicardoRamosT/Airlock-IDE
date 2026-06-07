@@ -94,7 +94,10 @@ export {
   type ClaudeRunner,
   type McpRegisterInput,
   type McpRegisterResult,
+  type McpScope,
+  type McpUnregisterInput,
   registerMcpServer,
+  unregisterMcpServer,
 } from "./mcp/register";
 export {
   fetchTransport,
