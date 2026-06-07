@@ -244,11 +244,13 @@ export interface AirlockApi {
   secretsSet(root: string, name: string, value: string): Promise<SecretMeta>;
   secretsDelete(root: string, name: string): Promise<void>;
   secretsImportEnv(
+    root: string,
     relPath: string,
     deleteAfter: boolean,
   ): Promise<ImportResult>;
   secretsReveal(root: string, name: string): Promise<string | null>;
   clipboardCopySecret(
+    root: string,
     name: string,
   ): Promise<{ copied: boolean; clearAfterSeconds: number }>;
   configGet(root: string): Promise<ProjectConfig>;

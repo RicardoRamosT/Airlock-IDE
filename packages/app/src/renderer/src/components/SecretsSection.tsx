@@ -65,7 +65,8 @@ export function SecretsSection() {
   // Main auto-clears the clipboard after clipboardClearSeconds; show a brief
   // confirmation noting that delay.
   const copyValue = async (name: string) => {
-    const res = await window.airlock.clipboardCopySecret(name);
+    if (!root) return;
+    const res = await window.airlock.clipboardCopySecret(root, name);
     if (res.copied) {
       setCopied(name);
       setTimeout(() => setCopied((c) => (c === name ? null : c)), 2500);
@@ -73,8 +74,9 @@ export function SecretsSection() {
   };
 
   const importEnv = async () => {
+    if (!root) return;
     try {
-      const r = await window.airlock.secretsImportEnv(".env", true);
+      const r = await window.airlock.secretsImportEnv(root, ".env", true);
       await refresh();
       setNeedsRestart(true);
       setImportMsg(
@@ -182,9 +184,9 @@ export function SecretsSection() {
           className="restart-hint"
           onClick={() => {
             // Other running terminals keep their old env (env applies at
-            // spawn); only the active shell is replaced so the user lands in
-            // an injected one.
-            restartActiveTerminal();
+            // spawn); only THIS pane's active shell is replaced so the user
+            // lands in an injected one.
+            restartActiveTerminal(tabId);
             setNeedsRestart(false);
           }}
         >

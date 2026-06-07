@@ -40,12 +40,12 @@ const api: AirlockApi = {
     ipcRenderer.invoke("secrets:set", root, name, value),
   secretsDelete: (root, name) =>
     ipcRenderer.invoke("secrets:delete", root, name),
-  secretsImportEnv: (relPath, deleteAfter) =>
-    ipcRenderer.invoke("secrets:importEnv", relPath, deleteAfter),
+  secretsImportEnv: (root, relPath, deleteAfter) =>
+    ipcRenderer.invoke("secrets:importEnv", root, relPath, deleteAfter),
   secretsReveal: (root, name) =>
     ipcRenderer.invoke("secrets:reveal", root, name),
-  clipboardCopySecret: (name) =>
-    ipcRenderer.invoke("clipboard:copySecret", name),
+  clipboardCopySecret: (root, name) =>
+    ipcRenderer.invoke("clipboard:copySecret", root, name),
   configGet: (root) => ipcRenderer.invoke("config:get", root),
   configSet: (root, patch) => ipcRenderer.invoke("config:set", root, patch),
   auditRead: (root, limit) => ipcRenderer.invoke("audit:read", root, limit),

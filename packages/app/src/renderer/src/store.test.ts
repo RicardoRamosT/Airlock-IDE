@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { restartActiveTerminal } from "./lib/restartActiveTerminal";
 import { type TabTerminals, useApp } from "./store";
 
 // Pristine store state (incl. all action fns) captured ONCE. The actions are
@@ -34,6 +35,8 @@ beforeEach(() => {
         lastReportedRoots = roots;
         return Promise.resolve();
       },
+      // restartActiveTerminal kills the pane's active pty; no-op stub is enough.
+      ptyKill: () => Promise.resolve(),
     },
   };
   setActiveCalls.length = 0;
@@ -830,6 +833,36 @@ describe("applyPtyStatus + tabGlow", () => {
     get().switchTab(aId); // reveal the split -> both members visible
     expect(get().tabGlow[aId]).toBeUndefined();
     expect(get().tabGlow[bId]).toBeUndefined();
+  });
+});
+
+describe("restartActiveTerminal", () => {
+  // The Secrets "restart" button passes ITS pane's tabId, so restarting in a
+  // non-focused split pane must replace THAT pane's terminal -- not the focused
+  // one (the previous version operated on activeTabId).
+  it("targets the given tab (kills + respawns there), leaving the active tab alone", () => {
+    get().openProject("/a");
+    get().openProject("/b"); // active = /b
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    const a1 = get().addTerminal(aId);
+    get().setTerminalPty(a1, "pty-a1");
+    const a2 = get().addTerminal(aId); // a2 is A's active terminal
+    get().setTerminalPty(a2, "pty-a2");
+    const b1 = get().addTerminal(bId);
+    get().setTerminalPty(b1, "pty-b1");
+    expect(get().activeTabId).toBe(bId);
+
+    restartActiveTerminal(aId); // restart A (the NON-active pane)
+
+    const aTerms = get().tabTerminals[aId]?.terminals ?? [];
+    expect(aTerms.some((t) => t.id === a2)).toBe(false); // active term killed
+    expect(aTerms.some((t) => t.id === a1)).toBe(true); // sibling kept
+    expect(aTerms).toHaveLength(2); // a fresh one respawned IN tab A
+    // The focused tab B is untouched.
+    expect((get().tabTerminals[bId]?.terminals ?? []).map((t) => t.id)).toEqual(
+      [b1],
+    );
   });
 });
 

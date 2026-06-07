@@ -295,27 +295,35 @@ export function registerIpc(
   // Copy by NAME so the value never enters the renderer: main resolves it, puts
   // it on the clipboard, and conditionally auto-clears after the configured delay
   // (0 = never; clears only if the clipboard still holds this exact value).
-  ipcMain.handle("clipboard:copySecret", async (e, name: unknown) => {
-    if (typeof name !== "string") throw new Error("Invalid payload");
-    const root = requireRoot(e);
-    const value = await getSecretValue(root, name);
-    if (value === null) return { copied: false, clearAfterSeconds: 0 };
-    clipboard.writeText(value);
-    await appendAudit(root, "user", "secret.copy", { name });
-    const seconds = (await loadPrefs(prefsFile)).clipboardClearSeconds;
-    if (seconds > 0) {
-      setTimeout(() => {
-        if (clipboard.readText() === value) clipboard.writeText("");
-      }, seconds * 1000);
-    }
-    return { copied: true, clearAfterSeconds: seconds };
-  });
+  ipcMain.handle(
+    "clipboard:copySecret",
+    async (e, root: unknown, name: unknown) => {
+      if (typeof name !== "string") throw new Error("Invalid payload");
+      // Explicit PANE root (resolveRoot, validated against open roots) -- not the
+      // window's active root -- so copying a secret from a non-focused split pane
+      // never grabs the wrong project's value.
+      const resolved = resolveRoot(e, root);
+      const value = await getSecretValue(resolved, name);
+      if (value === null) return { copied: false, clearAfterSeconds: 0 };
+      clipboard.writeText(value);
+      await appendAudit(resolved, "user", "secret.copy", { name });
+      const seconds = (await loadPrefs(prefsFile)).clipboardClearSeconds;
+      if (seconds > 0) {
+        setTimeout(() => {
+          if (clipboard.readText() === value) clipboard.writeText("");
+        }, seconds * 1000);
+      }
+      return { copied: true, clearAfterSeconds: seconds };
+    },
+  );
 
   ipcMain.handle(
     "secrets:importEnv",
-    (e, relPath: string, deleteAfter: boolean) => {
+    (e, root: unknown, relPath: unknown, deleteAfter: unknown) => {
       if (typeof relPath !== "string") throw new Error("Invalid payload");
-      return importDotEnv(requireRoot(e), relPath, {
+      // Explicit PANE root so .env imports land in the project of the pane the
+      // button was clicked in, not the window's active pane.
+      return importDotEnv(resolveRoot(e, root), relPath, {
         deleteAfter: deleteAfter === true,
       });
     },
