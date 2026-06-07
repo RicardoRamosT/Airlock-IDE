@@ -74,12 +74,33 @@ export function MainTabs({ tabId }: { tabId: string }) {
     if (entry?.ptyId) window.airlock.ptyKill(entry.ptyId);
     removeTerminal(id);
   };
+  // Add a new terminal WITHOUT collapsing the layout. It lands in the pane that
+  // holds a terminal: the PRIMARY when the primary is a terminal (addTerminal
+  // makes the new one active, which fills that slot -- the other pane is left
+  // untouched), otherwise the SECONDARY beside a file primary. With no split it
+  // becomes the single primary pane. The bug was clearing the secondary here
+  // (and pointing it at the just-activated id, which made both panes resolve to
+  // the same terminal and collapse) -- so we must NOT touch the secondary when
+  // the primary is already a terminal.
   const newTerminal = () => {
     const id = addTerminal(tabId);
-    // Never collapse an existing split: a fresh terminal opens BESIDE the
-    // current primary (as the secondary). With no split, it becomes the primary.
-    if (split) splitWith({ kind: "terminal", id }, tabId);
-    else showTerminal(id);
+    if (!split) setMainPrimary("terminal", tabId);
+    else if (mainPrimary === "editor")
+      splitWith({ kind: "terminal", id }, tabId);
+  };
+  // Toolbar "split with a new terminal": always end up [current primary | new
+  // terminal], never collapse. Already split -> add beside (same as newTerminal).
+  // Single -> force the split, keeping the current primary terminal active so the
+  // two panes stay distinct (else primary === secondary === the new terminal).
+  const splitWithNewTerminal = () => {
+    if (split) {
+      newTerminal();
+      return;
+    }
+    const keepActive = mainPrimary === "terminal" ? activeTerminalId : null;
+    const id = addTerminal(tabId);
+    splitWith({ kind: "terminal", id }, tabId);
+    if (keepActive && keepActive !== id) setActiveTerminal(keepActive, tabId);
   };
   // Split the current primary (left) with `item` (right). Splitting a tab with
   // itself is impossible (a terminal can't be in two panes), so fall back to a
@@ -226,9 +247,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
           type="button"
           className="main-tab-action"
           title="Split with a new terminal"
-          onClick={() =>
-            splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId)
-          }
+          onClick={splitWithNewTerminal}
         >
           <i className="codicon codicon-split-horizontal" />
         </button>
