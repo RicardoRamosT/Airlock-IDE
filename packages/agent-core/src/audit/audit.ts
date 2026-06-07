@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { ensureAirlockDir } from "../project/airlockDir";
 
 export interface AuditEntry {
   ts: string;
@@ -94,6 +95,10 @@ export async function appendAudit(
   detail: Record<string, unknown>,
   nowIso?: string,
 ): Promise<AuditEntry> {
+  // Per-project audit lives in .airlock/ -- ensure it exists AND is gitignored
+  // before the first append (appendAuditAt, shared with the userData global log,
+  // only mkdirs the audit subdir and must not assume a project root).
+  await ensureAirlockDir(root);
   return appendAuditAt(auditFile(root), actor, op, detail, nowIso);
 }
 

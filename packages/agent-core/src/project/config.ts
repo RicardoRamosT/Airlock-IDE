@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ensureAirlockDir } from "./airlockDir";
 
 export interface ProjectConfig {
   injectSecretsIntoTerminal: boolean;
@@ -39,7 +40,7 @@ export async function writeProjectConfig(
   patch: Partial<ProjectConfig>,
 ): Promise<ProjectConfig> {
   const next = { ...(await readProjectConfig(root)), ...patch };
-  await mkdir(path.dirname(configFile(root)), { recursive: true });
+  await ensureAirlockDir(root); // create .airlock + drop the ignore-all .gitignore
   // mode 0o600: least-privilege, matching the secrets meta hardening.
   await writeFile(configFile(root), `${JSON.stringify(next, null, 2)}\n`, {
     encoding: "utf8",
