@@ -31,18 +31,16 @@ export function MainTabs({ tabId }: { tabId: string }) {
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
-  const mainSolo = useApp((s) => s.tabState[tabId]?.mainSolo ?? null);
+  const current = useApp((s) => s.tabState[tabId]?.current ?? null);
   const mainTabOrder = useApp(
     (s) => s.tabState[tabId]?.mainTabOrder ?? EMPTY_ORDER,
   );
   const addTerminal = useApp((s) => s.addTerminal);
-  const setActiveTerminal = useApp((s) => s.setActiveTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
-  const setMainPrimary = useApp((s) => s.setMainPrimary);
-  const splitWith = useApp((s) => s.splitWith);
-  const unsplit = useApp((s) => s.unsplit);
-  const setSolo = useApp((s) => s.setSolo);
+  const viewItem = useApp((s) => s.viewItem);
+  const splitItems = useApp((s) => s.splitItems);
+  const unsplitCurrent = useApp((s) => s.unsplitCurrent);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [menu, setMenu] = useState<
@@ -59,136 +57,51 @@ export function MainTabs({ tabId }: { tabId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
 
-  const split = mainSecondary !== null;
-  // Whether the 2-pane split is the thing CURRENTLY on screen (vs a solo
-  // override sitting on top of a remembered split). The toolbar button toggles
+  // The 2-pane split is on screen (vs a single pane). The toolbar button toggles
   // on this: showing the split -> Unsplit; showing a single pane -> Split.
-  const showingSplit = mainSecondary !== null && mainSolo === null;
+  const showingSplit = mainSecondary !== null;
 
-  // A tab is a MEMBER of the remembered split when it sits in the primary or
-  // secondary pane (independent of any solo override). This is what "click to
-  // return to the split" keys on.
-  const isSplitTerminal = (id: string) =>
+  // A tab is "active" (highlighted) when it is in the SHOWN scene: the primary
+  // pane (the active terminal / selected file) or the secondary pane.
+  const termActive = (id: string) =>
     (mainPrimary === "terminal" && id === activeTerminalId) ||
     (mainSecondary?.kind === "terminal" && mainSecondary.id === id);
-  const isSplitFile = (p: string) =>
+  const fileActive = (p: string) =>
     (mainPrimary === "editor" && p === selectedFile) ||
     (mainSecondary?.kind === "file" && mainSecondary.path === p);
 
-  // A tab is "active" (highlighted) when it is on SCREEN right now: the solo
-  // item if one is showing, otherwise the split member(s).
-  const termActive = (id: string) =>
-    mainSolo
-      ? mainSolo.kind === "terminal" && mainSolo.id === id
-      : isSplitTerminal(id);
-  const fileActive = (p: string) =>
-    mainSolo ? mainSolo.kind === "file" && mainSolo.path === p : isSplitFile(p);
-
-  // Show a terminal as the sole/primary content (collapses any split).
-  const showTerminal = (id: string) => {
-    setActiveTerminal(id, tabId);
-    setMainPrimary("terminal", tabId);
-  };
   const killTerminal = (id: string) => {
     const entry = terminals.find((t) => t.id === id);
     if (entry?.ptyId) window.airlock.ptyKill(entry.ptyId);
     removeTerminal(id);
   };
-  // Scene model: clicking a terminal tab shows it WITHOUT disturbing the split.
-  // With a split up, clicking a member returns to the split; clicking any other
-  // terminal shows it solo (split preserved). With no split, it is the single view.
-  const viewTerminal = (id: string) => {
-    if (mainSecondary == null) {
-      showTerminal(id);
-      return;
-    }
-    if (isSplitTerminal(id)) setSolo(null, tabId);
-    else setSolo({ kind: "terminal", id }, tabId);
-  };
-  // Same scene logic for files (store.openFile handles the not-yet-open case).
-  const viewFile = (p: string) => {
-    if (mainSecondary == null) {
-      void openEditorFile(tabId, p);
-      return;
-    }
-    if (isSplitFile(p)) setSolo(null, tabId);
-    else setSolo({ kind: "file", path: p }, tabId);
-  };
-  // "+" -> a new terminal, shown as the current scene. With no split it is the
-  // single full-screen view; with a split it is shown SOLO so the split stays
-  // intact. addTerminal makes the new one active, which would hijack the split's
-  // primary terminal -- so restore the primary terminal when a terminal-primary
-  // split exists.
-  const newTerminal = () => {
-    if (mainSecondary == null) {
-      showTerminal(addTerminal(tabId));
-      return;
-    }
-    const keepPrimary = mainPrimary === "terminal" ? activeTerminalId : null;
-    const id = addTerminal(tabId);
-    if (keepPrimary) setActiveTerminal(keepPrimary, tabId);
-    setSolo({ kind: "terminal", id }, tabId);
-  };
-  // The item the main area is showing RIGHT NOW (the solo override, else the
-  // single primary). Splitting keys off this so you always split "what you see".
-  const currentItem = (): PaneItem | null => {
-    if (mainSolo) return mainSolo;
-    if (mainPrimary === "terminal")
-      return activeTerminalId
-        ? { kind: "terminal", id: activeTerminalId }
-        : null;
-    return selectedFile ? { kind: "file", path: selectedFile } : null;
-  };
-  // Build the split [primary | secondary] where `primary` is the on-screen view.
-  // A terminal primary is promoted synchronously; a file primary needs its
-  // content, so drop any old split first (openFile would otherwise solo it) and
-  // make it the primary editor before adding the secondary.
-  const splitInto = (primary: PaneItem | null, secondary: PaneItem) => {
-    if (!primary) {
-      splitWith(secondary, tabId);
-      return;
-    }
-    if (primary.kind === "terminal") {
-      setActiveTerminal(primary.id, tabId);
-      setMainPrimary("terminal", tabId); // primary = this terminal; clears solo
-      splitWith(secondary, tabId);
-      return;
-    }
-    // File primary. If it is ALREADY the primary editor, just add the secondary
-    // (synchronous). Otherwise (a solo file, or a different file) it must be
-    // promoted to the primary editor first -- which needs its content -- so drop
-    // any old split (openFile would solo it instead) and load it, then split.
-    if (
-      !mainSolo &&
-      mainPrimary === "editor" &&
-      selectedFile === primary.path
-    ) {
-      splitWith(secondary, tabId);
-      return;
-    }
-    unsplit(tabId);
-    void openEditorFile(tabId, primary.path).then(() =>
-      splitWith(secondary, tabId),
-    );
-  };
-  // Toolbar "split": pair what you are looking at with a NEW terminal.
+  // Scene model: clicking a tab FOCUSES it -- the main area shows its split (if
+  // it is in one) or itself alone. It never destroys another scene's split.
+  const viewTerminal = (id: string) =>
+    viewItem({ kind: "terminal", id }, tabId);
+  const viewFile = (p: string) => viewItem({ kind: "file", path: p }, tabId);
+  // "+" -> a new terminal, shown alone; every existing split stays intact.
+  const newTerminal = () => addTerminal(tabId);
+  // Toolbar "split": pair the FOCUSED tab with a new terminal (only reachable
+  // when a single pane is showing). With nothing focused, just add a terminal.
   const splitWithNewTerminal = () => {
-    const primary = currentItem();
-    splitInto(primary, { kind: "terminal", id: addTerminal(tabId) });
+    if (!current) {
+      addTerminal(tabId);
+      return;
+    }
+    splitItems(current, { kind: "terminal", id: addTerminal(tabId) }, tabId);
   };
-  // Right-click "Split (open beside current)": pair the on-screen view with the
-  // clicked tab. Splitting a tab with itself is impossible, so fall back to a
-  // fresh terminal as the partner.
+  // Right-click "Split (open beside current)": pair the focused tab with the
+  // clicked one (a fresh terminal if you clicked the focused tab itself).
   const splitPrimaryWith = (item: PaneItem) => {
-    const primary = currentItem();
-    const secondary =
-      primary && samePaneItem(primary, item)
-        ? { kind: "terminal" as const, id: addTerminal(tabId) }
-        : item;
-    splitInto(primary, secondary);
+    if (!current) return;
+    const secondary = samePaneItem(current, item)
+      ? { kind: "terminal" as const, id: addTerminal(tabId) }
+      : item;
+    splitItems(current, secondary, tabId);
   };
   const closeOtherTerminals = (keepId: string) => {
-    setActiveTerminal(keepId, tabId);
+    viewItem({ kind: "terminal", id: keepId }, tabId);
     for (const t of terminals) {
       if (t.id === keepId) continue;
       if (t.ptyId) window.airlock.ptyKill(t.ptyId);
@@ -331,15 +244,15 @@ export function MainTabs({ tabId }: { tabId: string }) {
       </div>
       <div className="main-tabs-actions">
         {/* One button, toggling on what is ON SCREEN: a 2-pane split shows
-            Unsplit; a single pane (solo or primary) shows Split-with-a-new-
-            terminal. This caps the model at two panes -- you can never "2nd
-            split" into an overwrite/leak -- and splits "what you see". */}
+            Unsplit; a single pane shows Split-with-a-new-terminal. Splitting
+            pairs the FOCUSED tab with a new terminal as a new coexisting split;
+            unsplit breaks only the split you are looking at. */}
         {showingSplit ? (
           <button
             type="button"
             className="main-tab-action"
             title="Single pane (unsplit)"
-            onClick={() => unsplit(tabId)}
+            onClick={() => unsplitCurrent(tabId)}
           >
             <i className="codicon codicon-screen-normal" />
           </button>
@@ -374,12 +287,12 @@ export function MainTabs({ tabId }: { tabId: string }) {
             >
               <span>Split (open beside current)</span>
             </button>
-            {split && (
+            {showingSplit && (
               <button
                 type="button"
                 className="menu-item"
                 onClick={() => {
-                  unsplit(tabId);
+                  unsplitCurrent(tabId);
                   setMenu(null);
                 }}
               >

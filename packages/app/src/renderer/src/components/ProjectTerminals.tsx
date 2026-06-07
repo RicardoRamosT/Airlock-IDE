@@ -26,8 +26,6 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
-  // Scene override: when set, ONLY this terminal (if it is one) is on screen.
-  const mainSolo = useApp((s) => s.tabState[tabId]?.mainSolo ?? null);
   const addTerminal = useApp((s) => s.addTerminal);
   const activeTabId = useApp((s) => s.activeTabId);
   const switchTab = useApp((s) => s.switchTab);
@@ -67,13 +65,12 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     addTerminal(tabId);
   }, [terminals.length, addTerminal, isVisible, tabId]);
 
-  // A solo override shows exactly one terminal (or none, if it is a file); else
-  // the split/single drives visibility from mainPrimary + mainSecondary.
+  // On screen = the shown scene's pane(s): the primary terminal (active) and/or
+  // the secondary when it is a terminal. (The derived mainPrimary/mainSecondary
+  // already reflect the focused scene.)
   const visible = (id: string) =>
-    mainSolo
-      ? mainSolo.kind === "terminal" && mainSolo.id === id
-      : (mainPrimary === "terminal" && id === activeTerminalId) ||
-        (mainSecondary?.kind === "terminal" && id === mainSecondary.id);
+    (mainPrimary === "terminal" && id === activeTerminalId) ||
+    (mainSecondary?.kind === "terminal" && id === mainSecondary.id);
   const visibleCount = terminals.filter((t) => visible(t.id)).length;
 
   // The notice belongs to THIS tab only when its terminal is one of ours, and

@@ -889,13 +889,14 @@ describe("restartActiveTerminal", () => {
 describe("editor tabs (unified main pane)", () => {
   const FILE = { content: "x", truncated: false };
 
-  it("openFile adds an editor tab, makes it active, and shows the editor", () => {
+  it("openFile adds an editor tab, focuses it, and shows the editor", () => {
     const id = tabIdAt(0);
     get().openFile("a.ts", FILE);
     const s = get();
     expect(s.tabState[id]?.editorTabs).toEqual(["a.ts"]);
     expect(s.tabState[id]?.selectedFile).toBe("a.ts");
-    expect(s.tabState[id]?.file).toBe(FILE);
+    expect(s.tabState[id]?.current).toEqual({ kind: "file", path: "a.ts" });
+    // Content is loaded per-pane by ProjectPane now, not cached in the store.
     expect(s.tabState[id]?.mainPrimary).toBe("editor");
   });
 
@@ -922,107 +923,103 @@ describe("editor tabs (unified main pane)", () => {
     expect(get().tabState[id]?.mainPrimary).toBe("terminal");
   });
 
-  it("splitWith sets the secondary pane (any tab); unsplit clears it", () => {
+  it("splitItems creates a coexisting split; unsplitCurrent breaks only the focused one", () => {
     const id = tabIdAt(0);
+    const T1 = { kind: "terminal", id: "t1" } as const;
+    const T2 = { kind: "terminal", id: "t2" } as const;
     expect(get().tabState[id]?.mainSecondary).toBeNull();
-    get().splitWith({ kind: "terminal", id: "term-x" });
-    expect(get().tabState[id]?.mainSecondary).toEqual({
-      kind: "terminal",
-      id: "term-x",
-    });
-    // A file secondary works too (any combo splits).
-    get().splitWith({ kind: "file", path: "b.ts" });
+    get().splitItems(T1, T2); // [t1 | t2], focused
+    expect(get().tabState[id]?.splits).toEqual([[T1, T2]]);
+    expect(get().tabState[id]?.mainSecondary).toEqual(T2);
+    expect(get().tabState[id]?.current).toEqual(T1);
+    // A SECOND split coexists.
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "file", path: "b.ts" },
+    );
+    expect(get().tabState[id]?.splits.length).toBe(2);
     expect(get().tabState[id]?.mainSecondary).toEqual({
       kind: "file",
       path: "b.ts",
     });
-    get().unsplit();
-    expect(get().tabState[id]?.mainSecondary).toBeNull();
+    // Focusing a member of the FIRST split shows it again -- it was preserved.
+    get().viewItem(T1);
+    expect(get().tabState[id]?.mainSecondary).toEqual(T2);
+    // unsplitCurrent breaks ONLY the focused split; the other survives.
+    get().unsplitCurrent();
+    expect(get().tabState[id]?.mainSecondary).toBeNull(); // t1 alone now
+    expect(get().tabState[id]?.splits.length).toBe(1); // [a.ts | b.ts] remains
   });
 
-  it("scene model: opening a file solos it but PRESERVES the split", () => {
+  it("splitting two new terminals does NOT unsplit an earlier split (reported bug)", () => {
     const id = tabIdAt(0);
-    get().openFile("base.ts", { content: "x", truncated: false }); // primary editor
-    get().splitWith({ kind: "terminal", id: "term-x" }); // split [base.ts | term-x]
+    const t1 = get().addTerminal(id);
+    const t2 = get().addTerminal(id);
+    get().splitItems(
+      { kind: "terminal", id: t1 },
+      { kind: "terminal", id: t2 },
+    );
+    const t3 = get().addTerminal(id); // focused alone; [t1|t2] preserved
+    const t4 = get().addTerminal(id);
+    get().splitItems(
+      { kind: "terminal", id: t3 },
+      { kind: "terminal", id: t4 },
+    );
+    // BOTH splits coexist.
+    expect(get().tabState[id]?.splits.length).toBe(2);
+    // The first split is intact -- focusing t1 shows [t1 | t2].
+    get().viewItem({ kind: "terminal", id: t1 });
     expect(get().tabState[id]?.mainSecondary).toEqual({
       kind: "terminal",
-      id: "term-x",
+      id: t2,
     });
-    expect(get().tabState[id]?.mainSolo).toBeNull();
-    // Opening another file SHOWS it (solo) without collapsing the split.
+  });
+
+  it("opening a file focuses it alone but PRESERVES every split", () => {
+    const id = tabIdAt(0);
+    const T1 = { kind: "terminal", id: "t1" } as const;
+    const T2 = { kind: "terminal", id: "t2" } as const;
+    get().splitItems(T1, T2); // [t1 | t2]
     get().openFile("other.ts", { content: "y", truncated: false });
-    expect(get().tabState[id]?.mainSolo).toEqual({
+    expect(get().tabState[id]?.current).toEqual({
       kind: "file",
       path: "other.ts",
     });
-    expect(get().tabState[id]?.mainSecondary).toEqual({
-      kind: "terminal",
-      id: "term-x",
-    });
-    // setSolo(null) returns to the split; setMainPrimary explicitly collapses.
-    get().setSolo(null);
-    expect(get().tabState[id]?.mainSolo).toBeNull();
-    expect(get().tabState[id]?.mainSecondary).toEqual({
-      kind: "terminal",
-      id: "term-x",
-    });
-    get().setMainPrimary("terminal");
-    expect(get().tabState[id]?.mainSecondary).toBeNull();
-    expect(get().tabState[id]?.mainSolo).toBeNull();
+    expect(get().tabState[id]?.mainSecondary).toBeNull(); // other.ts alone
+    expect(get().tabState[id]?.splits).toEqual([[T1, T2]]); // intact
+    get().viewItem(T1); // clicking a member returns to the split
+    expect(get().tabState[id]?.mainSecondary).toEqual(T2);
   });
 
-  it("closing/killing the solo item drops the override, split intact", () => {
+  it("splitItems makes the left item the primary, the right the secondary", () => {
     const id = tabIdAt(0);
-    const FILE = { content: "x", truncated: false };
-    get().openFile("base.ts", FILE);
-    get().splitWith({ kind: "terminal", id: "term-x" }); // split [base.ts | term-x]
-    get().openFile("solo.ts", FILE); // solo solo.ts
-    expect(get().tabState[id]?.mainSolo).toEqual({
-      kind: "file",
-      path: "solo.ts",
-    });
-    get().closeEditorTab("solo.ts"); // closing the solo file drops the override
-    expect(get().tabState[id]?.mainSolo).toBeNull();
-    expect(get().tabState[id]?.mainSecondary).toEqual({
-      kind: "terminal",
-      id: "term-x",
-    });
-  });
-
-  it("splitting beside a primary keeps that primary (no collapse)", () => {
-    const id = tabIdAt(0);
-    // A file is the primary; adding a terminal beside it must NOT collapse the
-    // split nor change the primary -- this is the "new terminal besides" fix.
-    get().openFile("a.ts", { content: "x", truncated: false });
-    expect(get().tabState[id]?.mainPrimary).toBe("editor");
-    get().splitWith({ kind: "terminal", id: "term-new" });
-    expect(get().tabState[id]?.mainPrimary).toBe("editor");
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: "t1" },
+    );
+    expect(get().tabState[id]?.mainPrimary).toBe("editor"); // left file -> editor primary
     expect(get().tabState[id]?.selectedFile).toBe("a.ts");
     expect(get().tabState[id]?.mainSecondary).toEqual({
       kind: "terminal",
-      id: "term-new",
-    });
-    // Splitting again with another fresh terminal swaps the secondary, still
-    // keeping the file primary (toolbar split is additive, never a toggle-off).
-    get().splitWith({ kind: "terminal", id: "term-new2" });
-    expect(get().tabState[id]?.mainPrimary).toBe("editor");
-    expect(get().tabState[id]?.mainSecondary).toEqual({
-      kind: "terminal",
-      id: "term-new2",
+      id: "t1",
     });
   });
 
-  it("closing a file that is the secondary pane clears the secondary", () => {
+  it("closing a file that is in a split drops that split", () => {
     const id = tabIdAt(0);
     const FILE = { content: "x", truncated: false };
     get().openFile("a.ts", FILE);
-    get().openFile("b.ts", FILE); // primary editor = b.ts
-    get().splitWith({ kind: "file", path: "a.ts" }); // secondary = a.ts
+    get().openFile("b.ts", FILE);
+    get().splitItems(
+      { kind: "file", path: "b.ts" },
+      { kind: "file", path: "a.ts" },
+    );
     expect(get().tabState[id]?.mainSecondary).toEqual({
       kind: "file",
       path: "a.ts",
     });
     get().closeEditorTab("a.ts");
+    expect(get().tabState[id]?.splits.length).toBe(0);
     expect(get().tabState[id]?.mainSecondary).toBeNull();
   });
 
@@ -1055,12 +1052,15 @@ describe("editor tabs (unified main pane)", () => {
     ).toBe(1);
   });
 
-  it("splitWith moves the secondary's tab adjacent to the primary (no 'far away')", () => {
+  it("splitItems places the pair adjacent in the tab bar (no 'far away')", () => {
     const id = tabIdAt(0);
     const t1 = get().addTerminal(id);
     get().addTerminal(id); // t2, between t1 and the file in order
-    get().openFile("a.ts", FILE); // primary editor a.ts; order [t1, t2, a.ts]
-    get().splitWith({ kind: "terminal", id: t1 }); // split [a.ts | t1]
+    get().openFile("a.ts", FILE); // order [t1, t2, a.ts]
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: t1 },
+    );
     const order = get().tabState[id]?.mainTabOrder ?? [];
     const ai = order.findIndex(
       (it) => it.kind === "file" && it.path === "a.ts",

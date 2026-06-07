@@ -34,7 +34,6 @@ export function ProjectPane({
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
-  const file = useApp((s) => s.tabState[tabId]?.file ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const settingsOpen = useApp((s) => s.tabState[tabId]?.settingsOpen ?? false);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
@@ -42,13 +41,34 @@ export function ProjectPane({
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
-  // Scene override: when set, this single item is shown full-screen on top of
-  // the (preserved) split.
-  const mainSolo = useApp((s) => s.tabState[tabId]?.mainSolo ?? null);
   const theme = useApp((s) => s.theme);
 
-  // The primary editor uses store.file (loaded by openFile); the SECONDARY pane
-  // and the SOLO override each load their file content here on demand.
+  // The shown scene's file panes load their content on demand: the PRIMARY
+  // (left) editor when mainPrimary is "editor", and the SECONDARY (right) pane
+  // when it is a file. (The store no longer caches file content -- `current` can
+  // become any file by clicking its tab.)
+  const primaryPath = mainPrimary === "editor" ? selectedFile : null;
+  const [primaryContent, setPrimaryContent] = useState<FileContent | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!primaryPath || !root) {
+      setPrimaryContent(null);
+      return;
+    }
+    let cancelled = false;
+    setPrimaryContent(null);
+    window.airlock
+      .readFile(root, primaryPath)
+      .then((f) => {
+        if (!cancelled) setPrimaryContent(f);
+      })
+      .catch((e) => console.error("read primary file failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryPath, root]);
+
   const secPath = mainSecondary?.kind === "file" ? mainSecondary.path : null;
   const [secContent, setSecContent] = useState<FileContent | null>(null);
   useEffect(() => {
@@ -69,26 +89,6 @@ export function ProjectPane({
     };
   }, [secPath, root]);
 
-  const soloPath = mainSolo?.kind === "file" ? mainSolo.path : null;
-  const [soloContent, setSoloContent] = useState<FileContent | null>(null);
-  useEffect(() => {
-    if (!soloPath || !root) {
-      setSoloContent(null);
-      return;
-    }
-    let cancelled = false;
-    setSoloContent(null);
-    window.airlock
-      .readFile(root, soloPath)
-      .then((f) => {
-        if (!cancelled) setSoloContent(f);
-      })
-      .catch((e) => console.error("read solo file failed", e));
-    return () => {
-      cancelled = true;
-    };
-  }, [soloPath, root]);
-
   const slotRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
@@ -106,10 +106,7 @@ export function ProjectPane({
   const primaryEditorPath =
     mainPrimary === "editor" && selectedFile ? selectedFile : null;
   const bothTerminals =
-    !overlay &&
-    !mainSolo &&
-    !primaryEditorPath &&
-    mainSecondary?.kind === "terminal";
+    !overlay && !primaryEditorPath && mainSecondary?.kind === "terminal";
 
   // The single terminal slot (placed full, or in one sub-pane). Reused across
   // branches but only rendered once per layout.
@@ -133,7 +130,7 @@ export function ProjectPane({
   );
 
   const leftPane = primaryEditorPath
-    ? editorArea(primaryEditorPath, file)
+    ? editorArea(primaryEditorPath, primaryContent)
     : slot;
   const rightPane =
     mainSecondary == null
@@ -146,13 +143,6 @@ export function ProjectPane({
   if (dbView) content = <DataGrid />;
   else if (settingsOpen) content = <SettingsTab />;
   else if (diff) content = <Viewer />;
-  // Scene override: show just the solo item full-screen (the split is preserved
-  // but hidden). A solo terminal uses the slot; a solo file loads its own content.
-  else if (mainSolo)
-    content =
-      mainSolo.kind === "terminal"
-        ? slot
-        : editorArea(mainSolo.path, soloContent);
   else if (bothTerminals)
     content = slot; // ProjectTerminals shows both
   else if (mainSecondary == null) content = leftPane;
@@ -164,8 +154,7 @@ export function ProjectPane({
       </>
     );
 
-  const split =
-    !overlay && !mainSolo && !bothTerminals && mainSecondary != null;
+  const split = !overlay && !bothTerminals && mainSecondary != null;
 
   return (
     <ProjectPaneContext.Provider value={tabId}>

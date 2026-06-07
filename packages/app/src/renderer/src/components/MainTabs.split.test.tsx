@@ -32,15 +32,16 @@ afterEach(() => cleanup());
 
 const get = () => useApp.getState();
 
-it("'+' on a [terminal | file] split solos the new terminal, split preserved", () => {
+it("'+' focuses a new terminal alone; an existing split is preserved", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
-
-  // Build [terminal (primary) | file (secondary)].
   const t1 = get().addTerminal(tabId);
   get().openFile("LAYOUT.md", { content: "# x", truncated: false }, tabId);
-  get().setMainPrimary("terminal", tabId);
-  get().splitWith({ kind: "file", path: "LAYOUT.md" }, tabId);
+  get().splitItems(
+    { kind: "terminal", id: t1 },
+    { kind: "file", path: "LAYOUT.md" },
+    tabId,
+  ); // [t1 | LAYOUT.md]
   expect(get().tabState[tabId]?.mainSecondary).toEqual({
     kind: "file",
     path: "LAYOUT.md",
@@ -49,40 +50,42 @@ it("'+' on a [terminal | file] split solos the new terminal, split preserved", (
   const { getByTitle } = render(<MainTabs tabId={tabId} />);
   fireEvent.click(getByTitle("New terminal"));
 
-  // The split is PRESERVED; the new terminal is shown solo on top of it, and the
-  // split's primary terminal is restored (not hijacked by the new one).
+  // The new terminal is focused ALONE; the [t1 | LAYOUT.md] split is preserved.
   const st = get().tabState[tabId];
-  expect(st?.mainSecondary).toEqual({ kind: "file", path: "LAYOUT.md" });
-  expect(st?.mainSolo?.kind).toBe("terminal");
-  expect(st?.mainSolo).not.toEqual({ kind: "terminal", id: t1 });
-  const tt = get().tabTerminals[tabId];
-  expect(tt?.terminals.length).toBe(2);
-  expect(tt?.activeTerminalId).toBe(t1);
+  expect(st?.mainSecondary).toBeNull();
+  expect(st?.current?.kind).toBe("terminal");
+  expect(st?.current).not.toEqual({ kind: "terminal", id: t1 });
+  expect(st?.splits).toEqual([
+    [
+      { kind: "terminal", id: t1 },
+      { kind: "file", path: "LAYOUT.md" },
+    ],
+  ]);
 });
 
-it("clicking a split-member tab returns to the split (drops the solo)", () => {
+it("clicking a split-member tab shows that split", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
-  // Build a [t1 | t2] terminal split, then solo a third terminal (as '+' does).
   const t1 = get().addTerminal(tabId);
   const t2 = get().addTerminal(tabId);
-  get().setActiveTerminal(t1, tabId);
-  get().setMainPrimary("terminal", tabId);
-  get().splitWith({ kind: "terminal", id: t2 }, tabId); // [t1 | t2]
-  const t3 = get().addTerminal(tabId);
-  get().setActiveTerminal(t1, tabId); // keep t1 as the split's primary
-  get().setSolo({ kind: "terminal", id: t3 }, tabId); // soloing t3
-  expect(get().tabState[tabId]?.mainSolo).toEqual({ kind: "terminal", id: t3 });
+  get().splitItems(
+    { kind: "terminal", id: t1 },
+    { kind: "terminal", id: t2 },
+    tabId,
+  ); // [t1 | t2]
+  get().addTerminal(tabId); // focuses a 3rd terminal alone; [t1|t2] preserved
+  expect(get().tabState[tabId]?.mainSecondary).toBeNull();
 
-  // Tabs render in mainTabOrder [t1, t2, t3]; clicking t1 (a split member) returns.
+  // Tabs render in order [t1, t2, t3]; clicking t1 (a split member) shows [t1|t2].
   const { getAllByTitle } = render(<MainTabs tabId={tabId} />);
   const t1Tab = getAllByTitle("zsh")[0];
   if (!t1Tab) throw new Error("no terminal tab");
   fireEvent.click(t1Tab);
 
-  const st = get().tabState[tabId];
-  expect(st?.mainSolo).toBeNull(); // back to the split
-  expect(st?.mainSecondary).toEqual({ kind: "terminal", id: t2 });
+  expect(get().tabState[tabId]?.mainSecondary).toEqual({
+    kind: "terminal",
+    id: t2,
+  });
 });
 
 it("toolbar split on a single file pane yields [file | new terminal]", () => {
@@ -95,30 +98,29 @@ it("toolbar split on a single file pane yields [file | new terminal]", () => {
   fireEvent.click(getByTitle("Split with a new terminal"));
 
   const st = get().tabState[tabId];
-  expect(st?.mainPrimary).toBe("editor"); // file stays primary
+  expect(st?.mainPrimary).toBe("editor"); // file stays primary (left)
   expect(st?.selectedFile).toBe("a.ts");
   expect(st?.mainSecondary?.kind).toBe("terminal"); // new terminal beside it
 });
 
-it("toolbar toggles: Unsplit while showing the split, Split otherwise (no 2nd-split leak)", () => {
+it("toolbar toggles: Unsplit while showing a split, Split otherwise", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
   const t1 = get().addTerminal(tabId);
   const t2 = get().addTerminal(tabId);
-  get().setActiveTerminal(t1, tabId);
-  get().setMainPrimary("terminal", tabId);
-  get().splitWith({ kind: "terminal", id: t2 }, tabId); // showing split [t1 | t2]
+  get().splitItems(
+    { kind: "terminal", id: t1 },
+    { kind: "terminal", id: t2 },
+    tabId,
+  ); // showing [t1 | t2]
 
   const { queryByTitle, rerender } = render(<MainTabs tabId={tabId} />);
-  // Showing the 2-pane split -> only Unsplit; the Split button is gone, so you
-  // cannot "2nd-split" into an overwrite/leak.
+  // Showing the 2-pane split -> only Unsplit (it is 2-pane max; no "2nd split").
   expect(queryByTitle("Single pane (unsplit)")).not.toBeNull();
   expect(queryByTitle("Split with a new terminal")).toBeNull();
 
-  // Solo a 3rd terminal (single on screen) -> the Split button returns.
-  const t3 = get().addTerminal(tabId);
-  get().setActiveTerminal(t1, tabId);
-  get().setSolo({ kind: "terminal", id: t3 }, tabId);
+  // Focus a 3rd terminal alone -> the Split button returns.
+  get().addTerminal(tabId);
   rerender(<MainTabs tabId={tabId} />);
   expect(queryByTitle("Split with a new terminal")).not.toBeNull();
   expect(queryByTitle("Single pane (unsplit)")).toBeNull();
