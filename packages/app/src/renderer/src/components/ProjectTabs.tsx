@@ -25,11 +25,23 @@ export function ProjectTabs() {
   const tabTerminals = useApp((s) => s.tabTerminals);
   const tabGlow = useApp((s) => s.tabGlow);
   // Right-click "Split" context menu (a renderer popup, mirroring Sidebar's).
-  const [menu, setMenu] = useState<{
-    x: number;
-    y: number;
-    tabId: string;
-  } | null>(null);
+  // Right-click context menu. A "tab" menu (single tab) offers Split; a "pair"
+  // menu (the unified split tab) offers Unsplit + Close both.
+  const [menu, setMenu] = useState<
+    | { x: number; y: number; kind: "tab"; tabId: string }
+    | { x: number; y: number; kind: "pair" }
+    | null
+  >(null);
+  // Close BOTH members of the split pair (the unified tab's X / "Close both").
+  // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
+  // null), so read both before closing; closeTab promotes/cleans up each tab.
+  const closePair = () => {
+    const s = useApp.getState();
+    if (!s.split) return;
+    const { a, b } = s.split;
+    s.closeTab(a);
+    s.closeTab(b);
+  };
   useEffect(() => {
     if (!menu) return;
     const onKey = (e: KeyboardEvent) => {
@@ -82,6 +94,10 @@ export function ProjectTabs() {
                     if (activeTabId !== pair.a && activeTabId !== pair.b)
                       useApp.getState().switchTab(pair.a);
                   }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ x: e.clientX, y: e.clientY, kind: "pair" });
+                  }}
                   title={`${labelA}  +  ${labelB} (split)`}
                 >
                   <span
@@ -93,6 +109,17 @@ export function ProjectTabs() {
                     <span className="project-tab-pair-sep">+</span>
                     {labelB}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  className="project-tab-close"
+                  title="Close both tabs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closePair();
+                  }}
+                >
+                  <i className="codicon codicon-close" />
                 </button>
               </div>
             );
@@ -112,7 +139,12 @@ export function ProjectTabs() {
                 onClick={() => useApp.getState().switchTab(tab.id)}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  setMenu({ x: e.clientX, y: e.clientY, tabId: tab.id });
+                  setMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    kind: "tab",
+                    tabId: tab.id,
+                  });
                 }}
                 title={tab.root ?? "New Tab"}
               >
@@ -166,16 +198,41 @@ export function ProjectTabs() {
             onClick={() => setMenu(null)}
           />
           <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                useApp.getState().splitActiveWith(menu.tabId);
-                setMenu(null);
-              }}
-            >
-              <span>Split with active project</span>
-            </button>
+            {menu.kind === "tab" ? (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  useApp.getState().splitActiveWith(menu.tabId);
+                  setMenu(null);
+                }}
+              >
+                <span>Split with active project</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    useApp.getState().toggleProjectSplit();
+                    setMenu(null);
+                  }}
+                >
+                  <span>Unsplit</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    closePair();
+                    setMenu(null);
+                  }}
+                >
+                  <span>Close both tabs</span>
+                </button>
+              </>
+            )}
           </div>
         </>
       )}

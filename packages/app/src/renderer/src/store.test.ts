@@ -528,6 +528,30 @@ describe("project split + focus (pair model)", () => {
     expect(get().activeTabId).toBe(aId);
   });
 
+  // The unified tab's "Close both" / X closes BOTH members (closePair runs
+  // closeTab(a) then closeTab(b)); the other tabs survive and the split clears.
+  it("closing both split members removes both and keeps the rest", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    get().openProject("/c"); // active /c
+    const blankId = tabIdAt(0);
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    const cId = tabIdAt(3);
+    get().switchTab(aId);
+    get().splitActiveWith(bId); // split { a, b }, active a
+    expect(get().split).toEqual({ a: aId, b: bId });
+
+    get().closeTab(aId); // closePair step 1 (dissolves split, promotes b)
+    get().closeTab(bId); // closePair step 2
+
+    const s = get();
+    expect(s.split).toBeNull();
+    expect(s.tabs.some((t) => t.id === aId)).toBe(false);
+    expect(s.tabs.some((t) => t.id === bId)).toBe(false);
+    expect(s.tabs.map((t) => t.id).sort()).toEqual([blankId, cId].sort());
+  });
+
   it("switchTab to a non-pair tab hides the split (pair persists); to a member shows it", () => {
     get().openProject("/a");
     get().openProject("/b");
