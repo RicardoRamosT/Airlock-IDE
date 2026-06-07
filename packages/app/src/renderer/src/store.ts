@@ -281,6 +281,23 @@ const tabIsWorking = (
     (t) => t.ptyId !== null && sessionWorking[t.ptyId] === true,
   );
 
+// A tab is VISIBLE (the user can see it right now) when it is the active tab,
+// or -- when a split is SHOWING (the active tab is one of the pair) -- either
+// member of that pair. This is the single definition of "the user is looking at
+// it": the finished-glow must never fire for (and must clear on) a visible tab,
+// and the empty-tab terminal respawn keys on it too. Without this the secondary
+// split pane (visible, but != activeTabId) wrongly glowed while on screen.
+export const isVisibleTab = (
+  activeTabId: string,
+  split: { a: string; b: string } | null,
+  tabId: string,
+): boolean => {
+  if (tabId === activeTabId) return true;
+  const showing =
+    split !== null && (split.a === activeTabId || split.b === activeTabId);
+  return showing && split !== null && (split.a === tabId || split.b === tabId);
+};
+
 // Report the window's full set of OPEN tab roots to main (every tab that has a
 // folder). Main validates a per-project IPC's explicit root against this set
 // (resolveRoot), so the renderer can only point a handler at a project the user
@@ -448,8 +465,15 @@ export const useApp = create<AppState>((set) => ({
       if (id === s.activeTabId) return {};
       if (!s.tabs.some((t) => t.id === id)) return {}; // unknown id -> no-op
       // Activating a tab dismisses its finished-glow (the user is now looking).
+      // If the switch SHOWS a split (id is a pair member), BOTH members become
+      // visible, so clear the partner's glow too -- else the unified tab keeps
+      // glowing while the user is plainly looking at it.
       const tabGlow = { ...s.tabGlow };
       delete tabGlow[id];
+      if (s.split && (s.split.a === id || s.split.b === id)) {
+        delete tabGlow[s.split.a];
+        delete tabGlow[s.split.b];
+      }
       return {
         activeTabId: id,
         tabGlow,
@@ -551,10 +575,12 @@ export const useApp = create<AppState>((set) => ({
   // state. Record the session's working bit, then drive the OWNING tab's glow
   // on a working->done edge:
   // - working (after): clear any finished-glow (it is busy, not waiting).
-  // - just finished (before working, after not) in a BACKGROUND tab: glow, so
-  //   the user knows to switch back. An active tab never glows (they can see
-  //   it) -- that branch is guarded by owningTab !== activeTabId. The dot color
-  //   itself is derived in the view from sessionWorking; only the glow is stored.
+  // - just finished (before working, after not) in a tab the user is NOT looking
+  //   at: glow, so they know to switch back. A VISIBLE tab never glows -- guarded
+  //   by isVisibleTab, which counts BOTH members of a showing split as visible
+  //   (the secondary pane is on screen yet != activeTabId, so the old
+  //   activeTabId check wrongly glowed it). The dot color itself is derived in
+  //   the view from sessionWorking; only the glow is stored.
   applyPtyStatus: (ptyId, working) =>
     set((s) => {
       const owningTab = findTabByPtyId(s.tabTerminals, ptyId);
@@ -569,8 +595,8 @@ export const useApp = create<AppState>((set) => ({
           tabGlow = { ...s.tabGlow };
           delete tabGlow[owningTab];
         }
-      } else if (before && owningTab !== s.activeTabId) {
-        // just finished in a background tab -> glow
+      } else if (before && !isVisibleTab(s.activeTabId, s.split, owningTab)) {
+        // just finished in a tab the user cannot see -> glow
         tabGlow = { ...s.tabGlow, [owningTab]: true };
       }
       return { sessionWorking, tabGlow };
@@ -612,7 +638,10 @@ export const useApp = create<AppState>((set) => ({
         partnerId !== s.activeTabId &&
         s.tabs.some((t) => t.id === partnerId)
       ) {
-        return { split: { a: s.activeTabId, b: partnerId } };
+        // The partner becomes visible (right pane), so clear any finished-glow.
+        const tabGlow = { ...s.tabGlow };
+        delete tabGlow[partnerId];
+        return { split: { a: s.activeTabId, b: partnerId }, tabGlow };
       }
       const b = newTabId();
       added = true;

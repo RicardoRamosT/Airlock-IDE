@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { EMPTY_TAB_TERMINALS, useApp } from "../store";
+import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
 import { TerminalTabs } from "./TerminalTabs";
 
@@ -25,18 +25,11 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const addTerminal = useApp((s) => s.addTerminal);
   const activeTabId = useApp((s) => s.activeTabId);
   const switchTab = useApp((s) => s.switchTab);
-  // Visible = actually rendered on screen. In a SHOWING split both panes (a and
-  // b) are visible; otherwise only the active tab is. The secondary split pane
-  // is visible but NOT the active tab, so anything that must run "for a pane the
-  // user can see" (the respawn-when-empty below) keys on this, not on activeness.
-  const isVisible = useApp((s) => {
-    const showSplit =
-      s.split !== null &&
-      (s.split.a === s.activeTabId || s.split.b === s.activeTabId);
-    return showSplit && s.split
-      ? tabId === s.split.a || tabId === s.split.b
-      : tabId === s.activeTabId;
-  });
+  // Visible = actually rendered on screen (active tab, or either pane of a
+  // showing split). The respawn-when-empty below keys on this, not on activeness,
+  // so a freshly-split secondary pane (visible but != activeTabId) still spawns
+  // its first terminal. Shared with the status-glow logic (one definition).
+  const isVisible = useApp((s) => isVisibleTab(s.activeTabId, s.split, tabId));
   // Running-process notice (T3): shown on the folder-rooted terminal that was
   // spawned alongside a KEPT busy terminal when a folder was opened into this
   // (blank) tab. runningNotice.terminalId is that new terminal's renderer id.

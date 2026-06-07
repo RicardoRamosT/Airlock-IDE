@@ -781,6 +781,56 @@ describe("applyPtyStatus + tabGlow", () => {
     expect(get().sessionWorking["pty-orphan"]).toBe(true);
     expect(get().tabGlow).toEqual({});
   });
+
+  // A SHOWING split has both members on screen, so a finished SECONDARY pane (it
+  // is visible but != activeTabId) must NOT glow -- the bug the user hit ("I am
+  // there and it is still glowing").
+  it("a finished SECONDARY split pane does NOT glow (it is visible)", () => {
+    get().openProject("/a"); // tabs [blank, /a], active /a
+    get().toggleProjectSplit(); // split { a: /a, b: blank }, both visible, /a active
+    const bId = get().split?.b;
+    if (!bId) throw new Error("expected a split secondary");
+
+    const termId = get().addTerminal(bId); // terminal in the SECONDARY (visible, not active)
+    get().setTerminalPty(termId, "pty-b");
+
+    get().applyPtyStatus("pty-b", true); // working in b
+    get().applyPtyStatus("pty-b", false); // finished while b is on screen
+
+    expect(get().tabGlow[bId]).toBeUndefined();
+  });
+
+  // Both pair members finish while the split is BACKGROUNDED (a non-member tab is
+  // active) -> both glow. Switching back into the split reveals BOTH, so BOTH
+  // glows must clear (switchTab only cleared the clicked id before).
+  it("switching into a backgrounded split clears BOTH members' glow", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    get().openProject("/c"); // active /c
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    const cId = tabIdAt(3);
+
+    get().switchTab(aId);
+    get().splitActiveWith(bId); // split { a: a, b: b }, active a (showing)
+    get().switchTab(cId); // background the split (c is not a member)
+    expect(get().split).toEqual({ a: aId, b: bId });
+
+    const ta = get().addTerminal(aId);
+    get().setTerminalPty(ta, "pty-a");
+    const tbId = get().addTerminal(bId);
+    get().setTerminalPty(tbId, "pty-b");
+    get().applyPtyStatus("pty-a", true);
+    get().applyPtyStatus("pty-a", false);
+    get().applyPtyStatus("pty-b", true);
+    get().applyPtyStatus("pty-b", false);
+    expect(get().tabGlow[aId]).toBe(true); // finished while hidden -> glow
+    expect(get().tabGlow[bId]).toBe(true);
+
+    get().switchTab(aId); // reveal the split -> both members visible
+    expect(get().tabGlow[aId]).toBeUndefined();
+    expect(get().tabGlow[bId]).toBeUndefined();
+  });
 });
 
 describe("runningNotice", () => {

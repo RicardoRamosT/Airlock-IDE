@@ -60,7 +60,11 @@ export function ProjectTabs() {
           if (split && tab.id === split.a) {
             const tabB = tabs.find((t) => t.id === split.b);
             const working = isWorking(split.a) || isWorking(split.b);
-            const glow = tabGlow[split.a] === true || tabGlow[split.b] === true;
+            // Never glow while working: busy (yellow dot) takes priority over the
+            // finished-glow, matching the single-tab store invariant.
+            const glow =
+              !working &&
+              (tabGlow[split.a] === true || tabGlow[split.b] === true);
             const labelA = tabLabel(tab.root);
             const labelB = tabLabel(tabB?.root ?? null);
             const pair = split; // narrow for the click handler closure
@@ -96,7 +100,7 @@ export function ProjectTabs() {
           // A normal single tab.
           const active = tab.id === activeTabId;
           const working = isWorking(tab.id);
-          const glow = tabGlow[tab.id] === true;
+          const glow = !working && tabGlow[tab.id] === true;
           return (
             <div
               key={tab.id}
