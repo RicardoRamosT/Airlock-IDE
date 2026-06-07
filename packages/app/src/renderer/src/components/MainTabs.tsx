@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { closeEditorFile, openEditorFile } from "../lib/editorFiles";
 import { EMPTY_TAB_TERMINALS, useApp } from "../store";
 
@@ -33,6 +33,20 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const toggleMainSplit = useApp((s) => s.toggleMainSplit);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // Right-click context menu (mirrors ProjectTabs): Split / Rename / Close.
+  const [menu, setMenu] = useState<
+    | { x: number; y: number; kind: "terminal"; id: string }
+    | { x: number; y: number; kind: "file"; path: string }
+    | null
+  >(null);
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
 
   // A tab reads "active" when its content is the primary (or shown in a split).
   const termActive = (id: string) =>
@@ -53,6 +67,31 @@ export function MainTabs({ tabId }: { tabId: string }) {
     const id = addTerminal(tabId);
     setActiveTerminal(id, tabId);
     setMainPrimary("terminal", tabId);
+  };
+  // "Split" from the menu: make THIS tab its side, then turn the split on (when
+  // already split, the menu offers the inverse and just toggles off).
+  const splitFrom = () => {
+    if (!menu) return;
+    if (!mainSplit) {
+      if (menu.kind === "terminal") showTerminal(menu.id);
+      else void openEditorFile(tabId, menu.path);
+    }
+    toggleMainSplit(tabId);
+  };
+  const closeOtherTerminals = (keepId: string) => {
+    setActiveTerminal(keepId, tabId);
+    for (const t of terminals) {
+      if (t.id === keepId) continue;
+      if (t.ptyId) window.airlock.ptyKill(t.ptyId);
+      removeTerminal(t.id);
+    }
+  };
+  const closeOtherFiles = async (keepPath: string) => {
+    // Keep `keepPath` active so closing the rest never disturbs the survivor.
+    if (selectedFile !== keepPath) await openEditorFile(tabId, keepPath);
+    for (const p of useApp.getState().tabState[tabId]?.editorTabs ?? []) {
+      if (p !== keepPath) useApp.getState().closeEditorTab(p, tabId);
+    }
   };
 
   return (
@@ -89,6 +128,15 @@ export function MainTabs({ tabId }: { tabId: string }) {
                   setRenaming(t.id);
                   setDraft(t.title);
                 }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    kind: "terminal",
+                    id: t.id,
+                  });
+                }}
                 title={t.title}
               >
                 <i className="codicon codicon-terminal" />
@@ -114,6 +162,10 @@ export function MainTabs({ tabId }: { tabId: string }) {
               type="button"
               className="main-tab-label"
               onClick={() => void openEditorFile(tabId, p)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({ x: e.clientX, y: e.clientY, kind: "file", path: p });
+              }}
               title={p}
             >
               <i className="codicon codicon-file" />
@@ -149,6 +201,69 @@ export function MainTabs({ tabId }: { tabId: string }) {
           <i className="codicon codicon-split-horizontal" />
         </button>
       </div>
+      {menu && (
+        <>
+          <button
+            type="button"
+            className="popover-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenu(null)}
+          />
+          <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                splitFrom();
+                setMenu(null);
+              }}
+            >
+              <span>
+                {mainSplit ? "Single pane" : "Split editor + terminal"}
+              </span>
+            </button>
+            {menu.kind === "terminal" && (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  const t = terminals.find((x) => x.id === menu.id);
+                  setRenaming(menu.id);
+                  setDraft(t?.title ?? "");
+                  setMenu(null);
+                }}
+              >
+                <span>Rename</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                if (menu.kind === "terminal") killTerminal(menu.id);
+                else void closeEditorFile(tabId, menu.path);
+                setMenu(null);
+              }}
+            >
+              <span>Close</span>
+            </button>
+            {((menu.kind === "terminal" && terminals.length > 1) ||
+              (menu.kind === "file" && editorTabs.length > 1)) && (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  if (menu.kind === "terminal") closeOtherTerminals(menu.id);
+                  else void closeOtherFiles(menu.path);
+                  setMenu(null);
+                }}
+              >
+                <span>Close others</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
