@@ -53,8 +53,11 @@ terminal to run something, tidy up when done.
 - **`switch_tab`** - focus a tab by `tabId`. The focused tab drives your "current
   project" (git/secrets/run_command/terminals all follow it). Returns the new layout.
 - **`split_view`** - toggle the split. With a `tabId`, split the focused tab (left) beside
-  that tab (right). With **no** `tabId`, split the focused tab beside a new blank tab - or,
-  if the split is already showing, collapse it. Returns the new layout.
+  that tab (right). Add `anchorTabId` to make THAT tab the left/primary instead of the
+  focused one - naming BOTH ids splits exactly that pair no matter what is focused, so a
+  focus change between your calls cannot re-aim the split (recommended). With **no** `tabId`,
+  split the focused tab beside a new blank tab - or, if the split is already showing,
+  collapse it. Returns the new layout.
 - **`open_terminal`** - open a new terminal. With a `tabId`, open it in that tab (the tab
   is focused first, since a new terminal lands in the focused tab); with no `tabId`, open
   it in the focused tab. Returns the new layout (the tab's `terminals` now include the new
@@ -67,7 +70,8 @@ terminal to run something, tidy up when done.
 
 - "Open this project / a scratch tab" -> `open_tab` (with a path, or none for blank).
 - "Switch to / focus tab X" -> `switch_tab` (after `list_tabs` for its id).
-- "Put these two side by side" -> `split_view` with the partner tab's id.
+- "Put these two side by side" -> `split_view` with `anchorTabId` (left) + `tabId` (right),
+  so the pair is exactly those two regardless of focus.
 - "Give me a terminal to run X in" -> `open_terminal`, then `run_command` (or read it
   later with `get_terminal_tail`).
 - "Tidy up" -> `close_tab` / `close_terminal`.

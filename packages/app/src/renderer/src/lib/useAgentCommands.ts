@@ -65,8 +65,15 @@ async function applyCommand(cmd: AgentCommand): Promise<void> {
       s.switchTab(cmd.tabId);
       break;
     case "split_view":
-      if (cmd.tabId) s.splitActiveWith(cmd.tabId);
-      else s.toggleProjectSplit();
+      // Anchor the LEFT/primary tab explicitly when given, so a focus change
+      // (e.g. a human clicking another tab between the agent's commands) cannot
+      // silently re-aim the split. switchTab runs synchronously right before
+      // splitActiveWith reads the active tab -- no event-loop yield between them,
+      // so no click can interleave. Falls back to the focused tab when no anchor.
+      if (cmd.anchorTabId && cmd.anchorTabId !== s.activeTabId)
+        s.switchTab(cmd.anchorTabId);
+      if (cmd.tabId) useApp.getState().splitActiveWith(cmd.tabId);
+      else useApp.getState().toggleProjectSplit();
       break;
     case "open_terminal":
       // Focus the requested tab so the new terminal is visible, and pass the

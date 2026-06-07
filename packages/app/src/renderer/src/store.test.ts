@@ -508,6 +508,26 @@ describe("project split + focus (pair model)", () => {
     expect(s.tabs).toHaveLength(4); // a blank was added
   });
 
+  // The agent's anchored split_view runs switchTab(anchor) then
+  // splitActiveWith(partner) synchronously, so the pair is exactly the two named
+  // tabs no matter which tab was focused before (a stray click can't re-aim it).
+  it("anchored split pairs the named tabs regardless of prior focus", () => {
+    get().openProject("/a");
+    get().openProject("/b");
+    get().openProject("/c"); // active /c
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    const cId = tabIdAt(3);
+    expect(get().activeTabId).toBe(cId);
+
+    // split_view(tabId: b, anchorTabId: a): anchor focus, then split.
+    get().switchTab(aId);
+    get().splitActiveWith(bId);
+
+    expect(get().split).toEqual({ a: aId, b: bId }); // c did not leak in
+    expect(get().activeTabId).toBe(aId);
+  });
+
   it("switchTab to a non-pair tab hides the split (pair persists); to a member shows it", () => {
     get().openProject("/a");
     get().openProject("/b");

@@ -143,7 +143,7 @@ export type AgentCommand =
   | { type: "open_tab"; path?: string }
   | { type: "close_tab"; tabId: string }
   | { type: "switch_tab"; tabId: string }
-  | { type: "split_view"; tabId?: string }
+  | { type: "split_view"; tabId?: string; anchorTabId?: string }
   | { type: "open_terminal"; tabId?: string }
   | { type: "close_terminal"; terminalId: string };
 

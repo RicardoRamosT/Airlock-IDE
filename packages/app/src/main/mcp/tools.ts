@@ -391,10 +391,14 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "split_view",
     {
       description:
-        "Toggle the split view in the focused airlock window. With a tabId, split the focused tab beside that tab. With no tabId, either collapse the split if it is already showing, or create a new blank secondary tab beside the focused one -- no folder, but (like every tab/pane) with one default terminal already running, so a freshly-split pane shows 1 terminal, not 0. Returns the resulting layout. Acts on the FOCUSED window.",
-      inputSchema: { tabId: z.string().optional() },
+        "Toggle the split view in the focused airlock window. With a tabId, split the focused tab beside that tab. Pass anchorTabId too to make THAT tab the left/primary instead of the focused one -- naming BOTH ids splits exactly that pair regardless of which tab is focused (recommended: it stays correct even if focus changes between your calls). With no tabId, either collapse the split if it is already showing, or create a new blank secondary tab beside the focused one -- no folder, but (like every tab/pane) with one default terminal already running, so a freshly-split pane shows 1 terminal, not 0. Returns the resulting layout. Acts on the FOCUSED window.",
+      inputSchema: {
+        tabId: z.string().optional(),
+        anchorTabId: z.string().optional(),
+      },
     },
-    async ({ tabId }) => drive({ type: "split_view", tabId }),
+    async ({ tabId, anchorTabId }) =>
+      drive({ type: "split_view", tabId, anchorTabId }),
   );
 
   mcp.registerTool(
