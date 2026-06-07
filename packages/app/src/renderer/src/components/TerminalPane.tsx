@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
+import { hasWorkingIndicator } from "../lib/workingIndicator";
 import { useApp } from "../store";
 
 // xterm has no CSS-variable hook, so its palette must be supplied as a literal
@@ -222,15 +223,16 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       // Read the LIVE bottom of the terminal -- the last (rows + 2) buffer lines,
       // where Claude's status line sits. Index off buffer.length, NOT baseY:
       // baseY's scroll/scrollback semantics were reading the wrong region, so the
-      // dot never lit even with "esc to interrupt" plainly on screen. Collapse
-      // whitespace so a wrapped footer ("esc to\ninterrupt") still matches.
+      // dot never lit even with "esc to interrupt" plainly on screen.
       const total = buf.length;
       const span = Math.min(total, (term.rows || 24) + 2);
       let text = "";
       for (let y = total - span; y < total; y++) {
         text += `${buf.getLine(y)?.translateToString(true) ?? ""} `;
       }
-      const working = /esc to interrupt/i.test(text.replace(/\s+/g, " "));
+      // hasWorkingIndicator collapses whitespace (wrapped footer) and tolerates
+      // the width truncation a narrow split pane forces ("esc to interru...").
+      const working = hasWorkingIndicator(text);
       if (working !== lastWorkingRef.current) {
         lastWorkingRef.current = working;
         useApp.getState().applyPtyStatus(ptyId, working);
