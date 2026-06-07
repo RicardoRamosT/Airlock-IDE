@@ -1055,6 +1055,21 @@ describe("editor tabs (unified main pane)", () => {
     ).toBe(1);
   });
 
+  it("splitWith moves the secondary's tab adjacent to the primary (no 'far away')", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id);
+    get().addTerminal(id); // t2, between t1 and the file in order
+    get().openFile("a.ts", FILE); // primary editor a.ts; order [t1, t2, a.ts]
+    get().splitWith({ kind: "terminal", id: t1 }); // split [a.ts | t1]
+    const order = get().tabState[id]?.mainTabOrder ?? [];
+    const ai = order.findIndex(
+      (it) => it.kind === "file" && it.path === "a.ts",
+    );
+    const ti = order.findIndex((it) => it.kind === "terminal" && it.id === t1);
+    expect(ai).toBeGreaterThanOrEqual(0);
+    expect(ti).toBe(ai + 1); // the secondary sits immediately after the primary
+  });
+
   it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {
     const id = tabIdAt(0);
     get().openFile("a.ts", FILE);

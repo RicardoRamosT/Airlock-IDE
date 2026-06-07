@@ -100,6 +100,30 @@ it("toolbar split on a single file pane yields [file | new terminal]", () => {
   expect(st?.mainSecondary?.kind).toBe("terminal"); // new terminal beside it
 });
 
+it("toolbar toggles: Unsplit while showing the split, Split otherwise (no 2nd-split leak)", () => {
+  const tabId = get().tabs[0]?.id;
+  if (!tabId) throw new Error("no initial tab");
+  const t1 = get().addTerminal(tabId);
+  const t2 = get().addTerminal(tabId);
+  get().setActiveTerminal(t1, tabId);
+  get().setMainPrimary("terminal", tabId);
+  get().splitWith({ kind: "terminal", id: t2 }, tabId); // showing split [t1 | t2]
+
+  const { queryByTitle, rerender } = render(<MainTabs tabId={tabId} />);
+  // Showing the 2-pane split -> only Unsplit; the Split button is gone, so you
+  // cannot "2nd-split" into an overwrite/leak.
+  expect(queryByTitle("Single pane (unsplit)")).not.toBeNull();
+  expect(queryByTitle("Split with a new terminal")).toBeNull();
+
+  // Solo a 3rd terminal (single on screen) -> the Split button returns.
+  const t3 = get().addTerminal(tabId);
+  get().setActiveTerminal(t1, tabId);
+  get().setSolo({ kind: "terminal", id: t3 }, tabId);
+  rerender(<MainTabs tabId={tabId} />);
+  expect(queryByTitle("Split with a new terminal")).not.toBeNull();
+  expect(queryByTitle("Single pane (unsplit)")).toBeNull();
+});
+
 it("a new terminal tab is appended at the far-right end, after files", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");

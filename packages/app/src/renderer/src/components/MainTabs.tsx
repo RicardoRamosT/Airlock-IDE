@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { closeEditorFile, openEditorFile } from "../lib/editorFiles";
-import { EMPTY_TAB_TERMINALS, type PaneItem, useApp } from "../store";
+import {
+  EMPTY_TAB_TERMINALS,
+  type PaneItem,
+  samePaneItem,
+  useApp,
+} from "../store";
 
 const EMPTY_FILES: string[] = [];
 const EMPTY_ORDER: PaneItem[] = [];
@@ -55,6 +60,10 @@ export function MainTabs({ tabId }: { tabId: string }) {
   }, [menu]);
 
   const split = mainSecondary !== null;
+  // Whether the 2-pane split is the thing CURRENTLY on screen (vs a solo
+  // override sitting on top of a remembered split). The toolbar button toggles
+  // on this: showing the split -> Unsplit; showing a single pane -> Split.
+  const showingSplit = mainSecondary !== null && mainSolo === null;
 
   // A tab is a MEMBER of the remembered split when it sits in the primary or
   // secondary pane (independent of any solo override). This is what "click to
@@ -74,12 +83,6 @@ export function MainTabs({ tabId }: { tabId: string }) {
       : isSplitTerminal(id);
   const fileActive = (p: string) =>
     mainSolo ? mainSolo.kind === "file" && mainSolo.path === p : isSplitFile(p);
-
-  // Whether a tab is the current PRIMARY (so "Split" with it splits-with-new).
-  const isPrimaryItem = (item: PaneItem) =>
-    item.kind === "terminal"
-      ? mainPrimary === "terminal" && item.id === activeTerminalId
-      : mainPrimary === "editor" && item.path === selectedFile;
 
   // Show a terminal as the sole/primary content (collapses any split).
   const showTerminal = (id: string) => {
@@ -126,42 +129,63 @@ export function MainTabs({ tabId }: { tabId: string }) {
     if (keepPrimary) setActiveTerminal(keepPrimary, tabId);
     setSolo({ kind: "terminal", id }, tabId);
   };
-  // Toolbar "split with a new terminal": end up [current view | new terminal],
-  // never collapsing. If a solo item is showing, that becomes the split's primary.
-  const splitWithNewTerminal = () => {
-    if (mainSolo?.kind === "terminal") {
-      const keep = mainSolo.id;
-      const id = addTerminal(tabId);
-      setActiveTerminal(keep, tabId);
-      setMainPrimary("terminal", tabId);
-      splitWith({ kind: "terminal", id }, tabId);
-      return;
-    }
-    if (mainSolo?.kind === "file") {
-      const p = mainSolo.path;
-      // Drop the old split first so openFile makes this file the primary editor
-      // (openFile solos instead while a split exists), then split it with a new
-      // terminal: [file | new].
-      unsplit(tabId);
-      void openEditorFile(tabId, p).then(() =>
-        splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId),
-      );
-      return;
-    }
-    const keepActive = mainPrimary === "terminal" ? activeTerminalId : null;
-    const id = addTerminal(tabId);
-    splitWith({ kind: "terminal", id }, tabId);
-    if (keepActive && keepActive !== id) setActiveTerminal(keepActive, tabId);
+  // The item the main area is showing RIGHT NOW (the solo override, else the
+  // single primary). Splitting keys off this so you always split "what you see".
+  const currentItem = (): PaneItem | null => {
+    if (mainSolo) return mainSolo;
+    if (mainPrimary === "terminal")
+      return activeTerminalId
+        ? { kind: "terminal", id: activeTerminalId }
+        : null;
+    return selectedFile ? { kind: "file", path: selectedFile } : null;
   };
-  // Split the current primary (left) with `item` (right). Splitting a tab with
-  // itself is impossible (a terminal can't be in two panes), so fall back to a
-  // new terminal as the secondary.
-  const splitPrimaryWith = (item: PaneItem) => {
-    if (isPrimaryItem(item)) {
-      splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId);
-    } else {
-      splitWith(item, tabId);
+  // Build the split [primary | secondary] where `primary` is the on-screen view.
+  // A terminal primary is promoted synchronously; a file primary needs its
+  // content, so drop any old split first (openFile would otherwise solo it) and
+  // make it the primary editor before adding the secondary.
+  const splitInto = (primary: PaneItem | null, secondary: PaneItem) => {
+    if (!primary) {
+      splitWith(secondary, tabId);
+      return;
     }
+    if (primary.kind === "terminal") {
+      setActiveTerminal(primary.id, tabId);
+      setMainPrimary("terminal", tabId); // primary = this terminal; clears solo
+      splitWith(secondary, tabId);
+      return;
+    }
+    // File primary. If it is ALREADY the primary editor, just add the secondary
+    // (synchronous). Otherwise (a solo file, or a different file) it must be
+    // promoted to the primary editor first -- which needs its content -- so drop
+    // any old split (openFile would solo it instead) and load it, then split.
+    if (
+      !mainSolo &&
+      mainPrimary === "editor" &&
+      selectedFile === primary.path
+    ) {
+      splitWith(secondary, tabId);
+      return;
+    }
+    unsplit(tabId);
+    void openEditorFile(tabId, primary.path).then(() =>
+      splitWith(secondary, tabId),
+    );
+  };
+  // Toolbar "split": pair what you are looking at with a NEW terminal.
+  const splitWithNewTerminal = () => {
+    const primary = currentItem();
+    splitInto(primary, { kind: "terminal", id: addTerminal(tabId) });
+  };
+  // Right-click "Split (open beside current)": pair the on-screen view with the
+  // clicked tab. Splitting a tab with itself is impossible, so fall back to a
+  // fresh terminal as the partner.
+  const splitPrimaryWith = (item: PaneItem) => {
+    const primary = currentItem();
+    const secondary =
+      primary && samePaneItem(primary, item)
+        ? { kind: "terminal" as const, id: addTerminal(tabId) }
+        : item;
+    splitInto(primary, secondary);
   };
   const closeOtherTerminals = (keepId: string) => {
     setActiveTerminal(keepId, tabId);
@@ -306,10 +330,11 @@ export function MainTabs({ tabId }: { tabId: string }) {
         </button>
       </div>
       <div className="main-tabs-actions">
-        {/* Two distinct actions, never a toggle: splitting always ADDS a pane
-            (so "give me a terminal beside" never collapses what you have), and
-            unsplit is its own button, shown only while split. */}
-        {split && (
+        {/* One button, toggling on what is ON SCREEN: a 2-pane split shows
+            Unsplit; a single pane (solo or primary) shows Split-with-a-new-
+            terminal. This caps the model at two panes -- you can never "2nd
+            split" into an overwrite/leak -- and splits "what you see". */}
+        {showingSplit ? (
           <button
             type="button"
             className="main-tab-action"
@@ -318,15 +343,16 @@ export function MainTabs({ tabId }: { tabId: string }) {
           >
             <i className="codicon codicon-screen-normal" />
           </button>
+        ) : (
+          <button
+            type="button"
+            className="main-tab-action"
+            title="Split with a new terminal"
+            onClick={splitWithNewTerminal}
+          >
+            <i className="codicon codicon-split-horizontal" />
+          </button>
         )}
-        <button
-          type="button"
-          className="main-tab-action"
-          title="Split with a new terminal"
-          onClick={splitWithNewTerminal}
-        >
-          <i className="codicon codicon-split-horizontal" />
-        </button>
       </div>
       {menu && (
         <>

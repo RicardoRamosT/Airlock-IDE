@@ -75,6 +75,12 @@ export type PaneItem =
   | { kind: "terminal"; id: string }
   | { kind: "file"; path: string };
 
+// Structural equality for pane items (same terminal id / same file path).
+export const samePaneItem = (a: PaneItem, b: PaneItem): boolean =>
+  a.kind === "terminal"
+    ? b.kind === "terminal" && a.id === b.id
+    : b.kind === "file" && a.path === b.path;
+
 export interface ProjectState {
   root: string | null;
   selectedFile: string | null;
@@ -846,16 +852,45 @@ export const useApp = create<AppState>((set) => ({
       }),
     ),
   splitWith: (item, tabId) =>
-    set((s) =>
-      patchTab(s, tabId ?? s.activeTabId, {
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      // Keep the split coherent in the tab bar: move the secondary's tab to sit
+      // immediately AFTER the primary's tab, so a split's two members are always
+      // adjacent (never "far away"). Only when both are real ordered tabs.
+      let mainTabOrder = cur?.mainTabOrder;
+      if (cur && mainTabOrder) {
+        const activeTerm = s.tabTerminals[tid]?.activeTerminalId ?? null;
+        const primaryItem: PaneItem | null =
+          cur.mainPrimary === "terminal"
+            ? activeTerm
+              ? { kind: "terminal", id: activeTerm }
+              : null
+            : cur.selectedFile
+              ? { kind: "file", path: cur.selectedFile }
+              : null;
+        const hasItem = mainTabOrder.some((it) => samePaneItem(it, item));
+        if (primaryItem && hasItem) {
+          const without = mainTabOrder.filter((it) => !samePaneItem(it, item));
+          const np = without.findIndex((it) => samePaneItem(it, primaryItem));
+          if (np >= 0)
+            mainTabOrder = [
+              ...without.slice(0, np + 1),
+              item,
+              ...without.slice(np + 1),
+            ];
+        }
+      }
+      return patchTab(s, tid, {
         mainSecondary: item,
         mainSolo: null, // showing the split drops any scene override
+        ...(mainTabOrder ? { mainTabOrder } : {}),
         // The split shows the editor/terminal panes, so dismiss any overlay.
         diff: null,
         settingsOpen: false,
         dbView: null,
-      }),
-    ),
+      });
+    }),
   unsplit: (tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
