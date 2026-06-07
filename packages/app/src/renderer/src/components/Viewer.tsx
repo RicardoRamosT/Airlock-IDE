@@ -15,7 +15,6 @@ export function Viewer() {
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const file = useApp((s) => s.tabState[tabId]?.file ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
-  const setSelected = useApp((s) => s.setSelected);
   const setDiff = useApp((s) => s.setDiff);
   const theme = useApp((s) => s.theme);
   const diffHostRef = useRef<HTMLDivElement>(null);
@@ -68,26 +67,15 @@ export function Viewer() {
   if (!selectedFile || !file || !root)
     return <div className="empty">select a file</div>;
 
+  // Editor mode: the file name + close live in the unified tab bar (MainTabs),
+  // so the editor fills the area with no redundant header.
   return (
-    <div className="viewer">
-      <div className="viewer-header">
-        <span>{selectedFile}</span>
-        <button
-          type="button"
-          className="viewer-close"
-          onClick={() => setSelected(null, null, tabId)}
-          title="Close file (back to full terminal)"
-        >
-          <i className="codicon codicon-close" />
-        </button>
-      </div>
-      <EditorPane
-        key={selectedFile}
-        root={root}
-        relPath={selectedFile}
-        file={file}
-        theme={theme}
-      />
-    </div>
+    <EditorPane
+      key={selectedFile}
+      root={root}
+      relPath={selectedFile}
+      file={file}
+      theme={theme}
+    />
   );
 }

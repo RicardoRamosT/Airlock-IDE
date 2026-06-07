@@ -3,25 +3,22 @@ import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
 import { useApp } from "../store";
 import { DataGrid } from "./DataGrid";
+import { MainTabs } from "./MainTabs";
 import { SettingsTab } from "./SettingsTab";
 import { Sidebar } from "./Sidebar";
 import { Viewer } from "./Viewer";
 
-// One full project view (Sidebar + viewer-pane + terminals) scoped to a single
-// tab. App.tsx renders one of these for the single (focused) pane, or two side
-// by side when split. Everything inside reads ITS tab via ProjectPaneContext
-// (T2): Sidebar/Viewer/DataGrid/SettingsTab resolve their own project's state.
+// One full project view (Sidebar + a unified main area) scoped to a single tab.
+// The main area is a unified tab bar (terminals + open files) over a content
+// region that shows the active TERMINAL or file EDITOR -- or both side by side
+// when split. Git diff / Settings / DB are overlays that take the content region
+// while the tab bar persists; closing one returns to the editor/terminal.
 //
-// The terminals are NOT rendered here -- TerminalManager (mounted once at app
-// root) PORTALS each tab's ProjectTerminals into the `pane-terminal-slot` div
-// below. The slot registers itself in the terminal-slot registry so the right
-// tab's already-mounted terminals appear in this pane without remounting (ptys
-// survive split toggles / focus swaps / tab switches). On unmount the slot
-// unregisters, so that tab's terminals fall back to the hidden keep-alive div.
-//
-// Clicking anywhere in the pane focuses it: onFocusCapture + onMouseDownCapture
-// call switchTab(tabId), which handles the active<->split swap and the agent /
-// window-title resync. `focused` (tabId === activeTabId) draws a subtle ring.
+// Terminals are NOT rendered here -- TerminalManager (mounted once) PORTALS each
+// tab's ProjectTerminals into the `pane-terminal-slot` below. The slot is
+// rendered ONLY while the terminal is visible; when the editor is full, the slot
+// unmounts and that tab's terminals fall back to the hidden keep-alive (the pty
+// stays alive). Clicking anywhere focuses the pane (switchTab).
 export function ProjectPane({
   tabId,
   focused,
@@ -30,19 +27,29 @@ export function ProjectPane({
   focused: boolean;
 }) {
   const { register, unregister } = useTerminalSlots();
-  // App-global sidebar position/visibility apply to BOTH panes' sidebars.
   const sidebarPosition = useApp((s) => s.sidebarPosition);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
-  // The viewer-pane discriminator, computed from THIS tab's state (mirrors the
-  // mutual exclusion the store enforces: only one of these is set at a time).
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const settingsOpen = useApp((s) => s.tabState[tabId]?.settingsOpen ?? false);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
+  const mainPrimary = useApp(
+    (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
+  );
+  const mainSplit = useApp((s) => s.tabState[tabId]?.mainSplit ?? false);
 
-  // Ref callback (React 19): register this element under tabId; the returned
-  // cleanup unregisters the EXACT element so a fast remount that registers the
-  // new target first is not clobbered by the old element's late cleanup.
+  // db/settings are full overlays. Otherwise the editor side shows when there is
+  // a diff or an active file chosen as primary (or in a split); the terminal
+  // fills whatever the editor does not (and always shows alongside in a split).
+  const overlay = !!dbView || settingsOpen;
+  const editorVisible =
+    !overlay &&
+    (!!diff || (!!selectedFile && (mainPrimary === "editor" || mainSplit)));
+  const terminalVisible = !overlay && (mainSplit || !editorVisible);
+
+  // Ref callback (React 19): register THIS slot element under tabId; the cleanup
+  // unregisters the exact element. Rendered only when terminalVisible, so an
+  // editor-only view sends the terminals to the keep-alive (ptys preserved).
   const slotRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
@@ -65,21 +72,33 @@ export function ProjectPane({
           className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
         >
           <Sidebar />
-          <div
-            className={`main${selectedFile || diff || settingsOpen || dbView ? " split" : ""}`}
-          >
-            <div className="viewer-pane">
-              {dbView ? (
+          <div className="main">
+            <MainTabs tabId={tabId} />
+            {dbView ? (
+              <div className="main-content">
                 <DataGrid />
-              ) : settingsOpen ? (
+              </div>
+            ) : settingsOpen ? (
+              <div className="main-content">
                 <SettingsTab />
-              ) : (
-                <Viewer />
-              )}
-            </div>
-            {/* Portal target for THIS tab's terminals (mounted in
-                TerminalManager). Empty in the DOM until the portal fills it. */}
-            <div className="terminal-slot pane-terminal-slot" ref={slotRef} />
+              </div>
+            ) : (
+              <div
+                className={`main-content main-panes${editorVisible && terminalVisible ? " split" : ""}`}
+              >
+                {editorVisible && (
+                  <div className="editor-area">
+                    <Viewer />
+                  </div>
+                )}
+                {terminalVisible && (
+                  <div
+                    className="terminal-slot pane-terminal-slot"
+                    ref={slotRef}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

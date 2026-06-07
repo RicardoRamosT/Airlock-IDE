@@ -886,6 +886,71 @@ describe("restartActiveTerminal", () => {
   });
 });
 
+describe("editor tabs (unified main pane)", () => {
+  const FILE = { content: "x", truncated: false };
+
+  it("openFile adds an editor tab, makes it active, and shows the editor", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    const s = get();
+    expect(s.tabState[id]?.editorTabs).toEqual(["a.ts"]);
+    expect(s.tabState[id]?.selectedFile).toBe("a.ts");
+    expect(s.tabState[id]?.file).toBe(FILE);
+    expect(s.tabState[id]?.mainPrimary).toBe("editor");
+  });
+
+  it("appends a second file; re-opening the first does not duplicate", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().openFile("b.ts", FILE);
+    get().openFile("a.ts", FILE); // re-open existing -> just re-activates
+    expect(get().tabState[id]?.editorTabs).toEqual(["a.ts", "b.ts"]);
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+  });
+
+  it("closeEditorTab removes a tab; closing the active falls back to terminal", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().openFile("b.ts", FILE); // active = b
+    get().closeEditorTab("a.ts"); // non-active: just removed, active unchanged
+    expect(get().tabState[id]?.editorTabs).toEqual(["b.ts"]);
+    expect(get().tabState[id]?.selectedFile).toBe("b.ts");
+
+    get().closeEditorTab("b.ts"); // active + last: clear selection -> terminal
+    expect(get().tabState[id]?.editorTabs).toEqual([]);
+    expect(get().tabState[id]?.selectedFile).toBeNull();
+    expect(get().tabState[id]?.mainPrimary).toBe("terminal");
+  });
+
+  it("toggleMainSplit flips the split flag", () => {
+    const id = tabIdAt(0);
+    expect(get().tabState[id]?.mainSplit).toBe(false);
+    get().toggleMainSplit();
+    expect(get().tabState[id]?.mainSplit).toBe(true);
+    get().toggleMainSplit();
+    expect(get().tabState[id]?.mainSplit).toBe(false);
+  });
+
+  it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().setSettingsOpen(true);
+    expect(get().tabState[id]?.settingsOpen).toBe(true);
+    expect(get().tabState[id]?.editorTabs).toEqual(["a.ts"]); // preserved
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+    get().setSettingsOpen(false); // closing the overlay returns to the editor
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+  });
+
+  it("openFile dismisses an open overlay so the editor shows", () => {
+    const id = tabIdAt(0);
+    get().setSettingsOpen(true);
+    get().openFile("a.ts", FILE);
+    expect(get().tabState[id]?.settingsOpen).toBe(false);
+    expect(get().tabState[id]?.mainPrimary).toBe("editor");
+  });
+});
+
 describe("runningNotice", () => {
   it("setRunningNotice sets and clears the field", () => {
     // starts cleared

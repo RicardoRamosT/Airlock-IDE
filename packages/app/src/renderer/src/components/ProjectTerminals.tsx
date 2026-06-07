@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
-import { TerminalTabs } from "./TerminalTabs";
 
 // One project's terminal subtree (the old TerminalManager body), scoped to a
 // single tab's `tabTerminals[tabId]`. TerminalManager renders one of these per
@@ -140,7 +139,6 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
           </span>
         </div>
       )}
-      <TerminalTabs tabId={tabId} />
       <div className={`terminal-panes${splitTerminalId ? " split" : ""}`}>
         {terminals.map((t) => (
           <div

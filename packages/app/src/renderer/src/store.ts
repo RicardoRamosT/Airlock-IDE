@@ -78,6 +78,13 @@ export interface ProjectState {
   diff: AppState["diff"]; // the {path,which,original,modified}|null shape
   dbView: DbView | null;
   settingsOpen: boolean;
+  // Unified main area: the open file editor TABS (relPaths; the tab bar shows
+  // these alongside the terminals), which content is primary (the active editor
+  // file vs the active terminal), and whether the editor + terminal show side by
+  // side. selectedFile/file hold the ACTIVE editor tab's path + content.
+  editorTabs: string[];
+  mainPrimary: "terminal" | "editor";
+  mainSplit: boolean;
 }
 
 const freshProjectState = (root: string | null): ProjectState => ({
@@ -90,6 +97,9 @@ const freshProjectState = (root: string | null): ProjectState => ({
   diff: null,
   dbView: null,
   settingsOpen: false,
+  editorTabs: [],
+  mainPrimary: "terminal", // a fresh tab shows its terminal until a file opens
+  mainSplit: false,
 });
 
 let projCounter = 0;
@@ -122,6 +132,10 @@ interface AppState {
     original: string;
     modified: string;
   } | null;
+  // Unified main-area view (mirror of the active tab's ProjectState).
+  editorTabs: string[];
+  mainPrimary: "terminal" | "editor";
+  mainSplit: boolean;
 
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
@@ -185,6 +199,18 @@ interface AppState {
     file: FileContent | null,
     tabId?: string,
   ) => void;
+  // Open a file as an editor tab (adds to editorTabs, makes it the active editor
+  // file, and switches the main area to the editor). FileTree + the tab bar call
+  // it after reading the content.
+  openFile: (relPath: string, file: FileContent, tabId?: string) => void;
+  // Close an editor tab. If it was the active file, the active selection is
+  // cleared and the main area falls back to the terminal (the caller activates a
+  // neighbor file first when one exists).
+  closeEditorTab: (relPath: string, tabId?: string) => void;
+  // Which content the main area shows (the active terminal vs the active editor
+  // file). Split shows both regardless.
+  setMainPrimary: (primary: "terminal" | "editor", tabId?: string) => void;
+  toggleMainSplit: (tabId?: string) => void;
   setDiff: (diff: AppState["diff"], tabId?: string) => void;
   setDbView: (v: DbView | null, tabId?: string) => void;
   setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
@@ -229,6 +255,9 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   diff: ps.diff,
   dbView: ps.dbView,
   settingsOpen: ps.settingsOpen,
+  editorTabs: ps.editorTabs,
+  mainPrimary: ps.mainPrimary,
+  mainSplit: ps.mainSplit,
 });
 
 // Patch one tab's ProjectState (the source of truth); ALSO mirror to the top
@@ -342,6 +371,9 @@ export const useApp = create<AppState>((set) => ({
   settingsOpen: false,
   dbView: null,
   diff: null,
+  editorTabs: [],
+  mainPrimary: "terminal",
+  mainSplit: false,
 
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
@@ -685,12 +717,73 @@ export const useApp = create<AppState>((set) => ({
         dbView: null,
       }),
     ),
+  openFile: (relPath, file, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid] ?? freshProjectState(null);
+      const editorTabs = cur.editorTabs.includes(relPath)
+        ? cur.editorTabs
+        : [...cur.editorTabs, relPath];
+      return patchTab(s, tid, {
+        editorTabs,
+        selectedFile: relPath,
+        file,
+        mainPrimary: "editor",
+        // Opening a file dismisses any overlay (diff/settings/db) so the editor shows.
+        diff: null,
+        settingsOpen: false,
+        dbView: null,
+      });
+    }),
+  closeEditorTab: (relPath, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      const editorTabs = cur.editorTabs.filter((p) => p !== relPath);
+      // Closing the ACTIVE file clears the selection and falls back to the
+      // terminal (the caller activates a neighbor file first when one exists).
+      return patchTab(
+        s,
+        tid,
+        relPath === cur.selectedFile
+          ? {
+              editorTabs,
+              selectedFile: null,
+              file: null,
+              mainPrimary: "terminal",
+            }
+          : { editorTabs },
+      );
+    }),
+  setMainPrimary: (primary, tabId) =>
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        mainPrimary: primary,
+        // Showing the editor/terminal dismisses any overlay (diff/settings/db).
+        diff: null,
+        settingsOpen: false,
+        dbView: null,
+      }),
+    ),
+  toggleMainSplit: (tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid] ?? freshProjectState(null);
+      return patchTab(s, tid, {
+        mainSplit: !cur.mainSplit,
+        diff: null,
+        settingsOpen: false,
+        dbView: null,
+      });
+    }),
+  // Overlays (diff/settings/db) sit ON TOP of the editor/terminal: they clear
+  // each other (one overlay at a time) but NOT selectedFile/editorTabs, so the
+  // editor is restored when the overlay closes.
   setDiff: (diff, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         diff,
-        selectedFile: null,
-        file: null,
         settingsOpen: false,
         dbView: null,
       }),
@@ -817,26 +910,23 @@ export const useApp = create<AppState>((set) => ({
   setClipboardClearSeconds: (clipboardClearSeconds) =>
     set({ clipboardClearSeconds }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
-  // Opening Settings clears the file/diff/dbView so the viewer-pane shows only
-  // one thing at a time (mutual exclusion). Closing leaves the rest untouched.
+  // Settings is an OVERLAY: opening it clears the other overlays (diff/dbView)
+  // but NOT the editor (selectedFile/editorTabs), so closing it restores the
+  // editor/terminal underneath. Closing leaves the rest untouched.
   setSettingsOpen: (v, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         settingsOpen: v,
-        ...(v
-          ? { selectedFile: null, file: null, diff: null, dbView: null }
-          : {}),
+        ...(v ? { diff: null, dbView: null } : {}),
       }),
     ),
-  // Browsing a DB table clears file/diff/settings (mutual exclusion), exactly
-  // like setSettingsOpen. Passing null closes the data grid (back to terminal).
+  // Browsing a DB table is an overlay too: clears diff/settings (one overlay at
+  // a time) but keeps the editor underneath. Passing null closes the data grid.
   setDbView: (v, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         dbView: v,
-        ...(v
-          ? { selectedFile: null, file: null, diff: null, settingsOpen: false }
-          : {}),
+        ...(v ? { diff: null, settingsOpen: false } : {}),
       }),
     ),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
