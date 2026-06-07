@@ -922,13 +922,46 @@ describe("editor tabs (unified main pane)", () => {
     expect(get().tabState[id]?.mainPrimary).toBe("terminal");
   });
 
-  it("toggleMainSplit flips the split flag", () => {
+  it("splitWith sets the secondary pane (any tab); unsplit clears it", () => {
     const id = tabIdAt(0);
-    expect(get().tabState[id]?.mainSplit).toBe(false);
-    get().toggleMainSplit();
-    expect(get().tabState[id]?.mainSplit).toBe(true);
-    get().toggleMainSplit();
-    expect(get().tabState[id]?.mainSplit).toBe(false);
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
+    get().splitWith({ kind: "terminal", id: "term-x" });
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-x",
+    });
+    // A file secondary works too (any combo splits).
+    get().splitWith({ kind: "file", path: "b.ts" });
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "file",
+      path: "b.ts",
+    });
+    get().unsplit();
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
+  });
+
+  it("opening a file or clicking a tab collapses the split", () => {
+    const id = tabIdAt(0);
+    get().splitWith({ kind: "terminal", id: "term-x" });
+    get().openFile("a.ts", { content: "x", truncated: false });
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
+    get().splitWith({ kind: "file", path: "a.ts" });
+    get().setMainPrimary("terminal");
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
+  });
+
+  it("closing a file that is the secondary pane clears the secondary", () => {
+    const id = tabIdAt(0);
+    const FILE = { content: "x", truncated: false };
+    get().openFile("a.ts", FILE);
+    get().openFile("b.ts", FILE); // primary editor = b.ts
+    get().splitWith({ kind: "file", path: "a.ts" }); // secondary = a.ts
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "file",
+      path: "a.ts",
+    });
+    get().closeEditorTab("a.ts");
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
   });
 
   it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {

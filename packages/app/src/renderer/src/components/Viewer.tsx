@@ -7,24 +7,20 @@ import { useEffect, useRef } from "react";
 import { languageExtensionForPath } from "../lib/language";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
-import { EditorPane } from "./EditorPane";
 
+// The git DIFF overlay: a READ-ONLY two-side comparison. File EDITING is handled
+// by EditorPane (rendered directly by ProjectPane); this component is shown only
+// when a diff is set on the pane.
 export function Viewer() {
   const tabId = useProjectTab();
-  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
-  const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
-  const file = useApp((s) => s.tabState[tabId]?.file ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const setDiff = useApp((s) => s.setDiff);
   const theme = useApp((s) => s.theme);
-  const diffHostRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
 
-  // The diff view stays READ-ONLY (a git two-side comparison, not an editable
-  // doc). Built only while a diff is shown; the editable file path goes through
-  // EditorPane instead.
   useEffect(() => {
     if (!diff) return;
-    const host = diffHostRef.current;
+    const host = hostRef.current;
     if (!host) return;
     const view = new EditorView({
       state: EditorState.create({
@@ -44,38 +40,22 @@ export function Viewer() {
     return () => view.destroy();
   }, [diff, theme]);
 
-  if (diff) {
-    return (
-      <div className="viewer">
-        <div className="viewer-header">
-          <span>{diff.path}</span>
-          <span className="badge">{diff.which} diff</span>
-          <button
-            type="button"
-            className="viewer-close"
-            onClick={() => setDiff(null, tabId)}
-            title="Close diff (back to full terminal)"
-          >
-            <i className="codicon codicon-close" />
-          </button>
-        </div>
-        <div ref={diffHostRef} className="viewer-host" />
-      </div>
-    );
-  }
-
-  if (!selectedFile || !file || !root)
-    return <div className="empty">select a file</div>;
-
-  // Editor mode: the file name + close live in the unified tab bar (MainTabs),
-  // so the editor fills the area with no redundant header.
+  if (!diff) return <div className="empty">select a file</div>;
   return (
-    <EditorPane
-      key={selectedFile}
-      root={root}
-      relPath={selectedFile}
-      file={file}
-      theme={theme}
-    />
+    <div className="viewer">
+      <div className="viewer-header">
+        <span>{diff.path}</span>
+        <span className="badge">{diff.which} diff</span>
+        <button
+          type="button"
+          className="viewer-close"
+          onClick={() => setDiff(null, tabId)}
+          title="Close diff (back to the editor)"
+        >
+          <i className="codicon codicon-close" />
+        </button>
+      </div>
+      <div ref={hostRef} className="viewer-host" />
+    </div>
   );
 }

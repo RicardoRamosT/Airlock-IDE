@@ -68,6 +68,13 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
 // Sidebar/Viewer/Git/Secrets/StatusBar/DataGrid keep reading `s.root` etc.
 // unchanged (single-pane behavior). The split pane (a later task) reads
 // `tabState[tabId]` directly. (Replaces the old Snapshot park/load model.)
+// A pane's content reference: a terminal (by id) or an open file (by path). The
+// unified main area shows a PRIMARY pane and, when split, a SECONDARY pane; each
+// can hold either kind, so any combo splits (term|term, file|file, file|term).
+export type PaneItem =
+  | { kind: "terminal"; id: string }
+  | { kind: "file"; path: string };
+
 export interface ProjectState {
   root: string | null;
   selectedFile: string | null;
@@ -79,12 +86,12 @@ export interface ProjectState {
   dbView: DbView | null;
   settingsOpen: boolean;
   // Unified main area: the open file editor TABS (relPaths; the tab bar shows
-  // these alongside the terminals), which content is primary (the active editor
-  // file vs the active terminal), and whether the editor + terminal show side by
-  // side. selectedFile/file hold the ACTIVE editor tab's path + content.
+  // these alongside the terminals). The PRIMARY pane is the selected tab --
+  // mainPrimary picks terminal (activeTerminalId) vs editor (selectedFile/file).
+  // mainSecondary is the split partner (any tab) shown beside it, or null.
   editorTabs: string[];
   mainPrimary: "terminal" | "editor";
-  mainSplit: boolean;
+  mainSecondary: PaneItem | null;
 }
 
 const freshProjectState = (root: string | null): ProjectState => ({
@@ -99,7 +106,7 @@ const freshProjectState = (root: string | null): ProjectState => ({
   settingsOpen: false,
   editorTabs: [],
   mainPrimary: "terminal", // a fresh tab shows its terminal until a file opens
-  mainSplit: false,
+  mainSecondary: null,
 });
 
 let projCounter = 0;
@@ -135,7 +142,7 @@ interface AppState {
   // Unified main-area view (mirror of the active tab's ProjectState).
   editorTabs: string[];
   mainPrimary: "terminal" | "editor";
-  mainSplit: boolean;
+  mainSecondary: PaneItem | null;
 
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
@@ -207,10 +214,12 @@ interface AppState {
   // cleared and the main area falls back to the terminal (the caller activates a
   // neighbor file first when one exists).
   closeEditorTab: (relPath: string, tabId?: string) => void;
-  // Which content the main area shows (the active terminal vs the active editor
-  // file). Split shows both regardless.
+  // Which content is the PRIMARY pane (the active terminal vs the active editor
+  // file). Setting it collapses any split (clicking a tab shows just that tab).
   setMainPrimary: (primary: "terminal" | "editor", tabId?: string) => void;
-  toggleMainSplit: (tabId?: string) => void;
+  // Split: show `item` (any tab) as the SECONDARY pane beside the primary.
+  splitWith: (item: PaneItem, tabId?: string) => void;
+  unsplit: (tabId?: string) => void;
   setDiff: (diff: AppState["diff"], tabId?: string) => void;
   setDbView: (v: DbView | null, tabId?: string) => void;
   setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
@@ -257,7 +266,7 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   settingsOpen: ps.settingsOpen,
   editorTabs: ps.editorTabs,
   mainPrimary: ps.mainPrimary,
-  mainSplit: ps.mainSplit,
+  mainSecondary: ps.mainSecondary,
 });
 
 // Patch one tab's ProjectState (the source of truth); ALSO mirror to the top
@@ -373,7 +382,7 @@ export const useApp = create<AppState>((set) => ({
   diff: null,
   editorTabs: [],
   mainPrimary: "terminal",
-  mainSplit: false,
+  mainSecondary: null,
 
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
@@ -729,6 +738,7 @@ export const useApp = create<AppState>((set) => ({
         selectedFile: relPath,
         file,
         mainPrimary: "editor",
+        mainSecondary: null, // opening a file as primary collapses any split
         // Opening a file dismisses any overlay (diff/settings/db) so the editor shows.
         diff: null,
         settingsOpen: false,
@@ -741,6 +751,10 @@ export const useApp = create<AppState>((set) => ({
       const cur = s.tabState[tid];
       if (!cur) return {};
       const editorTabs = cur.editorTabs.filter((p) => p !== relPath);
+      // If the closed file was the secondary pane, collapse that pane too.
+      const dropSecondary =
+        cur.mainSecondary?.kind === "file" &&
+        cur.mainSecondary.path === relPath;
       // Closing the ACTIVE file clears the selection and falls back to the
       // terminal (the caller activates a neighbor file first when one exists).
       return patchTab(
@@ -752,31 +766,34 @@ export const useApp = create<AppState>((set) => ({
               selectedFile: null,
               file: null,
               mainPrimary: "terminal",
+              ...(dropSecondary ? { mainSecondary: null } : {}),
             }
-          : { editorTabs },
+          : { editorTabs, ...(dropSecondary ? { mainSecondary: null } : {}) },
       );
     }),
   setMainPrimary: (primary, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         mainPrimary: primary,
+        mainSecondary: null, // clicking a tab collapses to a single pane
         // Showing the editor/terminal dismisses any overlay (diff/settings/db).
         diff: null,
         settingsOpen: false,
         dbView: null,
       }),
     ),
-  toggleMainSplit: (tabId) =>
-    set((s) => {
-      const tid = tabId ?? s.activeTabId;
-      const cur = s.tabState[tid] ?? freshProjectState(null);
-      return patchTab(s, tid, {
-        mainSplit: !cur.mainSplit,
+  splitWith: (item, tabId) =>
+    set((s) =>
+      patchTab(s, tabId ?? s.activeTabId, {
+        mainSecondary: item,
+        // The split shows the editor/terminal panes, so dismiss any overlay.
         diff: null,
         settingsOpen: false,
         dbView: null,
-      });
-    }),
+      }),
+    ),
+  unsplit: (tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { mainSecondary: null })),
   // Overlays (diff/settings/db) sit ON TOP of the editor/terminal: they clear
   // each other (one overlay at a time) but NOT selectedFile/editorTabs, so the
   // editor is restored when the overlay closes.
@@ -824,9 +841,17 @@ export const useApp = create<AppState>((set) => ({
       if (tabId === null) return {};
       const tt = s.tabTerminals[tabId];
       if (!tt) return {};
-      return {
+      const next: Partial<AppState> = {
         tabTerminals: { ...s.tabTerminals, [tabId]: removeFromTab(tt, id) },
       };
+      // If the killed terminal was a tab's SECONDARY pane, collapse that pane.
+      const cur = s.tabState[tabId];
+      if (
+        cur?.mainSecondary?.kind === "terminal" &&
+        cur.mainSecondary.id === id
+      )
+        return { ...next, ...patchTab(s, tabId, { mainSecondary: null }) };
+      return next;
     }),
   setActiveTerminal: (id, tabId) =>
     set((s) => {

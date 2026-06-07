@@ -1,8 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FileContent } from "../../../shared/ipc";
 import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
 import { useApp } from "../store";
 import { DataGrid } from "./DataGrid";
+import { EditorPane } from "./EditorPane";
 import { MainTabs } from "./MainTabs";
 import { SettingsTab } from "./SettingsTab";
 import { Sidebar } from "./Sidebar";
@@ -10,15 +12,16 @@ import { Viewer } from "./Viewer";
 
 // One full project view (Sidebar + a unified main area) scoped to a single tab.
 // The main area is a unified tab bar (terminals + open files) over a content
-// region that shows the active TERMINAL or file EDITOR -- or both side by side
-// when split. Git diff / Settings / DB are overlays that take the content region
-// while the tab bar persists; closing one returns to the editor/terminal.
+// region. The region shows the PRIMARY pane (the selected tab) and, when split,
+// a SECONDARY pane beside it -- each can be a terminal or a file editor, so any
+// combo splits (term|term, file|file, file|term). Git diff / Settings / DB are
+// full overlays on top, with the tab bar persisting.
 //
-// Terminals are NOT rendered here -- TerminalManager (mounted once) PORTALS each
-// tab's ProjectTerminals into the `pane-terminal-slot` below. The slot is
-// rendered ONLY while the terminal is visible; when the editor is full, the slot
-// unmounts and that tab's terminals fall back to the hidden keep-alive (the pty
-// stays alive). Clicking anywhere focuses the pane (switchTab).
+// Terminals render through TerminalManager's per-tab portal into the single
+// `pane-terminal-slot`; ProjectTerminals shows the right 0/1/2 terminals (driven
+// by mainPrimary/mainSecondary). The slot is placed full (both panes terminals,
+// or single terminal), or in one sub-pane (a file + a terminal); when no
+// terminal is on screen the slot is absent and the ptys keep-alive.
 export function ProjectPane({
   tabId,
   focused,
@@ -29,27 +32,40 @@ export function ProjectPane({
   const { register, unregister } = useTerminalSlots();
   const sidebarPosition = useApp((s) => s.sidebarPosition);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
+  const file = useApp((s) => s.tabState[tabId]?.file ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const settingsOpen = useApp((s) => s.tabState[tabId]?.settingsOpen ?? false);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
   const mainPrimary = useApp(
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
-  const mainSplit = useApp((s) => s.tabState[tabId]?.mainSplit ?? false);
+  const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
+  const theme = useApp((s) => s.theme);
 
-  // db/settings are full overlays. Otherwise the editor side shows when there is
-  // a diff or an active file chosen as primary (or in a split); the terminal
-  // fills whatever the editor does not (and always shows alongside in a split).
-  const overlay = !!dbView || settingsOpen;
-  const editorVisible =
-    !overlay &&
-    (!!diff || (!!selectedFile && (mainPrimary === "editor" || mainSplit)));
-  const terminalVisible = !overlay && (mainSplit || !editorVisible);
+  // The primary editor uses store.file (loaded by openFile); the SECONDARY pane's
+  // file content is loaded here on demand.
+  const secPath = mainSecondary?.kind === "file" ? mainSecondary.path : null;
+  const [secContent, setSecContent] = useState<FileContent | null>(null);
+  useEffect(() => {
+    if (!secPath || !root) {
+      setSecContent(null);
+      return;
+    }
+    let cancelled = false;
+    setSecContent(null);
+    window.airlock
+      .readFile(root, secPath)
+      .then((f) => {
+        if (!cancelled) setSecContent(f);
+      })
+      .catch((e) => console.error("read secondary file failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [secPath, root]);
 
-  // Ref callback (React 19): register THIS slot element under tabId; the cleanup
-  // unregisters the exact element. Rendered only when terminalVisible, so an
-  // editor-only view sends the terminals to the keep-alive (ptys preserved).
   const slotRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
@@ -60,6 +76,62 @@ export function ProjectPane({
   );
 
   const focus = () => useApp.getState().switchTab(tabId);
+
+  const overlay = !!dbView || settingsOpen || !!diff;
+  // The primary pane is an editor only when an editor file is the primary; else
+  // it is the terminal.
+  const primaryEditorPath =
+    mainPrimary === "editor" && selectedFile ? selectedFile : null;
+  const bothTerminals =
+    !overlay && !primaryEditorPath && mainSecondary?.kind === "terminal";
+
+  // The single terminal slot (placed full, or in one sub-pane). Reused across
+  // branches but only rendered once per layout.
+  const slot = (
+    <div className="terminal-slot pane-terminal-slot" ref={slotRef} />
+  );
+  const editorArea = (relPath: string, content: FileContent | null) => (
+    <div className="editor-area">
+      {root && content ? (
+        <EditorPane
+          key={relPath}
+          root={root}
+          relPath={relPath}
+          file={content}
+          theme={theme}
+        />
+      ) : (
+        <div className="empty">loading…</div>
+      )}
+    </div>
+  );
+
+  const leftPane = primaryEditorPath
+    ? editorArea(primaryEditorPath, file)
+    : slot;
+  const rightPane =
+    mainSecondary == null
+      ? null
+      : mainSecondary.kind === "terminal"
+        ? slot
+        : editorArea(mainSecondary.path, secContent);
+
+  let content: React.ReactNode;
+  if (dbView) content = <DataGrid />;
+  else if (settingsOpen) content = <SettingsTab />;
+  else if (diff) content = <Viewer />;
+  else if (bothTerminals)
+    content = slot; // ProjectTerminals shows both
+  else if (mainSecondary == null) content = leftPane;
+  else
+    content = (
+      <>
+        {leftPane}
+        {rightPane}
+      </>
+    );
+
+  const split = !overlay && !bothTerminals && mainSecondary != null;
 
   return (
     <ProjectPaneContext.Provider value={tabId}>
@@ -74,31 +146,9 @@ export function ProjectPane({
           <Sidebar />
           <div className="main">
             <MainTabs tabId={tabId} />
-            {dbView ? (
-              <div className="main-content">
-                <DataGrid />
-              </div>
-            ) : settingsOpen ? (
-              <div className="main-content">
-                <SettingsTab />
-              </div>
-            ) : (
-              <div
-                className={`main-content main-panes${editorVisible && terminalVisible ? " split" : ""}`}
-              >
-                {editorVisible && (
-                  <div className="editor-area">
-                    <Viewer />
-                  </div>
-                )}
-                {terminalVisible && (
-                  <div
-                    className="terminal-slot pane-terminal-slot"
-                    ref={slotRef}
-                  />
-                )}
-              </div>
-            )}
+            <div className={`main-content${split ? " main-panes split" : ""}`}>
+              {content}
+            </div>
           </div>
         </div>
       </div>

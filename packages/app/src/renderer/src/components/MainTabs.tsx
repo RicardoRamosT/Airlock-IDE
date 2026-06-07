@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { closeEditorFile, openEditorFile } from "../lib/editorFiles";
-import { EMPTY_TAB_TERMINALS, useApp } from "../store";
+import { EMPTY_TAB_TERMINALS, type PaneItem, useApp } from "../store";
 
 const EMPTY_FILES: string[] = [];
 const fileName = (relPath: string): string =>
   relPath.split("/").pop() ?? relPath;
 
 // The unified main-area tab bar: every terminal AND every open file as tabs in
-// one row. Clicking a tab makes it the primary content (its terminal or the file
-// editor); the split toggle shows the active file editor + terminal side by
-// side. Rendered in ProjectPane (NOT portaled), scoped to its pane via tabId.
+// one row. Clicking a tab makes it the PRIMARY (single pane). Right-click ->
+// "Split" pairs the current primary (left) with that tab (right) -- any combo:
+// term|term, file|file, file|term. Rendered in ProjectPane (NOT portaled).
 export function MainTabs({ tabId }: { tabId: string }) {
   const terminals = useApp(
     (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).terminals,
@@ -24,16 +24,16 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const mainPrimary = useApp(
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
-  const mainSplit = useApp((s) => s.tabState[tabId]?.mainSplit ?? false);
+  const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
   const addTerminal = useApp((s) => s.addTerminal);
   const setActiveTerminal = useApp((s) => s.setActiveTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
   const setMainPrimary = useApp((s) => s.setMainPrimary);
-  const toggleMainSplit = useApp((s) => s.toggleMainSplit);
+  const splitWith = useApp((s) => s.splitWith);
+  const unsplit = useApp((s) => s.unsplit);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  // Right-click context menu (mirrors ProjectTabs): Split / Rename / Close.
   const [menu, setMenu] = useState<
     | { x: number; y: number; kind: "terminal"; id: string }
     | { x: number; y: number; kind: "file"; path: string }
@@ -48,12 +48,23 @@ export function MainTabs({ tabId }: { tabId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
 
-  // A tab reads "active" when its content is the primary (or shown in a split).
-  const termActive = (id: string) =>
-    (mainPrimary === "terminal" || mainSplit) && id === activeTerminalId;
-  const fileActive = (p: string) =>
-    (mainPrimary === "editor" || mainSplit) && p === selectedFile;
+  const split = mainSecondary !== null;
 
+  // A tab is "active" when it occupies a visible pane (primary or secondary).
+  const termActive = (id: string) =>
+    (mainPrimary === "terminal" && id === activeTerminalId) ||
+    (mainSecondary?.kind === "terminal" && mainSecondary.id === id);
+  const fileActive = (p: string) =>
+    (mainPrimary === "editor" && p === selectedFile) ||
+    (mainSecondary?.kind === "file" && mainSecondary.path === p);
+
+  // Whether a tab is the current PRIMARY (so "Split" with it splits-with-new).
+  const isPrimaryItem = (item: PaneItem) =>
+    item.kind === "terminal"
+      ? mainPrimary === "terminal" && item.id === activeTerminalId
+      : mainPrimary === "editor" && item.path === selectedFile;
+
+  // Show a terminal as the sole/primary content (setMainPrimary collapses split).
   const showTerminal = (id: string) => {
     setActiveTerminal(id, tabId);
     setMainPrimary("terminal", tabId);
@@ -65,18 +76,17 @@ export function MainTabs({ tabId }: { tabId: string }) {
   };
   const newTerminal = () => {
     const id = addTerminal(tabId);
-    setActiveTerminal(id, tabId);
-    setMainPrimary("terminal", tabId);
+    showTerminal(id);
   };
-  // "Split" from the menu: make THIS tab its side, then turn the split on (when
-  // already split, the menu offers the inverse and just toggles off).
-  const splitFrom = () => {
-    if (!menu) return;
-    if (!mainSplit) {
-      if (menu.kind === "terminal") showTerminal(menu.id);
-      else void openEditorFile(tabId, menu.path);
+  // Split the current primary (left) with `item` (right). Splitting a tab with
+  // itself is impossible (a terminal can't be in two panes), so fall back to a
+  // new terminal as the secondary.
+  const splitPrimaryWith = (item: PaneItem) => {
+    if (isPrimaryItem(item)) {
+      splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId);
+    } else {
+      splitWith(item, tabId);
     }
-    toggleMainSplit(tabId);
   };
   const closeOtherTerminals = (keepId: string) => {
     setActiveTerminal(keepId, tabId);
@@ -87,12 +97,17 @@ export function MainTabs({ tabId }: { tabId: string }) {
     }
   };
   const closeOtherFiles = async (keepPath: string) => {
-    // Keep `keepPath` active so closing the rest never disturbs the survivor.
     if (selectedFile !== keepPath) await openEditorFile(tabId, keepPath);
     for (const p of useApp.getState().tabState[tabId]?.editorTabs ?? []) {
       if (p !== keepPath) useApp.getState().closeEditorTab(p, tabId);
     }
   };
+  const menuItem = (): PaneItem | null =>
+    menu == null
+      ? null
+      : menu.kind === "terminal"
+        ? { kind: "terminal", id: menu.id }
+        : { kind: "file", path: menu.path };
 
   return (
     <div className="main-tabs">
@@ -193,10 +208,13 @@ export function MainTabs({ tabId }: { tabId: string }) {
       <div className="main-tabs-actions">
         <button
           type="button"
-          className={`main-tab-action${mainSplit ? " active" : ""}`}
-          title={mainSplit ? "Single pane" : "Split editor + terminal"}
-          aria-pressed={mainSplit}
-          onClick={() => toggleMainSplit(tabId)}
+          className={`main-tab-action${split ? " active" : ""}`}
+          title={split ? "Single pane" : "Split with a new terminal"}
+          aria-pressed={split}
+          onClick={() => {
+            if (split) unsplit(tabId);
+            else splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId);
+          }}
         >
           <i className="codicon codicon-split-horizontal" />
         </button>
@@ -214,14 +232,25 @@ export function MainTabs({ tabId }: { tabId: string }) {
               type="button"
               className="menu-item"
               onClick={() => {
-                splitFrom();
+                const item = menuItem();
+                if (item) splitPrimaryWith(item);
                 setMenu(null);
               }}
             >
-              <span>
-                {mainSplit ? "Single pane" : "Split editor + terminal"}
-              </span>
+              <span>Split (open beside current)</span>
             </button>
+            {split && (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  unsplit(tabId);
+                  setMenu(null);
+                }}
+              >
+                <span>Unsplit</span>
+              </button>
+            )}
             {menu.kind === "terminal" && (
               <button
                 type="button"
