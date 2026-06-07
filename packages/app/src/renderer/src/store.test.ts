@@ -1070,6 +1070,49 @@ describe("editor tabs (unified main pane)", () => {
     expect(ti).toBe(ai + 1); // the secondary sits immediately after the primary
   });
 
+  it("fillActiveTab keeps surviving terminals in mainTabOrder so splits stay adjacent (reported bug)", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id); // blank-tab terminal (survives the attach)
+    get().fillActiveTab("/proj");
+    // The survivor MUST stay in the tab order (the bug reset it to []).
+    expect(get().tabState[id]?.mainTabOrder).toEqual([
+      { kind: "terminal", id: t1 },
+    ]);
+    expect(get().tabState[id]?.current).toEqual({ kind: "terminal", id: t1 });
+    // The repro shape: split the survivor with a new terminal, open a file.
+    get().splitItems(
+      { kind: "terminal", id: t1 },
+      { kind: "terminal", id: "t2" },
+    );
+    get().openFile("a.ts", FILE);
+    const order = get().tabState[id]?.mainTabOrder ?? [];
+    const i1 = order.findIndex((it) => it.kind === "terminal" && it.id === t1);
+    const i2 = order.findIndex(
+      (it) => it.kind === "terminal" && it.id === "t2",
+    );
+    expect(i1).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(i1 - i2)).toBe(1); // split members adjacent despite the file
+  });
+
+  it("splitItems self-heals: members not yet in the order still end up adjacent", () => {
+    const id = tabIdAt(0);
+    get().addTerminal(id); // ensure tabState exists with a real terminal
+    // a and b are ids NOT in mainTabOrder (simulating any future desync).
+    get().splitItems(
+      { kind: "terminal", id: "ax" },
+      { kind: "terminal", id: "bx" },
+    );
+    const order = get().tabState[id]?.mainTabOrder ?? [];
+    const ia = order.findIndex(
+      (it) => it.kind === "terminal" && it.id === "ax",
+    );
+    const ib = order.findIndex(
+      (it) => it.kind === "terminal" && it.id === "bx",
+    );
+    expect(ia).toBeGreaterThanOrEqual(0);
+    expect(ib).toBe(ia + 1); // both healed into the order, adjacent
+  });
+
   it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {
     const id = tabIdAt(0);
     get().openFile("a.ts", FILE);

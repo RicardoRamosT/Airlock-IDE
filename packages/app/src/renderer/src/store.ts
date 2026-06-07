@@ -587,12 +587,25 @@ export const useApp = create<AppState>((set) => ({
   fillActiveTab: (root) => {
     set((s) => {
       const id = s.activeTabId;
-      const state = freshProjectState(root);
+      // tabTerminals[id] is intentionally NOT reset -- the blank tab's
+      // terminal(s) survive the attach. So the fresh ProjectState must keep
+      // those survivors in mainTabOrder (and focus the active one), or they'd be
+      // missing from the tab order -- which breaks split adjacency (splitItems
+      // only reorders tabs that are in mainTabOrder) and the unified tab bar.
+      const tt = s.tabTerminals[id];
+      const survivors = tt?.terminals ?? [];
+      const activeId = tt?.activeTerminalId ?? survivors[0]?.id ?? null;
+      const state: ProjectState = {
+        ...freshProjectState(root),
+        mainTabOrder: survivors.map((t) => ({
+          kind: "terminal" as const,
+          id: t.id,
+        })),
+        current: activeId ? { kind: "terminal", id: activeId } : null,
+      };
       return {
         tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
         tabState: { ...s.tabState, [id]: state },
-        // tabTerminals[id] is intentionally NOT reset -- the blank tab's
-        // terminal(s) survive the attach.
         ...mirrorOf(state),
         modal: null,
       };
@@ -932,20 +945,19 @@ export const useApp = create<AppState>((set) => ({
         ...dropFromSplits(dropFromSplits(cur.splits, a), b),
         [a, b],
       ];
-      let mainTabOrder = cur.mainTabOrder;
-      if (
-        mainTabOrder.some((it) => samePaneItem(it, a)) &&
-        mainTabOrder.some((it) => samePaneItem(it, b))
-      ) {
-        const without = mainTabOrder.filter((it) => !samePaneItem(it, b));
-        const ai = without.findIndex((it) => samePaneItem(it, a));
-        if (ai >= 0)
-          mainTabOrder = [
-            ...without.slice(0, ai + 1),
-            b,
-            ...without.slice(ai + 1),
-          ];
-      }
+      // Place b's tab immediately after a's so the pair is adjacent. Self-heal
+      // if a is somehow not in the order yet (e.g. a terminal that survived a
+      // folder-attach): append a, then insert b after it -- so the pair is
+      // always adjacent regardless of how it got here.
+      const base = cur.mainTabOrder.some((it) => samePaneItem(it, a))
+        ? cur.mainTabOrder
+        : [...cur.mainTabOrder, a];
+      const without = base.filter((it) => !samePaneItem(it, b));
+      const ai = without.findIndex((it) => samePaneItem(it, a));
+      const mainTabOrder =
+        ai >= 0
+          ? [...without.slice(0, ai + 1), b, ...without.slice(ai + 1)]
+          : [...without, a, b];
       return setView(s, tid, splits, a, {
         mainTabOrder,
         diff: null,
