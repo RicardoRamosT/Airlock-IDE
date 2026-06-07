@@ -76,7 +76,10 @@ export function MainTabs({ tabId }: { tabId: string }) {
   };
   const newTerminal = () => {
     const id = addTerminal(tabId);
-    showTerminal(id);
+    // Never collapse an existing split: a fresh terminal opens BESIDE the
+    // current primary (as the secondary). With no split, it becomes the primary.
+    if (split) splitWith({ kind: "terminal", id }, tabId);
+    else showTerminal(id);
   };
   // Split the current primary (left) with `item` (right). Splitting a tab with
   // itself is impossible (a terminal can't be in two panes), so fall back to a
@@ -206,15 +209,26 @@ export function MainTabs({ tabId }: { tabId: string }) {
         </button>
       </div>
       <div className="main-tabs-actions">
+        {/* Two distinct actions, never a toggle: splitting always ADDS a pane
+            (so "give me a terminal beside" never collapses what you have), and
+            unsplit is its own button, shown only while split. */}
+        {split && (
+          <button
+            type="button"
+            className="main-tab-action"
+            title="Single pane (unsplit)"
+            onClick={() => unsplit(tabId)}
+          >
+            <i className="codicon codicon-screen-normal" />
+          </button>
+        )}
         <button
           type="button"
-          className={`main-tab-action${split ? " active" : ""}`}
-          title={split ? "Single pane" : "Split with a new terminal"}
-          aria-pressed={split}
-          onClick={() => {
-            if (split) unsplit(tabId);
-            else splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId);
-          }}
+          className="main-tab-action"
+          title="Split with a new terminal"
+          onClick={() =>
+            splitWith({ kind: "terminal", id: addTerminal(tabId) }, tabId)
+          }
         >
           <i className="codicon codicon-split-horizontal" />
         </button>

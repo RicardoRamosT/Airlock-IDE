@@ -950,6 +950,29 @@ describe("editor tabs (unified main pane)", () => {
     expect(get().tabState[id]?.mainSecondary).toBeNull();
   });
 
+  it("splitting beside a primary keeps that primary (no collapse)", () => {
+    const id = tabIdAt(0);
+    // A file is the primary; adding a terminal beside it must NOT collapse the
+    // split nor change the primary -- this is the "new terminal besides" fix.
+    get().openFile("a.ts", { content: "x", truncated: false });
+    expect(get().tabState[id]?.mainPrimary).toBe("editor");
+    get().splitWith({ kind: "terminal", id: "term-new" });
+    expect(get().tabState[id]?.mainPrimary).toBe("editor");
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-new",
+    });
+    // Splitting again with another fresh terminal swaps the secondary, still
+    // keeping the file primary (toolbar split is additive, never a toggle-off).
+    get().splitWith({ kind: "terminal", id: "term-new2" });
+    expect(get().tabState[id]?.mainPrimary).toBe("editor");
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "term-new2",
+    });
+  });
+
   it("closing a file that is the secondary pane clears the secondary", () => {
     const id = tabIdAt(0);
     const FILE = { content: "x", truncated: false };
