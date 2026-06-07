@@ -27,6 +27,8 @@ const api: AirlockApi = {
   onMenuAction: (cb) => subscribe<MenuAction>("menu:action", cb),
   listDir: (root, relPath) => ipcRenderer.invoke("fs:listDir", root, relPath),
   readFile: (root, relPath) => ipcRenderer.invoke("fs:readFile", root, relPath),
+  writeFile: (root, relPath, content) =>
+    ipcRenderer.invoke("fs:writeFile", root, relPath, content),
   ptyCreate: (cols, rows) => ipcRenderer.invoke("pty:create", cols, rows),
   ptyInput: (id, data) => ipcRenderer.send("pty:input", { id, data }),
   ptyResize: (id, cols, rows) =>

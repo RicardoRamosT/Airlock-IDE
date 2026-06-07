@@ -1,95 +1,93 @@
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { javascript } from "@codemirror/lang-javascript";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
 import { unifiedMergeView } from "@codemirror/merge";
-import { EditorState, type Extension } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef } from "react";
-import { type LanguageKey, languageKeyForPath } from "../lib/language";
+import { languageExtensionForPath } from "../lib/language";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
-
-const LANGUAGES: Record<LanguageKey, () => Extension> = {
-  js: () => javascript({ jsx: true, typescript: true }),
-  json: () => json(),
-  md: () => markdown(),
-  css: () => css(),
-  html: () => html(),
-};
+import { EditorPane } from "./EditorPane";
 
 export function Viewer() {
   const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const file = useApp((s) => s.tabState[tabId]?.file ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const setSelected = useApp((s) => s.setSelected);
   const setDiff = useApp((s) => s.setDiff);
   const theme = useApp((s) => s.theme);
-  const hostRef = useRef<HTMLDivElement>(null);
+  const diffHostRef = useRef<HTMLDivElement>(null);
 
+  // The diff view stays READ-ONLY (a git two-side comparison, not an editable
+  // doc). Built only while a diff is shown; the editable file path goes through
+  // EditorPane instead.
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host || (!file && !diff)) return;
-    const docText = diff ? diff.modified : (file?.content ?? "");
-    const pathForLang = diff ? diff.path : selectedFile;
-    const key = pathForLang ? languageKeyForPath(pathForLang) : null;
+    if (!diff) return;
+    const host = diffHostRef.current;
+    if (!host) return;
     const view = new EditorView({
       state: EditorState.create({
-        doc: docText,
+        doc: diff.modified,
         extensions: [
           basicSetup,
-          // oneDark only in dark mode; CM6's built-in default theme is
-          // light and reads on the white [data-theme=light] background. The
-          // view is recreated on theme change (added to the deps below) so the
-          // editor swaps palettes with the rest of the UI.
           ...(theme === "dark" ? [oneDark] : []),
           EditorState.readOnly.of(true),
-          EditorView.editable.of(false), // viewer semantics: contenteditable off (closes IME mutation path)
+          EditorView.editable.of(false),
           EditorView.theme({ "&": { height: "100%" } }),
-          ...(key ? [LANGUAGES[key]()] : []),
-          ...(diff
-            ? [
-                unifiedMergeView({
-                  original: diff.original,
-                  mergeControls: false,
-                }),
-              ]
-            : []),
+          ...languageExtensionForPath(diff.path),
+          unifiedMergeView({ original: diff.original, mergeControls: false }),
         ],
       }),
       parent: host,
     });
     return () => view.destroy();
-  }, [selectedFile, file, diff, theme]);
+  }, [diff, theme]);
 
-  if (!file && !diff) return <div className="empty">select a file</div>;
+  if (diff) {
+    return (
+      <div className="viewer">
+        <div className="viewer-header">
+          <span>{diff.path}</span>
+          <span className="badge">{diff.which} diff</span>
+          <button
+            type="button"
+            className="viewer-close"
+            onClick={() => setDiff(null, tabId)}
+            title="Close diff (back to full terminal)"
+          >
+            <i className="codicon codicon-close" />
+          </button>
+        </div>
+        <div ref={diffHostRef} className="viewer-host" />
+      </div>
+    );
+  }
+
+  if (!selectedFile || !file || !root)
+    return <div className="empty">select a file</div>;
+
   return (
     <div className="viewer">
       <div className="viewer-header">
-        <span>{diff ? diff.path : selectedFile}</span>
-        {diff && <span className="badge">{diff.which} diff</span>}
-        {!diff && file?.truncated && (
-          <span className="badge">truncated · first 1 MB</span>
-        )}
-        {!diff && (
-          <span className="badge dim-badge">read-only · editing in week 6</span>
-        )}
+        <span>{selectedFile}</span>
         <button
           type="button"
           className="viewer-close"
-          onClick={() =>
-            diff ? setDiff(null, tabId) : setSelected(null, null, tabId)
-          }
-          title="Close viewer (back to full terminal)"
+          onClick={() => setSelected(null, null, tabId)}
+          title="Close file (back to full terminal)"
         >
           <i className="codicon codicon-close" />
         </button>
       </div>
-      <div ref={hostRef} className="viewer-host" />
+      <EditorPane
+        key={selectedFile}
+        root={root}
+        relPath={selectedFile}
+        file={file}
+        theme={theme}
+      />
     </div>
   );
 }

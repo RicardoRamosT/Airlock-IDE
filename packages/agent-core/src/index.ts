@@ -148,3 +148,4 @@ export {
   readWorkspaceFile,
 } from "./workspace/read";
 export { type DirEntry, listDirectory, resolveWithin } from "./workspace/tree";
+export { writeWorkspaceFile } from "./workspace/write";

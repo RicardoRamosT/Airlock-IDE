@@ -41,6 +41,7 @@ import {
   unstageFiles,
   withDb,
   writeProjectConfig,
+  writeWorkspaceFile,
 } from "@airlock/agent-core";
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
@@ -265,6 +266,14 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     return readWorkspaceFile(resolveRoot(e, root), relPath);
   });
+  ipcMain.handle(
+    "fs:writeFile",
+    (e, root: unknown, relPath: unknown, content: unknown) => {
+      if (typeof relPath !== "string" || typeof content !== "string")
+        throw new Error("Invalid payload");
+      return writeWorkspaceFile(resolveRoot(e, root), relPath, content);
+    },
+  );
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),

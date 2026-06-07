@@ -856,6 +856,35 @@ body,
   height: 100%;
 }
 
+/* The editable file pane fills the viewer body and positions the small autosave
+   status badge over the top-right corner (it does not take a layout row). */
+.editor-pane {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-pane .viewer-host {
+  height: 100%;
+}
+
+.editor-status {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  z-index: 3;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.editor-dot {
+  color: #d29922; /* amber while a write is pending (unsaved) */
+}
+
+.editor-saved {
+  color: var(--fg-dim);
+}
+
 .terminal-host {
   height: 100%;
   padding: 6px 0 0 8px;
