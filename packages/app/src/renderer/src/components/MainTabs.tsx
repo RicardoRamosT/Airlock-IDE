@@ -3,6 +3,7 @@ import { closeEditorFile, openEditorFile } from "../lib/editorFiles";
 import { EMPTY_TAB_TERMINALS, type PaneItem, useApp } from "../store";
 
 const EMPTY_FILES: string[] = [];
+const EMPTY_ORDER: PaneItem[] = [];
 const fileName = (relPath: string): string =>
   relPath.split("/").pop() ?? relPath;
 
@@ -25,6 +26,9 @@ export function MainTabs({ tabId }: { tabId: string }) {
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
+  const mainTabOrder = useApp(
+    (s) => s.tabState[tabId]?.mainTabOrder ?? EMPTY_ORDER,
+  );
   const addTerminal = useApp((s) => s.addTerminal);
   const setActiveTerminal = useApp((s) => s.setActiveTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
@@ -74,29 +78,17 @@ export function MainTabs({ tabId }: { tabId: string }) {
     if (entry?.ptyId) window.airlock.ptyKill(entry.ptyId);
     removeTerminal(id);
   };
-  // Add a new terminal WITHOUT collapsing the layout. It lands in the pane that
-  // holds a terminal: the PRIMARY when the primary is a terminal (addTerminal
-  // makes the new one active, which fills that slot -- the other pane is left
-  // untouched), otherwise the SECONDARY beside a file primary. With no split it
-  // becomes the single primary pane. The bug was clearing the secondary here
-  // (and pointing it at the just-activated id, which made both panes resolve to
-  // the same terminal and collapse) -- so we must NOT touch the secondary when
-  // the primary is already a terminal.
+  // "+" -> a new terminal, shown FULL-SCREEN (collapses any split). This is the
+  // chosen behavior: "+" means "new terminal, show it"; the toolbar split button
+  // below is the explicit "put a terminal BESIDE this" action.
   const newTerminal = () => {
-    const id = addTerminal(tabId);
-    if (!split) setMainPrimary("terminal", tabId);
-    else if (mainPrimary === "editor")
-      splitWith({ kind: "terminal", id }, tabId);
+    showTerminal(addTerminal(tabId));
   };
   // Toolbar "split with a new terminal": always end up [current primary | new
-  // terminal], never collapse. Already split -> add beside (same as newTerminal).
-  // Single -> force the split, keeping the current primary terminal active so the
-  // two panes stay distinct (else primary === secondary === the new terminal).
+  // terminal], never collapse -- whether or not we are already split. We keep
+  // the current primary terminal active so the two panes stay distinct (else
+  // primary === secondary === the just-created terminal and they merge to one).
   const splitWithNewTerminal = () => {
-    if (split) {
-      newTerminal();
-      return;
-    }
     const keepActive = mainPrimary === "terminal" ? activeTerminalId : null;
     const id = addTerminal(tabId);
     splitWith({ kind: "terminal", id }, tabId);
@@ -133,93 +125,118 @@ export function MainTabs({ tabId }: { tabId: string }) {
         ? { kind: "terminal", id: menu.id }
         : { kind: "file", path: menu.path };
 
+  // The left-to-right tab order: mainTabOrder, but defensively reconciled with
+  // the live terminal/file membership so a tab can never vanish (drop stale
+  // entries; append anything not yet ordered -- e.g. a tab opened before this
+  // ordering existed -- at the end).
+  const termIds = new Set(terminals.map((t) => t.id));
+  const fileSet = new Set(editorTabs);
+  const kept = mainTabOrder.filter((it) =>
+    it.kind === "terminal" ? termIds.has(it.id) : fileSet.has(it.path),
+  );
+  const seenT = new Set(
+    kept.flatMap((it) => (it.kind === "terminal" ? [it.id] : [])),
+  );
+  const seenF = new Set(
+    kept.flatMap((it) => (it.kind === "file" ? [it.path] : [])),
+  );
+  const orderedTabs: PaneItem[] = [
+    ...kept,
+    ...terminals
+      .filter((t) => !seenT.has(t.id))
+      .map((t) => ({ kind: "terminal" as const, id: t.id })),
+    ...editorTabs
+      .filter((p) => !seenF.has(p))
+      .map((p) => ({ kind: "file" as const, path: p })),
+  ];
+
+  const renderTerminalTab = (t: (typeof terminals)[number]) => (
+    <div key={t.id} className={`main-tab${termActive(t.id) ? " active" : ""}`}>
+      {renaming === t.id ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const name = draft.trim();
+            if (name) setTerminalTitle(t.id, name, true);
+            setRenaming(null);
+          }}
+        >
+          <input
+            className="terminal-tab-rename"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => setRenaming(null)}
+            spellCheck={false}
+          />
+        </form>
+      ) : (
+        <button
+          type="button"
+          className="main-tab-label"
+          onClick={() => showTerminal(t.id)}
+          onDoubleClick={() => {
+            setRenaming(t.id);
+            setDraft(t.title);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY, kind: "terminal", id: t.id });
+          }}
+          title={t.title}
+        >
+          <i className="codicon codicon-terminal" />
+          <span className="main-tab-title">{t.title}</span>
+        </button>
+      )}
+      <button
+        type="button"
+        className="main-tab-close"
+        title="Kill terminal"
+        onClick={() => killTerminal(t.id)}
+      >
+        <i className="codicon codicon-close" />
+      </button>
+    </div>
+  );
+
+  const renderFileTab = (p: string) => (
+    <div key={`f:${p}`} className={`main-tab${fileActive(p) ? " active" : ""}`}>
+      <button
+        type="button"
+        className="main-tab-label"
+        onClick={() => void openEditorFile(tabId, p)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY, kind: "file", path: p });
+        }}
+        title={p}
+      >
+        <i className="codicon codicon-file" />
+        <span className="main-tab-title">{fileName(p)}</span>
+      </button>
+      <button
+        type="button"
+        className="main-tab-close"
+        title="Close file"
+        onClick={() => void closeEditorFile(tabId, p)}
+      >
+        <i className="codicon codicon-close" />
+      </button>
+    </div>
+  );
+
+  const renderTab = (item: PaneItem) => {
+    if (item.kind === "terminal") {
+      const t = terminals.find((x) => x.id === item.id);
+      return t ? renderTerminalTab(t) : null;
+    }
+    return renderFileTab(item.path);
+  };
+
   return (
     <div className="main-tabs">
       <div className="main-tabs-list">
-        {terminals.map((t) => (
-          <div
-            key={t.id}
-            className={`main-tab${termActive(t.id) ? " active" : ""}`}
-          >
-            {renaming === t.id ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const name = draft.trim();
-                  if (name) setTerminalTitle(t.id, name, true);
-                  setRenaming(null);
-                }}
-              >
-                <input
-                  className="terminal-tab-rename"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={() => setRenaming(null)}
-                  spellCheck={false}
-                />
-              </form>
-            ) : (
-              <button
-                type="button"
-                className="main-tab-label"
-                onClick={() => showTerminal(t.id)}
-                onDoubleClick={() => {
-                  setRenaming(t.id);
-                  setDraft(t.title);
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    kind: "terminal",
-                    id: t.id,
-                  });
-                }}
-                title={t.title}
-              >
-                <i className="codicon codicon-terminal" />
-                <span className="main-tab-title">{t.title}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              className="main-tab-close"
-              title="Kill terminal"
-              onClick={() => killTerminal(t.id)}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        ))}
-        {editorTabs.map((p) => (
-          <div
-            key={`f:${p}`}
-            className={`main-tab${fileActive(p) ? " active" : ""}`}
-          >
-            <button
-              type="button"
-              className="main-tab-label"
-              onClick={() => void openEditorFile(tabId, p)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu({ x: e.clientX, y: e.clientY, kind: "file", path: p });
-              }}
-              title={p}
-            >
-              <i className="codicon codicon-file" />
-              <span className="main-tab-title">{fileName(p)}</span>
-            </button>
-            <button
-              type="button"
-              className="main-tab-close"
-              title="Close file"
-              onClick={() => void closeEditorFile(tabId, p)}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        ))}
+        {orderedTabs.map(renderTab)}
         <button
           type="button"
           className="main-tab-action"

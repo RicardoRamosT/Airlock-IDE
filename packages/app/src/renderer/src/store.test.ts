@@ -987,6 +987,35 @@ describe("editor tabs (unified main pane)", () => {
     expect(get().tabState[id]?.mainSecondary).toBeNull();
   });
 
+  it("mainTabOrder interleaves terminals and files by creation order, appended at the end", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id);
+    get().openFile("a.ts", FILE);
+    const t2 = get().addTerminal(id);
+    get().openFile("b.ts", FILE);
+    // Each new tab lands at the far-right end, regardless of type.
+    expect(get().tabState[id]?.mainTabOrder).toEqual([
+      { kind: "terminal", id: t1 },
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: t2 },
+      { kind: "file", path: "b.ts" },
+    ]);
+    // Removing a terminal / closing a file drops just that entry, order intact.
+    get().removeTerminal(t1);
+    get().closeEditorTab("a.ts");
+    expect(get().tabState[id]?.mainTabOrder).toEqual([
+      { kind: "terminal", id: t2 },
+      { kind: "file", path: "b.ts" },
+    ]);
+    // Re-opening an already-open file does not duplicate its tab.
+    get().openFile("b.ts", FILE);
+    expect(
+      get().tabState[id]?.mainTabOrder.filter(
+        (it) => it.kind === "file" && it.path === "b.ts",
+      ).length,
+    ).toBe(1);
+  });
+
   it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {
     const id = tabIdAt(0);
     get().openFile("a.ts", FILE);

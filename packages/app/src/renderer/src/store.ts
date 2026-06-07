@@ -92,6 +92,11 @@ export interface ProjectState {
   editorTabs: string[];
   mainPrimary: "terminal" | "editor";
   mainSecondary: PaneItem | null;
+  // The unified tab-bar order: terminals AND files interleaved by creation/open
+  // order, so a NEW tab always appears at the far-right end (not grouped by
+  // type). MainTabs renders in this order; terminal/file membership still lives
+  // in tabTerminals / editorTabs, this is purely the left-to-right ordering.
+  mainTabOrder: PaneItem[];
 }
 
 const freshProjectState = (root: string | null): ProjectState => ({
@@ -107,6 +112,7 @@ const freshProjectState = (root: string | null): ProjectState => ({
   editorTabs: [],
   mainPrimary: "terminal", // a fresh tab shows its terminal until a file opens
   mainSecondary: null,
+  mainTabOrder: [],
 });
 
 let projCounter = 0;
@@ -143,6 +149,7 @@ interface AppState {
   editorTabs: string[];
   mainPrimary: "terminal" | "editor";
   mainSecondary: PaneItem | null;
+  mainTabOrder: PaneItem[];
 
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
@@ -267,6 +274,7 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   editorTabs: ps.editorTabs,
   mainPrimary: ps.mainPrimary,
   mainSecondary: ps.mainSecondary,
+  mainTabOrder: ps.mainTabOrder,
 });
 
 // Patch one tab's ProjectState (the source of truth); ALSO mirror to the top
@@ -383,6 +391,7 @@ export const useApp = create<AppState>((set) => ({
   editorTabs: [],
   mainPrimary: "terminal",
   mainSecondary: null,
+  mainTabOrder: [],
 
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
@@ -733,8 +742,15 @@ export const useApp = create<AppState>((set) => ({
       const editorTabs = cur.editorTabs.includes(relPath)
         ? cur.editorTabs
         : [...cur.editorTabs, relPath];
+      // Append the file at the far-right end of the unified tab order (once).
+      const mainTabOrder: PaneItem[] = cur.mainTabOrder.some(
+        (it) => it.kind === "file" && it.path === relPath,
+      )
+        ? cur.mainTabOrder
+        : [...cur.mainTabOrder, { kind: "file", path: relPath }];
       return patchTab(s, tid, {
         editorTabs,
+        mainTabOrder,
         selectedFile: relPath,
         file,
         mainPrimary: "editor",
@@ -751,6 +767,10 @@ export const useApp = create<AppState>((set) => ({
       const cur = s.tabState[tid];
       if (!cur) return {};
       const editorTabs = cur.editorTabs.filter((p) => p !== relPath);
+      // Drop the file from the unified tab order.
+      const mainTabOrder = cur.mainTabOrder.filter(
+        (it) => !(it.kind === "file" && it.path === relPath),
+      );
       // If the closed file was the secondary pane, collapse that pane too.
       const dropSecondary =
         cur.mainSecondary?.kind === "file" &&
@@ -763,12 +783,17 @@ export const useApp = create<AppState>((set) => ({
         relPath === cur.selectedFile
           ? {
               editorTabs,
+              mainTabOrder,
               selectedFile: null,
               file: null,
               mainPrimary: "terminal",
               ...(dropSecondary ? { mainSecondary: null } : {}),
             }
-          : { editorTabs, ...(dropSecondary ? { mainSecondary: null } : {}) },
+          : {
+              editorTabs,
+              mainTabOrder,
+              ...(dropSecondary ? { mainSecondary: null } : {}),
+            },
       );
     }),
   setMainPrimary: (primary, tabId) =>
@@ -822,6 +847,16 @@ export const useApp = create<AppState>((set) => ({
       // adding a terminal in a SPLIT pane hits that pane -- not the focused one.
       const tid = tabId ?? s.activeTabId;
       const tt = s.tabTerminals[tid] ?? emptyTabTerminals();
+      // Append the new terminal at the FAR-RIGHT end of the unified tab order.
+      const cur = s.tabState[tid];
+      const orderPatch = cur
+        ? patchTab(s, tid, {
+            mainTabOrder: [
+              ...cur.mainTabOrder,
+              { kind: "terminal", id: entry.id },
+            ],
+          })
+        : {};
       return {
         tabTerminals: {
           ...s.tabTerminals,
@@ -831,6 +866,7 @@ export const useApp = create<AppState>((set) => ({
             activeTerminalId: entry.id,
           },
         },
+        ...orderPatch,
       };
     });
     return entry.id;
@@ -841,17 +877,24 @@ export const useApp = create<AppState>((set) => ({
       if (tabId === null) return {};
       const tt = s.tabTerminals[tabId];
       if (!tt) return {};
-      const next: Partial<AppState> = {
-        tabTerminals: { ...s.tabTerminals, [tabId]: removeFromTab(tt, id) },
-      };
-      // If the killed terminal was a tab's SECONDARY pane, collapse that pane.
       const cur = s.tabState[tabId];
-      if (
-        cur?.mainSecondary?.kind === "terminal" &&
-        cur.mainSecondary.id === id
-      )
-        return { ...next, ...patchTab(s, tabId, { mainSecondary: null }) };
-      return next;
+      // Drop it from the unified tab order, and -- if it was the SECONDARY pane
+      // -- collapse that pane. Both go in one patchTab.
+      const tabPatch: Partial<ProjectState> = {};
+      if (cur) {
+        tabPatch.mainTabOrder = cur.mainTabOrder.filter(
+          (it) => !(it.kind === "terminal" && it.id === id),
+        );
+        if (
+          cur.mainSecondary?.kind === "terminal" &&
+          cur.mainSecondary.id === id
+        )
+          tabPatch.mainSecondary = null;
+      }
+      return {
+        tabTerminals: { ...s.tabTerminals, [tabId]: removeFromTab(tt, id) },
+        ...(cur ? patchTab(s, tabId, tabPatch) : {}),
+      };
     }),
   setActiveTerminal: (id, tabId) =>
     set((s) => {
