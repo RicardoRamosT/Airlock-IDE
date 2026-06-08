@@ -332,6 +332,17 @@ interface AppState {
   setLayoutHydrated: (v: boolean) => void;
   fsVersion: Record<string, number>;
   bumpFsVersion: (root: string) => void;
+  // Per-folder custom file order, keyed by root then folderRel ("." = that
+  // root's top level). Loaded from the committed .airlock-order.json
+  // (loadFileOrder) and written through on reorder (setFolderOrder). An absent
+  // folder key means default sort.
+  fileOrder: Record<string, Record<string, string[]>>;
+  loadFileOrder: (root: string) => Promise<void>;
+  setFolderOrder: (
+    root: string,
+    folderRel: string,
+    names: string[],
+  ) => Promise<void>;
   // One-shot signal from the FILES header's New File/Folder buttons to that
   // tab's FileTree, which opens an inline create input at the root and clears it.
   newFileRequest: { tabId: string; kind: "file" | "dir" } | null;
@@ -1196,6 +1207,39 @@ export const useApp = create<AppState>((set) => ({
     set((s) => ({
       fsVersion: { ...s.fsVersion, [root]: (s.fsVersion[root] ?? 0) + 1 },
     })),
+  fileOrder: {},
+  // Pull a root's saved order map into the store. Idempotent -- a re-load just
+  // refreshes it. Triggered by a FileTree effect on root change (a later task).
+  loadFileOrder: async (root) => {
+    try {
+      const map = await window.airlock.getFileOrder(root);
+      set((s) => ({ fileOrder: { ...s.fileOrder, [root]: map } }));
+    } catch (err) {
+      console.error("loadFileOrder failed", err);
+    }
+  },
+  // Optimistically set one folder's order, then persist. On an IPC failure roll
+  // back to the previous order so the view matches what is on disk.
+  setFolderOrder: async (root, folderRel, names) => {
+    const prev = useApp.getState().fileOrder[root]?.[folderRel];
+    set((s) => {
+      const forRoot = { ...(s.fileOrder[root] ?? {}) };
+      if (names.length === 0) delete forRoot[folderRel];
+      else forRoot[folderRel] = names;
+      return { fileOrder: { ...s.fileOrder, [root]: forRoot } };
+    });
+    try {
+      await window.airlock.setFileOrder(root, folderRel, names);
+    } catch (err) {
+      console.error("setFolderOrder failed", err);
+      set((s) => {
+        const forRoot = { ...(s.fileOrder[root] ?? {}) };
+        if (prev === undefined) delete forRoot[folderRel];
+        else forRoot[folderRel] = prev;
+        return { fileOrder: { ...s.fileOrder, [root]: forRoot } };
+      });
+    }
+  },
   requestNewFile: (tabId, kind) => set({ newFileRequest: { tabId, kind } }),
   clearNewFileRequest: () => set({ newFileRequest: null }),
 }));
