@@ -156,6 +156,7 @@ export {
 export {
   type FileContent,
   MAX_FILE_BYTES,
+  readImageDataUrl,
   readWorkspaceFile,
 } from "./workspace/read";
 export {

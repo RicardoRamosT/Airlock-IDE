@@ -36,7 +36,11 @@ it("'+' focuses a new terminal alone; an existing split is preserved", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
   const t1 = get().addTerminal(tabId);
-  get().openFile("LAYOUT.md", { content: "# x", truncated: false }, tabId);
+  get().openFile(
+    "LAYOUT.md",
+    { content: "# x", truncated: false, binary: false, size: 1 },
+    tabId,
+  );
   get().splitItems(
     { kind: "terminal", id: t1 },
     { kind: "file", path: "LAYOUT.md" },
@@ -91,7 +95,11 @@ it("clicking a split-member tab shows that split", () => {
 it("toolbar split on a single file pane yields [file | new terminal]", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
-  get().openFile("a.ts", { content: "x", truncated: false }, tabId);
+  get().openFile(
+    "a.ts",
+    { content: "x", truncated: false, binary: false, size: 1 },
+    tabId,
+  );
   expect(get().tabState[tabId]?.mainSecondary).toBeNull();
 
   const { getByTitle } = render(<MainTabs tabId={tabId} />);
@@ -130,7 +138,11 @@ it("a new terminal tab is appended at the far-right end, after files", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");
   const t1 = get().addTerminal(tabId);
-  get().openFile("a.ts", { content: "x", truncated: false }, tabId);
+  get().openFile(
+    "a.ts",
+    { content: "x", truncated: false, binary: false, size: 1 },
+    tabId,
+  );
   expect(get().tabState[tabId]?.mainTabOrder).toEqual([
     { kind: "terminal", id: t1 },
     { kind: "file", path: "a.ts" },

@@ -911,7 +911,7 @@ describe("restartActiveTerminal", () => {
 });
 
 describe("editor tabs (unified main pane)", () => {
-  const FILE = { content: "x", truncated: false };
+  const FILE = { content: "x", truncated: false, binary: false, size: 1 };
 
   it("openFile adds an editor tab, focuses it, and shows the editor", () => {
     const id = tabIdAt(0);
@@ -1004,7 +1004,12 @@ describe("editor tabs (unified main pane)", () => {
     const T1 = { kind: "terminal", id: "t1" } as const;
     const T2 = { kind: "terminal", id: "t2" } as const;
     get().splitItems(T1, T2); // [t1 | t2]
-    get().openFile("other.ts", { content: "y", truncated: false });
+    get().openFile("other.ts", {
+      content: "y",
+      truncated: false,
+      binary: false,
+      size: 1,
+    });
     expect(get().tabState[id]?.current).toEqual({
       kind: "file",
       path: "other.ts",
@@ -1031,7 +1036,7 @@ describe("editor tabs (unified main pane)", () => {
 
   it("closing a file that is in a split drops that split", () => {
     const id = tabIdAt(0);
-    const FILE = { content: "x", truncated: false };
+    const FILE = { content: "x", truncated: false, binary: false, size: 1 };
     get().openFile("a.ts", FILE);
     get().openFile("b.ts", FILE);
     get().splitItems(
