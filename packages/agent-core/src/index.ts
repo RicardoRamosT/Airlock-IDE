@@ -160,7 +160,9 @@ export {
 } from "./workspace/read";
 export {
   type DirEntry,
+  type FileList,
   listDirectory,
+  listFilesRecursive,
   resolveWithin,
   targetsVault,
 } from "./workspace/tree";

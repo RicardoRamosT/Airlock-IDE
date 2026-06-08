@@ -1,9 +1,14 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { listDirectory, resolveWithin, targetsVault } from "./tree";
+import {
+  listDirectory,
+  listFilesRecursive,
+  resolveWithin,
+  targetsVault,
+} from "./tree";
 
 let root: string;
 
@@ -92,4 +97,26 @@ describe("targetsVault", () => {
     expect(targetsVault("normal/file.airlock.ts")).toBe(false);
     expect(targetsVault(".airlockish/x")).toBe(false);
   });
+});
+
+it("listFilesRecursive returns nested relpaths and prunes IGNORED dirs", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "airlock-listall-"));
+  mkdirSync(path.join(root, "src"));
+  mkdirSync(path.join(root, "node_modules"));
+  mkdirSync(path.join(root, ".git"));
+  writeFileSync(path.join(root, "a.ts"), "");
+  writeFileSync(path.join(root, "src", "b.ts"), "");
+  writeFileSync(path.join(root, "node_modules", "skip.js"), "");
+  writeFileSync(path.join(root, ".git", "HEAD"), "");
+  const r = await listFilesRecursive(root);
+  expect(r.files).toEqual(["a.ts", "src/b.ts"]);
+  expect(r.truncated).toBe(false);
+});
+
+it("listFilesRecursive caps at max and reports truncated", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "airlock-listcap-"));
+  for (let i = 0; i < 5; i++) writeFileSync(path.join(root, `f${i}.ts`), "");
+  const r = await listFilesRecursive(root, 3);
+  expect(r.files).toHaveLength(3);
+  expect(r.truncated).toBe(true);
 });

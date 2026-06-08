@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
@@ -82,6 +83,51 @@ export function targetsVault(relPath: string): boolean {
     .normalize(relPath)
     .split(/[/\\]/)
     .some((seg) => seg === ".airlock");
+}
+
+export interface FileList {
+  files: string[];
+  truncated: boolean;
+}
+
+// Recursively list FILE relpaths under root (POSIX separators), honoring the
+// IGNORED set so node_modules/.git/.airlock/dist/out are pruned. Stops at `max`
+// and sets truncated. Dirents use lstat semantics, so a symlink is neither a
+// dir nor a file here -- symlinks are skipped, which also prevents cycles.
+// Results are name-sorted at each level for determinism. ASCII-only file.
+export async function listFilesRecursive(
+  root: string,
+  max = 10000,
+): Promise<FileList> {
+  const realRoot = await realpath(path.resolve(root));
+  const files: string[] = [];
+  let truncated = false;
+  async function walk(absDir: string, relDir: string): Promise<void> {
+    if (truncated) return;
+    let dirents: Dirent[];
+    try {
+      dirents = await readdir(absDir, { withFileTypes: true });
+    } catch {
+      return; // unreadable dir -- skip
+    }
+    dirents.sort((a, b) => a.name.localeCompare(b.name));
+    for (const d of dirents) {
+      if (IGNORED.has(d.name)) continue;
+      const rel = relDir ? `${relDir}/${d.name}` : d.name;
+      if (d.isDirectory()) {
+        await walk(path.join(absDir, d.name), rel);
+        if (truncated) return;
+      } else if (d.isFile()) {
+        if (files.length >= max) {
+          truncated = true;
+          return;
+        }
+        files.push(rel);
+      }
+    }
+  }
+  await walk(realRoot, "");
+  return { files, truncated };
 }
 
 export async function listDirectory(

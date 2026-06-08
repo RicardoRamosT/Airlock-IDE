@@ -21,6 +21,7 @@ import {
   isGitRepo,
   listBranches,
   listDirectory,
+  listFilesRecursive,
   listSecrets,
   listTables,
   move,
@@ -278,6 +279,10 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     return listDirectory(resolveRoot(e, root), relPath);
   });
+
+  ipcMain.handle("fs:listAll", (e, root: unknown) =>
+    listFilesRecursive(resolveRoot(e, root)),
+  );
 
   ipcMain.handle("fs:readFile", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");

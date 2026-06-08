@@ -49,6 +49,14 @@ export function useMenuActions(): void {
           s.setRoot(null);
           break;
         }
+        case "quick-open": {
+          s.openPalette("files");
+          break;
+        }
+        case "command-palette": {
+          s.openPalette("commands");
+          break;
+        }
       }
     });
   }, []);
