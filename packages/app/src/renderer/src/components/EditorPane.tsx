@@ -289,7 +289,7 @@ export function EditorPane({
       view.destroy();
       viewRef.current = null;
     };
-  }, [root, relPath, file, theme, editable, lspLang]);
+  }, [root, relPath, file, theme, editable, lspLang, tabId]);
 
   // When a caller (e.g. search) reveals this file in this pane, scroll + select
   // to the line. The nonce in `reveal` is in the deps so repeated reveals of the
