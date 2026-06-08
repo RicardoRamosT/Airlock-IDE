@@ -53,6 +53,14 @@ export interface LspDiagnostic {
   message: string;
 }
 
+export interface LspCompletionItem {
+  label: string;
+  kind?: number; // LSP CompletionItemKind
+  detail?: string;
+  documentation?: string;
+  insertText?: string;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
