@@ -569,6 +569,15 @@ export function FileTree() {
     return slash >= 0 ? menu.relPath.slice(0, slash) : ".";
   };
 
+  // The folder a reset applies to for the current menu target, or null for a
+  // file row (files do not own an order). "." for the background (root).
+  const menuFolder = (): string | null => {
+    if (!menu) return null;
+    if (menu.kind === "bg") return ".";
+    if (menu.kind === "dir") return menu.relPath;
+    return null;
+  };
+
   return (
     <TreeCtlContext.Provider value={ctl}>
       {/* Right-clicking empty space below the rows targets the root. Rows
@@ -644,6 +653,22 @@ export function FileTree() {
             >
               <span>New Folder</span>
             </button>
+            {(() => {
+              const folder = menuFolder();
+              if (folder === null || !rootOrder?.[folder]) return null;
+              return (
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    void setFolderOrder(root, folder, []);
+                    setMenu(null);
+                  }}
+                >
+                  <span>Sort A-Z</span>
+                </button>
+              );
+            })()}
             {menu.kind !== "bg" && (
               <>
                 <button

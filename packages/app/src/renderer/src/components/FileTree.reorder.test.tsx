@@ -134,3 +134,16 @@ it("dragging a file onto a folder's middle moves it in", async () => {
   expect(moveFile).toHaveBeenCalledWith(ROOT, "a.ts", "src/a.ts");
   expect(setFileOrder).not.toHaveBeenCalled();
 });
+
+it("Sort A-Z clears a folder's custom order", async () => {
+  // Seed through the mock: the mount-time loadFileOrder effect overwrites the
+  // store with getFileOrder's result, so seeding the store directly would not
+  // survive. findByText("Sort A-Z") then waits for the order to load + menu open.
+  getFileOrder.mockReturnValue(Promise.resolve({ src: ["z.ts"] }));
+  const tabId = seedRoot();
+  const { findByText } = renderTree(tabId);
+  const srcRow = await findByText("src");
+  fireEvent.contextMenu(srcRow);
+  fireEvent.click(await findByText("Sort A-Z"));
+  expect(setFileOrder).toHaveBeenCalledWith(ROOT, "src", []);
+});
