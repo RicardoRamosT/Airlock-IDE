@@ -41,6 +41,7 @@ import {
   redactedTail,
   resolveWithin,
   runGit,
+  searchProject,
   setGlobalSecret,
   setSecret,
   stageFiles,
@@ -284,6 +285,11 @@ export function registerIpc(
   ipcMain.handle("fs:listAll", (e, root: unknown) =>
     listFilesRecursive(resolveRoot(e, root)),
   );
+
+  ipcMain.handle("fs:search", (e, root: unknown, query: unknown) => {
+    if (typeof query !== "string") throw new Error("Invalid payload");
+    return searchProject(resolveRoot(e, root), query);
+  });
 
   ipcMain.handle("fs:readFile", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");

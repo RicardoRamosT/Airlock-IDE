@@ -173,6 +173,11 @@ export function applyAppMenu(
           accelerator: "CmdOrCtrl+Shift+P",
           click: () => pushMenuAction({ type: "command-palette" }),
         },
+        {
+          label: "Find in Files...",
+          accelerator: "CmdOrCtrl+Shift+F",
+          click: () => pushMenuAction({ type: "find-in-files" }),
+        },
       ],
     },
     { role: "windowMenu" },
