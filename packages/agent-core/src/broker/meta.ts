@@ -1,5 +1,6 @@
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ensureAirlockDir } from "../project/airlockDir";
 
 /** Names and metadata ONLY. Secret values never appear in this file. */
 export interface SecretMeta {
@@ -25,7 +26,7 @@ export async function readMeta(root: string): Promise<SecretMeta[]> {
 
 async function writeMetaList(root: string, list: SecretMeta[]): Promise<void> {
   const file = metaFile(root);
-  await mkdir(path.dirname(file), { recursive: true });
+  await ensureAirlockDir(root); // create .airlock + drop the ignore-all .gitignore
   const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
   const tmp = `${file}.tmp`;
   // This is a names-only index (no secret values ever land here), but write it
