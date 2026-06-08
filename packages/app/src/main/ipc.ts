@@ -30,6 +30,7 @@ import {
   pingDb,
   probePort,
   readAudit,
+  readOrder,
   readProjectConfig,
   readRows,
   readWorkspaceFile,
@@ -46,6 +47,7 @@ import {
   targetsVault,
   unstageFiles,
   withDb,
+  writeFolderOrder,
   writeProjectConfig,
   writeWorkspaceFile,
 } from "@airlock/agent-core";
@@ -322,6 +324,26 @@ export function registerIpc(
     const abs = await resolveWithin(resolveRoot(e, root), relPath);
     await shell.trashItem(abs);
   });
+
+  ipcMain.handle("fileOrder:get", (e, root: unknown) =>
+    readOrder(resolveRoot(e, root)),
+  );
+  ipcMain.handle(
+    "fileOrder:set",
+    (e, root: unknown, folderRel: unknown, names: unknown) => {
+      if (
+        typeof folderRel !== "string" ||
+        !Array.isArray(names) ||
+        !allStr(names)
+      )
+        throw new Error("Invalid payload");
+      return writeFolderOrder(
+        resolveRoot(e, root),
+        folderRel,
+        names as string[],
+      );
+    },
+  );
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),

@@ -37,6 +37,9 @@ const api: AirlockApi = {
   duplicateFile: (root, relPath) =>
     ipcRenderer.invoke("fs:duplicate", root, relPath),
   trashFile: (root, relPath) => ipcRenderer.invoke("fs:trash", root, relPath),
+  getFileOrder: (root) => ipcRenderer.invoke("fileOrder:get", root),
+  setFileOrder: (root, folderRel, names) =>
+    ipcRenderer.invoke("fileOrder:set", root, folderRel, names),
   ptyCreate: (cols, rows) => ipcRenderer.invoke("pty:create", cols, rows),
   ptyInput: (id, data) => ipcRenderer.send("pty:input", { id, data }),
   ptyResize: (id, cols, rows) =>

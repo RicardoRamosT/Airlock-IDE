@@ -15,8 +15,11 @@ function clearDebounce(id: number, root: string): void {
   debounces.delete(key);
 }
 
-function ignored(p: string): boolean {
-  return /(^|[/\\])(\.git|node_modules|\.airlock|dist|out|\.DS_Store)([/\\]|$)/.test(
+// Exported for unit tests. Matches VCS/build dirs, the .airlock vault, and the
+// committed .airlock-order.json (so writing the order file never fires a
+// debounced fs:changed re-list).
+export function isIgnored(p: string): boolean {
+  return /(^|[/\\])(\.git|node_modules|\.airlock|\.airlock-order\.json|dist|out|\.DS_Store)([/\\]|$)/.test(
     p,
   );
 }
@@ -37,7 +40,7 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
   for (const root of roots) {
     if (current.has(root)) continue;
     const w = watch(root, {
-      ignored,
+      ignored: isIgnored,
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 40 },
     });

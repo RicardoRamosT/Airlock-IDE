@@ -245,6 +245,13 @@ export interface AirlockApi {
   moveFile(root: string, fromRel: string, toRel: string): Promise<void>;
   duplicateFile(root: string, relPath: string): Promise<string>;
   trashFile(root: string, relPath: string): Promise<void>;
+  // Manual file ordering (USER action; per-folder custom order persisted to a
+  // committed .airlock-order.json at the project root, path-confined). getFileOrder
+  // returns the whole map for a root (folderRel -> ordered names); setFileOrder
+  // writes one folder's order (empty names clears it). Pure view metadata -- NO
+  // file contents cross, only names the tree already shows.
+  getFileOrder(root: string): Promise<Record<string, string[]>>;
+  setFileOrder(root: string, folderRel: string, names: string[]): Promise<void>;
   ptyCreate(cols: number, rows: number): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
