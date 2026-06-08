@@ -70,6 +70,20 @@ export interface LspDefinition {
   line: number; // 1-indexed, ready for revealLine
 }
 
+export interface SecretLeak {
+  path: string;
+  line: number;
+  name?: string; // vaulted secret name (kind "vaulted")
+  patternType?: string; // provider type (kind "pattern")
+}
+
+export interface CommitOutcome {
+  committed: boolean;
+  sha: string | null;
+  blocked?: boolean; // true when a gated commit was held back by a suspected leak
+  leaks: SecretLeak[];
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
