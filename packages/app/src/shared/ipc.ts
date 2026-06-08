@@ -44,6 +44,15 @@ export type {
   SecretMeta,
 };
 
+export interface LspDiagnostic {
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+  severity: number; // LSP: 1 error, 2 warning, 3 info, 4 hint
+  message: string;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
