@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FileContent } from "../../../shared/ipc";
+import { isImagePath } from "../lib/imageTypes";
 import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
 import { useApp } from "../store";
+import { BinaryNotice } from "./BinaryNotice";
 import { DataGrid } from "./DataGrid";
 import { EditorPane } from "./EditorPane";
+import { ImagePreview } from "./ImagePreview";
 import { MainTabs } from "./MainTabs";
 import { SettingsTab } from "./SettingsTab";
 import { Sidebar } from "./Sidebar";
@@ -116,13 +119,24 @@ export function ProjectPane({
   const editorArea = (relPath: string, content: FileContent | null) => (
     <div className="editor-area">
       {root && content ? (
-        <EditorPane
-          key={relPath}
-          root={root}
-          relPath={relPath}
-          file={content}
-          theme={theme}
-        />
+        isImagePath(relPath) ? (
+          <ImagePreview key={relPath} root={root} relPath={relPath} />
+        ) : content.binary ? (
+          <BinaryNotice
+            key={relPath}
+            root={root}
+            relPath={relPath}
+            size={content.size}
+          />
+        ) : (
+          <EditorPane
+            key={relPath}
+            root={root}
+            relPath={relPath}
+            file={content}
+            theme={theme}
+          />
+        )
       ) : (
         <div className="empty">loading…</div>
       )}
