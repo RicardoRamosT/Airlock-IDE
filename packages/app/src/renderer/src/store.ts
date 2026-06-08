@@ -188,7 +188,7 @@ const newTabId = (): string => `proj-${++projCounter}`;
 // activeTabId-null state and IMPLICIT_TAB_ID are retired.)
 const INITIAL_TAB_ID = newTabId();
 
-interface AppState {
+export interface AppState {
   // --- Active-tab per-project state MIRROR (top level so existing components
   // that read s.root / s.selectedFile / ... keep working unchanged). This is a
   // copy of tabState[activeTabId]; the SOURCE OF TRUTH is tabState. ---
