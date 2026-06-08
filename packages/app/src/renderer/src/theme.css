@@ -470,24 +470,128 @@ body,
 
 .main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr); /* unified tab bar + content region */
   height: 100%;
   min-width: 0;
+  min-height: 0;
 }
 
-.main .viewer-pane {
-  display: none;
+/* Content region below the unified tab bar. A flex row so a single occupant
+   (editor, terminal, or an overlay like DataGrid/Settings) fills it, and a split
+   lays the editor + terminal side by side 50/50. min-width:0 on the children is
+   what keeps CodeMirror's long lines from blowing the column out (the cramped
+   layout bug). */
+.main-content {
+  display: flex;
   min-width: 0;
   min-height: 0;
+}
+
+.main-content > * {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.main-panes.split > .editor-area {
   border-right: 1px solid var(--border);
 }
 
-.main.split {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+/* Unified main-area tab bar (terminals + open files), mirroring the old
+   per-terminal tab strip. */
+.main-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 30px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 6px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
-.main.split .viewer-pane {
-  display: block;
+.main-tabs-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.main-tab {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  height: 24px;
+}
+
+.main-tab.active {
+  background: var(--hover);
+}
+
+.main-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px 0 6px;
+  font-family: inherit;
+  max-width: 180px;
+}
+
+.main-tab.active .main-tab-label {
+  color: var(--fg);
+}
+
+.main-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-tab-close {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+
+.main-tab:hover .main-tab-close,
+.main-tab:focus-within .main-tab-close {
+  opacity: 1;
+}
+
+.main-tab-close:hover {
+  color: #f85149;
+}
+
+.main-tab-action {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.main-tab-action:hover,
+.main-tab-action.active {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.main-tabs-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
 }
 
 /* Sidebar on the right: flip the grid columns and reorder the two children so
@@ -854,6 +958,35 @@ body,
 
 .viewer-host .cm-editor {
   height: 100%;
+}
+
+/* The editable file pane fills the viewer body and positions the small autosave
+   status badge over the top-right corner (it does not take a layout row). */
+.editor-pane {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-pane .viewer-host {
+  height: 100%;
+}
+
+.editor-status {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  z-index: 3;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.editor-dot {
+  color: #d29922; /* amber while a write is pending (unsaved) */
+}
+
+.editor-saved {
+  color: var(--fg-dim);
 }
 
 .terminal-host {

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useApp } from "../store";
+import { closeEditorFile, openEditorFile } from "./editorFiles";
 import { openPickedFolder } from "./openFolder";
 
 // Dispatch File-menu actions (pushed from main as "menu:action") to store + IPC.
@@ -22,13 +23,9 @@ export function useMenuActions(): void {
         }
         case "open-file": {
           const rel = await window.airlock.openFile();
-          // openFile only resolves a path when a folder is open, so s.root (the
-          // focused project's root) is present; pass it so the read resolves the
-          // focused project (== the window root, so resolveRoot is identical).
-          if (rel && s.root) {
-            const file = await window.airlock.readFile(s.root, rel);
-            s.setSelected(rel, file);
-          }
+          // Open as an editor tab in the focused tab (openEditorFile reads the
+          // focused project's root, then store.openFile).
+          if (rel) await openEditorFile(s.activeTabId, rel);
           break;
         }
         case "new-tab": {
@@ -38,15 +35,13 @@ export function useMenuActions(): void {
           break;
         }
         case "close-editor": {
-          // Return the viewer-pane to the full-terminal state, exactly like the
-          // Viewer's X button. setSelected(null, null) already clears
-          // diff/settings/dbView via the store's mutual-exclusion, but we clear
-          // every occupant explicitly so this stays correct regardless of which
-          // one is showing.
-          s.setDiff(null);
-          s.setSettingsOpen(false);
-          s.setDbView(null);
-          s.setSelected(null, null);
+          // Close whatever the content area is showing: an overlay
+          // (diff/settings/db) if one is up, otherwise the active editor tab.
+          if (s.diff) s.setDiff(null);
+          else if (s.settingsOpen) s.setSettingsOpen(false);
+          else if (s.dbView) s.setDbView(null);
+          else if (s.selectedFile)
+            await closeEditorFile(s.activeTabId, s.selectedFile);
           break;
         }
         case "close-folder": {

@@ -192,8 +192,13 @@ function bootstrap(): void {
     if (process.platform !== "darwin") app.quit();
   });
 
-  // Re-open a window when the dock icon is clicked and none are open.
+  // Re-open a window when the dock icon is clicked and none are open. Guard on
+  // app.isReady(): on macOS "activate" can fire DURING launch, before "ready",
+  // and createWindow() before ready throws ("Cannot create BrowserWindow before
+  // app is ready"). The initial window is created in whenReady() above, so a
+  // pre-ready activate safely no-ops here.
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (app.isReady() && BrowserWindow.getAllWindows().length === 0)
+      createWindow();
   });
 }
