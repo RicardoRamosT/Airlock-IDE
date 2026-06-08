@@ -45,10 +45,12 @@ export function scanForSecrets(
     const line = lines[i] ?? "";
     const lineNo = i + 1;
     for (const s of values) {
-      if (line.includes(s.value)) add(lineNo, { kind: "vaulted", name: s.name });
+      if (line.includes(s.value))
+        add(lineNo, { kind: "vaulted", name: s.name });
     }
     for (const p of SECRET_PATTERNS) {
-      if (p.re.test(line)) add(lineNo, { kind: "pattern", patternType: p.patternType });
+      if (p.re.test(line))
+        add(lineNo, { kind: "pattern", patternType: p.patternType });
     }
   }
   return findings;
