@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { MAX_FILE_BYTES, readWorkspaceFile } from "./read";
+import { MAX_FILE_BYTES, readImageDataUrl, readWorkspaceFile } from "./read";
 
 let root: string;
 
@@ -33,5 +33,40 @@ describe("readWorkspaceFile", () => {
     await expect(readWorkspaceFile(root, "../../etc/hosts")).rejects.toThrow(
       /escapes workspace/,
     );
+  });
+
+  it("flags small text as non-binary with its size", async () => {
+    const f = await readWorkspaceFile(root, "small.txt");
+    expect(f.binary).toBe(false);
+    expect(f.size).toBe(13); // "hello airlock"
+  });
+
+  it("treats a file containing a NUL byte as binary (empty content)", async () => {
+    await writeFile(
+      path.join(root, "blob.bin"),
+      Buffer.from([0x50, 0x00, 0x4e]),
+    );
+    const f = await readWorkspaceFile(root, "blob.bin");
+    expect(f.binary).toBe(true);
+    expect(f.content).toBe("");
+  });
+});
+
+describe("readImageDataUrl", () => {
+  it("readImageDataUrl returns a data URL for a png", async () => {
+    await writeFile(
+      path.join(root, "x.png"),
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    );
+    const r = await readImageDataUrl(root, "x.png");
+    expect(r.tooLarge).toBe(false);
+    expect(r.dataUrl.startsWith("data:image/png;base64,")).toBe(true);
+  });
+
+  it("readImageDataUrl flags an over-cap file as tooLarge", async () => {
+    await writeFile(path.join(root, "huge.png"), Buffer.alloc(100));
+    const r = await readImageDataUrl(root, "huge.png", 50);
+    expect(r.tooLarge).toBe(true);
+    expect(r.dataUrl).toBe("");
   });
 });
