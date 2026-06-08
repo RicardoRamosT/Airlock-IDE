@@ -3,6 +3,7 @@ import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
 import { ProjectTabs } from "./components/ProjectTabs";
 import { RenderConnectModal } from "./components/RenderConnectModal";
+import { SearchPanel } from "./components/SearchPanel";
 import { SecretModal } from "./components/SecretModal";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
@@ -23,6 +24,7 @@ export function App() {
   useFsWatch();
   const modal = useApp((s) => s.modal);
   const activeTabId = useApp((s) => s.activeTabId);
+  const searchOpen = useApp((s) => s.searchOpen);
   const split = useApp((s) => s.split);
   // Show the split ONLY when the focused tab is a member of the pair: switching
   // to a non-pair tab hides the split (the pair persists in `split`), switching
@@ -63,6 +65,7 @@ export function App() {
         {modal === "connect-neon" && <NeonConnectModal />}
         {modal === "connect-render" && <RenderConnectModal />}
         <Palette />
+        {searchOpen && <SearchPanel />}
       </div>
     </TerminalSlotsProvider>
   );
