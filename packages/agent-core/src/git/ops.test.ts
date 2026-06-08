@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   commitStaged,
   createBranch,
+  gitFetch,
+  gitPull,
+  gitPush,
   headSha,
   listBranches,
   originRemoteUrl,
@@ -82,6 +85,48 @@ describe("git ops", () => {
     const s = await gitStatus(root);
     expect(s.staged).toEqual([]);
     expect(s.untracked).toEqual(["new.txt"]);
+  });
+});
+
+async function makeRepoWithOrigin(): Promise<{ root: string; origin: string }> {
+  const origin = await mkdtemp(path.join(tmpdir(), "airlock-origin-"));
+  await runGit(origin, ["init", "--bare", "-b", "main"]);
+  const root = await mkdtemp(path.join(tmpdir(), "airlock-clone-"));
+  await runGit(root, ["init", "-b", "main"]);
+  await runGit(root, ["config", "user.email", "t@airlock.local"]);
+  await runGit(root, ["config", "user.name", "T"]);
+  await runGit(root, ["remote", "add", "origin", origin]);
+  await writeFile(path.join(root, "a.txt"), "one\n");
+  await runGit(root, ["add", "."]);
+  await runGit(root, ["commit", "-m", "init"]);
+  return { root, origin };
+}
+
+describe("git sync", () => {
+  it("gitPush publishes (sets upstream) on first push", async () => {
+    const { root } = await makeRepoWithOrigin();
+    expect((await gitStatus(root)).branch.upstream).toBeNull();
+    await gitPush(root);
+    expect((await gitStatus(root)).branch.upstream).toBe("origin/main");
+  });
+
+  it("gitFetch then gitPull --ff-only fast-forwards a clone behind origin", async () => {
+    const { root, origin } = await makeRepoWithOrigin();
+    await gitPush(root); // publish main to origin
+    // A second clone advances origin by one commit.
+    const other = await mkdtemp(path.join(tmpdir(), "airlock-other-"));
+    await runGit(other, ["clone", origin, "."]);
+    await runGit(other, ["config", "user.email", "t2@airlock.local"]);
+    await runGit(other, ["config", "user.name", "T2"]);
+    await writeFile(path.join(other, "b.txt"), "two\n");
+    await runGit(other, ["add", "."]);
+    await runGit(other, ["commit", "-m", "second"]);
+    await runGit(other, ["push"]);
+    // Back in root: fetch makes it see it is behind, pull fast-forwards.
+    await gitFetch(root);
+    expect((await gitStatus(root)).branch.behind).toBe(1);
+    await gitPull(root);
+    expect((await gitStatus(root)).branch.behind).toBe(0);
   });
 });
 

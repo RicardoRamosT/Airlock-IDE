@@ -84,3 +84,37 @@ export async function originRemoteUrl(root: string): Promise<string | null> {
 export async function headSha(root: string, ref = "HEAD"): Promise<string> {
   return (await runGit(root, ["rev-parse", ref])).trim();
 }
+
+// Remote sync. All shell out to git, so the user's configured credential helper /
+// SSH keys apply (like the terminal). pull is --ff-only: a diverged branch fails
+// cleanly with a message instead of opening a merge-message editor in our no-TTY
+// child process (which would hang). push auto-publishes when there is no upstream.
+export async function gitFetch(root: string): Promise<void> {
+  await runGit(root, ["fetch"]);
+}
+
+export async function gitPull(root: string): Promise<void> {
+  await runGit(root, ["pull", "--ff-only"]);
+}
+
+export async function gitPush(root: string): Promise<void> {
+  let hasUpstream = true;
+  try {
+    await runGit(root, [
+      "rev-parse",
+      "--abbrev-ref",
+      "--symbolic-full-name",
+      "@{u}",
+    ]);
+  } catch {
+    hasUpstream = false;
+  }
+  if (hasUpstream) {
+    await runGit(root, ["push"]);
+    return;
+  }
+  const branch = (
+    await runGit(root, ["symbolic-ref", "--short", "HEAD"])
+  ).trim();
+  await runGit(root, ["push", "-u", "origin", branch]);
+}

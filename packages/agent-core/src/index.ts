@@ -61,6 +61,9 @@ export {
 export {
   commitStaged,
   createBranch,
+  gitFetch,
+  gitPull,
+  gitPush,
   headSha,
   listBranches,
   originRemoteUrl,
