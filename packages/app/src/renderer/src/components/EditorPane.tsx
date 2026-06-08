@@ -9,6 +9,7 @@ import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
+import { openEditorFile } from "../lib/editorFiles";
 import { languageExtensionForPath } from "../lib/language";
 import { toCmCompletions } from "../lib/lspCompletions";
 import { toCmDiagnostics } from "../lib/lspDiagnostics";
@@ -93,6 +94,33 @@ export function makeLspHover(
       },
     };
   });
+}
+
+// Jump to a symbol's definition. Flushes the document to the server first (like
+// completion/hover), asks for textDocument/definition, and reuses openEditorFile
+// to open/switch + reveal the target. A null result (no def, non-symbol, or a
+// target outside the workspace) is a silent no-op.
+export async function goToDefinition(
+  root: string,
+  relPath: string,
+  tabId: string,
+  sync: () => Promise<void>,
+  docText: string,
+  pos: number,
+): Promise<void> {
+  try {
+    await sync();
+    const { line, character } = positionAt(docText, pos);
+    const def = await window.airlock.lspDefinition(
+      root,
+      relPath,
+      line,
+      character,
+    );
+    if (def) await openEditorFile(tabId, def.relPath, def.line);
+  } catch (err) {
+    console.error("[lsp] go-to-definition failed", err);
+  }
 }
 
 // Editable CodeMirror with debounced autosave. One instance per open file
@@ -183,6 +211,26 @@ export function EditorPane({
                   ],
                 }),
                 makeLspHover(root, relPath, syncLspNow),
+                EditorView.domEventHandlers({
+                  mousedown(event, view) {
+                    if (!event.metaKey) return false;
+                    const pos = view.posAtCoords({
+                      x: event.clientX,
+                      y: event.clientY,
+                    });
+                    if (pos == null) return false;
+                    event.preventDefault(); // suppress cursor/selection on this click
+                    void goToDefinition(
+                      root,
+                      relPath,
+                      tabId,
+                      syncLspNow,
+                      view.state.doc.toString(),
+                      pos,
+                    );
+                    return true;
+                  },
+                }),
               ]
             : []),
           ...languageExtensionForPath(relPath),
