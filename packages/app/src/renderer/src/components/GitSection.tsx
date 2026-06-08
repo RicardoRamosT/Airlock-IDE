@@ -16,6 +16,7 @@ export function GitSection() {
   const [message, setMessage] = useState("");
   const [newBranch, setNewBranch] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!root) return;
@@ -50,9 +51,16 @@ export function GitSection() {
       await op();
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // refresh() clears the error on success, so refresh FIRST then set the
+      // error last -- otherwise the message flashes for a frame and vanishes.
       await refresh();
+      setError(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  const sync = (op: () => Promise<unknown>) => {
+    setSyncing(true);
+    void run(op).finally(() => setSyncing(false));
   };
 
   const showDiff = async (path: string, which: "staged" | "unstaged") => {
@@ -105,6 +113,37 @@ export function GitSection() {
             ↑{status.branch.ahead} ↓{status.branch.behind}
           </span>
         )}
+      </div>
+      <div className="git-sync-row">
+        <button
+          type="button"
+          className="git-sync-btn"
+          title="Fetch"
+          disabled={syncing}
+          onClick={() => sync(() => window.airlock.gitFetch(root))}
+        >
+          Fetch
+        </button>
+        <button
+          type="button"
+          className="git-sync-btn"
+          title="Pull (fast-forward only)"
+          disabled={syncing}
+          onClick={() => sync(() => window.airlock.gitPull(root))}
+        >
+          Pull{status.branch.behind > 0 ? ` ${status.branch.behind}` : ""}
+        </button>
+        <button
+          type="button"
+          className="git-sync-btn"
+          title={status.branch.upstream ? "Push" : "Publish branch"}
+          disabled={syncing}
+          onClick={() => sync(() => window.airlock.gitPush(root))}
+        >
+          {status.branch.upstream
+            ? `Push${status.branch.ahead > 0 ? ` ${status.branch.ahead}` : ""}`
+            : "Publish"}
+        </button>
       </div>
       {newBranch !== null && (
         <form

@@ -2309,3 +2309,27 @@ textarea:focus-visible {
   font-size: 12px;
   color: var(--fg-dim);
 }
+
+/* Git sync buttons (Fetch / Pull / Push|Publish) under the branch row. */
+.git-sync-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+.git-sync-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.git-sync-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+.git-sync-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
