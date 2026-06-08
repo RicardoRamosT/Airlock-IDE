@@ -4,6 +4,7 @@ import type {
   AgentCommandResult,
   AirlockApi,
   FsChangedEvent,
+  LspDiagnostic,
   MenuAction,
   PtyDataEvent,
   PtyExitEvent,
@@ -131,6 +132,17 @@ const api: AirlockApi = {
   agentCommandResult: (id, result: AgentCommandResult) =>
     ipcRenderer.send("agent:command-result", { id, result }),
   onFsChanged: (cb) => subscribe<FsChangedEvent>("fs:changed", cb),
+  lspDidOpen: (root, relPath, languageId, version, text) =>
+    ipcRenderer.invoke("lsp:didOpen", root, relPath, languageId, version, text),
+  lspDidChange: (root, relPath, version, text) =>
+    ipcRenderer.invoke("lsp:didChange", root, relPath, version, text),
+  lspDidClose: (root, relPath) =>
+    ipcRenderer.invoke("lsp:didClose", root, relPath),
+  onLspDiagnostics: (cb) =>
+    subscribe<{ root: string; relPath: string; diagnostics: LspDiagnostic[] }>(
+      "lsp:diagnostics",
+      cb,
+    ),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

@@ -6,6 +6,7 @@
 import path, { basename } from "node:path";
 import { BrowserWindow, type WebContents } from "electron";
 import { disposeWindowWatchers } from "./fsWatch";
+import { syncLspServers } from "./lsp/client";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
 // The SET of roots the user currently has open in each window (every tab's
@@ -29,6 +30,13 @@ export function setWindowRoots(
 ): void {
   const id = winIdForSender(e.sender);
   if (id !== null) windowRoots.set(id, new Set(roots));
+}
+
+// The union of roots open across ALL windows (for per-root resource lifecycle).
+export function allOpenRoots(): string[] {
+  const out = new Set<string>();
+  for (const roots of windowRoots.values()) for (const r of roots) out.add(r);
+  return [...out];
 }
 
 // Whether `root` is one of the roots the sender's window currently has open.
@@ -130,6 +138,7 @@ export function createWindow(): BrowserWindow {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
     disposeWindowWatchers(win.id);
+    syncLspServers(allOpenRoots());
     if (lastFocusedId === win.id) {
       lastFocusedId =
         BrowserWindow.getFocusedWindow()?.id ??

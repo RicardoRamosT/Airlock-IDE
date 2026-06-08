@@ -71,9 +71,17 @@ import {
   renderServicesStatus,
   resolveDevUrl,
 } from "./ide-state";
+import {
+  lspDidChange,
+  lspDidClose,
+  lspDidOpen,
+  onLspDiagnostics,
+  syncLspServers,
+} from "./lsp/client";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
 import {
+  allOpenRoots,
   clearRootForEvent,
   isOpenRoot,
   lastFocusedRoot,
@@ -195,6 +203,14 @@ export function registerIpc(
     ? path.join(path.dirname(prefsFile), "audit-global.jsonl")
     : "";
 
+  // Register the LSP diagnostics sink once: broadcast to every open window.
+  onLspDiagnostics((e) => {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.webContents.isDestroyed())
+        w.webContents.send("lsp:diagnostics", e);
+    }
+  });
+
   // Open a workspace at a known path: set root, record the folder in recents
   // (most-recent-first, deduped, capped), and rebuild the menu so Open Recent
   // reflects it.
@@ -260,6 +276,7 @@ export function registerIpc(
       const list = roots.filter((r): r is string => typeof r === "string");
       setWindowRoots(e, list);
       syncWindowWatchers(e.sender, list);
+      syncLspServers(allOpenRoots());
     }
   });
 
@@ -373,6 +390,49 @@ export function registerIpc(
       );
     },
   );
+
+  ipcMain.handle(
+    "lsp:didOpen",
+    (
+      e,
+      root: unknown,
+      relPath: unknown,
+      languageId: unknown,
+      version: unknown,
+      text: unknown,
+    ) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof languageId !== "string" ||
+        typeof version !== "number" ||
+        typeof text !== "string"
+      )
+        throw new Error("Invalid payload");
+      return lspDidOpen(
+        resolveRoot(e, root),
+        relPath,
+        languageId,
+        version,
+        text,
+      );
+    },
+  );
+  ipcMain.handle(
+    "lsp:didChange",
+    (e, root: unknown, relPath: unknown, version: unknown, text: unknown) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof version !== "number" ||
+        typeof text !== "string"
+      )
+        throw new Error("Invalid payload");
+      return lspDidChange(resolveRoot(e, root), relPath, version, text);
+    },
+  );
+  ipcMain.handle("lsp:didClose", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    return lspDidClose(resolveRoot(e, root), relPath);
+  });
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),
