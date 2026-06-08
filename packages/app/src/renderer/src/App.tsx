@@ -1,4 +1,5 @@
 import { NeonConnectModal } from "./components/NeonConnectModal";
+import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
 import { ProjectTabs } from "./components/ProjectTabs";
 import { RenderConnectModal } from "./components/RenderConnectModal";
@@ -61,6 +62,7 @@ export function App() {
         )}
         {modal === "connect-neon" && <NeonConnectModal />}
         {modal === "connect-render" && <RenderConnectModal />}
+        <Palette />
       </div>
     </TerminalSlotsProvider>
   );
