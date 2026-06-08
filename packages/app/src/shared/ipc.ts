@@ -197,6 +197,10 @@ export interface AppPrefs {
   mcp?: { port: number; token: string };
 }
 
+export interface FsChangedEvent {
+  root: string;
+}
+
 export interface PtyDataEvent {
   id: string;
   data: string;
@@ -382,4 +386,8 @@ export interface AirlockApi {
     cb: (p: { id: string; cmd: AgentCommand }) => void,
   ): () => void;
   agentCommandResult(id: string, result: AgentCommandResult): void;
+  // The main-process chokidar watcher pushes this (debounced) whenever anything
+  // changes under an open root -- user ops, the agent's terminal, git. The
+  // FileTree re-lists. NO file contents cross; just the root that changed.
+  onFsChanged(cb: (e: FsChangedEvent) => void): () => void;
 }

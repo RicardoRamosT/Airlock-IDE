@@ -49,6 +49,7 @@
     "@vscode/codicons": "^0.0.45",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "chokidar": "^5.0.0",
     "codemirror": "^6.0.2",
     "node-pty": "^1.1.0",
     "react": "^19.2.7",

@@ -5,6 +5,7 @@
 // main.
 import path, { basename } from "node:path";
 import { BrowserWindow, type WebContents } from "electron";
+import { disposeWindowWatchers } from "./fsWatch";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
 // The SET of roots the user currently has open in each window (every tab's
@@ -128,6 +129,7 @@ export function createWindow(): BrowserWindow {
   win.on("closed", () => {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
+    disposeWindowWatchers(win.id);
     if (lastFocusedId === win.id) {
       lastFocusedId =
         BrowserWindow.getFocusedWindow()?.id ??

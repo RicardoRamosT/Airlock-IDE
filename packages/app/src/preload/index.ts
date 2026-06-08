@@ -3,6 +3,7 @@ import type {
   AgentCommand,
   AgentCommandResult,
   AirlockApi,
+  FsChangedEvent,
   MenuAction,
   PtyDataEvent,
   PtyExitEvent,
@@ -117,6 +118,7 @@ const api: AirlockApi = {
     subscribe<{ id: string; cmd: AgentCommand }>("agent:command", cb),
   agentCommandResult: (id, result: AgentCommandResult) =>
     ipcRenderer.send("agent:command-result", { id, result }),
+  onFsChanged: (cb) => subscribe<FsChangedEvent>("fs:changed", cb),
 };
 
 contextBridge.exposeInMainWorld("airlock", api);

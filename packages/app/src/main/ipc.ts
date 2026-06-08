@@ -51,6 +51,7 @@ import {
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
+import { syncWindowWatchers } from "./fsWatch";
 import {
   dockerStatus,
   gitStatusFor,
@@ -245,10 +246,9 @@ export function registerIpc(
   // handler at a project the user actually opened (no arbitrary-path access).
   ipcMain.handle("workspace:roots", (e, roots: unknown) => {
     if (Array.isArray(roots)) {
-      setWindowRoots(
-        e,
-        roots.filter((r): r is string => typeof r === "string"),
-      );
+      const list = roots.filter((r): r is string => typeof r === "string");
+      setWindowRoots(e, list);
+      syncWindowWatchers(e.sender, list);
     }
   });
 
