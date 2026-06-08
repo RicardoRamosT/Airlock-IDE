@@ -51,8 +51,10 @@ export function GitSection() {
       await op();
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // refresh() clears the error on success, so refresh FIRST then set the
+      // error last -- otherwise the message flashes for a frame and vanishes.
       await refresh();
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
