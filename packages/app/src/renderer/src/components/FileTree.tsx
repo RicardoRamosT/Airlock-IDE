@@ -20,7 +20,7 @@ type Editing =
 // Right-click target. A null kind means the tree background (create in root).
 type Menu =
   | { x: number; y: number; kind: "file"; relPath: string }
-  | { x: number; y: number; kind: "dir"; relPath: string; hasChildren: boolean }
+  | { x: number; y: number; kind: "dir"; relPath: string }
   | { x: number; y: number; kind: "bg" }
   | null;
 
@@ -209,13 +209,7 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation(); // do not also fire the tree-background (root) menu
-          openMenu({
-            x: e.clientX,
-            y: e.clientY,
-            kind: "dir",
-            relPath,
-            hasChildren: (children?.length ?? 0) > 0,
-          });
+          openMenu({ x: e.clientX, y: e.clientY, kind: "dir", relPath });
         }}
       >
         <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
@@ -296,18 +290,11 @@ export function FileTree() {
     if (!root) return;
     await window.airlock.duplicateFile(root, relPath);
   };
-  const doTrash = async (
-    relPath: string,
-    isDir: boolean,
-    hasChildren: boolean,
-  ) => {
+  const doTrash = async (relPath: string, isDir: boolean) => {
     if (!root) return;
-    if (
-      isDir &&
-      hasChildren &&
-      !window.confirm(`Delete "${relPath}" and its contents?`)
-    )
-      return;
+    // A folder may contain things we cannot see from a collapsed row, so always
+    // confirm a folder delete. Files go straight to Trash (recoverable).
+    if (isDir && !window.confirm(`Delete "${relPath}"?`)) return;
     await window.airlock.trashFile(root, relPath);
     // Close any open editor at/under the deleted path.
     for (const p of useApp.getState().tabState[tabId]?.editorTabs ?? []) {
@@ -422,11 +409,7 @@ export function FileTree() {
                   type="button"
                   className="menu-item"
                   onClick={() => {
-                    void doTrash(
-                      menu.relPath,
-                      menu.kind === "dir",
-                      menu.kind === "dir" && menu.hasChildren,
-                    );
+                    void doTrash(menu.relPath, menu.kind === "dir");
                     setMenu(null);
                   }}
                 >
