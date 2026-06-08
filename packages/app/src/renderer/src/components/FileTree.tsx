@@ -8,6 +8,13 @@ function join(parent: string, name: string): string {
   return parent === "." ? name : `${parent}/${name}`;
 }
 
+// The containing directory of a relPath ("." for a top-level entry). Used to
+// resolve a drop ONTO a file to that file's folder, and the same-parent no-op.
+function parentOf(rel: string): string {
+  const i = rel.lastIndexOf("/");
+  return i >= 0 ? rel.slice(0, i) : ".";
+}
+
 // What is currently being inline-edited. `create-*` shows a fresh empty input
 // row under `parentRel` (the folder to create in); `rename` swaps a node's
 // label for an input prefilled with its current name.
@@ -34,6 +41,11 @@ interface TreeCtl {
   doCreateFile: (parentRel: string, name: string) => Promise<void>;
   doCreateDir: (parentRel: string, name: string) => Promise<void>;
   doRename: (relPath: string, newName: string) => Promise<void>;
+  // Drag-and-drop move
+  dragged: string | null;
+  setDragged: (relPath: string | null) => void;
+  canDropInto: (targetDirRel: string) => boolean;
+  doMove: (toDirRel: string) => Promise<void>;
 }
 const TreeCtlContext = createContext<TreeCtl | null>(null);
 const useTreeCtl = (): TreeCtl => {
@@ -124,7 +136,19 @@ function Node({ entry, parent }: { entry: DirEntry; parent: string }) {
 function FileNode({ name, relPath }: { name: string; relPath: string }) {
   const tabId = useProjectTab();
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
-  const { editing, setEditing, openMenu, doRename } = useTreeCtl();
+  const {
+    editing,
+    setEditing,
+    openMenu,
+    doRename,
+    setDragged,
+    canDropInto,
+    doMove,
+  } = useTreeCtl();
+  const [over, setOver] = useState(false);
+  // Dropping ONTO a file targets that file's folder (VS Code-like), so a drop
+  // near a file does the intuitive thing instead of falling through to the root.
+  const dropDir = parentOf(relPath);
 
   if (editing?.kind === "rename" && editing.relPath === relPath) {
     return (
@@ -140,7 +164,8 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
   return (
     <button
       type="button"
-      className={`tree-item${selectedFile === relPath ? " selected" : ""}`}
+      className={`tree-item${selectedFile === relPath ? " selected" : ""}${over ? " drop-target" : ""}`}
+      draggable
       // Open as an editor tab in THIS pane (openEditorFile reads the pane's
       // project root, then store.openFile -- scoped via tabId).
       onClick={() => void openEditorFile(tabId, relPath)}
@@ -148,6 +173,29 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
         e.preventDefault();
         e.stopPropagation(); // do not also fire the tree-background (root) menu
         openMenu({ x: e.clientX, y: e.clientY, kind: "file", relPath });
+      }}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", relPath);
+        setDragged(relPath);
+      }}
+      onDragEnd={() => {
+        setDragged(null);
+        setOver(false);
+      }}
+      onDragOver={(e) => {
+        if (!canDropInto(dropDir)) return;
+        e.preventDefault();
+        e.stopPropagation(); // innermost target wins; don't bubble to the root
+        e.dataTransfer.dropEffect = "move";
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(false);
+        void doMove(dropDir);
       }}
     >
       <i className="codicon codicon-file" />
@@ -162,8 +210,18 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
   const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
-  const { editing, setEditing, openMenu, doCreateFile, doCreateDir, doRename } =
-    useTreeCtl();
+  const [over, setOver] = useState(false);
+  const {
+    editing,
+    setEditing,
+    openMenu,
+    doCreateFile,
+    doCreateDir,
+    doRename,
+    setDragged,
+    canDropInto,
+    doMove,
+  } = useTreeCtl();
 
   // Reload children whenever this dir is open and the tree changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fsVersion is an invalidation trigger, not used in the body
@@ -203,13 +261,37 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
     <div>
       <button
         type="button"
-        className="tree-item dir"
+        className={`tree-item dir${over ? " drop-target" : ""}`}
+        draggable
         // Creating inside a collapsed dir: expand so the input row is visible.
         onClick={() => setOpen((o) => !o)}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation(); // do not also fire the tree-background (root) menu
           openMenu({ x: e.clientX, y: e.clientY, kind: "dir", relPath });
+        }}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", relPath);
+          setDragged(relPath);
+        }}
+        onDragEnd={() => {
+          setDragged(null);
+          setOver(false);
+        }}
+        onDragOver={(e) => {
+          if (!canDropInto(relPath)) return;
+          e.preventDefault();
+          e.stopPropagation(); // innermost folder wins; don't bubble to the root
+          e.dataTransfer.dropEffect = "move";
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOver(false);
+          void doMove(relPath);
         }}
       >
         <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
@@ -250,6 +332,8 @@ export function FileTree() {
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [menu, setMenu] = useState<Menu>(null);
+  const [dragged, setDragged] = useState<string | null>(null);
+  const [rootOver, setRootOver] = useState(false);
 
   // The FILES header's New File/Folder buttons signal a create-at-root here.
   useEffect(() => {
@@ -316,6 +400,28 @@ export function FileTree() {
     }
   };
 
+  const canDropInto = (toDirRel: string): boolean => {
+    if (!dragged) return false;
+    if (parentOf(dragged) === toDirRel) return false; // already there
+    // cannot drop a folder into itself or its own descendant
+    if (toDirRel === dragged || toDirRel.startsWith(`${dragged}/`))
+      return false;
+    return true;
+  };
+
+  const doMove = async (toDirRel: string) => {
+    if (!root || !dragged || !canDropInto(toDirRel)) return;
+    const base = dragged.slice(dragged.lastIndexOf("/") + 1);
+    const toRel = join(toDirRel, base);
+    try {
+      await window.airlock.moveFile(root, dragged, toRel);
+      renameFilePath(dragged, toRel, tabId); // open editors follow the move
+    } catch (err) {
+      // e.g. destination already exists -- leave things as they are.
+      console.error("move failed", err);
+    }
+  };
+
   const ctl: TreeCtl = {
     editing,
     setEditing,
@@ -323,6 +429,10 @@ export function FileTree() {
     doCreateFile,
     doCreateDir,
     doRename,
+    dragged,
+    setDragged,
+    canDropInto,
+    doMove,
   };
 
   if (!root) return null;
@@ -343,10 +453,26 @@ export function FileTree() {
           stopPropagation so this fires only on genuine background clicks. */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: container right-click affordance (New File/Folder in root), not a focusable control */}
       <div
-        className="tree"
+        className={`tree${rootOver ? " drop-target-root" : ""}`}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, kind: "bg" });
+        }}
+        // Dropping on empty space (rows stopPropagation) moves to the root.
+        onDragOver={(e) => {
+          if (!canDropInto(".")) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setRootOver(true);
+        }}
+        // Clear on any leave: moving onto a row clears the root highlight (the
+        // row stopPropagations its own dragover), and dragover re-asserts it the
+        // moment the pointer is back over empty space.
+        onDragLeave={() => setRootOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setRootOver(false);
+          void doMove(".");
         }}
       >
         {editing?.kind === "create-file" && editing.parentRel === "." && (

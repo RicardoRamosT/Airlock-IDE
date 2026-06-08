@@ -479,6 +479,21 @@ body,
   color: var(--fg-dim);
 }
 
+/* Drag-drop move: the hovered drop target (a folder, a file's row -> its
+   folder) and the whole tree when dropping to the project root. */
+.tree-item.drop-target {
+  background: var(--selected);
+  outline: 1px solid var(--accent, #4a9eff);
+  outline-offset: -1px;
+  border-radius: 4px;
+}
+
+.tree.drop-target-root {
+  outline: 1px dashed var(--accent, #4a9eff);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
 .tree-children {
   padding-left: 14px;
 }
