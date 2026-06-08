@@ -44,6 +44,15 @@ export type {
   SecretMeta,
 };
 
+export interface LspDiagnostic {
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+  severity: number; // LSP: 1 error, 2 warning, 3 info, 4 hint
+  message: string;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
@@ -424,4 +433,28 @@ export interface AirlockApi {
   // changes under an open root -- user ops, the agent's terminal, git. The
   // FileTree re-lists. NO file contents cross; just the root that changed.
   onFsChanged(cb: (e: FsChangedEvent) => void): () => void;
+  // Language server (slice 1: diagnostics). The renderer syncs the open doc;
+  // diagnostics are pushed back. NO secret value crosses -- only file paths +
+  // the text the user is editing.
+  lspDidOpen(
+    root: string,
+    relPath: string,
+    languageId: string,
+    version: number,
+    text: string,
+  ): Promise<void>;
+  lspDidChange(
+    root: string,
+    relPath: string,
+    version: number,
+    text: string,
+  ): Promise<void>;
+  lspDidClose(root: string, relPath: string): Promise<void>;
+  onLspDiagnostics(
+    cb: (e: {
+      root: string;
+      relPath: string;
+      diagnostics: LspDiagnostic[];
+    }) => void,
+  ): () => void;
 }
