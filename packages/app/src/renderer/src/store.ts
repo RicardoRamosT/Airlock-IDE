@@ -329,6 +329,10 @@ interface AppState {
   setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
+  // The command/quick-open palette overlay (window-level, one per window).
+  palette: { mode: "files" | "commands" } | null;
+  openPalette: (mode: "files" | "commands") => void;
+  closePalette: () => void;
   setLayoutHydrated: (v: boolean) => void;
   fsVersion: Record<string, number>;
   bumpFsVersion: (root: string) => void;
@@ -1207,6 +1211,9 @@ export const useApp = create<AppState>((set) => ({
     set((s) => ({
       fsVersion: { ...s.fsVersion, [root]: (s.fsVersion[root] ?? 0) + 1 },
     })),
+  palette: null,
+  openPalette: (mode) => set({ palette: { mode } }),
+  closePalette: () => set({ palette: null }),
   fileOrder: {},
   // Pull a root's saved order map into the store. Idempotent -- a re-load just
   // refreshes it. Triggered by a FileTree effect on root change (a later task).
