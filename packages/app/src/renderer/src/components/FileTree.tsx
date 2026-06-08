@@ -1,7 +1,14 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  type DragEvent,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { DirEntry } from "../../../shared/ipc";
 import { openEditorFile } from "../lib/editorFiles";
-import { applyOrder } from "../lib/fileOrder";
+import { applyOrder, dropZone, reorderNames } from "../lib/fileOrder";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
@@ -47,6 +54,15 @@ interface TreeCtl {
   setDragged: (relPath: string | null) => void;
   canDropInto: (targetDirRel: string) => boolean;
   doMove: (toDirRel: string) => Promise<void>;
+  // Reorder `draggedRel` to before/after `targetName` within `folderRel`, using
+  // the folder's currently displayed `siblings` names. Persists via the store.
+  reorder: (
+    folderRel: string,
+    draggedRel: string,
+    targetName: string,
+    place: "before" | "after",
+    siblings: string[],
+  ) => Promise<void>;
 }
 const TreeCtlContext = createContext<TreeCtl | null>(null);
 const useTreeCtl = (): TreeCtl => {
@@ -54,6 +70,88 @@ const useTreeCtl = (): TreeCtl => {
   if (!ctl) throw new Error("TreeCtl missing");
   return ctl;
 };
+
+// One drag-and-drop brain per tree row. The pointer band decides intent:
+// dropping on a SIBLING row's top/bottom edge reorders within the folder; a
+// folder's middle (or any cross-folder drag) MOVES, exactly as before. `parent`
+// is the row's container relpath; `siblings` is that container's currently
+// displayed entry names (post-applyOrder).
+type RowIndicator = "into" | "before" | "after" | null;
+function useRowDnd(
+  relPath: string,
+  parent: string,
+  siblings: string[],
+  isDir: boolean,
+) {
+  const { dragged, setDragged, canDropInto, doMove, reorder } = useTreeCtl();
+  const [indicator, setIndicator] = useState<RowIndicator>(null);
+  const name = relPath.slice(relPath.lastIndexOf("/") + 1);
+  const draggedName = dragged
+    ? dragged.slice(dragged.lastIndexOf("/") + 1)
+    : "";
+
+  const onDragStart = (e: DragEvent<HTMLButtonElement>) => {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", relPath);
+    setDragged(relPath);
+  };
+  const onDragEnd = () => {
+    setDragged(null);
+    setIndicator(null);
+  };
+  const onDragOver = (e: DragEvent<HTMLButtonElement>) => {
+    if (!dragged) return;
+    const sibling = parentOf(dragged) === parent;
+    const z = dropZone(
+      e.currentTarget.getBoundingClientRect(),
+      e.clientY,
+      isDir,
+    );
+    if (sibling && (z === "before" || z === "after")) {
+      if (name === draggedName) return; // never reorder a row against itself
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      setIndicator(z);
+      return;
+    }
+    // Move intent (existing behavior): a dir takes the drop INTO itself; a file
+    // resolves to its own folder. Cross-folder drags always land here.
+    const target = isDir ? relPath : parent;
+    if (!canDropInto(target)) {
+      setIndicator(null);
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    setIndicator("into");
+  };
+  const onDragLeave = () => setIndicator(null);
+  const onDrop = (e: DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ind = indicator;
+    setIndicator(null);
+    if (!dragged) return;
+    if (ind === "before" || ind === "after") {
+      void reorder(parent, dragged, name, ind, siblings);
+    } else {
+      void doMove(isDir ? relPath : parent);
+    }
+  };
+  // Map the indicator to a className suffix: "into" reuses the move-into
+  // highlight; before/after draw an insertion line above/below the row.
+  const cls =
+    indicator === "into"
+      ? " drop-target"
+      : indicator === "before"
+        ? " insert-before"
+        : indicator === "after"
+          ? " insert-after"
+          : "";
+  return { cls, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop };
+}
 
 // Inline name input shared by create (empty) and rename (prefilled). Enter
 // commits via onCommit; Escape/blur cancels (onCancel). On a rejected commit
@@ -127,29 +225,50 @@ function NameInput({
   );
 }
 
-function Node({ entry, parent }: { entry: DirEntry; parent: string }) {
+function Node({
+  entry,
+  parent,
+  siblings,
+}: {
+  entry: DirEntry;
+  parent: string;
+  siblings: string[];
+}) {
   const relPath = join(parent, entry.name);
   if (entry.type === "dir")
-    return <DirNode name={entry.name} relPath={relPath} />;
-  return <FileNode name={entry.name} relPath={relPath} />;
+    return (
+      <DirNode
+        name={entry.name}
+        relPath={relPath}
+        parent={parent}
+        siblings={siblings}
+      />
+    );
+  return (
+    <FileNode
+      name={entry.name}
+      relPath={relPath}
+      parent={parent}
+      siblings={siblings}
+    />
+  );
 }
 
-function FileNode({ name, relPath }: { name: string; relPath: string }) {
+function FileNode({
+  name,
+  relPath,
+  parent,
+  siblings,
+}: {
+  name: string;
+  relPath: string;
+  parent: string;
+  siblings: string[];
+}) {
   const tabId = useProjectTab();
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
-  const {
-    editing,
-    setEditing,
-    openMenu,
-    doRename,
-    setDragged,
-    canDropInto,
-    doMove,
-  } = useTreeCtl();
-  const [over, setOver] = useState(false);
-  // Dropping ONTO a file targets that file's folder (VS Code-like), so a drop
-  // near a file does the intuitive thing instead of falling through to the root.
-  const dropDir = parentOf(relPath);
+  const { editing, setEditing, openMenu, doRename } = useTreeCtl();
+  const dnd = useRowDnd(relPath, parent, siblings, false);
 
   if (editing?.kind === "rename" && editing.relPath === relPath) {
     return (
@@ -165,7 +284,7 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
   return (
     <button
       type="button"
-      className={`tree-item${selectedFile === relPath ? " selected" : ""}${over ? " drop-target" : ""}`}
+      className={`tree-item${selectedFile === relPath ? " selected" : ""}${dnd.cls}`}
       draggable
       // Open as an editor tab in THIS pane (openEditorFile reads the pane's
       // project root, then store.openFile -- scoped via tabId).
@@ -175,29 +294,11 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
         e.stopPropagation(); // do not also fire the tree-background (root) menu
         openMenu({ x: e.clientX, y: e.clientY, kind: "file", relPath });
       }}
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", relPath);
-        setDragged(relPath);
-      }}
-      onDragEnd={() => {
-        setDragged(null);
-        setOver(false);
-      }}
-      onDragOver={(e) => {
-        if (!canDropInto(dropDir)) return;
-        e.preventDefault();
-        e.stopPropagation(); // innermost target wins; don't bubble to the root
-        e.dataTransfer.dropEffect = "move";
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setOver(false);
-        void doMove(dropDir);
-      }}
+      onDragStart={dnd.onDragStart}
+      onDragEnd={dnd.onDragEnd}
+      onDragOver={dnd.onDragOver}
+      onDragLeave={dnd.onDragLeave}
+      onDrop={dnd.onDrop}
     >
       <i className="codicon codicon-file" />
       {name}
@@ -205,7 +306,17 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
   );
 }
 
-function DirNode({ name, relPath }: { name: string; relPath: string }) {
+function DirNode({
+  name,
+  relPath,
+  parent,
+  siblings,
+}: {
+  name: string;
+  relPath: string;
+  parent: string;
+  siblings: string[];
+}) {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
@@ -214,18 +325,9 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
   );
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
-  const [over, setOver] = useState(false);
-  const {
-    editing,
-    setEditing,
-    openMenu,
-    doCreateFile,
-    doCreateDir,
-    doRename,
-    setDragged,
-    canDropInto,
-    doMove,
-  } = useTreeCtl();
+  const { editing, setEditing, openMenu, doCreateFile, doCreateDir, doRename } =
+    useTreeCtl();
+  const dnd = useRowDnd(relPath, parent, siblings, true);
 
   // Reload children whenever this dir is open and the tree changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fsVersion is an invalidation trigger, not used in the body
@@ -262,12 +364,13 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
   }
 
   const dirOrdered = applyOrder(children ?? [], folderOrder); // custom order for this dir
+  const dirNames = dirOrdered.map((e) => e.name);
 
   return (
     <div>
       <button
         type="button"
-        className={`tree-item dir${over ? " drop-target" : ""}`}
+        className={`tree-item dir${dnd.cls}`}
         draggable
         // Creating inside a collapsed dir: expand so the input row is visible.
         onClick={() => setOpen((o) => !o)}
@@ -276,29 +379,11 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
           e.stopPropagation(); // do not also fire the tree-background (root) menu
           openMenu({ x: e.clientX, y: e.clientY, kind: "dir", relPath });
         }}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", relPath);
-          setDragged(relPath);
-        }}
-        onDragEnd={() => {
-          setDragged(null);
-          setOver(false);
-        }}
-        onDragOver={(e) => {
-          if (!canDropInto(relPath)) return;
-          e.preventDefault();
-          e.stopPropagation(); // innermost folder wins; don't bubble to the root
-          e.dataTransfer.dropEffect = "move";
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setOver(false);
-          void doMove(relPath);
-        }}
+        onDragStart={dnd.onDragStart}
+        onDragEnd={dnd.onDragEnd}
+        onDragOver={dnd.onDragOver}
+        onDragLeave={dnd.onDragLeave}
+        onDrop={dnd.onDrop}
       >
         <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
         {name}
@@ -320,7 +405,7 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
             />
           )}
           {dirOrdered.map((c) => (
-            <Node key={c.name} entry={c} parent={relPath} />
+            <Node key={c.name} entry={c} parent={relPath} siblings={dirNames} />
           ))}
         </div>
       )}
@@ -334,6 +419,7 @@ export function FileTree() {
   const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
   const rootOrder = useApp((s) => (root ? s.fileOrder[root] : undefined));
   const loadFileOrder = useApp((s) => s.loadFileOrder);
+  const setFolderOrder = useApp((s) => s.setFolderOrder);
   useEffect(() => {
     if (root) void loadFileOrder(root);
   }, [root, loadFileOrder]);
@@ -433,6 +519,27 @@ export function FileTree() {
     }
   };
 
+  // Reorder within one folder: move draggedRel before/after targetName among
+  // the folder's currently displayed `siblings`, then persist. A no-op (same
+  // resulting order) is skipped so an idle drop never marks a folder customized.
+  const reorder = async (
+    folderRel: string,
+    draggedRel: string,
+    targetName: string,
+    place: "before" | "after",
+    siblings: string[],
+  ) => {
+    if (!root) return;
+    const draggedName = draggedRel.slice(draggedRel.lastIndexOf("/") + 1);
+    const next = reorderNames(siblings, draggedName, targetName, place);
+    if (
+      next.length === siblings.length &&
+      next.every((n, i) => n === siblings[i])
+    )
+      return;
+    await setFolderOrder(root, folderRel, next);
+  };
+
   const ctl: TreeCtl = {
     editing,
     setEditing,
@@ -444,12 +551,14 @@ export function FileTree() {
     setDragged,
     canDropInto,
     doMove,
+    reorder,
   };
 
   if (!root) return null;
   if (!entries) return <div className="tree-empty">loading…</div>;
 
   const rootOrdered = applyOrder(entries, rootOrder?.["."]); // custom order for the root level
+  const rootNames = rootOrdered.map((e) => e.name);
 
   // The folder a "New File/Folder" lands in for the current menu target: a file
   // creates in its PARENT, a dir creates INSIDE itself, the background in root.
@@ -503,7 +612,7 @@ export function FileTree() {
           />
         )}
         {rootOrdered.map((e) => (
-          <Node key={e.name} entry={e} parent="." />
+          <Node key={e.name} entry={e} parent="." siblings={rootNames} />
         ))}
       </div>
       {menu && (
