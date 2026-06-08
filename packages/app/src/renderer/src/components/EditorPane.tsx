@@ -1,3 +1,4 @@
+import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, keymap } from "@codemirror/view";
@@ -5,11 +6,15 @@ import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent } from "../../../shared/ipc";
 import { languageExtensionForPath } from "../lib/language";
+import { toCmDiagnostics } from "../lib/lspDiagnostics";
+import { lspLanguageId } from "../lib/lspLanguage";
 import { useApp } from "../store";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
 // flushes immediately (the effect cleanup), so nothing is lost on navigation.
 const AUTOSAVE_MS = 800;
+// Debounce window for pushing full-text changes to the language server.
+const LSP_DEBOUNCE_MS = 300;
 type SaveState = "idle" | "unsaved" | "saved";
 
 // Editable CodeMirror with debounced autosave. One instance per open file
@@ -34,6 +39,7 @@ export function EditorPane({
   const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const editable = !file.truncated;
+  const lspLang = lspLanguageId(relPath);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -41,6 +47,8 @@ export function EditorPane({
     setSaveState("idle");
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let lspTimer: ReturnType<typeof setTimeout> | undefined;
+    let lspVersion = 1;
     let dirty = false;
 
     // Write pending edits now. Clears the debounce timer; no-op when clean.
@@ -68,6 +76,7 @@ export function EditorPane({
           basicSetup,
           ...(theme === "dark" ? [oneDark] : []),
           EditorView.theme({ "&": { height: "100%" } }),
+          lintGutter(),
           ...languageExtensionForPath(relPath),
           ...(editable
             ? [
@@ -77,6 +86,18 @@ export function EditorPane({
                   setSaveState("unsaved");
                   if (timer) clearTimeout(timer);
                   timer = setTimeout(flush, AUTOSAVE_MS);
+                  if (lspLang) {
+                    if (lspTimer) clearTimeout(lspTimer);
+                    lspTimer = setTimeout(() => {
+                      lspVersion += 1;
+                      void window.airlock.lspDidChange(
+                        root,
+                        relPath,
+                        lspVersion,
+                        view.state.doc.toString(),
+                      );
+                    }, LSP_DEBOUNCE_MS);
+                  }
                 }),
                 keymap.of([
                   {
@@ -95,13 +116,24 @@ export function EditorPane({
       parent: host,
     });
     viewRef.current = view;
+    if (lspLang) {
+      void window.airlock.lspDidOpen(
+        root,
+        relPath,
+        lspLang,
+        lspVersion,
+        file.content,
+      );
+    }
 
     return () => {
       flush(); // flush before the editor goes away (file switch / unmount)
+      if (lspTimer) clearTimeout(lspTimer);
+      if (lspLang) void window.airlock.lspDidClose(root, relPath);
       view.destroy();
       viewRef.current = null;
     };
-  }, [root, relPath, file, theme, editable]);
+  }, [root, relPath, file, theme, editable, lspLang]);
 
   // When a caller (e.g. search) reveals this file in this pane, scroll + select
   // to the line. The nonce in `reveal` is in the deps so repeated reveals of the
@@ -115,6 +147,22 @@ export function EditorPane({
     view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
     view.focus();
   }, [reveal, tabId, relPath]);
+
+  // Render diagnostics pushed by the language server for THIS file.
+  useEffect(() => {
+    if (!lspLang) return;
+    return window.airlock.onLspDiagnostics((e) => {
+      if (e.root !== root || e.relPath !== relPath) return;
+      const view = viewRef.current;
+      if (!view) return;
+      view.dispatch(
+        setDiagnostics(
+          view.state,
+          toCmDiagnostics(view.state.doc.toString(), e.diagnostics),
+        ),
+      );
+    });
+  }, [lspLang, root, relPath]);
 
   return (
     <div className="editor-pane">
