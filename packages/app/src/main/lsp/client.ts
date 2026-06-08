@@ -9,7 +9,11 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
-import type { LspCompletionItem, LspDefinition, LspDiagnostic } from "../../shared/ipc";
+import type {
+  LspCompletionItem,
+  LspDefinition,
+  LspDiagnostic,
+} from "../../shared/ipc";
 import { firstDefinitionLocation } from "./definition";
 
 // One typescript-language-server child per workspace root (it needs the project
