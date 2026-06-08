@@ -3,6 +3,9 @@ import { isIgnored } from "./fsWatch";
 
 it("ignores the committed order file (no re-list churn on write)", () => {
   expect(isIgnored("/proj/.airlock-order.json")).toBe(true);
+  // The atomic-write temp file must also be ignored, so the brief tmp -> rename
+  // never fires a stray add (belt-and-suspenders vs awaitWriteFinish).
+  expect(isIgnored("/proj/.airlock-order.json.tmp")).toBe(true);
 });
 it("ignores the vault and VCS/build dirs", () => {
   expect(isIgnored("/proj/.airlock/names.json")).toBe(true);
