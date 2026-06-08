@@ -61,6 +61,10 @@ export interface LspCompletionItem {
   insertText?: string;
 }
 
+export interface LspHover {
+  contents: string;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
@@ -465,4 +469,16 @@ export interface AirlockApi {
       diagnostics: LspDiagnostic[];
     }) => void,
   ): () => void;
+  lspHover(
+    root: string,
+    relPath: string,
+    line: number,
+    character: number,
+  ): Promise<LspHover | null>;
+  lspCompletion(
+    root: string,
+    relPath: string,
+    line: number,
+    character: number,
+  ): Promise<LspCompletionItem[]>;
 }

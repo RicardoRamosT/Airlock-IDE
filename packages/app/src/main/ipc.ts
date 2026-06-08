@@ -72,9 +72,11 @@ import {
   resolveDevUrl,
 } from "./ide-state";
 import {
+  lspCompletion,
   lspDidChange,
   lspDidClose,
   lspDidOpen,
+  lspHover,
   onLspDiagnostics,
   syncLspServers,
 } from "./lsp/client";
@@ -433,6 +435,30 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     return lspDidClose(resolveRoot(e, root), relPath);
   });
+  ipcMain.handle(
+    "lsp:hover",
+    (e, root: unknown, relPath: unknown, line: unknown, character: unknown) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof line !== "number" ||
+        typeof character !== "number"
+      )
+        throw new Error("Invalid payload");
+      return lspHover(resolveRoot(e, root), relPath, line, character);
+    },
+  );
+  ipcMain.handle(
+    "lsp:completion",
+    (e, root: unknown, relPath: unknown, line: unknown, character: unknown) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof line !== "number" ||
+        typeof character !== "number"
+      )
+        throw new Error("Invalid payload");
+      return lspCompletion(resolveRoot(e, root), relPath, line, character);
+    },
+  );
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),
