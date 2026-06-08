@@ -26,6 +26,11 @@ export function buildCommands(s: AppState, goToFiles: () => void): Command[] {
   const cmds: Command[] = [
     { id: "go-to-file", title: "Go to File", run: goToFiles },
     {
+      id: "find-in-files",
+      title: "Find in Files",
+      run: () => s.setSearchOpen(true),
+    },
+    {
       id: "open-folder",
       title: "Open Folder...",
       run: async () => {

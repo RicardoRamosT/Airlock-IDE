@@ -3,6 +3,7 @@ import type {
   FileContent,
   GitStatus,
   ProjectConfig,
+  SearchResults,
   SecretMeta,
   SectionVisibility,
 } from "../../shared/ipc";
@@ -333,6 +334,16 @@ export interface AppState {
   palette: { mode: "files" | "commands" } | null;
   openPalette: (mode: "files" | "commands") => void;
   closePalette: () => void;
+  // Find-in-files (window-level, like the palette). searchOpen = panel visible;
+  // search = the last query + its results (kept so reopening is instant).
+  searchOpen: boolean;
+  search: { query: string; results: SearchResults } | null;
+  setSearchOpen: (v: boolean) => void;
+  setSearchResults: (query: string, results: SearchResults) => void;
+  // A one-shot "scroll the editor to this line" signal, keyed by tabId+path and
+  // consumed by EditorPane. nonce makes repeated clicks on the same line retrigger.
+  reveal: { tabId: string; path: string; line: number; nonce: number } | null;
+  revealLine: (tabId: string, path: string, line: number) => void;
   setLayoutHydrated: (v: boolean) => void;
   fsVersion: Record<string, number>;
   bumpFsVersion: (root: string) => void;
@@ -1214,6 +1225,15 @@ export const useApp = create<AppState>((set) => ({
   palette: null,
   openPalette: (mode) => set({ palette: { mode } }),
   closePalette: () => set({ palette: null }),
+  searchOpen: false,
+  search: null,
+  setSearchOpen: (v) => set({ searchOpen: v }),
+  setSearchResults: (query, results) => set({ search: { query, results } }),
+  reveal: null,
+  revealLine: (tabId, path, line) =>
+    set((s) => ({
+      reveal: { tabId, path, line, nonce: (s.reveal?.nonce ?? 0) + 1 },
+    })),
   fileOrder: {},
   // Pull a root's saved order map into the store. Idempotent -- a re-load just
   // refreshes it. Triggered by a FileTree effect on root change (a later task).

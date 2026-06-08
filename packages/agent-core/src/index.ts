@@ -160,6 +160,12 @@ export {
   readWorkspaceFile,
 } from "./workspace/read";
 export {
+  type SearchFileResult,
+  type SearchMatch,
+  type SearchResults,
+  searchProject,
+} from "./workspace/search";
+export {
   type DirEntry,
   type FileList,
   listDirectory,

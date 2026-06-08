@@ -15,6 +15,9 @@ import type {
   NeonProject,
   ProjectConfig,
   QueryResult,
+  SearchFileResult,
+  SearchMatch,
+  SearchResults,
   SecretMeta,
 } from "@airlock/agent-core";
 
@@ -35,6 +38,9 @@ export type {
   NeonProject,
   ProjectConfig,
   QueryResult,
+  SearchFileResult,
+  SearchMatch,
+  SearchResults,
   SecretMeta,
 };
 
@@ -130,7 +136,8 @@ export type MenuAction =
   | { type: "close-editor" }
   | { type: "close-folder" }
   | { type: "quick-open" }
-  | { type: "command-palette" };
+  | { type: "command-palette" }
+  | { type: "find-in-files" };
 
 /**
  * An IDE-control command dispatched main -> renderer over the agent:command
@@ -259,6 +266,9 @@ export interface AirlockApi {
   // Flat list of every file relpath in the project (palette quick-open). Honors
   // the same IGNORED set as the tree; capped, with `truncated` set when hit.
   listAllFiles(root: string): Promise<{ files: string[]; truncated: boolean }>;
+  // Search file contents across the project (find-in-files). Case-insensitive
+  // substring; results grouped by file; capped (truncated flag).
+  searchProject(root: string, query: string): Promise<SearchResults>;
   // Manual file ordering (USER action; per-folder custom order persisted to a
   // committed .airlock-order.json at the project root, path-confined). getFileOrder
   // returns the whole map for a root (folderRel -> ordered names); setFileOrder

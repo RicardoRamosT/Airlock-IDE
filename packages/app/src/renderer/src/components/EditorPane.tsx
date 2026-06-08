@@ -5,6 +5,7 @@ import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent } from "../../../shared/ipc";
 import { languageExtensionForPath } from "../lib/language";
+import { useApp } from "../store";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
 // flushes immediately (the effect cleanup), so nothing is lost on navigation.
@@ -16,17 +17,21 @@ type SaveState = "idle" | "unsaved" | "saved";
 // cleanup flushes the outgoing file. A TRUNCATED file (read cap exceeded) is
 // shown read-only -- saving a prefix would destroy the rest on disk.
 export function EditorPane({
+  tabId,
   root,
   relPath,
   file,
   theme,
 }: {
+  tabId: string;
   root: string;
   relPath: string;
   file: FileContent;
   theme: "dark" | "light";
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const editable = !file.truncated;
 
@@ -89,12 +94,27 @@ export function EditorPane({
       }),
       parent: host,
     });
+    viewRef.current = view;
 
     return () => {
       flush(); // flush before the editor goes away (file switch / unmount)
       view.destroy();
+      viewRef.current = null;
     };
   }, [root, relPath, file, theme, editable]);
+
+  // When a caller (e.g. search) reveals this file in this pane, scroll + select
+  // to the line. The nonce in `reveal` is in the deps so repeated reveals of the
+  // same line retrigger; the line is clamped to the document.
+  useEffect(() => {
+    if (!reveal || reveal.tabId !== tabId || reveal.path !== relPath) return;
+    const view = viewRef.current;
+    if (!view) return;
+    const lineNo = Math.max(1, Math.min(reveal.line, view.state.doc.lines));
+    const pos = view.state.doc.line(lineNo).from;
+    view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+    view.focus();
+  }, [reveal, tabId, relPath]);
 
   return (
     <div className="editor-pane">

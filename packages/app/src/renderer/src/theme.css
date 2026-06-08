@@ -2242,3 +2242,70 @@ textarea:focus-visible {
   color: var(--fg-dim);
   font-size: 13px;
 }
+
+/* Find-in-files panel (window-level overlay; reuses .palette-backdrop). */
+.search-panel {
+  position: fixed;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, 92vw);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  z-index: 51;
+  overflow: hidden;
+}
+.search-results {
+  overflow-y: auto;
+}
+.search-file {
+  padding: 4px 0;
+}
+.search-file-head {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+}
+.search-count {
+  opacity: 0.7;
+}
+.search-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 3px 12px 3px 24px;
+  font-size: 13px;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-row:hover {
+  background: var(--selected);
+}
+.search-line {
+  color: var(--fg-dim);
+  min-width: 36px;
+  text-align: right;
+}
+.search-preview b {
+  color: var(--accent);
+}
+.search-empty,
+.search-foot {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}

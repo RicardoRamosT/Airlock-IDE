@@ -131,6 +131,7 @@ export function ProjectPane({
         ) : (
           <EditorPane
             key={relPath}
+            tabId={tabId}
             root={root}
             relPath={relPath}
             file={content}
