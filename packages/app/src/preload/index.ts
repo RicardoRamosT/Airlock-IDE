@@ -29,6 +29,13 @@ const api: AirlockApi = {
   readFile: (root, relPath) => ipcRenderer.invoke("fs:readFile", root, relPath),
   writeFile: (root, relPath, content) =>
     ipcRenderer.invoke("fs:writeFile", root, relPath, content),
+  createFile: (root, relPath) => ipcRenderer.invoke("fs:create", root, relPath),
+  createDir: (root, relPath) => ipcRenderer.invoke("fs:mkdir", root, relPath),
+  moveFile: (root, fromRel, toRel) =>
+    ipcRenderer.invoke("fs:move", root, fromRel, toRel),
+  duplicateFile: (root, relPath) =>
+    ipcRenderer.invoke("fs:duplicate", root, relPath),
+  trashFile: (root, relPath) => ipcRenderer.invoke("fs:trash", root, relPath),
   ptyCreate: (cols, rows) => ipcRenderer.invoke("pty:create", cols, rows),
   ptyInput: (id, data) => ipcRenderer.send("pty:input", { id, data }),
   ptyResize: (id, cols, rows) =>

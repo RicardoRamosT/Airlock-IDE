@@ -143,6 +143,12 @@ export {
 export { normalizeRepoUrl } from "./render/parse";
 export { redactedPreview, redactedTail } from "./terminal/tail";
 export {
+  createDir,
+  createFile,
+  duplicate,
+  move,
+} from "./workspace/fileOps";
+export {
   type FileContent,
   MAX_FILE_BYTES,
   readWorkspaceFile,

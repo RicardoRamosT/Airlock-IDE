@@ -232,6 +232,15 @@ export interface AirlockApi {
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;
+  // File management (USER actions; path-confined to the pane root). create/mkdir
+  // fail if the target exists; move covers rename + the future drag-drop;
+  // duplicate returns the new relPath; trash sends to the OS Trash (recoverable).
+  // The .airlock vault dir is rejected by the handlers (defense in depth).
+  createFile(root: string, relPath: string): Promise<void>;
+  createDir(root: string, relPath: string): Promise<void>;
+  moveFile(root: string, fromRel: string, toRel: string): Promise<void>;
+  duplicateFile(root: string, relPath: string): Promise<string>;
+  trashFile(root: string, relPath: string): Promise<void>;
   ptyCreate(cols: number, rows: number): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;

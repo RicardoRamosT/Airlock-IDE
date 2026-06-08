@@ -4,10 +4,13 @@ import {
   appendAudit,
   commitStaged,
   createBranch,
+  createDir,
+  createFile,
   createPtySession,
   deleteSecret,
   dockerStart,
   dockerStop,
+  duplicate,
   filterDangerousEnv,
   getGlobalSecret,
   getSecretValue,
@@ -20,6 +23,7 @@ import {
   listDirectory,
   listSecrets,
   listTables,
+  move,
   neonConnectionUri,
   type PtySession,
   parseConnString,
@@ -32,6 +36,7 @@ import {
   redactConnStrings,
   redactedPreview,
   redactedTail,
+  resolveWithin,
   runGit,
   setGlobalSecret,
   setSecret,
@@ -108,6 +113,13 @@ function resolveRoot(
   if (typeof explicit === "string" && explicit && isOpenRoot(e, explicit))
     return explicit;
   return requireRoot(e);
+}
+
+// Reject any path whose first segment is the .airlock vault dir (metadata; never
+// mutated from the UI). Defense in depth -- the FileTree never shows .airlock.
+function assertNotVault(relPath: string): void {
+  const first = relPath.split(/[/\\]/)[0];
+  if (first === ".airlock") throw new Error("The .airlock folder is protected");
 }
 
 // Whether the shell with this pid has a running child process. Used by
@@ -274,6 +286,39 @@ export function registerIpc(
       return writeWorkspaceFile(resolveRoot(e, root), relPath, content);
     },
   );
+
+  ipcMain.handle("fs:create", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return createFile(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:mkdir", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return createDir(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle(
+    "fs:move",
+    (e, root: unknown, fromRel: unknown, toRel: unknown) => {
+      if (typeof fromRel !== "string" || typeof toRel !== "string")
+        throw new Error("Invalid payload");
+      assertNotVault(fromRel);
+      assertNotVault(toRel);
+      return move(resolveRoot(e, root), fromRel, toRel);
+    },
+  );
+  ipcMain.handle("fs:duplicate", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return duplicate(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:trash", async (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    // resolveWithin returns the absolute, root-confined path for shell.trashItem.
+    const abs = await resolveWithin(resolveRoot(e, root), relPath);
+    await shell.trashItem(abs);
+  });
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),
