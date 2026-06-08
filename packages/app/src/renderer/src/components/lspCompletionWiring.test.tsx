@@ -28,7 +28,11 @@ function makeView(doc: string, extra: Extension[]) {
     state: EditorState.create({
       doc,
       selection: { anchor: doc.length },
-      extensions: [basicSetup, javascript({ jsx: true, typescript: true }), ...extra],
+      extensions: [
+        basicSetup,
+        javascript({ jsx: true, typescript: true }),
+        ...extra,
+      ],
     }),
     parent,
   });
@@ -57,13 +61,21 @@ describe("CodeMirror completion wiring", () => {
     const source: CompletionSource = vi.fn(async (ctx) => {
       const word = ctx.matchBefore(/[\w$]*/);
       if (!word) return null;
-      return { from: word.from, options: [{ label: "toUpperCase" }], validFor: /[\w$]*/ };
+      return {
+        from: word.from,
+        options: [{ label: "toUpperCase" }],
+        validFor: /[\w$]*/,
+      };
     });
-    const view = makeView('"hello".to', [autocompletion({ override: [source] })]);
+    const view = makeView('"hello".to', [
+      autocompletion({ override: [source] }),
+    ]);
     startCompletion(view);
     await settle(view);
     expect(source).toHaveBeenCalled();
-    expect(currentCompletions(view.state).map((c) => c.label)).toContain("toUpperCase");
+    expect(currentCompletions(view.state).map((c) => c.label)).toContain(
+      "toUpperCase",
+    );
   });
 
   it("renders NO menu when items don't match the typed prefix (the stale-server symptom)", async () => {
@@ -72,11 +84,15 @@ describe("CodeMirror completion wiring", () => {
       if (!word) return null;
       return {
         from: word.from,
-        options: ["abstract", "boolean", "string", "switch", "symbol"].map((label) => ({ label })),
+        options: ["abstract", "boolean", "string", "switch", "symbol"].map(
+          (label) => ({ label }),
+        ),
         validFor: /[\w$]*/,
       };
     };
-    const view = makeView('"hello".to', [autocompletion({ override: [source] })]);
+    const view = makeView('"hello".to', [
+      autocompletion({ override: [source] }),
+    ]);
     startCompletion(view);
     await settle(view, 250);
     expect(currentCompletions(view.state).map((c) => c.label)).toEqual([]);
@@ -88,14 +104,20 @@ describe("CodeMirror completion wiring", () => {
       if (!word) return null;
       return {
         from: word.from,
-        options: ["toUpperCase", "toLowerCase", "toString"].map((label) => ({ label })),
+        options: ["toUpperCase", "toLowerCase", "toString"].map((label) => ({
+          label,
+        })),
         validFor: /[\w$]*/,
       };
     };
-    const view = makeView('"hello".to', [autocompletion({ override: [source] })]);
+    const view = makeView('"hello".to', [
+      autocompletion({ override: [source] }),
+    ]);
     startCompletion(view);
     await settle(view);
-    expect(currentCompletions(view.state).map((c) => c.label)).toContain("toUpperCase");
+    expect(currentCompletions(view.state).map((c) => c.label)).toContain(
+      "toUpperCase",
+    );
   });
 });
 
@@ -106,7 +128,9 @@ describe("makeLspCompletionSource", () => {
       order.push("completion");
       return [{ label: "toUpperCase", kind: 2 }];
     });
-    (window as unknown as { airlock: { lspCompletion: typeof lspCompletion } }).airlock = {
+    (
+      window as unknown as { airlock: { lspCompletion: typeof lspCompletion } }
+    ).airlock = {
       lspCompletion,
     };
     const sync = vi.fn(async () => {
@@ -116,14 +140,17 @@ describe("makeLspCompletionSource", () => {
     const result = await src(ctxAfterDotTo());
     expect(order).toEqual(["sync", "completion"]); // flush first, then query
     expect(lspCompletion).toHaveBeenCalledWith("root", "a.ts", 0, 10);
-    const labels = result && "options" in result ? result.options.map((o) => o.label) : [];
+    const labels =
+      result && "options" in result ? result.options.map((o) => o.label) : [];
     expect(labels).toContain("toUpperCase");
   });
 
   it("returns null without calling the server when there is no word prefix", async () => {
     const sync = vi.fn(async () => {});
     const lspCompletion = vi.fn(async () => []);
-    (window as unknown as { airlock: { lspCompletion: typeof lspCompletion } }).airlock = {
+    (
+      window as unknown as { airlock: { lspCompletion: typeof lspCompletion } }
+    ).airlock = {
       lspCompletion,
     };
     const src = makeLspCompletionSource("root", "a.ts", sync);
@@ -141,7 +168,9 @@ describe("makeLspCompletionSource", () => {
   it("returns null when the server has no completions", async () => {
     const sync = vi.fn(async () => {});
     const lspCompletion = vi.fn(async () => []);
-    (window as unknown as { airlock: { lspCompletion: typeof lspCompletion } }).airlock = {
+    (
+      window as unknown as { airlock: { lspCompletion: typeof lspCompletion } }
+    ).airlock = {
       lspCompletion,
     };
     const src = makeLspCompletionSource("root", "a.ts", sync);

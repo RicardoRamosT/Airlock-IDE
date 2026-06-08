@@ -8,7 +8,7 @@ import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
-import type { FileContent } from "../../../shared/ipc";
+import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
 import { languageExtensionForPath } from "../lib/language";
 import { toCmCompletions } from "../lib/lspCompletions";
 import { toCmDiagnostics } from "../lib/lspDiagnostics";
@@ -38,17 +38,28 @@ export function makeLspCompletionSource(
   return async (context) => {
     const word = context.matchBefore(/[\w$]*/);
     if (!word || (word.from === word.to && !context.explicit)) return null;
-    await sync();
+    try {
+      await sync();
+    } catch (err) {
+      // A failed sync shouldn't suppress completion; the server may still answer.
+      console.error("[lsp] document sync before completion failed", err);
+    }
     const { line, character } = positionAt(
       context.state.doc.toString(),
       context.pos,
     );
-    const items = await window.airlock.lspCompletion(
-      root,
-      relPath,
-      line,
-      character,
-    );
+    let items: LspCompletionItem[];
+    try {
+      items = await window.airlock.lspCompletion(
+        root,
+        relPath,
+        line,
+        character,
+      );
+    } catch (err) {
+      console.error("[lsp] completion request failed", err);
+      return null;
+    }
     if (items.length === 0) return null;
     return {
       from: word.from,
@@ -64,7 +75,11 @@ export function makeLspHover(
   sync: () => Promise<void>,
 ): Extension {
   return hoverTooltip(async (view, pos) => {
-    await sync();
+    try {
+      await sync();
+    } catch (err) {
+      console.error("[lsp] document sync before hover failed", err);
+    }
     const { line, character } = positionAt(view.state.doc.toString(), pos);
     const r = await window.airlock.lspHover(root, relPath, line, character);
     if (!r) return null;
@@ -163,7 +178,9 @@ export function EditorPane({
           ...(lspLang
             ? [
                 autocompletion({
-                  override: [makeLspCompletionSource(root, relPath, syncLspNow)],
+                  override: [
+                    makeLspCompletionSource(root, relPath, syncLspNow),
+                  ],
                 }),
                 makeLspHover(root, relPath, syncLspNow),
               ]

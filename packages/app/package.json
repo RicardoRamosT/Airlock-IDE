@@ -27,6 +27,10 @@
       {
         "from": "resources/mcp-docs",
         "to": "mcp-docs"
+      },
+      {
+        "from": "../../node_modules/typescript",
+        "to": "ts-lib"
       }
     ],
     "mac": {

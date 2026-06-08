@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolveWithin } from "@airlock/agent-core";
@@ -47,10 +48,22 @@ function uriToRel(root: string, uri: string): string | null {
   }
 }
 
-// Resolve the bundled tsserver so diagnostics work in the packaged app even for
-// a project that has no typescript of its own. Bundled via the app's typescript
-// dependency; best-effort (undefined lets ts-language-server fall back).
+// Resolve a tsserver whose standard library is intact. In the packaged app,
+// electron-builder strips .d.ts from the asar-bundled typescript, so its
+// tsserver cannot resolve built-in types (string/array/etc. members, or
+// type-aware diagnostics) -- it parses the file but reports zero members. We
+// ship the whole typescript package via extraResources (to: ts-lib), preserving
+// its lib/ layout, and point tsserver at ts-lib/lib/tsserver.js. tsserver locates
+// its lib files relative to the PACKAGE ROOT (the package.json one level above
+// lib/), so the directory structure -- not just the files -- must be intact.
+// Dev/tests have no app resourcesPath (or it points at Electron's own), so
+// existsSync fails and we fall back to the on-disk dependency, which is intact.
 function tsserverPath(): string | undefined {
+  const res = (process as { resourcesPath?: string }).resourcesPath;
+  if (res) {
+    const bundled = path.join(res, "ts-lib", "lib", "tsserver.js");
+    if (existsSync(bundled)) return bundled;
+  }
   try {
     return require.resolve("typescript/lib/tsserver.js");
   } catch {
