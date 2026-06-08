@@ -35,24 +35,33 @@ function FileNode({ name, relPath }: { name: string; relPath: string }) {
 function DirNode({ name, relPath }: { name: string; relPath: string }) {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
-  const toggle = async () => {
-    const next = !open;
-    setOpen(next);
-    // TODO: invalidate on workspace:changed once file-watching lands
-    if (next && children === null && root) {
-      try {
-        setChildren(await window.airlock.listDir(root, relPath));
-      } catch (err) {
-        console.error("listDir failed", err);
-        setOpen(false); // collapse back; otherwise arrow shows open with no children
-      }
-    }
-  };
+
+  // Reload children whenever this dir is open and the tree changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fsVersion is an invalidation trigger, not used in the body
+  useEffect(() => {
+    if (!open || !root) return;
+    let cancelled = false;
+    window.airlock
+      .listDir(root, relPath)
+      .then((c) => {
+        if (!cancelled) setChildren(c);
+      })
+      .catch((err) => console.error("listDir failed", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [open, root, relPath, fsVersion]);
+
   return (
     <div>
-      <button type="button" className="tree-item dir" onClick={toggle}>
+      <button
+        type="button"
+        className="tree-item dir"
+        onClick={() => setOpen((o) => !o)}
+      >
         <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
         {name}
       </button>
@@ -70,15 +79,17 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
 export function FileTree() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fsVersion is an invalidation trigger, not used in the body
   useEffect(() => {
     if (!root) {
       setEntries(null);
       return;
     }
     window.airlock.listDir(root, ".").then(setEntries).catch(console.error);
-  }, [root]);
+  }, [root, fsVersion]);
 
   if (!root) return null;
   if (!entries) return <div className="tree-empty">loading…</div>;

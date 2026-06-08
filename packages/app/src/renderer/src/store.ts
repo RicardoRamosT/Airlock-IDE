@@ -325,6 +325,8 @@ interface AppState {
   setSectionVisibility: (v: SectionVisibility) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
   setLayoutHydrated: (v: boolean) => void;
+  fsVersion: Record<string, number>;
+  bumpFsVersion: (root: string) => void;
 }
 
 // The top-level mirror fields for a given ProjectState (root + the per-project
@@ -1154,4 +1156,11 @@ export const useApp = create<AppState>((set) => ({
       }),
     ),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
+  fsVersion: {},
+  // Bump the freshness counter for a root so FileTrees on it re-list. Driven by
+  // the main-process fs:changed watcher (see useFsWatch).
+  bumpFsVersion: (root) =>
+    set((s) => ({
+      fsVersion: { ...s.fsVersion, [root]: (s.fsVersion[root] ?? 0) + 1 },
+    })),
 }));
