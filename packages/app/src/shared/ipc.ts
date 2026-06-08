@@ -197,6 +197,10 @@ export interface AppPrefs {
   mcp?: { port: number; token: string };
 }
 
+export interface FsChangedEvent {
+  root: string;
+}
+
 export interface PtyDataEvent {
   id: string;
   data: string;
@@ -232,6 +236,22 @@ export interface AirlockApi {
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;
+  // File management (USER actions; path-confined to the pane root). create/mkdir
+  // fail if the target exists; move covers rename + the future drag-drop;
+  // duplicate returns the new relPath; trash sends to the OS Trash (recoverable).
+  // The .airlock vault dir is rejected by the handlers (defense in depth).
+  createFile(root: string, relPath: string): Promise<void>;
+  createDir(root: string, relPath: string): Promise<void>;
+  moveFile(root: string, fromRel: string, toRel: string): Promise<void>;
+  duplicateFile(root: string, relPath: string): Promise<string>;
+  trashFile(root: string, relPath: string): Promise<void>;
+  // Manual file ordering (USER action; per-folder custom order persisted to a
+  // committed .airlock-order.json at the project root, path-confined). getFileOrder
+  // returns the whole map for a root (folderRel -> ordered names); setFileOrder
+  // writes one folder's order (empty names clears it). Pure view metadata -- NO
+  // file contents cross, only names the tree already shows.
+  getFileOrder(root: string): Promise<Record<string, string[]>>;
+  setFileOrder(root: string, folderRel: string, names: string[]): Promise<void>;
   ptyCreate(cols: number, rows: number): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
@@ -373,4 +393,8 @@ export interface AirlockApi {
     cb: (p: { id: string; cmd: AgentCommand }) => void,
   ): () => void;
   agentCommandResult(id: string, result: AgentCommandResult): void;
+  // The main-process chokidar watcher pushes this (debounced) whenever anything
+  // changes under an open root -- user ops, the agent's terminal, git. The
+  // FileTree re-lists. NO file contents cross; just the root that changed.
+  onFsChanged(cb: (e: FsChangedEvent) => void): () => void;
 }

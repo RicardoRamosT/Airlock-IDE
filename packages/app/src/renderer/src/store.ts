@@ -287,6 +287,11 @@ interface AppState {
   // cleared and the main area falls back to the terminal (the caller activates a
   // neighbor file first when one exists).
   closeEditorTab: (relPath: string, tabId?: string) => void;
+  // Rewrite every reference to `fromRel` in the tab's open editor tabs, tab
+  // order, splits, and current focus to `toRel`. Handles both exact-path renames
+  // and folder renames (any path that starts with `fromRel/` is rebased). Derived
+  // fields (selectedFile / mainPrimary / mainSecondary) are recomputed via setView.
+  renameFilePath: (fromRel: string, toRel: string, tabId?: string) => void;
   // Scene model. viewItem: focus `item` -> the main area shows its split (if it
   // is in one) or `item` alone; never destroys another split. splitItems: pair
   // `a` (left) with `b` (right) into a NEW coexisting split, pulling either out
@@ -325,6 +330,24 @@ interface AppState {
   setSectionVisibility: (v: SectionVisibility) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
   setLayoutHydrated: (v: boolean) => void;
+  fsVersion: Record<string, number>;
+  bumpFsVersion: (root: string) => void;
+  // Per-folder custom file order, keyed by root then folderRel ("." = that
+  // root's top level). Loaded from the committed .airlock-order.json
+  // (loadFileOrder) and written through on reorder (setFolderOrder). An absent
+  // folder key means default sort.
+  fileOrder: Record<string, Record<string, string[]>>;
+  loadFileOrder: (root: string) => Promise<void>;
+  setFolderOrder: (
+    root: string,
+    folderRel: string,
+    names: string[],
+  ) => Promise<void>;
+  // One-shot signal from the FILES header's New File/Folder buttons to that
+  // tab's FileTree, which opens an inline create input at the root and clears it.
+  newFileRequest: { tabId: string; kind: "file" | "dir" } | null;
+  requestNewFile: (tabId: string, kind: "file" | "dir") => void;
+  clearNewFileRequest: () => void;
 }
 
 // The top-level mirror fields for a given ProjectState (root + the per-project
@@ -921,6 +944,28 @@ export const useApp = create<AppState>((set) => ({
           : cur.current;
       return setView(s, tid, splits, current, { editorTabs, mainTabOrder });
     }),
+  renameFilePath: (fromRel, toRel, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      // Rebase a file path: exact match -> toRel; under fromRel/ -> toRel + rest.
+      const rebase = (p: string): string =>
+        p === fromRel
+          ? toRel
+          : p.startsWith(`${fromRel}/`)
+            ? toRel + p.slice(fromRel.length)
+            : p;
+      const mapItem = (it: PaneItem): PaneItem =>
+        it.kind === "file" ? { kind: "file", path: rebase(it.path) } : it;
+      const editorTabs = cur.editorTabs.map(rebase);
+      const mainTabOrder = cur.mainTabOrder.map(mapItem);
+      const splits = cur.splits.map(
+        (pair) => [mapItem(pair[0]), mapItem(pair[1])] as [PaneItem, PaneItem],
+      );
+      const current = cur.current ? mapItem(cur.current) : null;
+      return setView(s, tid, splits, current, { editorTabs, mainTabOrder });
+    }),
   viewItem: (item, tabId) =>
     set((s) => {
       const tid = tabId ?? s.activeTabId;
@@ -1154,4 +1199,47 @@ export const useApp = create<AppState>((set) => ({
       }),
     ),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
+  fsVersion: {},
+  newFileRequest: null,
+  // Bump the freshness counter for a root so FileTrees on it re-list. Driven by
+  // the main-process fs:changed watcher (see useFsWatch).
+  bumpFsVersion: (root) =>
+    set((s) => ({
+      fsVersion: { ...s.fsVersion, [root]: (s.fsVersion[root] ?? 0) + 1 },
+    })),
+  fileOrder: {},
+  // Pull a root's saved order map into the store. Idempotent -- a re-load just
+  // refreshes it. Triggered by a FileTree effect on root change (a later task).
+  loadFileOrder: async (root) => {
+    try {
+      const map = await window.airlock.getFileOrder(root);
+      set((s) => ({ fileOrder: { ...s.fileOrder, [root]: map } }));
+    } catch (err) {
+      console.error("loadFileOrder failed", err);
+    }
+  },
+  // Optimistically set one folder's order, then persist. On an IPC failure roll
+  // back to the previous order so the view matches what is on disk.
+  setFolderOrder: async (root, folderRel, names) => {
+    const prev = useApp.getState().fileOrder[root]?.[folderRel];
+    set((s) => {
+      const forRoot = { ...(s.fileOrder[root] ?? {}) };
+      if (names.length === 0) delete forRoot[folderRel];
+      else forRoot[folderRel] = names;
+      return { fileOrder: { ...s.fileOrder, [root]: forRoot } };
+    });
+    try {
+      await window.airlock.setFileOrder(root, folderRel, names);
+    } catch (err) {
+      console.error("setFolderOrder failed", err);
+      set((s) => {
+        const forRoot = { ...(s.fileOrder[root] ?? {}) };
+        if (prev === undefined) delete forRoot[folderRel];
+        else forRoot[folderRel] = prev;
+        return { fileOrder: { ...s.fileOrder, [root]: forRoot } };
+      });
+    }
+  },
+  requestNewFile: (tabId, kind) => set({ newFileRequest: { tabId, kind } }),
+  clearNewFileRequest: () => set({ newFileRequest: null }),
 }));

@@ -143,9 +143,25 @@ export {
 export { normalizeRepoUrl } from "./render/parse";
 export { redactedPreview, redactedTail } from "./terminal/tail";
 export {
+  createDir,
+  createFile,
+  duplicate,
+  move,
+} from "./workspace/fileOps";
+export {
+  type OrderMap,
+  readOrder,
+  writeFolderOrder,
+} from "./workspace/fileOrder";
+export {
   type FileContent,
   MAX_FILE_BYTES,
   readWorkspaceFile,
 } from "./workspace/read";
-export { type DirEntry, listDirectory, resolveWithin } from "./workspace/tree";
+export {
+  type DirEntry,
+  listDirectory,
+  resolveWithin,
+  targetsVault,
+} from "./workspace/tree";
 export { writeWorkspaceFile } from "./workspace/write";

@@ -1155,6 +1155,45 @@ describe("editor tabs (unified main pane)", () => {
     expect(get().tabState[id]?.settingsOpen).toBe(false);
     expect(get().tabState[id]?.mainPrimary).toBe("editor");
   });
+
+  it("renameFilePath rewrites an open file across editorTabs/order/splits/current", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE); // current = {file, a.ts}
+    get().renameFilePath("a.ts", "b.ts");
+    expect(get().tabState[id]?.editorTabs).toEqual(["b.ts"]);
+    expect(get().tabState[id]?.current).toEqual({ kind: "file", path: "b.ts" });
+    expect(get().tabState[id]?.selectedFile).toBe("b.ts");
+    expect(
+      get().tabState[id]?.mainTabOrder.some(
+        (it) => it.kind === "file" && it.path === "b.ts",
+      ),
+    ).toBe(true);
+  });
+
+  it("renameFilePath rewrites a file that is a split member", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: "t1" },
+    );
+    get().renameFilePath("a.ts", "b.ts");
+    expect(get().tabState[id]?.splits[0]?.[0]).toEqual({
+      kind: "file",
+      path: "b.ts",
+    });
+  });
+
+  it("renameFilePath rewrites nested files under a renamed folder", () => {
+    const id = tabIdAt(0);
+    get().openFile("src/a.ts", FILE);
+    get().renameFilePath("src", "lib"); // folder rename
+    expect(get().tabState[id]?.editorTabs).toEqual(["lib/a.ts"]);
+    expect(get().tabState[id]?.current).toEqual({
+      kind: "file",
+      path: "lib/a.ts",
+    });
+  });
 });
 
 describe("runningNotice", () => {

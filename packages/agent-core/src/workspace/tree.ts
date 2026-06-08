@@ -6,6 +6,11 @@ export interface DirEntry {
   type: "file" | "dir";
 }
 
+// The committed per-folder ordering file (see workspace/fileOrder.ts). Hidden
+// from the tree like .DS_Store, but -- unlike .airlock -- NOT gitignored, so a
+// project's custom order travels with it.
+export const ORDER_FILE = ".airlock-order.json";
+
 const IGNORED = new Set([
   "node_modules",
   ".git",
@@ -13,6 +18,7 @@ const IGNORED = new Set([
   "out",
   ".airlock",
   ".DS_Store",
+  ORDER_FILE,
 ]);
 
 // NOTE: Do not use multibyte chars (e.g. the section sign, copyright sign) in
@@ -64,6 +70,18 @@ export async function resolveWithin(
     throw new Error(`Path escapes workspace: ${relPath}`);
   }
   return real;
+}
+
+// True if relPath targets the .airlock vault dir at ANY depth, AFTER collapsing
+// "."/".." -- so "./.airlock/x", "sub/../.airlock/x", and "a/.airlock/b" are all
+// caught (a raw first-segment check would miss them). The vault holds secret
+// METADATA + the audit chain; UI file ops must never mutate it. Defense in depth:
+// listDirectory already hides .airlock (IGNORED), so the tree never emits it.
+export function targetsVault(relPath: string): boolean {
+  return path
+    .normalize(relPath)
+    .split(/[/\\]/)
+    .some((seg) => seg === ".airlock");
 }
 
 export async function listDirectory(

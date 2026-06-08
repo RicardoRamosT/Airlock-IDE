@@ -4,10 +4,13 @@ import {
   appendAudit,
   commitStaged,
   createBranch,
+  createDir,
+  createFile,
   createPtySession,
   deleteSecret,
   dockerStart,
   dockerStop,
+  duplicate,
   filterDangerousEnv,
   getGlobalSecret,
   getSecretValue,
@@ -20,32 +23,38 @@ import {
   listDirectory,
   listSecrets,
   listTables,
+  move,
   neonConnectionUri,
   type PtySession,
   parseConnString,
   pingDb,
   probePort,
   readAudit,
+  readOrder,
   readProjectConfig,
   readRows,
   readWorkspaceFile,
   redactConnStrings,
   redactedPreview,
   redactedTail,
+  resolveWithin,
   runGit,
   setGlobalSecret,
   setSecret,
   stageFiles,
   switchBranch,
   switchGhAccount,
+  targetsVault,
   unstageFiles,
   withDb,
+  writeFolderOrder,
   writeProjectConfig,
   writeWorkspaceFile,
 } from "@airlock/agent-core";
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
+import { syncWindowWatchers } from "./fsWatch";
 import {
   dockerStatus,
   gitStatusFor,
@@ -108,6 +117,15 @@ function resolveRoot(
   if (typeof explicit === "string" && explicit && isOpenRoot(e, explicit))
     return explicit;
   return requireRoot(e);
+}
+
+// Reject any path whose first segment is the .airlock vault dir (metadata; never
+// mutated from the UI). Defense in depth -- the FileTree never shows .airlock.
+function assertNotVault(relPath: string): void {
+  // targetsVault normalizes "."/".." and checks every segment, so bypasses like
+  // "./.airlock/x" or "sub/../.airlock/x" are caught (not just first-segment).
+  if (targetsVault(relPath))
+    throw new Error("The .airlock folder is protected");
 }
 
 // Whether the shell with this pid has a running child process. Used by
@@ -233,10 +251,9 @@ export function registerIpc(
   // handler at a project the user actually opened (no arbitrary-path access).
   ipcMain.handle("workspace:roots", (e, roots: unknown) => {
     if (Array.isArray(roots)) {
-      setWindowRoots(
-        e,
-        roots.filter((r): r is string => typeof r === "string"),
-      );
+      const list = roots.filter((r): r is string => typeof r === "string");
+      setWindowRoots(e, list);
+      syncWindowWatchers(e.sender, list);
     }
   });
 
@@ -272,6 +289,59 @@ export function registerIpc(
       if (typeof relPath !== "string" || typeof content !== "string")
         throw new Error("Invalid payload");
       return writeWorkspaceFile(resolveRoot(e, root), relPath, content);
+    },
+  );
+
+  ipcMain.handle("fs:create", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return createFile(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:mkdir", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return createDir(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle(
+    "fs:move",
+    (e, root: unknown, fromRel: unknown, toRel: unknown) => {
+      if (typeof fromRel !== "string" || typeof toRel !== "string")
+        throw new Error("Invalid payload");
+      assertNotVault(fromRel);
+      assertNotVault(toRel);
+      return move(resolveRoot(e, root), fromRel, toRel);
+    },
+  );
+  ipcMain.handle("fs:duplicate", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return duplicate(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:trash", async (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    // resolveWithin returns the absolute, root-confined path for shell.trashItem.
+    const abs = await resolveWithin(resolveRoot(e, root), relPath);
+    await shell.trashItem(abs);
+  });
+
+  ipcMain.handle("fileOrder:get", (e, root: unknown) =>
+    readOrder(resolveRoot(e, root)),
+  );
+  ipcMain.handle(
+    "fileOrder:set",
+    (e, root: unknown, folderRel: unknown, names: unknown) => {
+      if (
+        typeof folderRel !== "string" ||
+        !Array.isArray(names) ||
+        !allStr(names)
+      )
+        throw new Error("Invalid payload");
+      return writeFolderOrder(
+        resolveRoot(e, root),
+        folderRel,
+        names as string[],
+      );
     },
   );
 
