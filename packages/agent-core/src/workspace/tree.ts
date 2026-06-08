@@ -6,6 +6,11 @@ export interface DirEntry {
   type: "file" | "dir";
 }
 
+// The committed per-folder ordering file (see workspace/fileOrder.ts). Hidden
+// from the tree like .DS_Store, but -- unlike .airlock -- NOT gitignored, so a
+// project's custom order travels with it.
+export const ORDER_FILE = ".airlock-order.json";
+
 const IGNORED = new Set([
   "node_modules",
   ".git",
@@ -13,6 +18,7 @@ const IGNORED = new Set([
   "out",
   ".airlock",
   ".DS_Store",
+  ORDER_FILE,
 ]);
 
 // NOTE: Do not use multibyte chars (e.g. the section sign, copyright sign) in

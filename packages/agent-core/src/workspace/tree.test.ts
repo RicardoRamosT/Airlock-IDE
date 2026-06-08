@@ -1,3 +1,4 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -65,6 +66,14 @@ describe("listDirectory", () => {
   it("lists a subdirectory", async () => {
     const entries = await listDirectory(root, "src");
     expect(entries).toEqual([{ name: "index.ts", type: "file" }]);
+  });
+
+  it("hides .airlock-order.json from listings", async () => {
+    const root2 = mkdtempSync(path.join(tmpdir(), "airlock-tree-order-"));
+    writeFileSync(path.join(root2, ".airlock-order.json"), "{}");
+    writeFileSync(path.join(root2, "a.ts"), "");
+    const names = (await listDirectory(root2, ".")).map((e) => e.name);
+    expect(names).toEqual(["a.ts"]);
   });
 });
 

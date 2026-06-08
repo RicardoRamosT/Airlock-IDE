@@ -149,6 +149,11 @@ export {
   move,
 } from "./workspace/fileOps";
 export {
+  type OrderMap,
+  readOrder,
+  writeFolderOrder,
+} from "./workspace/fileOrder";
+export {
   type FileContent,
   MAX_FILE_BYTES,
   readWorkspaceFile,
