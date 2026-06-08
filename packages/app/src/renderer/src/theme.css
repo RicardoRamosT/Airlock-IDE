@@ -2333,3 +2333,13 @@ textarea:focus-visible {
   opacity: 0.5;
   cursor: default;
 }
+
+/* LSP hover tooltip (type/doc on hover). */
+.cm-lsp-hover {
+  max-width: 480px;
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--fg);
+  background: var(--bg-panel);
+}

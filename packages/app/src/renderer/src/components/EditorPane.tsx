@@ -1,13 +1,19 @@
+import {
+  autocompletion,
+  type CompletionSource,
+} from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
-import { EditorState } from "@codemirror/state";
+import { EditorState, type Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent } from "../../../shared/ipc";
 import { languageExtensionForPath } from "../lib/language";
+import { toCmCompletions } from "../lib/lspCompletions";
 import { toCmDiagnostics } from "../lib/lspDiagnostics";
 import { lspLanguageId } from "../lib/lspLanguage";
+import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
@@ -16,6 +22,46 @@ const AUTOSAVE_MS = 800;
 // Debounce window for pushing full-text changes to the language server.
 const LSP_DEBOUNCE_MS = 300;
 type SaveState = "idle" | "unsaved" | "saved";
+
+// LSP completion + hover for one open file. The sources close over the pane's
+// root/relPath and call the IPC at the cursor position (offset -> LSP position).
+function lspExtensions(root: string, relPath: string): Extension[] {
+  const completion: CompletionSource = async (context) => {
+    const word = context.matchBefore(/[\w$]*/);
+    if (!word || (word.from === word.to && !context.explicit)) return null;
+    const { line, character } = positionAt(
+      context.state.doc.toString(),
+      context.pos,
+    );
+    const items = await window.airlock.lspCompletion(
+      root,
+      relPath,
+      line,
+      character,
+    );
+    if (items.length === 0) return null;
+    return {
+      from: word.from,
+      options: toCmCompletions(items),
+      validFor: /[\w$]*/,
+    };
+  };
+  const hover = hoverTooltip(async (view, pos) => {
+    const { line, character } = positionAt(view.state.doc.toString(), pos);
+    const r = await window.airlock.lspHover(root, relPath, line, character);
+    if (!r) return null;
+    return {
+      pos,
+      create: () => {
+        const dom = document.createElement("div");
+        dom.className = "cm-lsp-hover";
+        dom.textContent = r.contents;
+        return { dom };
+      },
+    };
+  });
+  return [autocompletion({ override: [completion] }), hover];
+}
 
 // Editable CodeMirror with debounced autosave. One instance per open file
 // (keyed by the caller on the path), so switching files remounts this and the
@@ -77,6 +123,7 @@ export function EditorPane({
           ...(theme === "dark" ? [oneDark] : []),
           EditorView.theme({ "&": { height: "100%" } }),
           lintGutter(),
+          ...(lspLang ? lspExtensions(root, relPath) : []),
           ...languageExtensionForPath(relPath),
           ...(editable
             ? [
