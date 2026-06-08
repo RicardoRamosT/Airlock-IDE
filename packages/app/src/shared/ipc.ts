@@ -486,4 +486,10 @@ export interface AirlockApi {
     line: number,
     character: number,
   ): Promise<LspCompletionItem[]>;
+  lspDefinition(
+    root: string,
+    relPath: string,
+    line: number,
+    character: number,
+  ): Promise<LspDefinition | null>;
 }

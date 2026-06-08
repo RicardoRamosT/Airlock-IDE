@@ -73,6 +73,7 @@ import {
 } from "./ide-state";
 import {
   lspCompletion,
+  lspDefinition,
   lspDidChange,
   lspDidClose,
   lspDidOpen,
@@ -457,6 +458,18 @@ export function registerIpc(
       )
         throw new Error("Invalid payload");
       return lspCompletion(resolveRoot(e, root), relPath, line, character);
+    },
+  );
+  ipcMain.handle(
+    "lsp:definition",
+    (e, root: unknown, relPath: unknown, line: unknown, character: unknown) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof line !== "number" ||
+        typeof character !== "number"
+      )
+        throw new Error("Invalid payload");
+      return lspDefinition(resolveRoot(e, root), relPath, line, character);
     },
   );
 
