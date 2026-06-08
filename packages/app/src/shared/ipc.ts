@@ -238,6 +238,15 @@ export interface AirlockApi {
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;
+  // Read a (raster) image as a data URL for inline preview. Over ~25 MB --
+  // { dataUrl: "", tooLarge: true } (the UI offers Open Externally).
+  readImageDataUrl(
+    root: string,
+    relPath: string,
+  ): Promise<{ dataUrl: string; tooLarge: boolean }>;
+  // Open a workspace file in the OS default app (binary files / oversized
+  // images). Path-confined; the .airlock vault is rejected.
+  openExternalFile(root: string, relPath: string): Promise<void>;
   // File management (USER actions; path-confined to the pane root). create/mkdir
   // fail if the target exists; move covers rename + the future drag-drop;
   // duplicate returns the new relPath; trash sends to the OS Trash (recoverable).

@@ -31,6 +31,7 @@ import {
   pingDb,
   probePort,
   readAudit,
+  readImageDataUrl,
   readOrder,
   readProjectConfig,
   readRows,
@@ -288,6 +289,20 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     return readWorkspaceFile(resolveRoot(e, root), relPath);
   });
+  ipcMain.handle("fs:readImage", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return readImageDataUrl(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle(
+    "fs:openExternalFile",
+    async (e, root: unknown, relPath: unknown) => {
+      if (typeof relPath !== "string") throw new Error("Invalid payload");
+      assertNotVault(relPath);
+      const abs = await resolveWithin(resolveRoot(e, root), relPath);
+      await shell.openPath(abs);
+    },
+  );
   ipcMain.handle(
     "fs:writeFile",
     (e, root: unknown, relPath: unknown, content: unknown) => {
