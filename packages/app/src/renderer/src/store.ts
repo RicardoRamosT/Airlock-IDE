@@ -332,6 +332,11 @@ interface AppState {
   setLayoutHydrated: (v: boolean) => void;
   fsVersion: Record<string, number>;
   bumpFsVersion: (root: string) => void;
+  // One-shot signal from the FILES header's New File/Folder buttons to that
+  // tab's FileTree, which opens an inline create input at the root and clears it.
+  newFileRequest: { tabId: string; kind: "file" | "dir" } | null;
+  requestNewFile: (tabId: string, kind: "file" | "dir") => void;
+  clearNewFileRequest: () => void;
 }
 
 // The top-level mirror fields for a given ProjectState (root + the per-project
@@ -1184,10 +1189,13 @@ export const useApp = create<AppState>((set) => ({
     ),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
   fsVersion: {},
+  newFileRequest: null,
   // Bump the freshness counter for a root so FileTrees on it re-list. Driven by
   // the main-process fs:changed watcher (see useFsWatch).
   bumpFsVersion: (root) =>
     set((s) => ({
       fsVersion: { ...s.fsVersion, [root]: (s.fsVersion[root] ?? 0) + 1 },
     })),
+  requestNewFile: (tabId, kind) => set({ newFileRequest: { tabId, kind } }),
+  clearNewFileRequest: () => set({ newFileRequest: null }),
 }));

@@ -352,6 +352,13 @@ body,
 .section-header {
   display: flex;
   align-items: center;
+}
+
+.section-header-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
   gap: 3px;
   background: none;
   border: none;
@@ -359,12 +366,41 @@ body,
   cursor: pointer;
   padding: 4px 8px;
   font-family: inherit;
-  width: 100%;
   text-align: left;
 }
 
-.section-header:hover {
+.section-header-toggle:hover {
   color: var(--fg);
+}
+
+/* Hover-revealed header buttons (e.g. FILES' New File / New Folder). */
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.section:hover .section-actions {
+  opacity: 1;
+}
+
+.section-action {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.section-action:hover {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .codicon {

@@ -245,9 +245,22 @@ export function FileTree() {
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
   const renameFilePath = useApp((s) => s.renameFilePath);
+  const newFileRequest = useApp((s) => s.newFileRequest);
+  const clearNewFileRequest = useApp((s) => s.clearNewFileRequest);
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [menu, setMenu] = useState<Menu>(null);
+
+  // The FILES header's New File/Folder buttons signal a create-at-root here.
+  useEffect(() => {
+    if (newFileRequest?.tabId !== tabId) return;
+    setEditing(
+      newFileRequest.kind === "file"
+        ? { kind: "create-file", parentRel: "." }
+        : { kind: "create-dir", parentRel: "." },
+    );
+    clearNewFileRequest();
+  }, [newFileRequest, tabId, clearNewFileRequest]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: fsVersion is an invalidation trigger, not used in the body
   useEffect(() => {

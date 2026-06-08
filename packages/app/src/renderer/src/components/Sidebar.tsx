@@ -19,11 +19,14 @@ function Section({
   id,
   title,
   children,
+  actions,
   defaultOpen = true,
 }: {
   id: SectionId;
   title: string;
   children?: ReactNode;
+  // Hover-revealed header buttons (right-aligned), e.g. FILES' New File/Folder.
+  actions?: ReactNode;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -38,18 +41,21 @@ function Section({
   }, [menu]);
   return (
     <div className="section">
-      <button
-        type="button"
-        className="section-header"
-        onClick={() => setOpen(!open)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setMenu({ x: e.clientX, y: e.clientY });
-        }}
-      >
-        <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
-        <span className="section-title">{title}</span>
-      </button>
+      <div className="section-header">
+        <button
+          type="button"
+          className="section-header-toggle"
+          onClick={() => setOpen(!open)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY });
+          }}
+        >
+          <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
+          <span className="section-title">{title}</span>
+        </button>
+        {actions && <span className="section-actions">{actions}</span>}
+      </div>
       {open && <div className="section-body">{children}</div>}
       {menu && (
         <>
@@ -84,6 +90,7 @@ export function Sidebar() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const vis = useApp((s) => s.sectionVisibility);
+  const requestNewFile = useApp((s) => s.requestNewFile);
 
   const openFolder = async () => {
     try {
@@ -98,7 +105,32 @@ export function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-sections">
         {vis.files && (
-          <Section id="files" title="Files">
+          <Section
+            id="files"
+            title="Files"
+            actions={
+              root ? (
+                <>
+                  <button
+                    type="button"
+                    className="section-action"
+                    title="New File"
+                    onClick={() => requestNewFile(tabId, "file")}
+                  >
+                    <i className="codicon codicon-new-file" />
+                  </button>
+                  <button
+                    type="button"
+                    className="section-action"
+                    title="New Folder"
+                    onClick={() => requestNewFile(tabId, "dir")}
+                  >
+                    <i className="codicon codicon-new-folder" />
+                  </button>
+                </>
+              ) : undefined
+            }
+          >
             {root ? (
               <FileTree />
             ) : (
