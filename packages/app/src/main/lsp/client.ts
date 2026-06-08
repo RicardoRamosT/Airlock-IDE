@@ -8,7 +8,7 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
-import type { LspDiagnostic } from "../../shared/ipc";
+import type { LspCompletionItem, LspDiagnostic } from "../../shared/ipc";
 
 // One typescript-language-server child per workspace root (it needs the project
 // root for tsconfig). Spawned lazily on the first didOpen; disposed when the
@@ -169,6 +169,75 @@ export async function lspDidClose(
   s.conn.sendNotification("textDocument/didClose", {
     textDocument: { uri: await uriOf(root, relPath) },
   });
+}
+
+// LSP markup (string | { value } | array) -> a single string.
+function markupToString(contents: unknown): string {
+  if (typeof contents === "string") return contents;
+  if (Array.isArray(contents))
+    return contents.map(markupToString).filter(Boolean).join("\n\n");
+  if (contents && typeof contents === "object") {
+    const v = (contents as { value?: unknown }).value;
+    if (typeof v === "string") return v;
+  }
+  return "";
+}
+
+export async function lspHover(
+  root: string,
+  relPath: string,
+  line: number,
+  character: number,
+): Promise<{ contents: string } | null> {
+  const s = ensure(root);
+  await s.ready;
+  try {
+    const r = (await s.conn.sendRequest("textDocument/hover", {
+      textDocument: { uri: await uriOf(root, relPath) },
+      position: { line, character },
+    })) as unknown;
+    if (!r || typeof r !== "object") return null;
+    const contents = markupToString((r as { contents?: unknown }).contents);
+    return contents ? { contents } : null;
+  } catch (err) {
+    console.error("[lsp] hover failed", err);
+    return null;
+  }
+}
+
+export async function lspCompletion(
+  root: string,
+  relPath: string,
+  line: number,
+  character: number,
+): Promise<LspCompletionItem[]> {
+  const s = ensure(root);
+  await s.ready;
+  try {
+    const r = (await s.conn.sendRequest("textDocument/completion", {
+      textDocument: { uri: await uriOf(root, relPath) },
+      position: { line, character },
+    })) as unknown;
+    const raw: unknown[] = Array.isArray(r)
+      ? r
+      : r && typeof r === "object"
+        ? ((r as { items?: unknown[] }).items ?? [])
+        : [];
+    return raw
+      .map((x) => x as Record<string, unknown>)
+      .map((it) => ({
+        label: typeof it.label === "string" ? it.label : "",
+        kind: typeof it.kind === "number" ? it.kind : undefined,
+        detail: typeof it.detail === "string" ? it.detail : undefined,
+        documentation: markupToString(it.documentation) || undefined,
+        insertText:
+          typeof it.insertText === "string" ? it.insertText : undefined,
+      }))
+      .filter((it) => it.label.length > 0);
+  } catch (err) {
+    console.error("[lsp] completion failed", err);
+    return [];
+  }
 }
 
 function disposeServer(root: string): void {
