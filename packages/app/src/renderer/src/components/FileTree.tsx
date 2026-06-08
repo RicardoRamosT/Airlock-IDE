@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { DirEntry } from "../../../shared/ipc";
 import { openEditorFile } from "../lib/editorFiles";
+import { applyOrder } from "../lib/fileOrder";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
@@ -208,6 +209,9 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
+  const folderOrder = useApp((s) =>
+    root ? s.fileOrder[root]?.[relPath] : undefined,
+  );
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
   const [over, setOver] = useState(false);
@@ -256,6 +260,8 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
       />
     );
   }
+
+  const dirOrdered = applyOrder(children ?? [], folderOrder); // custom order for this dir
 
   return (
     <div>
@@ -313,7 +319,7 @@ function DirNode({ name, relPath }: { name: string; relPath: string }) {
               onCancel={() => setEditing(null)}
             />
           )}
-          {children?.map((c) => (
+          {dirOrdered.map((c) => (
             <Node key={c.name} entry={c} parent={relPath} />
           ))}
         </div>
@@ -326,6 +332,11 @@ export function FileTree() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const fsVersion = useApp((s) => (root ? (s.fsVersion[root] ?? 0) : 0));
+  const rootOrder = useApp((s) => (root ? s.fileOrder[root] : undefined));
+  const loadFileOrder = useApp((s) => s.loadFileOrder);
+  useEffect(() => {
+    if (root) void loadFileOrder(root);
+  }, [root, loadFileOrder]);
   const renameFilePath = useApp((s) => s.renameFilePath);
   const newFileRequest = useApp((s) => s.newFileRequest);
   const clearNewFileRequest = useApp((s) => s.clearNewFileRequest);
@@ -438,6 +449,8 @@ export function FileTree() {
   if (!root) return null;
   if (!entries) return <div className="tree-empty">loading…</div>;
 
+  const rootOrdered = applyOrder(entries, rootOrder?.["."]); // custom order for the root level
+
   // The folder a "New File/Folder" lands in for the current menu target: a file
   // creates in its PARENT, a dir creates INSIDE itself, the background in root.
   const createParent = (): string => {
@@ -489,7 +502,7 @@ export function FileTree() {
             onCancel={() => setEditing(null)}
           />
         )}
-        {entries.map((e) => (
+        {rootOrdered.map((e) => (
           <Node key={e.name} entry={e} parent="." />
         ))}
       </div>
