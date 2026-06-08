@@ -23,12 +23,22 @@ const AUTOSAVE_MS = 800;
 const LSP_DEBOUNCE_MS = 300;
 type SaveState = "idle" | "unsaved" | "saved";
 
-// LSP completion + hover for one open file. The sources close over the pane's
-// root/relPath and call the IPC at the cursor position (offset -> LSP position).
-function lspExtensions(root: string, relPath: string): Extension[] {
-  const completion: CompletionSource = async (context) => {
+// LSP completion + hover for one open file. Both first call `sync` to push the
+// current document to the server, THEN query at the cursor. The sync is what
+// makes member completion (e.g. `foo.`) work: a keystroke fires the query
+// immediately, but didChange is debounced, so without this the server is still
+// on the PREVIOUS text and answers a member query with top-level completions --
+// which CodeMirror filters out against the typed prefix, leaving an empty menu.
+// (Offset -> LSP position via positionAt.)
+export function makeLspCompletionSource(
+  root: string,
+  relPath: string,
+  sync: () => Promise<void>,
+): CompletionSource {
+  return async (context) => {
     const word = context.matchBefore(/[\w$]*/);
     if (!word || (word.from === word.to && !context.explicit)) return null;
+    await sync();
     const { line, character } = positionAt(
       context.state.doc.toString(),
       context.pos,
@@ -46,7 +56,15 @@ function lspExtensions(root: string, relPath: string): Extension[] {
       validFor: /[\w$]*/,
     };
   };
-  const hover = hoverTooltip(async (view, pos) => {
+}
+
+export function makeLspHover(
+  root: string,
+  relPath: string,
+  sync: () => Promise<void>,
+): Extension {
+  return hoverTooltip(async (view, pos) => {
+    await sync();
     const { line, character } = positionAt(view.state.doc.toString(), pos);
     const r = await window.airlock.lspHover(root, relPath, line, character);
     if (!r) return null;
@@ -60,7 +78,6 @@ function lspExtensions(root: string, relPath: string): Extension[] {
       },
     };
   });
-  return [autocompletion({ override: [completion] }), hover];
 }
 
 // Editable CodeMirror with debounced autosave. One instance per open file
@@ -115,6 +132,26 @@ export function EditorPane({
         });
     };
 
+    // Push the current document to the server NOW: bump the shared version and
+    // cancel the pending debounced didChange. Completion/hover call this so they
+    // query the server's up-to-date copy instead of racing the 300ms debounce.
+    // Awaiting didChange before the request keeps them ordered over the stdio
+    // connection, so the server sees the new text first.
+    const syncLspNow = async (): Promise<void> => {
+      if (!lspLang) return;
+      if (lspTimer) {
+        clearTimeout(lspTimer);
+        lspTimer = undefined;
+      }
+      lspVersion += 1;
+      await window.airlock.lspDidChange(
+        root,
+        relPath,
+        lspVersion,
+        view.state.doc.toString(),
+      );
+    };
+
     const view = new EditorView({
       state: EditorState.create({
         doc: file.content,
@@ -123,7 +160,14 @@ export function EditorPane({
           ...(theme === "dark" ? [oneDark] : []),
           EditorView.theme({ "&": { height: "100%" } }),
           lintGutter(),
-          ...(lspLang ? lspExtensions(root, relPath) : []),
+          ...(lspLang
+            ? [
+                autocompletion({
+                  override: [makeLspCompletionSource(root, relPath, syncLspNow)],
+                }),
+                makeLspHover(root, relPath, syncLspNow),
+              ]
+            : []),
           ...languageExtensionForPath(relPath),
           ...(editable
             ? [
