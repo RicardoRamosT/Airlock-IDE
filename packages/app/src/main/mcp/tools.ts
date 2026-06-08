@@ -6,8 +6,10 @@
 // and the SDK result shape.
 //
 // SECURITY INVARIANT (enforced by tools.test.ts): no tool returns a secret
-// value. This module imports ONLY ide-state read functions + the visibility
-// funnel and deliberately references NONE of the value-returning broker/secret
+// value. This module imports ide-state read functions, the visibility funnel,
+// and the value-free secret-scan/commit orchestrators (scanWorkingSet /
+// guardedCommit -- their results carry secret NAMES + locations, never VALUES),
+// and deliberately references NONE of the value-returning broker/secret
 // functions. ide-state already guarantees its outputs are redacted/metadata-only;
 // the tools just forward those shapes. A source-level test asserts that none of
 // the forbidden value-returning identifiers appear anywhere in this file, so a
@@ -29,6 +31,8 @@ import type {
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
 import { SECTIONS } from "../prefs";
+import { guardedCommit } from "../secrets/commit";
+import { scanWorkingSet } from "../secrets/scan";
 
 // The exact, locked tool set. tools.test.ts asserts the registered names equal
 // this list, so an extra tool or a missing one fails the allowlist guard. The
@@ -43,6 +47,7 @@ export const TOOL_NAMES: string[] = [
   "neon_status",
   "render_services",
   "git_status",
+  "git_commit",
   "host_status",
   "list_secret_names",
   "run_command",
@@ -223,11 +228,42 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
 
   mcp.registerTool(
     "git_status",
-    { description: "Report the working-tree git status for the workspace." },
+    {
+      description:
+        "Report the working-tree git status for the workspace, including any files whose content contains a suspected secret value (secretLeaks: name/type + path:line, never the value).",
+    },
     async () => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
-      return ok(await ide.gitStatusFor(root));
+      const status = await ide.gitStatusFor(root);
+      return ok({ ...status, secretLeaks: await scanWorkingSet(root) });
+    },
+  );
+
+  // Commit the staged changes, but first scan the staged content for secret
+  // values/patterns. If any are suspected the commit is BLOCKED and the leak
+  // locations (name/type + path:line, never the value) are returned so the agent
+  // can surface them and decide -- re-call with confirm:true to commit anyway.
+  // guardedCommit returns a value-free CommitOutcome; this handler never sees a
+  // secret value, so the source-guard stays green.
+  mcp.registerTool(
+    "git_commit",
+    {
+      description:
+        "Commit the staged changes. If the staged content contains a suspected secret value the commit is BLOCKED and the leak locations are returned (name/type + path:line, never the value) -- tell the user, then re-call with confirm:true to commit anyway.",
+      inputSchema: {
+        message: z.string(),
+        confirm: z.boolean().optional(),
+      },
+    },
+    async ({ message, confirm }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      try {
+        return ok(await guardedCommit(root, message, { gated: true, confirm }));
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e));
+      }
     },
   );
 

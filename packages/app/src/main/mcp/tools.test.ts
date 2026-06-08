@@ -68,16 +68,17 @@ const baseDeps = {
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-one allowlisted tools (fourteen read/curate/run + the seven IDE-control
-  // tools). An extra tool (e.g. a future secret-value drill-down) or a removed one
-  // fails this immediately.
-  it("registers exactly the twenty-one allowlisted tools and nothing else", () => {
+  // twenty-two allowlisted tools (fifteen read/curate/run/commit + the seven
+  // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
+  // removed one fails this immediately.
+  it("registers exactly the twenty-two allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(21);
+    expect(registered).toHaveLength(22);
+    expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
     expect(registered).toContain("activity_status");
@@ -110,6 +111,7 @@ describe("tools.ts secret-value source guard", () => {
     "neonConnectionUri",
     "dbConnString",
     "injectInto",
+    "vaultedSecrets",
   ];
 
   it("contains none of the forbidden value-returning identifiers", () => {
