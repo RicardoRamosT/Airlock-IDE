@@ -9,7 +9,8 @@ import {
   StreamMessageReader,
   StreamMessageWriter,
 } from "vscode-jsonrpc/node";
-import type { LspCompletionItem, LspDiagnostic } from "../../shared/ipc";
+import type { LspCompletionItem, LspDefinition, LspDiagnostic } from "../../shared/ipc";
+import { firstDefinitionLocation } from "./definition";
 
 // One typescript-language-server child per workspace root (it needs the project
 // root for tsconfig). Spawned lazily on the first didOpen; disposed when the
@@ -250,6 +251,30 @@ export async function lspCompletion(
   } catch (err) {
     console.error("[lsp] completion failed", err);
     return [];
+  }
+}
+
+export async function lspDefinition(
+  root: string,
+  relPath: string,
+  line: number,
+  character: number,
+): Promise<LspDefinition | null> {
+  const s = ensure(root);
+  await s.ready;
+  try {
+    const r = (await s.conn.sendRequest("textDocument/definition", {
+      textDocument: { uri: await uriOf(root, relPath) },
+      position: { line, character },
+    })) as unknown;
+    const loc = firstDefinitionLocation(r);
+    if (!loc) return null;
+    const rel = uriToRel(root, loc.uri);
+    if (rel === null) return null; // definition is outside the workspace root
+    return { relPath: rel, line: loc.line + 1 }; // 0-indexed LSP -> 1-indexed
+  } catch (err) {
+    console.error("[lsp] definition failed", err);
+    return null;
   }
 }
 

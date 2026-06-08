@@ -65,6 +65,11 @@ export interface LspHover {
   contents: string;
 }
 
+export interface LspDefinition {
+  relPath: string;
+  line: number; // 1-indexed, ready for revealLine
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
