@@ -57,6 +57,10 @@ export function useMenuActions(): void {
           s.openPalette("commands");
           break;
         }
+        case "find-in-files": {
+          s.setSearchOpen(true);
+          break;
+        }
       }
     });
   }, []);
