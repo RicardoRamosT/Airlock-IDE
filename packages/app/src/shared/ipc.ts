@@ -350,7 +350,7 @@ export interface AirlockApi {
   gitStatus(root: string): Promise<GitStatus>;
   gitStage(root: string, paths: string[]): Promise<void>;
   gitUnstage(root: string, paths: string[]): Promise<void>;
-  gitCommit(root: string, message: string): Promise<string>;
+  gitCommit(root: string, message: string): Promise<CommitOutcome>;
   gitBranches(root: string): Promise<string[]>;
   gitFetch(root: string): Promise<void>;
   gitPull(root: string): Promise<void>;

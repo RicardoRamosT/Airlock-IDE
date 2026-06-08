@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import {
   appendAudit,
-  commitStaged,
   createBranch,
   createDir,
   createFile,
@@ -84,6 +83,7 @@ import {
 } from "./lsp/client";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
+import { guardedCommit } from "./secrets/commit";
 import {
   allOpenRoots,
   clearRootForEvent,
@@ -623,7 +623,7 @@ export function registerIpc(
 
   ipcMain.handle("git:commit", (e, root: unknown, message: unknown) => {
     if (typeof message !== "string") throw new Error("Invalid payload");
-    return commitStaged(resolveRoot(e, root), message);
+    return guardedCommit(resolveRoot(e, root), message, { gated: false });
   });
 
   ipcMain.handle("git:branches", (e, root: unknown) =>
