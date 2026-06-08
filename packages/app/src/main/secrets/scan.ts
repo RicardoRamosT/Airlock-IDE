@@ -19,10 +19,6 @@ async function scanFiles(
   which: DiffSide,
 ): Promise<SecretLeak[]> {
   const vaulted = await vaultedSecrets(root);
-  if (vaulted.length === 0 && which === "unstaged") {
-    // patterns still apply even with an empty vault, so do not early-return;
-    // this branch is only a readability marker -- fall through.
-  }
   const leaks: SecretLeak[] = [];
   for (const p of paths) {
     let modified: string;
@@ -57,9 +53,34 @@ export async function scanStaged(root: string): Promise<SecretLeak[]> {
   );
 }
 
-// Changed working files (modified + untracked) -- what the agent sees via status.
+function dedupeLeaks(leaks: SecretLeak[]): SecretLeak[] {
+  const seen = new Set<string>();
+  const out: SecretLeak[] = [];
+  for (const l of leaks) {
+    const key = `${l.path}:${l.line}:${l.name ?? l.patternType ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(l);
+  }
+  return out;
+}
+
+// Every not-yet-committed change the agent should know about: STAGED content
+// (what a commit would persist -- the same set the commit gate scans) PLUS the
+// unstaged + untracked working changes. Deduped, since a partially-staged file
+// can surface on both sides. This keeps git_status's advisory consistent with
+// the git_commit gate -- a staged secret shows up here, not only at commit time.
 export async function scanWorkingSet(root: string): Promise<SecretLeak[]> {
   const status = await gitStatus(root);
-  const paths = [...status.unstaged.map((c) => c.path), ...status.untracked];
-  return scanFiles(root, paths, "unstaged");
+  const staged = await scanFiles(
+    root,
+    status.staged.map((c) => c.path),
+    "staged",
+  );
+  const working = await scanFiles(
+    root,
+    [...status.unstaged.map((c) => c.path), ...status.untracked],
+    "unstaged",
+  );
+  return dedupeLeaks([...staged, ...working]);
 }
