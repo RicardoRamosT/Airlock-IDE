@@ -19,12 +19,12 @@ describe("searchProject", () => {
   it("finds case-insensitive matches across files, with line/col/preview", async () => {
     const r = await searchProject(root, "hello");
     const byPath = Object.fromEntries(r.files.map((f) => [f.path, f]));
-    expect(byPath["a.ts"]!.matches[0]).toEqual({
+    expect(byPath["a.ts"]?.matches[0]).toEqual({
       line: 1,
       col: 6,
       preview: "const Hello = 1;",
     });
-    expect(byPath["src/b.ts"]!.matches[0]!.line).toBe(1);
+    expect(byPath["src/b.ts"]?.matches[0]?.line).toBe(1);
     // node_modules is pruned by listFilesRecursive's IGNORED set.
     expect(byPath["node_modules/c.ts"]).toBeUndefined();
     expect(r.truncated).toBe(false);
