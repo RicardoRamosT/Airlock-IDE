@@ -47,6 +47,17 @@ function uriToRel(root: string, uri: string): string | null {
   }
 }
 
+// Resolve the bundled tsserver so diagnostics work in the packaged app even for
+// a project that has no typescript of its own. Bundled via the app's typescript
+// dependency; best-effort (undefined lets ts-language-server fall back).
+function tsserverPath(): string | undefined {
+  try {
+    return require.resolve("typescript/lib/tsserver.js");
+  } catch {
+    return undefined;
+  }
+}
+
 function startServer(root: string): Server {
   // The main bundle is CJS, so require.resolve finds the externalized CLI; its
   // cli.mjs runs as ESM under Electron's Node mode (no separate node binary in a
@@ -83,6 +94,7 @@ function startServer(root: string): Server {
     .sendRequest("initialize", {
       processId: process.pid,
       rootUri: pathToFileURL(root).toString(),
+      initializationOptions: { tsserver: { path: tsserverPath() } },
       capabilities: {
         textDocument: {
           synchronization: { dynamicRegistration: false },
