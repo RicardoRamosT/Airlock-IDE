@@ -43,6 +43,7 @@ import {
   stageFiles,
   switchBranch,
   switchGhAccount,
+  targetsVault,
   unstageFiles,
   withDb,
   writeProjectConfig,
@@ -119,8 +120,10 @@ function resolveRoot(
 // Reject any path whose first segment is the .airlock vault dir (metadata; never
 // mutated from the UI). Defense in depth -- the FileTree never shows .airlock.
 function assertNotVault(relPath: string): void {
-  const first = relPath.split(/[/\\]/)[0];
-  if (first === ".airlock") throw new Error("The .airlock folder is protected");
+  // targetsVault normalizes "."/".." and checks every segment, so bypasses like
+  // "./.airlock/x" or "sub/../.airlock/x" are caught (not just first-segment).
+  if (targetsVault(relPath))
+    throw new Error("The .airlock folder is protected");
 }
 
 // Whether the shell with this pid has a running child process. Used by

@@ -7,6 +7,14 @@ import type { WebContents } from "electron";
 const watchers = new Map<number, Map<string, FSWatcher>>();
 const debounces = new Map<string, ReturnType<typeof setTimeout>>();
 
+// Clear any pending debounce for a (window, root) being torn down, so a closed
+// root/window cannot fire a stray fs:changed and the map does not grow forever.
+function clearDebounce(id: number, root: string): void {
+  const key = `${id}:${root}`;
+  clearTimeout(debounces.get(key));
+  debounces.delete(key);
+}
+
 function ignored(p: string): boolean {
   return /(^|[/\\])(\.git|node_modules|\.airlock|dist|out|\.DS_Store)([/\\]|$)/.test(
     p,
@@ -21,6 +29,7 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
   for (const [root, w] of current) {
     if (!roots.includes(root)) {
       void w.close();
+      clearDebounce(id, root);
       current.delete(root);
     }
   }
@@ -55,6 +64,9 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
 export function disposeWindowWatchers(id: number): void {
   const current = watchers.get(id);
   if (!current) return;
-  for (const w of current.values()) void w.close();
+  for (const [root, w] of current) {
+    void w.close();
+    clearDebounce(id, root);
+  }
   watchers.delete(id);
 }

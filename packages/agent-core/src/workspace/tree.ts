@@ -66,6 +66,18 @@ export async function resolveWithin(
   return real;
 }
 
+// True if relPath targets the .airlock vault dir at ANY depth, AFTER collapsing
+// "."/".." -- so "./.airlock/x", "sub/../.airlock/x", and "a/.airlock/b" are all
+// caught (a raw first-segment check would miss them). The vault holds secret
+// METADATA + the audit chain; UI file ops must never mutate it. Defense in depth:
+// listDirectory already hides .airlock (IGNORED), so the tree never emits it.
+export function targetsVault(relPath: string): boolean {
+  return path
+    .normalize(relPath)
+    .split(/[/\\]/)
+    .some((seg) => seg === ".airlock");
+}
+
 export async function listDirectory(
   root: string,
   relPath = ".",

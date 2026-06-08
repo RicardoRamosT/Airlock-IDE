@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { listDirectory, resolveWithin } from "./tree";
+import { listDirectory, resolveWithin, targetsVault } from "./tree";
 
 let root: string;
 
@@ -65,5 +65,22 @@ describe("listDirectory", () => {
   it("lists a subdirectory", async () => {
     const entries = await listDirectory(root, "src");
     expect(entries).toEqual([{ name: "index.ts", type: "file" }]);
+  });
+});
+
+describe("targetsVault", () => {
+  it("flags the .airlock dir and anything inside it", () => {
+    expect(targetsVault(".airlock")).toBe(true);
+    expect(targetsVault(".airlock/secrets.json")).toBe(true);
+  });
+  it("flags bypass attempts that resolve into .airlock", () => {
+    expect(targetsVault("./.airlock/secrets.json")).toBe(true);
+    expect(targetsVault("sub/../.airlock/secrets.json")).toBe(true);
+    expect(targetsVault("a/.airlock/b")).toBe(true); // nested at any depth
+  });
+  it("allows normal paths, incl. names that merely contain '.airlock'", () => {
+    expect(targetsVault("src/index.ts")).toBe(false);
+    expect(targetsVault("normal/file.airlock.ts")).toBe(false);
+    expect(targetsVault(".airlockish/x")).toBe(false);
   });
 });

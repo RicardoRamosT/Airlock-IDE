@@ -153,5 +153,10 @@ export {
   MAX_FILE_BYTES,
   readWorkspaceFile,
 } from "./workspace/read";
-export { type DirEntry, listDirectory, resolveWithin } from "./workspace/tree";
+export {
+  type DirEntry,
+  listDirectory,
+  resolveWithin,
+  targetsVault,
+} from "./workspace/tree";
 export { writeWorkspaceFile } from "./workspace/write";
