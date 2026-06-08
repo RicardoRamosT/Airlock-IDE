@@ -312,6 +312,9 @@ export interface AirlockApi {
   gitUnstage(root: string, paths: string[]): Promise<void>;
   gitCommit(root: string, message: string): Promise<string>;
   gitBranches(root: string): Promise<string[]>;
+  gitFetch(root: string): Promise<void>;
+  gitPull(root: string): Promise<void>;
+  gitPush(root: string): Promise<void>;
   gitSwitchBranch(root: string, name: string): Promise<void>;
   gitCreateBranch(root: string, name: string): Promise<void>;
   gitFileVersions(

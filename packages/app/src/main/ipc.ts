@@ -15,7 +15,10 @@ import {
   getGlobalSecret,
   getSecretValue,
   ghAccounts,
+  gitFetch,
   gitFileVersions,
+  gitPull,
+  gitPush,
   importDotEnv,
   injectInto,
   isGitRepo,
@@ -525,6 +528,16 @@ export function registerIpc(
 
   ipcMain.handle("git:branches", (e, root: unknown) =>
     listBranches(resolveRoot(e, root)),
+  );
+
+  ipcMain.handle("git:fetch", (e, root: unknown) =>
+    gitFetch(resolveRoot(e, root)),
+  );
+  ipcMain.handle("git:pull", (e, root: unknown) =>
+    gitPull(resolveRoot(e, root)),
+  );
+  ipcMain.handle("git:push", (e, root: unknown) =>
+    gitPush(resolveRoot(e, root)),
   );
 
   ipcMain.handle("git:switchBranch", (e, root: unknown, name: unknown) => {
