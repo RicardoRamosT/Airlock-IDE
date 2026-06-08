@@ -160,6 +160,21 @@ export function applyAppMenu(
         },
       ],
     },
+    {
+      label: "Go",
+      submenu: [
+        {
+          label: "Go to File...",
+          accelerator: "CmdOrCtrl+P",
+          click: () => pushMenuAction({ type: "quick-open" }),
+        },
+        {
+          label: "Command Palette...",
+          accelerator: "CmdOrCtrl+Shift+P",
+          click: () => pushMenuAction({ type: "command-palette" }),
+        },
+      ],
+    },
     { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

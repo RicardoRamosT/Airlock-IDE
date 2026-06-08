@@ -128,7 +128,9 @@ export type MenuAction =
   | { type: "open-file" }
   | { type: "new-tab" }
   | { type: "close-editor" }
-  | { type: "close-folder" };
+  | { type: "close-folder" }
+  | { type: "quick-open" }
+  | { type: "command-palette" };
 
 /**
  * An IDE-control command dispatched main -> renderer over the agent:command
@@ -245,6 +247,9 @@ export interface AirlockApi {
   moveFile(root: string, fromRel: string, toRel: string): Promise<void>;
   duplicateFile(root: string, relPath: string): Promise<string>;
   trashFile(root: string, relPath: string): Promise<void>;
+  // Flat list of every file relpath in the project (palette quick-open). Honors
+  // the same IGNORED set as the tree; capped, with `truncated` set when hit.
+  listAllFiles(root: string): Promise<{ files: string[]; truncated: boolean }>;
   // Manual file ordering (USER action; per-folder custom order persisted to a
   // committed .airlock-order.json at the project root, path-confined). getFileOrder
   // returns the whole map for a root (folderRel -> ordered names); setFileOrder
