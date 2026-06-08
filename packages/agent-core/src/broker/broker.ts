@@ -109,6 +109,21 @@ export async function getSecretValue(
   return keychain.get(SERVICE, await accountFor(root, name));
 }
 
+// Gather every vaulted secret as { name, value } pairs (main-only; reads the
+// keychain). The named counterpart of the value-only gather used for redaction.
+export async function vaultedSecrets(
+  root: string,
+  opts: BrokerOptions = {},
+): Promise<{ name: string; value: string }[]> {
+  const metas = await listSecrets(root);
+  const out: { name: string; value: string }[] = [];
+  for (const m of metas) {
+    const v = await getSecretValue(root, m.name, opts);
+    if (v) out.push({ name: m.name, value: v });
+  }
+  return out;
+}
+
 // Reserved app-global keychain namespace. accountFor() yields "<id>:<name>"
 // where id is "<basename>-<8hex>" -- never starts with "@" nor contains "/",
 // so "@global/<name>" can never collide with a project secret account.

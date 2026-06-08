@@ -52,6 +52,7 @@ import {
   switchGhAccount,
   targetsVault,
   unstageFiles,
+  vaultedSecrets,
   withDb,
   writeFolderOrder,
   writeProjectConfig,
@@ -1077,15 +1078,9 @@ export function killAllSessions(): void {
 }
 
 // Resolve EVERY vaulted secret value (any could appear in terminal output) so
-// the tail/preview can be redacted. Mirrors the db:list value-gather. Main-only.
+// the tail/preview can be redacted. Delegates to the broker's named gather.
 async function allVaultedValues(root: string): Promise<string[]> {
-  const metas = await listSecrets(root);
-  const values: string[] = [];
-  for (const m of metas) {
-    const v = await getSecretValue(root, m.name);
-    if (v) values.push(v);
-  }
-  return values;
+  return (await vaultedSecrets(root)).map((s) => s.value);
 }
 
 // The redacted tail of one terminal's recent output. Root-gated + audited

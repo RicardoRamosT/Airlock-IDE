@@ -20,6 +20,7 @@ export {
   listSecrets,
   setGlobalSecret,
   setSecret,
+  vaultedSecrets,
 } from "./broker/broker";
 export {
   type DangerousEnvResult,
