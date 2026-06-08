@@ -1408,6 +1408,19 @@ body,
   font-size: 12px;
 }
 
+/* Quiet, non-blocking advisory: files whose content contains a secret value.
+   Surfaced after a commit; never disables the commit button. */
+.git-leak-warning {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #d08770;
+  opacity: 0.9;
+}
+.git-leak-warning ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
 .modal-caption {
   font-size: 11px;
   color: var(--fg-dim);

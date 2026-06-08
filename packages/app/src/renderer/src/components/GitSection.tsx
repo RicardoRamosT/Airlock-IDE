@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { GitStatus } from "../../../shared/ipc";
+import type { GitStatus, SecretLeak } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
@@ -17,6 +17,7 @@ export function GitSection() {
   const [newBranch, setNewBranch] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [leaks, setLeaks] = useState<SecretLeak[]>([]);
 
   const refresh = useCallback(async () => {
     if (!root) return;
@@ -261,13 +262,26 @@ export function GitSection() {
         disabled={status.staged.length === 0 || message.trim() === ""}
         onClick={() =>
           void run(async () => {
-            await window.airlock.gitCommit(root, message);
+            const outcome = await window.airlock.gitCommit(root, message);
+            setLeaks(outcome.leaks);
             setMessage("");
           })
         }
       >
         Commit {status.staged.length > 0 ? `(${status.staged.length})` : ""}
       </button>
+      {leaks.length > 0 && (
+        <div className="git-leak-warning" role="status">
+          {leaks.length} location(s) contain secret values:
+          <ul>
+            {leaks.map((l) => (
+              <li key={`${l.path}:${l.line}:${l.name ?? l.patternType}`}>
+                {l.name ?? l.patternType} in {l.path}:{l.line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {error && <div className="modal-error">{error}</div>}
     </div>
   );
