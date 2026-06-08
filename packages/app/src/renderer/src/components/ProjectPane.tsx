@@ -1,27 +1,27 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FileContent } from "../../../shared/ipc";
 import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
 import { useApp } from "../store";
 import { DataGrid } from "./DataGrid";
+import { EditorPane } from "./EditorPane";
+import { MainTabs } from "./MainTabs";
 import { SettingsTab } from "./SettingsTab";
 import { Sidebar } from "./Sidebar";
 import { Viewer } from "./Viewer";
 
-// One full project view (Sidebar + viewer-pane + terminals) scoped to a single
-// tab. App.tsx renders one of these for the single (focused) pane, or two side
-// by side when split. Everything inside reads ITS tab via ProjectPaneContext
-// (T2): Sidebar/Viewer/DataGrid/SettingsTab resolve their own project's state.
+// One full project view (Sidebar + a unified main area) scoped to a single tab.
+// The main area is a unified tab bar (terminals + open files) over a content
+// region. The region shows the PRIMARY pane (the selected tab) and, when split,
+// a SECONDARY pane beside it -- each can be a terminal or a file editor, so any
+// combo splits (term|term, file|file, file|term). Git diff / Settings / DB are
+// full overlays on top, with the tab bar persisting.
 //
-// The terminals are NOT rendered here -- TerminalManager (mounted once at app
-// root) PORTALS each tab's ProjectTerminals into the `pane-terminal-slot` div
-// below. The slot registers itself in the terminal-slot registry so the right
-// tab's already-mounted terminals appear in this pane without remounting (ptys
-// survive split toggles / focus swaps / tab switches). On unmount the slot
-// unregisters, so that tab's terminals fall back to the hidden keep-alive div.
-//
-// Clicking anywhere in the pane focuses it: onFocusCapture + onMouseDownCapture
-// call switchTab(tabId), which handles the active<->split swap and the agent /
-// window-title resync. `focused` (tabId === activeTabId) draws a subtle ring.
+// Terminals render through TerminalManager's per-tab portal into the single
+// `pane-terminal-slot`; ProjectTerminals shows the right 0/1/2 terminals (driven
+// by mainPrimary/mainSecondary). The slot is placed full (both panes terminals,
+// or single terminal), or in one sub-pane (a file + a terminal); when no
+// terminal is on screen the slot is absent and the ptys keep-alive.
 export function ProjectPane({
   tabId,
   focused,
@@ -30,19 +30,65 @@ export function ProjectPane({
   focused: boolean;
 }) {
   const { register, unregister } = useTerminalSlots();
-  // App-global sidebar position/visibility apply to BOTH panes' sidebars.
   const sidebarPosition = useApp((s) => s.sidebarPosition);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
-  // The viewer-pane discriminator, computed from THIS tab's state (mirrors the
-  // mutual exclusion the store enforces: only one of these is set at a time).
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const settingsOpen = useApp((s) => s.tabState[tabId]?.settingsOpen ?? false);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
+  const mainPrimary = useApp(
+    (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
+  );
+  const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
+  const theme = useApp((s) => s.theme);
 
-  // Ref callback (React 19): register this element under tabId; the returned
-  // cleanup unregisters the EXACT element so a fast remount that registers the
-  // new target first is not clobbered by the old element's late cleanup.
+  // The shown scene's file panes load their content on demand: the PRIMARY
+  // (left) editor when mainPrimary is "editor", and the SECONDARY (right) pane
+  // when it is a file. (The store no longer caches file content -- `current` can
+  // become any file by clicking its tab.)
+  const primaryPath = mainPrimary === "editor" ? selectedFile : null;
+  const [primaryContent, setPrimaryContent] = useState<FileContent | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!primaryPath || !root) {
+      setPrimaryContent(null);
+      return;
+    }
+    let cancelled = false;
+    setPrimaryContent(null);
+    window.airlock
+      .readFile(root, primaryPath)
+      .then((f) => {
+        if (!cancelled) setPrimaryContent(f);
+      })
+      .catch((e) => console.error("read primary file failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryPath, root]);
+
+  const secPath = mainSecondary?.kind === "file" ? mainSecondary.path : null;
+  const [secContent, setSecContent] = useState<FileContent | null>(null);
+  useEffect(() => {
+    if (!secPath || !root) {
+      setSecContent(null);
+      return;
+    }
+    let cancelled = false;
+    setSecContent(null);
+    window.airlock
+      .readFile(root, secPath)
+      .then((f) => {
+        if (!cancelled) setSecContent(f);
+      })
+      .catch((e) => console.error("read secondary file failed", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [secPath, root]);
+
   const slotRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (!el) return;
@@ -53,6 +99,62 @@ export function ProjectPane({
   );
 
   const focus = () => useApp.getState().switchTab(tabId);
+
+  const overlay = !!dbView || settingsOpen || !!diff;
+  // The primary pane is an editor only when an editor file is the primary; else
+  // it is the terminal.
+  const primaryEditorPath =
+    mainPrimary === "editor" && selectedFile ? selectedFile : null;
+  const bothTerminals =
+    !overlay && !primaryEditorPath && mainSecondary?.kind === "terminal";
+
+  // The single terminal slot (placed full, or in one sub-pane). Reused across
+  // branches but only rendered once per layout.
+  const slot = (
+    <div className="terminal-slot pane-terminal-slot" ref={slotRef} />
+  );
+  const editorArea = (relPath: string, content: FileContent | null) => (
+    <div className="editor-area">
+      {root && content ? (
+        <EditorPane
+          key={relPath}
+          root={root}
+          relPath={relPath}
+          file={content}
+          theme={theme}
+        />
+      ) : (
+        <div className="empty">loading…</div>
+      )}
+    </div>
+  );
+
+  const leftPane = primaryEditorPath
+    ? editorArea(primaryEditorPath, primaryContent)
+    : slot;
+  const rightPane =
+    mainSecondary == null
+      ? null
+      : mainSecondary.kind === "terminal"
+        ? slot
+        : editorArea(mainSecondary.path, secContent);
+
+  let content: React.ReactNode;
+  if (dbView) content = <DataGrid />;
+  else if (settingsOpen) content = <SettingsTab />;
+  else if (diff) content = <Viewer />;
+  else if (bothTerminals)
+    content = slot; // ProjectTerminals shows both
+  else if (mainSecondary == null) content = leftPane;
+  else
+    content = (
+      <>
+        {leftPane}
+        {rightPane}
+      </>
+    );
+
+  const split = !overlay && !bothTerminals && mainSecondary != null;
 
   return (
     <ProjectPaneContext.Provider value={tabId}>
@@ -65,21 +167,11 @@ export function ProjectPane({
           className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
         >
           <Sidebar />
-          <div
-            className={`main${selectedFile || diff || settingsOpen || dbView ? " split" : ""}`}
-          >
-            <div className="viewer-pane">
-              {dbView ? (
-                <DataGrid />
-              ) : settingsOpen ? (
-                <SettingsTab />
-              ) : (
-                <Viewer />
-              )}
+          <div className="main">
+            <MainTabs tabId={tabId} />
+            <div className={`main-content${split ? " main-panes split" : ""}`}>
+              {content}
             </div>
-            {/* Portal target for THIS tab's terminals (mounted in
-                TerminalManager). Empty in the DOM until the portal fills it. */}
-            <div className="terminal-slot pane-terminal-slot" ref={slotRef} />
           </div>
         </div>
       </div>

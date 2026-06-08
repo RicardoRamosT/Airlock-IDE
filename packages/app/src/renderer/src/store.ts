@@ -68,6 +68,65 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
 // Sidebar/Viewer/Git/Secrets/StatusBar/DataGrid keep reading `s.root` etc.
 // unchanged (single-pane behavior). The split pane (a later task) reads
 // `tabState[tabId]` directly. (Replaces the old Snapshot park/load model.)
+// A pane's content reference: a terminal (by id) or an open file (by path). The
+// unified main area shows a PRIMARY pane and, when split, a SECONDARY pane; each
+// can hold either kind, so any combo splits (term|term, file|file, file|term).
+export type PaneItem =
+  | { kind: "terminal"; id: string }
+  | { kind: "file"; path: string };
+
+// Structural equality for pane items (same terminal id / same file path).
+export const samePaneItem = (a: PaneItem, b: PaneItem): boolean =>
+  a.kind === "terminal"
+    ? b.kind === "terminal" && a.id === b.id
+    : b.kind === "file" && a.path === b.path;
+
+// The scene shown for `current`: the split pair containing it ([left,right]),
+// else `current` alone (right = null). The single source the UI renders from.
+export const shownScene = (
+  splits: [PaneItem, PaneItem][],
+  current: PaneItem | null,
+): { left: PaneItem | null; right: PaneItem | null } => {
+  if (!current) return { left: null, right: null };
+  const pair = splits.find(
+    (p) => samePaneItem(p[0], current) || samePaneItem(p[1], current),
+  );
+  if (pair) return { left: pair[0], right: pair[1] };
+  return { left: current, right: null };
+};
+
+// Derive the stored view mirror (mainPrimary/mainSecondary/selectedFile + the
+// tab's activeTerminalId) from the scene. selectedFile is the file ON SCREEN
+// (left if a file, else right) so FileTree highlights it; activeTerminalId is
+// the terminal on screen (left if a terminal, else right) for restart/agent.
+const deriveView = (
+  splits: [PaneItem, PaneItem][],
+  current: PaneItem | null,
+): {
+  mainPrimary: "terminal" | "editor";
+  mainSecondary: PaneItem | null;
+  selectedFile: string | null;
+  activeTerminalId: string | null;
+} => {
+  const { left, right } = shownScene(splits, current);
+  return {
+    mainPrimary: left?.kind === "file" ? "editor" : "terminal",
+    mainSecondary: right,
+    selectedFile:
+      left?.kind === "file"
+        ? left.path
+        : right?.kind === "file"
+          ? right.path
+          : null,
+    activeTerminalId:
+      left?.kind === "terminal"
+        ? left.id
+        : right?.kind === "terminal"
+          ? right.id
+          : null,
+  };
+};
+
 export interface ProjectState {
   root: string | null;
   selectedFile: string | null;
@@ -78,6 +137,28 @@ export interface ProjectState {
   diff: AppState["diff"]; // the {path,which,original,modified}|null shape
   dbView: DbView | null;
   settingsOpen: boolean;
+  // Unified main area: the open file editor TABS (relPaths; the tab bar shows
+  // these alongside the terminals).
+  editorTabs: string[];
+  // The unified tab-bar order: terminals AND files interleaved by creation/open
+  // order, so a NEW tab always appears at the far-right end (not grouped by
+  // type). MainTabs renders in this order; terminal/file membership still lives
+  // in tabTerminals / editorTabs, this is purely the left-to-right ordering.
+  mainTabOrder: PaneItem[];
+  // --- Multi-split "scene" model (SOURCE OF TRUTH) ---
+  // `splits` is the set of COEXISTING split pairs ([left, right]); each tab is in
+  // at most one pair. `current` is the focused tab; the scene shown is the split
+  // containing `current` (if any), else `current` alone. Showing one tab never
+  // destroys another's split. mainPrimary/mainSecondary/selectedFile (+ the tab's
+  // activeTerminalId) are DERIVED from these on every change so the rendering and
+  // outside consumers (FileTree, restart, openFolder) keep working unchanged.
+  splits: [PaneItem, PaneItem][];
+  current: PaneItem | null;
+  // Derived view (the SHOWN scene): mainPrimary = the left pane's kind (terminal
+  // shows activeTerminalId, editor shows selectedFile); mainSecondary = the right
+  // pane (null = single). Recomputed by deriveView; do not set directly.
+  mainPrimary: "terminal" | "editor";
+  mainSecondary: PaneItem | null;
 }
 
 const freshProjectState = (root: string | null): ProjectState => ({
@@ -90,6 +171,12 @@ const freshProjectState = (root: string | null): ProjectState => ({
   diff: null,
   dbView: null,
   settingsOpen: false,
+  editorTabs: [],
+  mainTabOrder: [],
+  splits: [],
+  current: null,
+  mainPrimary: "terminal", // a fresh tab shows its terminal until a file opens
+  mainSecondary: null,
 });
 
 let projCounter = 0;
@@ -122,6 +209,13 @@ interface AppState {
     original: string;
     modified: string;
   } | null;
+  // Unified main-area view (mirror of the active tab's ProjectState).
+  editorTabs: string[];
+  mainTabOrder: PaneItem[];
+  splits: [PaneItem, PaneItem][];
+  current: PaneItem | null;
+  mainPrimary: "terminal" | "editor";
+  mainSecondary: PaneItem | null;
 
   // --- Tab model ---
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
@@ -185,6 +279,22 @@ interface AppState {
     file: FileContent | null,
     tabId?: string,
   ) => void;
+  // Open a file as an editor tab (adds to editorTabs, makes it the active editor
+  // file, and switches the main area to the editor). FileTree + the tab bar call
+  // it after reading the content.
+  openFile: (relPath: string, file: FileContent, tabId?: string) => void;
+  // Close an editor tab. If it was the active file, the active selection is
+  // cleared and the main area falls back to the terminal (the caller activates a
+  // neighbor file first when one exists).
+  closeEditorTab: (relPath: string, tabId?: string) => void;
+  // Scene model. viewItem: focus `item` -> the main area shows its split (if it
+  // is in one) or `item` alone; never destroys another split. splitItems: pair
+  // `a` (left) with `b` (right) into a NEW coexisting split, pulling either out
+  // of a prior split first, and focus it. unsplitCurrent: break only the split
+  // the focused tab is in.
+  viewItem: (item: PaneItem, tabId?: string) => void;
+  splitItems: (a: PaneItem, b: PaneItem, tabId?: string) => void;
+  unsplitCurrent: (tabId?: string) => void;
   setDiff: (diff: AppState["diff"], tabId?: string) => void;
   setDbView: (v: DbView | null, tabId?: string) => void;
   setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
@@ -229,6 +339,12 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   diff: ps.diff,
   dbView: ps.dbView,
   settingsOpen: ps.settingsOpen,
+  editorTabs: ps.editorTabs,
+  mainTabOrder: ps.mainTabOrder,
+  splits: ps.splits,
+  current: ps.current,
+  mainPrimary: ps.mainPrimary,
+  mainSecondary: ps.mainSecondary,
 });
 
 // Patch one tab's ProjectState (the source of truth); ALSO mirror to the top
@@ -244,6 +360,48 @@ const patchTab = (
     ? { tabState, ...mirrorOf(next) }
     : { tabState };
 };
+
+// Set a tab's scene (splits + current) and recompute its derived view fields
+// (mainPrimary/mainSecondary/selectedFile via patchTab, and the tab's
+// activeTerminalId). `extra` carries any other ProjectState fields to patch in
+// the same set (e.g. editorTabs/mainTabOrder, or overlay clears).
+const setView = (
+  s: AppState,
+  tabId: string,
+  splits: [PaneItem, PaneItem][],
+  current: PaneItem | null,
+  extra: Partial<ProjectState> = {},
+): Partial<AppState> => {
+  const d = deriveView(splits, current);
+  const tt = s.tabTerminals[tabId];
+  return {
+    ...patchTab(s, tabId, {
+      splits,
+      current,
+      mainPrimary: d.mainPrimary,
+      mainSecondary: d.mainSecondary,
+      selectedFile: d.selectedFile,
+      ...extra,
+    }),
+    ...(tt
+      ? {
+          tabTerminals: {
+            ...s.tabTerminals,
+            [tabId]: { ...tt, activeTerminalId: d.activeTerminalId },
+          },
+        }
+      : {}),
+  };
+};
+
+// Remove an item from every split pair it appears in (used when a tab is
+// re-split elsewhere, closed, or killed). A pair that loses a member is dropped
+// entirely (its other member becomes a single tab again).
+const dropFromSplits = (
+  splits: [PaneItem, PaneItem][],
+  item: PaneItem,
+): [PaneItem, PaneItem][] =>
+  splits.filter((p) => !samePaneItem(p[0], item) && !samePaneItem(p[1], item));
 
 // Find the id of the tab whose terminal list contains `terminalId`. Used by the
 // ownership-routed setters so a background tab's pane updates the right tab.
@@ -342,6 +500,12 @@ export const useApp = create<AppState>((set) => ({
   settingsOpen: false,
   dbView: null,
   diff: null,
+  editorTabs: [],
+  mainTabOrder: [],
+  splits: [],
+  current: null,
+  mainPrimary: "terminal",
+  mainSecondary: null,
 
   // tab model — start with ONE blank tab (root null). The window always has
   // >= 1 tab; a blank tab renders the existing no-folder empty state and a
@@ -423,12 +587,25 @@ export const useApp = create<AppState>((set) => ({
   fillActiveTab: (root) => {
     set((s) => {
       const id = s.activeTabId;
-      const state = freshProjectState(root);
+      // tabTerminals[id] is intentionally NOT reset -- the blank tab's
+      // terminal(s) survive the attach. So the fresh ProjectState must keep
+      // those survivors in mainTabOrder (and focus the active one), or they'd be
+      // missing from the tab order -- which breaks split adjacency (splitItems
+      // only reorders tabs that are in mainTabOrder) and the unified tab bar.
+      const tt = s.tabTerminals[id];
+      const survivors = tt?.terminals ?? [];
+      const activeId = tt?.activeTerminalId ?? survivors[0]?.id ?? null;
+      const state: ProjectState = {
+        ...freshProjectState(root),
+        mainTabOrder: survivors.map((t) => ({
+          kind: "terminal" as const,
+          id: t.id,
+        })),
+        current: activeId ? { kind: "terminal", id: activeId } : null,
+      };
       return {
         tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
         tabState: { ...s.tabState, [id]: state },
-        // tabTerminals[id] is intentionally NOT reset -- the blank tab's
-        // terminal(s) survive the attach.
         ...mirrorOf(state),
         modal: null,
       };
@@ -685,12 +862,129 @@ export const useApp = create<AppState>((set) => ({
         dbView: null,
       }),
     ),
+  openFile: (relPath, _file, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid] ?? freshProjectState(null);
+      const editorTabs = cur.editorTabs.includes(relPath)
+        ? cur.editorTabs
+        : [...cur.editorTabs, relPath];
+      // Append the file at the far-right end of the unified tab order (once).
+      const mainTabOrder: PaneItem[] = cur.mainTabOrder.some(
+        (it) => it.kind === "file" && it.path === relPath,
+      )
+        ? cur.mainTabOrder
+        : [...cur.mainTabOrder, { kind: "file", path: relPath }];
+      // Show the opened file (it becomes `current`). If it is in a split that
+      // split is shown; otherwise it shows alone. Other splits are untouched.
+      // The pane loads its content on demand, so the `file` arg is unused here.
+      return setView(
+        s,
+        tid,
+        cur.splits,
+        { kind: "file", path: relPath },
+        {
+          editorTabs,
+          mainTabOrder,
+          diff: null,
+          settingsOpen: false,
+          dbView: null,
+        },
+      );
+    }),
+  closeEditorTab: (relPath, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      const closed: PaneItem = { kind: "file", path: relPath };
+      const editorTabs = cur.editorTabs.filter((p) => p !== relPath);
+      const mainTabOrder = cur.mainTabOrder.filter(
+        (it) => !samePaneItem(it, closed),
+      );
+      // The closed file's split partner (if any), for fallback focus.
+      const pair = cur.splits.find(
+        (p) => samePaneItem(p[0], closed) || samePaneItem(p[1], closed),
+      );
+      const partner = pair
+        ? samePaneItem(pair[0], closed)
+          ? pair[1]
+          : pair[0]
+        : null;
+      const splits = dropFromSplits(cur.splits, closed);
+      // If the closed file was focused, fall back to its split partner, else the
+      // first remaining tab, else nothing. (The caller may have already moved
+      // focus to a neighbor, in which case current is left as-is.)
+      const current =
+        cur.current && samePaneItem(cur.current, closed)
+          ? (partner ?? mainTabOrder[0] ?? null)
+          : cur.current;
+      return setView(s, tid, splits, current, { editorTabs, mainTabOrder });
+    }),
+  viewItem: (item, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      // Focus `item`: shows its split (if in one) or itself alone. Other splits
+      // are untouched. Showing a pane dismisses any overlay.
+      return setView(s, tid, cur.splits, item, {
+        diff: null,
+        settingsOpen: false,
+        dbView: null,
+      });
+    }),
+  splitItems: (a, b, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      // Pull a and b out of any prior pair, add [a,b] as a NEW coexisting split,
+      // and focus it. Place b's tab right after a's so the pair is adjacent.
+      const splits: [PaneItem, PaneItem][] = [
+        ...dropFromSplits(dropFromSplits(cur.splits, a), b),
+        [a, b],
+      ];
+      // Place b's tab immediately after a's so the pair is adjacent. Self-heal
+      // if a is somehow not in the order yet (e.g. a terminal that survived a
+      // folder-attach): append a, then insert b after it -- so the pair is
+      // always adjacent regardless of how it got here.
+      const base = cur.mainTabOrder.some((it) => samePaneItem(it, a))
+        ? cur.mainTabOrder
+        : [...cur.mainTabOrder, a];
+      const without = base.filter((it) => !samePaneItem(it, b));
+      const ai = without.findIndex((it) => samePaneItem(it, a));
+      const mainTabOrder =
+        ai >= 0
+          ? [...without.slice(0, ai + 1), b, ...without.slice(ai + 1)]
+          : [...without, a, b];
+      return setView(s, tid, splits, a, {
+        mainTabOrder,
+        diff: null,
+        settingsOpen: false,
+        dbView: null,
+      });
+    }),
+  unsplitCurrent: (tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur?.current) return {};
+      // Break only the split the focused tab is in; keep it focused (now alone).
+      return setView(
+        s,
+        tid,
+        dropFromSplits(cur.splits, cur.current),
+        cur.current,
+      );
+    }),
+  // Overlays (diff/settings/db) sit ON TOP of the editor/terminal: they clear
+  // each other (one overlay at a time) but NOT selectedFile/editorTabs, so the
+  // editor is restored when the overlay closes.
   setDiff: (diff, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         diff,
-        selectedFile: null,
-        file: null,
         settingsOpen: false,
         dbView: null,
       }),
@@ -712,16 +1006,27 @@ export const useApp = create<AppState>((set) => ({
       // adding a terminal in a SPLIT pane hits that pane -- not the focused one.
       const tid = tabId ?? s.activeTabId;
       const tt = s.tabTerminals[tid] ?? emptyTabTerminals();
-      return {
-        tabTerminals: {
-          ...s.tabTerminals,
-          [tid]: {
-            ...tt,
-            terminals: [...tt.terminals, entry],
-            activeTerminalId: entry.id,
-          },
-        },
+      const nextTT = { ...tt, terminals: [...tt.terminals, entry] };
+      const sWithTT: AppState = {
+        ...s,
+        tabTerminals: { ...s.tabTerminals, [tid]: nextTT },
       };
+      const cur = s.tabState[tid];
+      if (!cur) return { tabTerminals: sWithTT.tabTerminals };
+      // Append the new terminal at the far-right end of the tab order, and SHOW
+      // it (it becomes `current`). Other splits are untouched; if the new
+      // terminal is not in a split it shows alone. deriveView sets activeTerminalId.
+      const mainTabOrder: PaneItem[] = [
+        ...cur.mainTabOrder,
+        { kind: "terminal", id: entry.id },
+      ];
+      return setView(
+        sWithTT,
+        tid,
+        cur.splits,
+        { kind: "terminal", id: entry.id },
+        { mainTabOrder, diff: null, settingsOpen: false, dbView: null },
+      );
     });
     return entry.id;
   },
@@ -731,28 +1036,40 @@ export const useApp = create<AppState>((set) => ({
       if (tabId === null) return {};
       const tt = s.tabTerminals[tabId];
       if (!tt) return {};
-      return {
+      const sAfterKill: AppState = {
+        ...s,
         tabTerminals: { ...s.tabTerminals, [tabId]: removeFromTab(tt, id) },
       };
+      const cur = s.tabState[tabId];
+      if (!cur) return { tabTerminals: sAfterKill.tabTerminals };
+      const killed: PaneItem = { kind: "terminal", id };
+      const mainTabOrder = cur.mainTabOrder.filter(
+        (it) => !samePaneItem(it, killed),
+      );
+      const pair = cur.splits.find(
+        (p) => samePaneItem(p[0], killed) || samePaneItem(p[1], killed),
+      );
+      const partner = pair
+        ? samePaneItem(pair[0], killed)
+          ? pair[1]
+          : pair[0]
+        : null;
+      const splits = dropFromSplits(cur.splits, killed);
+      // If the killed terminal was focused, fall back to its split partner, else
+      // the first remaining tab, else nothing (a respawn effect handles empty).
+      const current =
+        cur.current && samePaneItem(cur.current, killed)
+          ? (partner ?? mainTabOrder[0] ?? null)
+          : cur.current;
+      return setView(sAfterKill, tabId, splits, current, { mainTabOrder });
     }),
   setActiveTerminal: (id, tabId) =>
     set((s) => {
       const tid = tabId ?? s.activeTabId;
-      const tt = s.tabTerminals[tid];
-      if (!tt) return {};
-      // Clicking the tab that is currently in the split slot swaps the two
-      // slots: the split pane becomes active and the previous active pane moves
-      // into the split slot. Both stay visible. For any other tab we just
-      // promote it to active (leaving the split slot untouched).
-      const next =
-        id === tt.splitTerminalId
-          ? {
-              ...tt,
-              activeTerminalId: id,
-              splitTerminalId: tt.activeTerminalId,
-            }
-          : { ...tt, activeTerminalId: id };
-      return { tabTerminals: { ...s.tabTerminals, [tid]: next } };
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      // Focusing a terminal = viewing it (shows its split if in one, else alone).
+      return setView(s, tid, cur.splits, { kind: "terminal", id });
     }),
   setTerminalPty: (id, ptyId) =>
     set((s) => {
@@ -817,26 +1134,23 @@ export const useApp = create<AppState>((set) => ({
   setClipboardClearSeconds: (clipboardClearSeconds) =>
     set({ clipboardClearSeconds }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
-  // Opening Settings clears the file/diff/dbView so the viewer-pane shows only
-  // one thing at a time (mutual exclusion). Closing leaves the rest untouched.
+  // Settings is an OVERLAY: opening it clears the other overlays (diff/dbView)
+  // but NOT the editor (selectedFile/editorTabs), so closing it restores the
+  // editor/terminal underneath. Closing leaves the rest untouched.
   setSettingsOpen: (v, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         settingsOpen: v,
-        ...(v
-          ? { selectedFile: null, file: null, diff: null, dbView: null }
-          : {}),
+        ...(v ? { diff: null, dbView: null } : {}),
       }),
     ),
-  // Browsing a DB table clears file/diff/settings (mutual exclusion), exactly
-  // like setSettingsOpen. Passing null closes the data grid (back to terminal).
+  // Browsing a DB table is an overlay too: clears diff/settings (one overlay at
+  // a time) but keeps the editor underneath. Passing null closes the data grid.
   setDbView: (v, tabId) =>
     set((s) =>
       patchTab(s, tabId ?? s.activeTabId, {
         dbView: v,
-        ...(v
-          ? { selectedFile: null, file: null, diff: null, settingsOpen: false }
-          : {}),
+        ...(v ? { diff: null, settingsOpen: false } : {}),
       }),
     ),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),

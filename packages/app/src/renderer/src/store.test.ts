@@ -910,6 +910,253 @@ describe("restartActiveTerminal", () => {
   });
 });
 
+describe("editor tabs (unified main pane)", () => {
+  const FILE = { content: "x", truncated: false };
+
+  it("openFile adds an editor tab, focuses it, and shows the editor", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    const s = get();
+    expect(s.tabState[id]?.editorTabs).toEqual(["a.ts"]);
+    expect(s.tabState[id]?.selectedFile).toBe("a.ts");
+    expect(s.tabState[id]?.current).toEqual({ kind: "file", path: "a.ts" });
+    // Content is loaded per-pane by ProjectPane now, not cached in the store.
+    expect(s.tabState[id]?.mainPrimary).toBe("editor");
+  });
+
+  it("appends a second file; re-opening the first does not duplicate", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().openFile("b.ts", FILE);
+    get().openFile("a.ts", FILE); // re-open existing -> just re-activates
+    expect(get().tabState[id]?.editorTabs).toEqual(["a.ts", "b.ts"]);
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+  });
+
+  it("closeEditorTab removes a tab; closing the active falls back to terminal", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().openFile("b.ts", FILE); // active = b
+    get().closeEditorTab("a.ts"); // non-active: just removed, active unchanged
+    expect(get().tabState[id]?.editorTabs).toEqual(["b.ts"]);
+    expect(get().tabState[id]?.selectedFile).toBe("b.ts");
+
+    get().closeEditorTab("b.ts"); // active + last: clear selection -> terminal
+    expect(get().tabState[id]?.editorTabs).toEqual([]);
+    expect(get().tabState[id]?.selectedFile).toBeNull();
+    expect(get().tabState[id]?.mainPrimary).toBe("terminal");
+  });
+
+  it("splitItems creates a coexisting split; unsplitCurrent breaks only the focused one", () => {
+    const id = tabIdAt(0);
+    const T1 = { kind: "terminal", id: "t1" } as const;
+    const T2 = { kind: "terminal", id: "t2" } as const;
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
+    get().splitItems(T1, T2); // [t1 | t2], focused
+    expect(get().tabState[id]?.splits).toEqual([[T1, T2]]);
+    expect(get().tabState[id]?.mainSecondary).toEqual(T2);
+    expect(get().tabState[id]?.current).toEqual(T1);
+    // A SECOND split coexists.
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "file", path: "b.ts" },
+    );
+    expect(get().tabState[id]?.splits.length).toBe(2);
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "file",
+      path: "b.ts",
+    });
+    // Focusing a member of the FIRST split shows it again -- it was preserved.
+    get().viewItem(T1);
+    expect(get().tabState[id]?.mainSecondary).toEqual(T2);
+    // unsplitCurrent breaks ONLY the focused split; the other survives.
+    get().unsplitCurrent();
+    expect(get().tabState[id]?.mainSecondary).toBeNull(); // t1 alone now
+    expect(get().tabState[id]?.splits.length).toBe(1); // [a.ts | b.ts] remains
+  });
+
+  it("splitting two new terminals does NOT unsplit an earlier split (reported bug)", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id);
+    const t2 = get().addTerminal(id);
+    get().splitItems(
+      { kind: "terminal", id: t1 },
+      { kind: "terminal", id: t2 },
+    );
+    const t3 = get().addTerminal(id); // focused alone; [t1|t2] preserved
+    const t4 = get().addTerminal(id);
+    get().splitItems(
+      { kind: "terminal", id: t3 },
+      { kind: "terminal", id: t4 },
+    );
+    // BOTH splits coexist.
+    expect(get().tabState[id]?.splits.length).toBe(2);
+    // The first split is intact -- focusing t1 shows [t1 | t2].
+    get().viewItem({ kind: "terminal", id: t1 });
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: t2,
+    });
+  });
+
+  it("opening a file focuses it alone but PRESERVES every split", () => {
+    const id = tabIdAt(0);
+    const T1 = { kind: "terminal", id: "t1" } as const;
+    const T2 = { kind: "terminal", id: "t2" } as const;
+    get().splitItems(T1, T2); // [t1 | t2]
+    get().openFile("other.ts", { content: "y", truncated: false });
+    expect(get().tabState[id]?.current).toEqual({
+      kind: "file",
+      path: "other.ts",
+    });
+    expect(get().tabState[id]?.mainSecondary).toBeNull(); // other.ts alone
+    expect(get().tabState[id]?.splits).toEqual([[T1, T2]]); // intact
+    get().viewItem(T1); // clicking a member returns to the split
+    expect(get().tabState[id]?.mainSecondary).toEqual(T2);
+  });
+
+  it("splitItems makes the left item the primary, the right the secondary", () => {
+    const id = tabIdAt(0);
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: "t1" },
+    );
+    expect(get().tabState[id]?.mainPrimary).toBe("editor"); // left file -> editor primary
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "terminal",
+      id: "t1",
+    });
+  });
+
+  it("closing a file that is in a split drops that split", () => {
+    const id = tabIdAt(0);
+    const FILE = { content: "x", truncated: false };
+    get().openFile("a.ts", FILE);
+    get().openFile("b.ts", FILE);
+    get().splitItems(
+      { kind: "file", path: "b.ts" },
+      { kind: "file", path: "a.ts" },
+    );
+    expect(get().tabState[id]?.mainSecondary).toEqual({
+      kind: "file",
+      path: "a.ts",
+    });
+    get().closeEditorTab("a.ts");
+    expect(get().tabState[id]?.splits.length).toBe(0);
+    expect(get().tabState[id]?.mainSecondary).toBeNull();
+  });
+
+  it("mainTabOrder interleaves terminals and files by creation order, appended at the end", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id);
+    get().openFile("a.ts", FILE);
+    const t2 = get().addTerminal(id);
+    get().openFile("b.ts", FILE);
+    // Each new tab lands at the far-right end, regardless of type.
+    expect(get().tabState[id]?.mainTabOrder).toEqual([
+      { kind: "terminal", id: t1 },
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: t2 },
+      { kind: "file", path: "b.ts" },
+    ]);
+    // Removing a terminal / closing a file drops just that entry, order intact.
+    get().removeTerminal(t1);
+    get().closeEditorTab("a.ts");
+    expect(get().tabState[id]?.mainTabOrder).toEqual([
+      { kind: "terminal", id: t2 },
+      { kind: "file", path: "b.ts" },
+    ]);
+    // Re-opening an already-open file does not duplicate its tab.
+    get().openFile("b.ts", FILE);
+    expect(
+      get().tabState[id]?.mainTabOrder.filter(
+        (it) => it.kind === "file" && it.path === "b.ts",
+      ).length,
+    ).toBe(1);
+  });
+
+  it("splitItems places the pair adjacent in the tab bar (no 'far away')", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id);
+    get().addTerminal(id); // t2, between t1 and the file in order
+    get().openFile("a.ts", FILE); // order [t1, t2, a.ts]
+    get().splitItems(
+      { kind: "file", path: "a.ts" },
+      { kind: "terminal", id: t1 },
+    );
+    const order = get().tabState[id]?.mainTabOrder ?? [];
+    const ai = order.findIndex(
+      (it) => it.kind === "file" && it.path === "a.ts",
+    );
+    const ti = order.findIndex((it) => it.kind === "terminal" && it.id === t1);
+    expect(ai).toBeGreaterThanOrEqual(0);
+    expect(ti).toBe(ai + 1); // the secondary sits immediately after the primary
+  });
+
+  it("fillActiveTab keeps surviving terminals in mainTabOrder so splits stay adjacent (reported bug)", () => {
+    const id = tabIdAt(0);
+    const t1 = get().addTerminal(id); // blank-tab terminal (survives the attach)
+    get().fillActiveTab("/proj");
+    // The survivor MUST stay in the tab order (the bug reset it to []).
+    expect(get().tabState[id]?.mainTabOrder).toEqual([
+      { kind: "terminal", id: t1 },
+    ]);
+    expect(get().tabState[id]?.current).toEqual({ kind: "terminal", id: t1 });
+    // The repro shape: split the survivor with a new terminal, open a file.
+    get().splitItems(
+      { kind: "terminal", id: t1 },
+      { kind: "terminal", id: "t2" },
+    );
+    get().openFile("a.ts", FILE);
+    const order = get().tabState[id]?.mainTabOrder ?? [];
+    const i1 = order.findIndex((it) => it.kind === "terminal" && it.id === t1);
+    const i2 = order.findIndex(
+      (it) => it.kind === "terminal" && it.id === "t2",
+    );
+    expect(i1).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(i1 - i2)).toBe(1); // split members adjacent despite the file
+  });
+
+  it("splitItems self-heals: members not yet in the order still end up adjacent", () => {
+    const id = tabIdAt(0);
+    get().addTerminal(id); // ensure tabState exists with a real terminal
+    // a and b are ids NOT in mainTabOrder (simulating any future desync).
+    get().splitItems(
+      { kind: "terminal", id: "ax" },
+      { kind: "terminal", id: "bx" },
+    );
+    const order = get().tabState[id]?.mainTabOrder ?? [];
+    const ia = order.findIndex(
+      (it) => it.kind === "terminal" && it.id === "ax",
+    );
+    const ib = order.findIndex(
+      (it) => it.kind === "terminal" && it.id === "bx",
+    );
+    expect(ia).toBeGreaterThanOrEqual(0);
+    expect(ib).toBe(ia + 1); // both healed into the order, adjacent
+  });
+
+  it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {
+    const id = tabIdAt(0);
+    get().openFile("a.ts", FILE);
+    get().setSettingsOpen(true);
+    expect(get().tabState[id]?.settingsOpen).toBe(true);
+    expect(get().tabState[id]?.editorTabs).toEqual(["a.ts"]); // preserved
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+    get().setSettingsOpen(false); // closing the overlay returns to the editor
+    expect(get().tabState[id]?.selectedFile).toBe("a.ts");
+  });
+
+  it("openFile dismisses an open overlay so the editor shows", () => {
+    const id = tabIdAt(0);
+    get().setSettingsOpen(true);
+    get().openFile("a.ts", FILE);
+    expect(get().tabState[id]?.settingsOpen).toBe(false);
+    expect(get().tabState[id]?.mainPrimary).toBe("editor");
+  });
+});
+
 describe("runningNotice", () => {
   it("setRunningNotice sets and clears the field", () => {
     // starts cleared

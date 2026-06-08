@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
-import { TerminalTabs } from "./TerminalTabs";
 
 // One project's terminal subtree (the old TerminalManager body), scoped to a
 // single tab's `tabTerminals[tabId]`. TerminalManager renders one of these per
@@ -19,9 +18,14 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const activeTerminalId = useApp(
     (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).activeTerminalId,
   );
-  const splitTerminalId = useApp(
-    (s) => (s.tabTerminals[tabId] ?? EMPTY_TAB_TERMINALS).splitTerminalId,
+  // Which terminals are on screen is driven by the unified main-pane model: the
+  // PRIMARY pane shows the active terminal (when mainPrimary==="terminal") and
+  // the SECONDARY pane shows mainSecondary's terminal (when it is one). Either,
+  // both, or neither -> 0/1/2 terminal panes.
+  const mainPrimary = useApp(
+    (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
+  const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
   const addTerminal = useApp((s) => s.addTerminal);
   const activeTabId = useApp((s) => s.activeTabId);
   const switchTab = useApp((s) => s.switchTab);
@@ -61,8 +65,13 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     addTerminal(tabId);
   }, [terminals.length, addTerminal, isVisible, tabId]);
 
+  // On screen = the shown scene's pane(s): the primary terminal (active) and/or
+  // the secondary when it is a terminal. (The derived mainPrimary/mainSecondary
+  // already reflect the focused scene.)
   const visible = (id: string) =>
-    id === activeTerminalId || id === splitTerminalId;
+    (mainPrimary === "terminal" && id === activeTerminalId) ||
+    (mainSecondary?.kind === "terminal" && id === mainSecondary.id);
+  const visibleCount = terminals.filter((t) => visible(t.id)).length;
 
   // The notice belongs to THIS tab only when its terminal is one of ours, and
   // is gated on being the active tab + the pref still enabled. Resolving the
@@ -140,8 +149,7 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
           </span>
         </div>
       )}
-      <TerminalTabs tabId={tabId} />
-      <div className={`terminal-panes${splitTerminalId ? " split" : ""}`}>
+      <div className={`terminal-panes${visibleCount > 1 ? " split" : ""}`}>
         {terminals.map((t) => (
           <div
             key={t.id}

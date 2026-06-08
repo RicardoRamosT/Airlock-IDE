@@ -229,6 +229,9 @@ export interface AirlockApi {
   // is identical.
   listDir(root: string, relPath: string): Promise<DirEntry[]>;
   readFile(root: string, relPath: string): Promise<FileContent>;
+  // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
+  // by root; a USER action, never an MCP tool (the agent stays value-blind).
+  writeFile(root: string, relPath: string, content: string): Promise<void>;
   ptyCreate(cols: number, rows: number): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
