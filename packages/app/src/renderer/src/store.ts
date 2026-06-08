@@ -287,6 +287,11 @@ interface AppState {
   // cleared and the main area falls back to the terminal (the caller activates a
   // neighbor file first when one exists).
   closeEditorTab: (relPath: string, tabId?: string) => void;
+  // Rewrite every reference to `fromRel` in the tab's open editor tabs, tab
+  // order, splits, and current focus to `toRel`. Handles both exact-path renames
+  // and folder renames (any path that starts with `fromRel/` is rebased). Derived
+  // fields (selectedFile / mainPrimary / mainSecondary) are recomputed via setView.
+  renameFilePath: (fromRel: string, toRel: string, tabId?: string) => void;
   // Scene model. viewItem: focus `item` -> the main area shows its split (if it
   // is in one) or `item` alone; never destroys another split. splitItems: pair
   // `a` (left) with `b` (right) into a NEW coexisting split, pulling either out
@@ -921,6 +926,28 @@ export const useApp = create<AppState>((set) => ({
         cur.current && samePaneItem(cur.current, closed)
           ? (partner ?? mainTabOrder[0] ?? null)
           : cur.current;
+      return setView(s, tid, splits, current, { editorTabs, mainTabOrder });
+    }),
+  renameFilePath: (fromRel, toRel, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      // Rebase a file path: exact match -> toRel; under fromRel/ -> toRel + rest.
+      const rebase = (p: string): string =>
+        p === fromRel
+          ? toRel
+          : p.startsWith(`${fromRel}/`)
+            ? toRel + p.slice(fromRel.length)
+            : p;
+      const mapItem = (it: PaneItem): PaneItem =>
+        it.kind === "file" ? { kind: "file", path: rebase(it.path) } : it;
+      const editorTabs = cur.editorTabs.map(rebase);
+      const mainTabOrder = cur.mainTabOrder.map(mapItem);
+      const splits = cur.splits.map(
+        (pair) => [mapItem(pair[0]), mapItem(pair[1])] as [PaneItem, PaneItem],
+      );
+      const current = cur.current ? mapItem(cur.current) : null;
       return setView(s, tid, splits, current, { editorTabs, mainTabOrder });
     }),
   viewItem: (item, tabId) =>
