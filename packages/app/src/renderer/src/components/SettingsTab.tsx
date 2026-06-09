@@ -247,6 +247,10 @@ export function SettingsTab() {
                 const v = e.target.checked;
                 useApp.getState().setLayoutHydrated(true);
                 setQuotaMeterEnabled(v);
+                // Drop any cached usage when turning off so re-enabling shows
+                // "waiting" rather than flashing stale numbers (main stops the
+                // watcher; this clears the renderer's copy).
+                if (!v) useApp.setState({ quota: null });
                 void window.airlock.prefsSet({ quotaMeter: { enabled: v } });
               }}
             />

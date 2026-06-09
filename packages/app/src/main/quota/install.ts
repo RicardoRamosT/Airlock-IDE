@@ -45,11 +45,19 @@ function isOurs(sl: StatusLine): boolean {
   );
 }
 
+// Single-quote a literal filesystem path for the POSIX shell Claude Code runs
+// the statusLine command in. Single quotes (not double) so a path containing
+// $, backtick, or " is taken verbatim with no expansion; embedded single quotes
+// are escaped the standard '\'' way.
+function shQuote(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`;
+}
+
 // ELECTRON_RUN_AS_NODE makes the app's own Electron binary behave as plain
 // node, so no `node`/`jq` on PATH is assumed (packaged-app safe). Paths are
-// double-quoted for the POSIX shell Claude Code runs the command in.
+// single-quoted so usernames/dirs with shell metacharacters can't break it.
 export function buildStatusLineCommand(p: QuotaPaths): string {
-  return `ELECTRON_RUN_AS_NODE=1 "${p.execPath}" "${p.emitScript}" "${p.emitConfigPath}"`;
+  return `ELECTRON_RUN_AS_NODE=1 ${shQuote(p.execPath)} ${shQuote(p.emitScript)} ${shQuote(p.emitConfigPath)}`;
 }
 
 export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
@@ -96,4 +104,14 @@ export async function uninstallQuotaStatusLine(p: QuotaPaths): Promise<void> {
     prior: undefined,
   } satisfies Bookkeeping);
   await rm(p.emitConfigPath, { force: true });
+}
+
+// Whether we currently have a statusLine installed (per our bookkeeping). Lets
+// the reconcile skip all disk writes for opt-out users who never enabled it, so
+// the feature stays a true no-op until turned on.
+export async function isQuotaInstalled(p: QuotaPaths): Promise<boolean> {
+  const book = (await readJson(
+    p.bookkeepingPath,
+  )) as unknown as Bookkeeping | null;
+  return book?.installed === true;
 }

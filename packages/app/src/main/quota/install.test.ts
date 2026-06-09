@@ -5,6 +5,7 @@ import { beforeEach, expect, it } from "vitest";
 import {
   buildStatusLineCommand,
   installQuotaStatusLine,
+  isQuotaInstalled,
   type QuotaPaths,
   uninstallQuotaStatusLine,
 } from "./install";
@@ -28,9 +29,18 @@ const readJson = async (f: string) => JSON.parse(await readFile(f, "utf8"));
 it("builds a command that runs Electron-as-node against the emitter", () => {
   const cmd = buildStatusLineCommand(paths);
   expect(cmd).toContain("ELECTRON_RUN_AS_NODE=1");
-  expect(cmd).toContain('"/fake/Electron"');
+  expect(cmd).toContain("'/fake/Electron'");
   expect(cmd).toContain("statusline-emit.cjs");
   expect(cmd).toContain(paths.emitConfigPath);
+});
+
+it("single-quotes paths so shell metacharacters cannot break the command", () => {
+  const cmd = buildStatusLineCommand({
+    ...paths,
+    execPath: "/Users/na$me/My App/Electron",
+  });
+  // The whole path is wrapped in single quotes -> the $ is literal, not expanded.
+  expect(cmd).toContain("'/Users/na$me/My App/Electron'");
 });
 
 it("installs into an empty settings dir with prior null", async () => {
@@ -84,4 +94,12 @@ it("uninstall leaves a statusLine the user changed after install untouched", asy
   await writeFile(paths.settingsPath, JSON.stringify({ statusLine: userSet }));
   await uninstallQuotaStatusLine(paths);
   expect((await readJson(paths.settingsPath)).statusLine).toEqual(userSet);
+});
+
+it("isQuotaInstalled tracks the install/uninstall lifecycle", async () => {
+  expect(await isQuotaInstalled(paths)).toBe(false); // never installed
+  await installQuotaStatusLine(paths);
+  expect(await isQuotaInstalled(paths)).toBe(true);
+  await uninstallQuotaStatusLine(paths);
+  expect(await isQuotaInstalled(paths)).toBe(false);
 });

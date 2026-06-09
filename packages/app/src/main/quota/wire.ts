@@ -3,10 +3,11 @@ import path from "node:path";
 import { app } from "electron";
 import {
   installQuotaStatusLine,
+  isQuotaInstalled,
   type QuotaPaths,
   uninstallQuotaStatusLine,
 } from "./install";
-import { startQuotaWatch } from "./watch";
+import { startQuotaWatch, stopQuotaWatch } from "./watch";
 
 // Resolve every path + the emitter location. Centralized so startup and the
 // prefs:set reconcile share identical wiring. The emitter ships via
@@ -27,13 +28,37 @@ export function quotaPaths(): QuotaPaths {
   };
 }
 
-// Reconcile the on-disk Claude statusLine to match `enabled`, then (re)start the
-// watcher. The watcher always runs (idempotent) so a later enable is picked up
-// without restart. Best-effort: callers swallow/log so a settings.json write
-// failure never crashes the app.
-export async function reconcileQuotaMeter(enabled: boolean): Promise<void> {
+// Serialize every reconcile so two interleaving install/uninstall passes (the
+// startup reconcile racing a fast toggle, or two windows both flipping the
+// pref) can never read the same settings.json baseline and lose the user's
+// prior statusLine. Same read-modify-write hazard prefs.ts guards (audit
+// PB-H13). All callers go through reconcileQuotaMeter, so one chain suffices.
+let chain: Promise<void> = Promise.resolve();
+
+// Reconcile the on-disk Claude statusLine + the watcher to match `enabled`.
+// Best-effort: callers swallow/log so a settings.json write failure never
+// crashes the app.
+export function reconcileQuotaMeter(enabled: boolean): Promise<void> {
+  const run = chain.then(() => reconcileNow(enabled));
+  // Keep a non-rejecting tail so a failed reconcile can't wedge the queue.
+  chain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function reconcileNow(enabled: boolean): Promise<void> {
   const p = quotaPaths();
-  if (enabled) await installQuotaStatusLine(p);
-  else await uninstallQuotaStatusLine(p);
-  startQuotaWatch(p.outPath);
+  if (enabled) {
+    await installQuotaStatusLine(p);
+    startQuotaWatch(p.outPath);
+  } else {
+    // Opt-out default: only touch disk if we actually installed before, so the
+    // feature is a true no-op (no userData state, no ~/.claude read/write) for
+    // users who never enable it. Stop the watcher and drop the cached status so
+    // re-enabling shows "waiting" rather than flashing stale numbers.
+    if (await isQuotaInstalled(p)) await uninstallQuotaStatusLine(p);
+    await stopQuotaWatch();
+  }
 }
