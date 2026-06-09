@@ -82,6 +82,26 @@ describe("audit", () => {
     expect(await verifyAuditChain(root)).toBe(true);
   });
 
+  // H4: a torn last line (crash mid-append, no trailing newline) must NOT be
+  // glued onto the next entry. Without the newline guard the fragment + the new
+  // entry become one unparseable line and BOTH are lost; with it the new entry
+  // stays its own parseable line and readAudit recovers it.
+  it("does not glue a new entry onto a torn last line (audit H4)", async () => {
+    await appendAudit(root, "user", "a", {});
+    const file = path.join(root, ".airlock", "audit", "log.jsonl");
+    const cur = await readFile(file, "utf8");
+    await writeFile(file, `${cur}{"ts":"partial`); // torn fragment, no newline
+    await appendAudit(root, "user", "b", { ok: true });
+    const lines = (await readFile(file, "utf8"))
+      .split("\n")
+      .filter((l) => l.length > 0);
+    const last = lines[lines.length - 1] ?? "";
+    expect(() => JSON.parse(last)).not.toThrow();
+    expect((JSON.parse(last) as { op: string }).op).toBe("b");
+    // best-effort read recovers the valid entries, skipping the torn one
+    expect((await readAudit(root)).some((e) => e.op === "b")).toBe(true);
+  });
+
   it("limits reads from the tail", async () => {
     for (let i = 0; i < 5; i++) await appendAudit(root, "user", `op${i}`, {});
     const tail = await readAudit(root, 2);

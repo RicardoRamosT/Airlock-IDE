@@ -31,7 +31,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] **H1** `run_command` redaction covers only the named injected secrets, not all vaulted. `command/run.ts:114-117,130,149`. (Same fix as C1.)
 - [x] **H2** `outsideWorkspace` classifier misses `~/...` tilde (the spec's own example) -- trailing `\b` never matches between `~` and `/`. `command/policy.ts:36`. Fix: drop the broken `\b`; match a leading tilde token; catch `${HOME}`.
 - [x] **H3** `privilege` block defeated by a path to the binary (`/usr/bin/sudo`, `./sudo`). `command/policy.ts:23,38`. Fix: match the program basename after stripping any leading path.
-- [ ] **H4** A torn/partial last audit line (crash mid-write) is glued to the next entry (`appendFile` adds only a trailing `\n`, never checks). `audit/audit.ts:87`. Fix: ensure trailing newline before appending / write atomically.
+- [x] **H4** A torn/partial last audit line (crash mid-write) is glued to the next entry (`appendFile` adds only a trailing `\n`, never checks). `audit/audit.ts:87`. Fix: ensure trailing newline before appending / write atomically.
 - [x] **H5** Catastrophic O(n^2) backtracking in `redactConnStrings` hangs main on one long line (~97s on 400k chars). `db/connstr.ts:38`. Fix: non-overlapping / length-bounded userinfo class.
 - [x] **H6** Lowercase base32 encoding of a secret bypasses redaction (scan only matches uppercase `[A-Z2-7]`). `redact/redact.ts:102-106`. Fix: match base32 case-insensitively.
 - [x] **H7** `fs:readFile` has no vault guard -> renderer can read the secret-name inventory + full audit log. `app/src/main/ipc.ts:324-327`. Fix: `assertNotVault(relPath)` (mirror `fs:readImage`).

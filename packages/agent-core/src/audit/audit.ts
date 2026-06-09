@@ -40,20 +40,25 @@ function parseEntry(line: string): AuditEntry | null {
   }
 }
 
-// Returns one slot per non-empty line; a null slot is a line that failed to
-// parse (corrupt JSON). Reading the file is best-effort: a missing/unreadable
-// file yields no entries rather than throwing.
-async function readEntries(logFile: string): Promise<(AuditEntry | null)[]> {
-  let text: string;
-  try {
-    text = await readFile(logFile, "utf8");
-  } catch {
-    return [];
-  }
+// Split JSONL text into one slot per non-empty line; a null slot is a corrupt
+// (unparseable) line. Shared by readEntries (file path) and appendAuditAt (which
+// also needs the RAW text to detect a torn last line), so the parse rules live
+// in one place.
+function parseEntries(text: string): (AuditEntry | null)[] {
   return text
     .split("\n")
     .filter((l) => l.trim().length > 0)
     .map((l) => parseEntry(l));
+}
+
+// Returns one slot per non-empty line. Reading the file is best-effort: a
+// missing/unreadable file yields no entries rather than throwing.
+async function readEntries(logFile: string): Promise<(AuditEntry | null)[]> {
+  try {
+    return parseEntries(await readFile(logFile, "utf8"));
+  } catch {
+    return [];
+  }
 }
 
 // Serialize appends per log file. appendAuditAt is a read-modify-write -- it
@@ -99,8 +104,16 @@ export async function appendAuditAt(
   nowIso?: string,
 ): Promise<AuditEntry> {
   return withAppendLock(logFile, async () => {
+    // Read the RAW log: we need it both to link to the last entry's hash AND to
+    // detect a torn last line (the newline guard below).
+    let raw = "";
+    try {
+      raw = await readFile(logFile, "utf8");
+    } catch {
+      raw = "";
+    }
     // Skip corrupt lines and link to the last PARSEABLE entry's hash.
-    const entries = (await readEntries(logFile)).filter(
+    const entries = parseEntries(raw).filter(
       (e): e is AuditEntry => e !== null,
     );
     const prevHash =
@@ -116,7 +129,12 @@ export async function appendAuditAt(
     };
     const entry: AuditEntry = { ...partial, hash: computeHash(partial) };
     await mkdir(path.dirname(logFile), { recursive: true });
-    await appendFile(logFile, `${JSON.stringify(entry)}\n`, "utf8");
+    // If the file does not end in a newline, a previous append was torn (process
+    // died mid-write). Prefix a newline so the torn fragment stays its OWN
+    // (corrupt) line instead of being glued onto -- and corrupting -- this entry.
+    // readAudit then still recovers this and later entries. (audit H4)
+    const sep = raw.length > 0 && !raw.endsWith("\n") ? "\n" : "";
+    await appendFile(logFile, `${sep}${JSON.stringify(entry)}\n`, "utf8");
     return entry;
   });
 }
