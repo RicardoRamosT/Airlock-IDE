@@ -177,6 +177,9 @@ it("mounts <App/> without crashing (white-screen guard)", async () => {
   // render() would have thrown "Maximum update depth exceeded" above.
   expect(container.querySelector(".project-pane")).toBeTruthy();
   expect(container.querySelector(".terminal-keepalive")).toBeTruthy();
+  // New chrome: the activity bar and exactly ONE shared sidebar.
+  expect(container.querySelector(".activity-bar")).toBeTruthy();
+  expect(container.querySelectorAll(".sidebar").length).toBe(1);
 });
 
 it("keeps terminals alive across a split toggle (no pty teardown)", async () => {
@@ -192,6 +195,8 @@ it("keeps terminals alive across a split toggle (no pty teardown)", async () => 
     useApp.getState().toggleProjectSplit();
   });
   expect(ptyKillCalls).toBe(0);
+  // The split must NOT duplicate the sidebar: one shared instance, always.
+  expect(document.querySelectorAll(".sidebar").length).toBe(1);
 
   // Toggle split OFF: the second pane's terminal relocates to the hidden
   // keep-alive (appendChild), still mounted -- not killed.
