@@ -477,11 +477,8 @@ describe("IDE-control tools (tabs / split / terminals)", () => {
     cmd: AgentCommand;
   }> = [
     { name: "list_tabs", args: {}, cmd: { type: "list_tabs" } },
-    {
-      name: "open_tab",
-      args: { path: "/x" },
-      cmd: { type: "open_tab", path: "/x" },
-    },
+    // open_tab WITH a path is confined (PB-C1) and covered by its own tests below;
+    // the no-path (blank tab) case forwards unconditionally.
     {
       name: "open_tab",
       args: {},
@@ -564,13 +561,58 @@ describe("IDE-control tools (tabs / split / terminals)", () => {
     const runAgentCommand = vi.fn(
       async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
     );
+    // A blank tab (no path) needs no workspace and no path-sanctioning, so it
+    // still reaches runAgentCommand even with getWorkspaceRoot() null.
     const tool = getTool("open_tab", runAgentCommand);
-    const res = (await tool.handler({ path: "/y" })) as { isError?: boolean };
+    const res = (await tool.handler({})) as { isError?: boolean };
     expect(runAgentCommand).toHaveBeenCalledWith({
       type: "open_tab",
-      path: "/y",
+      path: undefined,
     });
     expect(res.isError).toBeUndefined();
+  });
+
+  // PB-C1: open_tab confines the agent's path to a folder the user already
+  // opened (a current/recent root or a subfolder), so the agent cannot point its
+  // own workspace root at an arbitrary directory and self-poison resolveRoot.
+  it("open_tab forwards a path inside an open root (PB-C1)", async () => {
+    const runAgentCommand = vi.fn(
+      async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
+    );
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, {
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      runAgentCommand,
+    });
+    const tool = tools.find((t) => t.name === "open_tab");
+    if (!tool) throw new Error("open_tab not registered");
+    await tool.handler({ path: "/repo/packages/app" });
+    expect(runAgentCommand).toHaveBeenCalledWith({
+      type: "open_tab",
+      path: "/repo/packages/app",
+    });
+  });
+
+  it("open_tab REJECTS a path outside any open/recent root (PB-C1)", async () => {
+    const runAgentCommand = vi.fn(
+      async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
+    );
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, {
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      runAgentCommand,
+    });
+    const tool = tools.find((t) => t.name === "open_tab");
+    if (!tool) throw new Error("open_tab not registered");
+    const res = (await tool.handler({ path: "/Users/victim/.ssh" })) as {
+      isError?: boolean;
+      content: [{ text: string }];
+    };
+    expect(runAgentCommand).not.toHaveBeenCalled();
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toMatch(/already opened/i);
   });
 
   it("declares the expected input schemas (optional path/tabId, required tabId/terminalId)", () => {

@@ -18,6 +18,7 @@
 //
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
+import path from "node:path";
 import { appendAudit, gateCommand, runCommand } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -412,10 +413,36 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "open_tab",
     {
       description:
-        "Open a project folder as a new tab (pass path), or a blank tab with no folder (no path), in the focused airlock window. The new tab is focused, and -- like every tab and split pane -- comes with one default terminal already running (so list_tabs will show 1 terminal, not 0). Returns the new tab layout. Acts on the FOCUSED window.",
+        "Open a project folder as a new tab (pass path), or a blank tab with no folder (no path), in the focused airlock window. The new tab is focused, and -- like every tab and split pane -- comes with one default terminal already running (so list_tabs will show 1 terminal, not 0). Returns the new tab layout. Acts on the FOCUSED window. The folder must be one the user has already opened (a current or recent project, or a subfolder of one) -- to open a brand-new location, ask the user to open it.",
       inputSchema: { path: z.string().optional() },
     },
-    async ({ path }) => drive({ type: "open_tab", path }),
+    async ({ path: tabPath }) => {
+      // CONFINE the agent's open path. Without this, open_tab -> workspace:open
+      // sets the window root to ANY path with no validation, and the renderer
+      // then reports it to workspace:roots -- self-poisoning the resolveRoot
+      // allowlist so every root-gated tool (run_command, git_*, ...) operates in
+      // the attacker-chosen directory. The agent may only open a project the USER
+      // has sanctioned: a current/recent root or a subfolder of one (recents is a
+      // superset of every opened root). The human's brand-new opens go through
+      // dialog:openFolder, so this does not constrain the user. (audit PB-C1)
+      if (tabPath !== undefined) {
+        const resolved = path.resolve(tabPath);
+        const focused = deps.getWorkspaceRoot();
+        const allowed = [
+          ...(await loadPrefs(deps.prefsFile)).recentFolders,
+          ...(focused ? [focused] : []),
+        ].map((p) => path.resolve(p));
+        const ok = allowed.some(
+          (a) => resolved === a || resolved.startsWith(a + path.sep),
+        );
+        if (!ok) {
+          return err(
+            `open_tab can only open a folder the user has already opened (a current or recent project, or a subfolder of one); "${tabPath}" is not one. Ask the user to open it first.`,
+          );
+        }
+      }
+      return drive({ type: "open_tab", path: tabPath });
+    },
   );
 
   mcp.registerTool(
