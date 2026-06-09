@@ -41,6 +41,7 @@ import {
   redactConnStrings,
   redactedPreview,
   redactedTail,
+  redactSecrets,
   resolveWithin,
   runGit,
   searchProject,
@@ -487,16 +488,27 @@ export function registerIpc(
     listSecrets(resolveRoot(e, root)),
   );
 
-  ipcMain.handle("secrets:set", (e, root: unknown, name, value) => {
+  ipcMain.handle("secrets:set", async (e, root: unknown, name, value) => {
     if (typeof name !== "string" || typeof value !== "string") {
       throw new Error("Invalid payload");
     }
-    return setSecret(resolveRoot(e, root), name, value);
+    const resolved = resolveRoot(e, root);
+    // Rotation: capture the OLD value first, then scrub it from PTY buffers so a
+    // get_terminal_tail can't return the superseded value. (audit PB-H4)
+    const old = await getSecretValue(resolved, name);
+    const meta = await setSecret(resolved, name, value);
+    if (old !== null && old !== value) scrubSecretFromBuffers(old);
+    return meta;
   });
 
-  ipcMain.handle("secrets:delete", (e, root: unknown, name) => {
+  ipcMain.handle("secrets:delete", async (e, root: unknown, name) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    return deleteSecret(resolveRoot(e, root), name);
+    const resolved = resolveRoot(e, root);
+    // Scrub the deleted value from PTY buffers (it just left the vault, so the
+    // tail redactor would no longer mask it). (audit PB-H4)
+    const old = await getSecretValue(resolved, name);
+    await deleteSecret(resolved, name);
+    if (old !== null) scrubSecretFromBuffers(old);
   });
 
   // OWNER-ONLY value path. The renderer is the human's surface; the agent (a
@@ -1115,6 +1127,20 @@ export function killAllSessions(): void {
 // the tail/preview can be redacted. Delegates to the broker's named gather.
 async function allVaultedValues(root: string): Promise<string[]> {
   return (await vaultedSecrets(root)).map((s) => s.value);
+}
+
+// Scrub a (now-removed) secret value out of EVERY live PTY ring buffer.
+// get_terminal_tail redacts against the CURRENTLY vaulted values, so once a
+// secret is deleted or rotated its old value would otherwise linger in a buffer
+// and be returned to the agent un-redacted. Scrub eagerly on delete/rotate
+// (redactSecrets also catches the value's encoded forms). Over-scrubbing other
+// windows' buffers is harmless and the safe direction. (audit PB-H4)
+function scrubSecretFromBuffers(value: string): void {
+  if (!value) return;
+  for (const [id, raw] of ptyBuffers) {
+    const scrubbed = redactSecrets(raw, [value]);
+    if (scrubbed !== raw) ptyBuffers.set(id, scrubbed);
+  }
 }
 
 // The redacted tail of one terminal's recent output. Root-gated + audited
