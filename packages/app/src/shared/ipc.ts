@@ -90,6 +90,14 @@ export interface CommitOutcome {
   leaks: SecretLeak[];
 }
 
+// run_command's result when the agent command policy gates it (value-free).
+export interface CommandGateBlock {
+  blocked: true;
+  action: "ask" | "block";
+  categories: RiskCategory[];
+  reason: string;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO

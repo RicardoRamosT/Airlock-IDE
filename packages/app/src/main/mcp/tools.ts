@@ -18,7 +18,7 @@
 //
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
-import { runCommand } from "@airlock/agent-core";
+import { appendAudit, gateCommand, runCommand } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type {
@@ -30,7 +30,7 @@ import type {
 } from "../../shared/ipc";
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
-import { SECTIONS } from "../prefs";
+import { loadPrefs, SECTIONS } from "../prefs";
 import { guardedCommit } from "../secrets/commit";
 import { scanWorkingSet } from "../secrets/scan";
 
@@ -299,16 +299,31 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "run_command",
     {
       description:
-        "Run a shell command with the named vaulted secrets injected into its environment; the output is returned with secret values redacted. Use this for commands that need a secret (database, API keys) -- you never see the secret value.",
+        'Run a shell command with the named vaulted secrets injected into its environment; the output is returned with secret values redacted. If the command hits a risky category under the user\'s agent policy it is BLOCKED (action="ask" -> re-call with confirm:true to proceed; action="block" -> not allowed, the user must change the policy). You never see the secret value.',
       inputSchema: {
         command: z.string(),
         injectSecrets: z.array(z.string()).optional(),
         cwd: z.string().optional(),
+        confirm: z.boolean().optional(),
       },
     },
-    async ({ command, injectSecrets, cwd }) => {
+    async ({ command, injectSecrets, cwd, confirm }) => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
+      const policy = (await loadPrefs(deps.prefsFile)).agentPolicy;
+      const gate = gateCommand(command, policy, confirm ?? false);
+      if (!gate.run) {
+        await appendAudit(root, "agent", "command.policy.blocked", {
+          action: gate.action,
+          categories: gate.categories,
+        }).catch(() => {});
+        return ok({
+          blocked: true,
+          action: gate.action,
+          categories: gate.categories,
+          reason: gate.reason,
+        });
+      }
       try {
         return ok(
           await runCommand(root, command, {
