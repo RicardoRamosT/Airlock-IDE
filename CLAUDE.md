@@ -1,0 +1,65 @@
+# AirLock
+
+Terminal-first AI IDE (Electron + TypeScript monorepo). Two workspaces:
+`packages/agent-core` (pure, electron-free logic) and `packages/app` (Electron
+main + preload + React renderer).
+
+**Commands** (repo root): `npm test` (vitest), `npm run typecheck`, `npm run lint`
+(biome), `npm run dev` (electron-vite dev window), `npm run package`
+(electron-builder → `packages/app/release/mac-arm64/AirLock.app`).
+
+**Testing convention:** unit-test pure modules; keep electron/chokidar wiring
+thin and untested (e.g. `fsWatch.ts` only tests its pure helper).
+
+## Claude usage quota meter
+
+A sidebar-pinned, **account-wide** meter showing Claude subscription usage
+(5-hour and 7-day windows: % used + reset countdown), bottom-left of the
+project sidebar. Default **ON** (`AppPrefs.quotaMeter.enabled`); toggle in the
+Settings tab's "Claude" section.
+
+**Data source.** The only place Claude Code exposes `rate_limits` is its
+**statusLine command's stdin JSON** (`rate_limits.five_hour|seven_day` →
+`used_percentage`, `resets_at`). No file/env/API exposes it. So AirLock
+registers a statusLine that siphons the payload to a side-channel file it
+watches.
+
+**Pipeline** (all under `packages/app/src/main/quota/` unless noted):
+- `resources/statusline-emit.cjs` — first-party emitter Claude Code runs as the
+  statusLine. Atomically writes the raw payload to the side-channel file, then
+  **chains** any pre-existing user statusLine (re-feeds stdin, passes its stdout
+  through) in a cleaned env (strips `ELECTRON_RUN_AS_NODE`) with a spawn timeout.
+- `install.ts` — installs/uninstalls the chained statusLine in
+  `~/.claude/settings.json`: idempotent, reversible, never clobbers a user
+  statusLine, sets `refreshInterval`. Pure `node:fs`, unit-tested.
+- `wire.ts` — path resolution + `reconcileQuotaMeter()`; **serializes** all
+  reconciles (PB-H13-class write race) and skips disk writes for opt-out users
+  who never installed.
+- `watch.ts` — chokidar-watches the side-channel file, parses (stamps
+  `updatedAt` from file **mtime** = last emit time), broadcasts `quota:changed`
+  to all windows, caches latest for the `quota:get` IPC.
+- `parse.ts` — pure `parseQuota` + `mergeQuota` (folds each emit onto the last
+  known status so a pre-first-response emit doesn't blank the meter).
+- Renderer: `lib/quotaFormat.ts` (countdown/clamp), `lib/useQuota.ts`
+  (seed + subscribe), store `quota`/`quotaMeterEnabled` slice, and
+  `components/QuotaMeter.tsx` placed in `Sidebar.tsx`.
+
+**Gotchas:**
+- **Account-wide, not per-project.** ANY Claude session on the machine feeds the
+  one meter (the statusLine is global). In a split scene it renders **once** —
+  `Sidebar.tsx` hides it on the secondary pane (`tabId === split.b`).
+- `rate_limits` only appears **after the first API response** and only for
+  Pro/Max subscribers; each window can be independently absent — parse
+  defensively.
+- **Liveness** depends on `refreshInterval` (5s, set in `install.ts`): an open
+  session re-emits on a timer so the meter stays live while idle. The UI treats
+  "no emit within `STALE_AFTER_SECONDS` (15s, in `QuotaMeter.tsx`)" as **no
+  active session** → shows "Start a Claude session…". Tune the two together
+  (threshold must exceed refreshInterval + jitter).
+- **Packaging:** the emitter ships via electron-builder `extraResources`;
+  `wire.ts` resolves `process.resourcesPath` (packaged) vs repo `resources/`
+  (dev). It runs via `ELECTRON_RUN_AS_NODE` on the app's own Electron binary
+  (no `node`/`jq` on PATH assumed); shell paths are single-quoted.
+
+Spec: `docs/superpowers/specs/2026-06-09-claude-quota-meter-design.md` ·
+Plan: `docs/superpowers/plans/2026-06-09-claude-quota-meter.md`.
