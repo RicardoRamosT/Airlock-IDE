@@ -14,6 +14,13 @@ export interface AuditEntry {
 
 const GENESIS = "0".repeat(64);
 
+// The exact top-level keys of a well-formed entry. verifyAuditChain rejects any
+// entry whose key set differs: computeHash covers a FIXED, ordered 5-field
+// subset (order-stable, robust to JSON key reordering), so an EXTRA top-level
+// key would otherwise ride along unhashed and undetected. detail's contents are
+// hashed wholesale, so nested keys are already covered. (audit L4)
+const ENTRY_KEYS = new Set(["ts", "actor", "op", "detail", "prevHash", "hash"]);
+
 function auditFile(root: string): string {
   return path.join(root, ".airlock", "audit", "log.jsonl");
 }
@@ -177,6 +184,11 @@ export async function verifyAuditChain(root: string): Promise<boolean> {
   for (const e of entries) {
     // A corrupt (unparseable) line is an integrity failure, not a crash.
     if (e === null) return false;
+    // Reject an unexpected top-level key set: an extra key is not covered by the
+    // 5-field hash, so it must not pass verification. (audit L4)
+    const keys = Object.keys(e);
+    if (keys.length !== ENTRY_KEYS.size || keys.some((k) => !ENTRY_KEYS.has(k)))
+      return false;
     if (e.prevHash !== prev) return false;
     const { hash, ...rest } = e;
     if (computeHash(rest) !== hash) return false;

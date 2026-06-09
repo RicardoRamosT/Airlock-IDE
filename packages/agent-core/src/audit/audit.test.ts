@@ -61,6 +61,18 @@ describe("audit", () => {
     expect(await verifyAuditChain(root)).toBe(false);
   });
 
+  // L4: the hash covers a fixed 5 fields, so an extra top-level key would ride
+  // along unprotected. verify must reject an entry whose key set is not exactly
+  // the schema, even though the 5-field hash still matches.
+  it("rejects an entry with an unexpected top-level key (L4)", async () => {
+    await appendAudit(root, "user", "x", {});
+    const file = path.join(root, ".airlock", "audit", "log.jsonl");
+    const obj = JSON.parse((await readFile(file, "utf8")).trim());
+    obj.injected = "evil"; // extra key; the 5-field hash is still "valid"
+    await writeFile(file, `${JSON.stringify(obj)}\n`);
+    expect(await verifyAuditChain(root)).toBe(false);
+  });
+
   it("treats a corrupt line as invalid without throwing", async () => {
     await appendAudit(root, "user", "secret.set", { name: "A" });
     await appendAudit(root, "user", "secret.set", { name: "B" });
