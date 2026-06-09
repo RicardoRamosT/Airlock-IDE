@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { openPickedFolder } from "../lib/openFolder";
 import { useProjectTab } from "../lib/projectPane";
-import { SECTION_META, effectiveView } from "../lib/sections";
+import { effectiveView, SECTION_META } from "../lib/sections";
 import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";

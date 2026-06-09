@@ -3,6 +3,7 @@
 **Date:** 2026-06-09
 **Status:** Approved by owner mandate ("implement it" — interactive design review
 waived, decisions delegated). Built on main, branch feat/ui-activity-bar.
+Implemented on feat/ui-activity-bar.
 
 The owner's report: "The IDE is starting to pile up and it's getting confusing —
 upgrade the UI for a better organized view." This spec reorganizes the window

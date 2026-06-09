@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import type { SectionVisibility } from "../../shared/ipc";
-import { SECTION_META, effectiveView } from "./lib/sections";
+import { effectiveView, SECTION_META } from "./lib/sections";
 import { useApp } from "./store";
 
 const initialState = useApp.getState();

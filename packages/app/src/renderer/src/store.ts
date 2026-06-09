@@ -5,8 +5,8 @@ import type {
   ProjectConfig,
   QuotaStatus,
   SearchResults,
-  Section,
   SecretMeta,
+  Section,
   SectionVisibility,
 } from "../../shared/ipc";
 

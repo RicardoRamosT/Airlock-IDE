@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Section } from "../../../shared/ipc";
-import { SECTION_META, effectiveView } from "../lib/sections";
+import { effectiveView, SECTION_META } from "../lib/sections";
 import { useApp } from "../store";
 import { AccountsPopover } from "./AccountsPopover";
 import { SettingsMenu } from "./SettingsMenu";
@@ -93,7 +93,9 @@ export function ActivityBar() {
         >
           <i className="codicon codicon-gear" />
         </button>
-        {open === "accounts" && <AccountsPopover onClose={() => setOpen(null)} />}
+        {open === "accounts" && (
+          <AccountsPopover onClose={() => setOpen(null)} />
+        )}
         {open === "settings" && <SettingsMenu onClose={() => setOpen(null)} />}
       </div>
       {menu && (

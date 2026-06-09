@@ -46,8 +46,9 @@ watches.
 
 **Gotchas:**
 - **Account-wide, not per-project.** ANY Claude session on the machine feeds the
-  one meter (the statusLine is global). In a split scene it renders **once** —
-  `Sidebar.tsx` hides it on the secondary pane (`tabId === split.b`).
+  one meter (the statusLine is global). It renders **once** in the window's
+  single shared sidebar (activity-bar layout; the sidebar follows the focused
+  pane).
 - `rate_limits` only appears **after the first API response** and only for
   Pro/Max subscribers; each window can be independently absent — parse
   defensively.
