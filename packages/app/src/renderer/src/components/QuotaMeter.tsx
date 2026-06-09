@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { clampPct, formatCountdown } from "../lib/quotaFormat";
 import { useApp } from "../store";
 
-// Our installed statusLine re-runs every ~10s while a Claude session is open,
-// so a side-channel emit older than this means no session is currently running.
-const STALE_AFTER_SECONDS = 40;
+// Our installed statusLine re-runs every ~5s while a Claude session is open, so
+// an emit older than this (a few missed ticks of jitter slack) means no session
+// is currently running.
+const STALE_AFTER_SECONDS = 15;
 
 function Row({ label, pct }: { label: string; pct: number }) {
   return (

@@ -18,8 +18,8 @@ const EMIT_MARKER = "statusline-emit.cjs";
 // Re-run the statusLine (hence our emitter) every N seconds while a Claude
 // session is open, in addition to event-driven runs. This keeps the meter live
 // when the session is idle AND lets the UI treat a stale side-channel file as
-// "no active session". (Claude Code statusLine.refreshInterval, min 1s.)
-const STATUSLINE_REFRESH_SECONDS = 10;
+// "no active session" quickly. (Claude Code statusLine.refreshInterval, min 1s.)
+const STATUSLINE_REFRESH_SECONDS = 5;
 
 type StatusLine =
   | { type?: string; command?: string; refreshInterval?: number }
