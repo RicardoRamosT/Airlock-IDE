@@ -31,11 +31,18 @@ export function parseConnString(url: string): DbInfo | null {
   return { host, port, database, user, redacted };
 }
 
-// Match scheme://userinfo@ inside arbitrary text. The userinfo run stops at the
-// first @, whitespace, or slash so the host stays intact. ASCII-only by design:
-// this file is CJS-bundled into Electron main and Electron's cjs_lexer crashes
-// on multibyte chars, so no smart punctuation in this regex or its comments.
-const CONNSTR_USERINFO_RE = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^@\s/]*@/g;
+// Match scheme://userinfo@ inside arbitrary text and redact the userinfo. The
+// userinfo runs GREEDY to the LAST @ before the host: a password can contain a
+// raw @, and RFC 3986 / Postgres split userinfo from host at the last @, so
+// stopping at the first @ would leak the password tail (audit C5). The run still
+// stops at / and whitespace so it cannot swallow the host/path. Both runs are
+// LENGTH-BOUNDED (scheme {0,30}, userinfo {0,512}) so a long non-matching line
+// cannot drive catastrophic O(n^2) backtracking across the global retry (audit
+// H5). ASCII-only by design: this file is CJS-bundled into Electron main and
+// Electron's cjs_lexer crashes on multibyte chars, so no smart punctuation in
+// this regex or its comments.
+const CONNSTR_USERINFO_RE =
+  /([a-zA-Z][a-zA-Z0-9+.-]{0,30}:\/\/)[^/\s]{0,512}@/g;
 
 /**
  * Redact the userinfo (user and/or password) from every scheme://user:pw@host
