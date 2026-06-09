@@ -46,8 +46,8 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] M6 `redactConnStrings` ignores credentials in query parameters -- `db/connstr.ts:38`.
 - [x] M7 `readMeta` doesn't validate parsed JSON is an array -- `broker/meta.ts:18-25`.
 - [x] M8 Corrupt `secrets.json` silently degrades to empty list + overwrites the `.bak` -- `broker/meta.ts:18-45`.
-- [ ] M9 `move()` check-then-rename races, silently clobbers -- `workspace/fileOps.ts:32-41`.
-- [ ] M10 `duplicate()` races and `cp(force)` silently overwrites/merges -- `workspace/fileOps.ts:58-65`.
+- [x] M9 `move()` check-then-rename races, silently clobbers -- `workspace/fileOps.ts:32-41`.
+- [x] M10 `duplicate()` races and `cp(force)` silently overwrites/merges -- `workspace/fileOps.ts:58-65`.
 
 ### LOW
 - [ ] L1 Output truncation/chunk boundaries split a secret past exact-match redaction -- `command/run.ts:45-62`.
