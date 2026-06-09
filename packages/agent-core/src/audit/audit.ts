@@ -56,10 +56,41 @@ async function readEntries(logFile: string): Promise<(AuditEntry | null)[]> {
     .map((l) => parseEntry(l));
 }
 
+// Serialize appends per log file. appendAuditAt is a read-modify-write -- it
+// reads the last hash, then appends an entry chained to it -- so two concurrent
+// calls would read the SAME prevHash and fork the chain, which makes
+// verifyAuditChain fail permanently (the second fork's prevHash never matches
+// the running hash again). An in-process async mutex keyed by the resolved log
+// path makes each append wait for the prior one to finish writing. This guards
+// within ONE process, which is airlock's whole concurrency surface (every audit
+// writer lives in the Electron main process); multiple processes sharing one log
+// would additionally need an OS file lock. (audit C2)
+const appendLocks = new Map<string, Promise<unknown>>();
+
+function withAppendLock<T>(logFile: string, fn: () => Promise<T>): Promise<T> {
+  const key = path.resolve(logFile);
+  const prev = appendLocks.get(key) ?? Promise.resolve();
+  // Run fn after prev settles -- resolved OR rejected -- so one failed append
+  // cannot wedge the queue for this log.
+  const run = prev.then(fn, fn);
+  // Store a non-rejecting tail: the next caller chains cleanly and a failed
+  // append leaves no unhandled rejection on the stored promise. The caller still
+  // gets the real result/rejection via `run`.
+  appendLocks.set(
+    key,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
+
 // Append a hash-chained entry to an EXPLICIT log file. Same chain logic as
 // appendAudit, but the caller supplies the path directly rather than deriving
 // it from a project root. Used for the app-global audit chain (under userData),
-// which is not rooted in any one project folder.
+// which is not rooted in any one project folder. Serialized per log file so
+// concurrent appends cannot fork the chain (see withAppendLock).
 export async function appendAuditAt(
   logFile: string,
   actor: AuditEntry["actor"],
@@ -67,25 +98,27 @@ export async function appendAuditAt(
   detail: Record<string, unknown>,
   nowIso?: string,
 ): Promise<AuditEntry> {
-  // Skip corrupt lines and link to the last PARSEABLE entry's hash.
-  const entries = (await readEntries(logFile)).filter(
-    (e): e is AuditEntry => e !== null,
-  );
-  const prevHash =
-    entries.length > 0
-      ? (entries[entries.length - 1]?.hash ?? GENESIS)
-      : GENESIS;
-  const partial = {
-    ts: nowIso ?? new Date().toISOString(),
-    actor,
-    op,
-    detail,
-    prevHash,
-  };
-  const entry: AuditEntry = { ...partial, hash: computeHash(partial) };
-  await mkdir(path.dirname(logFile), { recursive: true });
-  await appendFile(logFile, `${JSON.stringify(entry)}\n`, "utf8");
-  return entry;
+  return withAppendLock(logFile, async () => {
+    // Skip corrupt lines and link to the last PARSEABLE entry's hash.
+    const entries = (await readEntries(logFile)).filter(
+      (e): e is AuditEntry => e !== null,
+    );
+    const prevHash =
+      entries.length > 0
+        ? (entries[entries.length - 1]?.hash ?? GENESIS)
+        : GENESIS;
+    const partial = {
+      ts: nowIso ?? new Date().toISOString(),
+      actor,
+      op,
+      detail,
+      prevHash,
+    };
+    const entry: AuditEntry = { ...partial, hash: computeHash(partial) };
+    await mkdir(path.dirname(logFile), { recursive: true });
+    await appendFile(logFile, `${JSON.stringify(entry)}\n`, "utf8");
+    return entry;
+  });
 }
 
 export async function appendAudit(

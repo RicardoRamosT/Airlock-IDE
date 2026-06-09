@@ -20,7 +20,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 
 ### CRITICAL
 - [x] **C1** `run_command` exposes the full `process.env` + login-shell env to the agent, unredacted; redaction set = only the named injected secrets, and the command classifies to nothing so the gate allows it. `agent-core/src/command/run.ts:117,137-141,149`. Fix: redact against ALL vaulted values; build the child env from a minimal allowlist (not raw `process.env`).
-- [ ] **C2** Concurrent `appendAudit` forks the hash chain (non-atomic read->modify->write, no lock) -> `verifyAuditChain` fails forever. `agent-core/src/audit/audit.ts:63-103`. Fix: serialize appends through an in-process async mutex keyed by logFile.
+- [x] **C2** Concurrent `appendAudit` forks the hash chain (non-atomic read->modify->write, no lock) -> `verifyAuditChain` fails forever. `agent-core/src/audit/audit.ts:63-103`. Fix: serialize appends through an in-process async mutex keyed by logFile.
 - [ ] **C3** MCP `run_command` `cwd` arg escapes the project and bypasses the `outsideWorkspace` gate (forwarded to spawn with no containment). `app/src/main/mcp/tools.ts:310-339`. Fix: `path.resolve(root, cwd)` and reject unless inside root.
 - [x] **C4** `redactedTail`/`redactedPreview` truncate by line BEFORE redacting -> a multi-line secret (PEM) gets split, surviving lines reach the agent. `agent-core/src/terminal/tail.ts:43-58`. Fix: redact the full buffer first, then truncate.
 - [x] **C5** `redactConnStrings` leaks the password tail when the password contains a raw `@` (stops at first `@`; RFC/Postgres use the last). `agent-core/src/db/connstr.ts:38`. Fix: userinfo run greedy to the LAST `@` before the host.

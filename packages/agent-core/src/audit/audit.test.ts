@@ -34,6 +34,21 @@ describe("audit", () => {
     expect(b.prevHash).toBe(a.hash);
   });
 
+  // C2: appendAuditAt is a read-modify-write (read last hash -> append linked to
+  // it). Fired concurrently WITHOUT serialization, several calls read the same
+  // prevHash and fork the chain, so verifyAuditChain fails forever. The per-log
+  // mutex must serialize them: the chain verifies and every entry is kept.
+  it("serializes concurrent appends so the chain stays valid (audit C2)", async () => {
+    const N = 25;
+    await Promise.all(
+      Array.from({ length: N }, (_, i) =>
+        appendAudit(root, "agent", "op", { i }),
+      ),
+    );
+    expect(await verifyAuditChain(root)).toBe(true);
+    expect(await readAudit(root)).toHaveLength(N);
+  });
+
   it("detects tampering", async () => {
     await appendAudit(root, "user", "secret.set", { name: "A" });
     await appendAudit(root, "user", "secret.delete", { name: "A" });
