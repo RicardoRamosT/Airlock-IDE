@@ -41,6 +41,15 @@ export {
   type RunCommandResult,
   runCommand,
 } from "./command/run";
+export {
+  type AgentCommandPolicy,
+  type GateResult,
+  type RiskAction,
+  type RiskCategory,
+  classifyCommand,
+  DEFAULT_AGENT_POLICY,
+  gateCommand,
+} from "./command/policy";
 export { withDb } from "./db/client";
 export { type DbInfo, parseConnString, redactConnStrings } from "./db/connstr";
 export {
