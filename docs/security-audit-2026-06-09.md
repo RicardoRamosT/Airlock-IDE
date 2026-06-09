@@ -41,9 +41,9 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] M1 Agent-controlled `cwd` to spawn, no containment -- `command/run.ts:143` (same root as C3).
 - [ ] M2 Staged rename diff shows empty original instead of HEAD content -- `git/versions.ts:55-58`.
 - [ ] M3 `appendAuditAt` links over a corrupt line (writer skips nulls, verifier rejects them) -- `audit/audit.ts:70-77`.
-- [ ] M4 Lowercase percent-encoding (`%2f`) of a secret bypasses redaction -- `redact/redact.ts:108-114`.
-- [ ] M5 JSON-escaped form of a secret (quote/backslash) bypasses redaction -- `redact/redact.ts:124-132`.
-- [ ] M6 `redactConnStrings` ignores credentials in query parameters -- `db/connstr.ts:38`.
+- [x] M4 Lowercase percent-encoding (`%2f`) of a secret bypasses redaction -- `redact/redact.ts:108-114`.
+- [x] M5 JSON-escaped form of a secret (quote/backslash) bypasses redaction -- `redact/redact.ts:124-132`.
+- [x] M6 `redactConnStrings` ignores credentials in query parameters -- `db/connstr.ts:38`.
 - [ ] M7 `readMeta` doesn't validate parsed JSON is an array -- `broker/meta.ts:18-25`.
 - [ ] M8 Corrupt `secrets.json` silently degrades to empty list + overwrites the `.bak` -- `broker/meta.ts:18-45`.
 - [ ] M9 `move()` check-then-rename races, silently clobbers -- `workspace/fileOps.ts:32-41`.

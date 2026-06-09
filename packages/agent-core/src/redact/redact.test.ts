@@ -145,6 +145,30 @@ describe("redactSecrets - encoded forms", () => {
     expect(out).toContain("***");
   });
 
+  // M4: encodeURIComponent emits uppercase hex (%2F); a lowercase %2f form used
+  // a lowercase-letter value so only the HEX case differs from the canonical
+  // encoding -- previously it slipped past the exact-match.
+  it("redacts a lowercase percent-encoded form (M4)", () => {
+    const v = "abc/def=ghi&jkl"; // lowercase letters + chars that encode
+    const encLower = encodeURIComponent(v).toLowerCase(); // %2f, %3d, %26 ...
+    expect(encLower).not.toBe(encodeURIComponent(v)); // hex really is lowercased
+    const out = redactSecrets(`x=${encLower}`, [v]);
+    expect(out).not.toContain(encLower);
+    expect(out).toContain("***");
+  });
+
+  // M5: a value with a quote/backslash is JSON-escaped wherever the command
+  // prints JSON (pa"ss -> pa\"ss), which the raw exact-match misses.
+  it("redacts the JSON-escaped form of a value (M5)", () => {
+    const v = 'pa"ss\\word'; // contains a quote and a backslash
+    const embedded = JSON.stringify({ token: v });
+    const jsonEsc = JSON.stringify(v).slice(1, -1);
+    expect(embedded).toContain(jsonEsc); // escaped form present pre-redaction
+    const out = redactSecrets(embedded, [v]);
+    expect(out).not.toContain(jsonEsc);
+    expect(out).toContain("***");
+  });
+
   it("does NOT over-redact a base64 blob that lacks the secret", () => {
     const innocent = Buffer.from("hello world, nothing secret here").toString(
       "base64",

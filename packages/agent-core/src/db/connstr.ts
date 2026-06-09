@@ -44,6 +44,14 @@ export function parseConnString(url: string): DbInfo | null {
 const CONNSTR_USERINFO_RE =
   /([a-zA-Z][a-zA-Z0-9+.-]{0,30}:\/\/)[^/\s]{0,512}@/g;
 
+// Credentials passed as QUERY PARAMETERS (e.g. postgres://h/db?password=...&
+// token=...) are not in the userinfo, so the userinfo pass misses them. Redact
+// the VALUE of common credential-named params (case-insensitive), keeping the
+// param name. Value class is length-bounded so one long line cannot drive
+// catastrophic backtracking. (audit M6)
+const CONNSTR_QUERY_CRED_RE =
+  /([?&](?:password|passwd|pwd|secret|token|api[-_]?key|access[-_]?token|auth|sslpassword)=)[^&\s]{0,512}/gi;
+
 /**
  * Redact the userinfo (user and/or password) from every scheme://user:pw@host
  * URI found in arbitrary text, replacing it with ***. Scheme and host are left
@@ -51,5 +59,7 @@ const CONNSTR_USERINFO_RE =
  * string cannot leak the password across IPC, regardless of pg internals.
  */
 export function redactConnStrings(text: string): string {
-  return text.replace(CONNSTR_USERINFO_RE, "$1***@");
+  return text
+    .replace(CONNSTR_USERINFO_RE, "$1***@")
+    .replace(CONNSTR_QUERY_CRED_RE, "$1***");
 }
