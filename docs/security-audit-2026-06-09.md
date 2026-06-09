@@ -70,7 +70,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 
 ### HIGH (Part B)
 - [x] PB-H1 Theme change rebuilds the editor from original file content, discarding unsaved edits -- `EditorPane.tsx:150-292` (separate-effect fix).
-- [ ] PB-H2 Cross-terminal data written to the wrong xterm during PTY-create race -- `TerminalPane.tsx:112-141`.
+- [x] PB-H2 Cross-terminal data written to the wrong xterm during PTY-create race -- `TerminalPane.tsx:112-141`.
 - [!] PB-H3 Drag-to-reorder lost when `dragleave` fires before `drop` -- `FileTree.tsx:130-142`. VERDICT: REFUTED. `dragleave` cannot fire on the element you `drop` on; `onDragOver` continuously re-asserts the indicator (incl. bubbling from child nodes); the insertion indicator is pure CSS (no child node -> no spurious dragleave); and `dragged` lives in the store, cleared only in `onDragEnd` (after drop). No reachable path drops the reorder.
 - [ ] PB-H4 Deleted/rotated secret still in the PTY ring buffer returned un-redacted -- `ipc.ts:1099-1101` (redact against all-ever-vaulted / scrub on delete).
 - [ ] PB-H5 MCP bearer token in the process argv (`ps` leak) -- `mcp/register.ts:49-62` (pass via env / 0600 file).

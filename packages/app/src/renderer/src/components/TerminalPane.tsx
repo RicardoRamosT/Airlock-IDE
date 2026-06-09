@@ -71,16 +71,18 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // But "id === idRef.current" alone still drops the very first bytes: the
     // shell prompt is emitted as soon as main starts forwarding, which can be
     // BEFORE the ptyCreate promise resolves and sets idRef. Those events fail
-    // the id check and vanish. So buffer any pre-adopt bytes and flush them on
-    // adopt. This is safe without keying on id because each TerminalPane owns
-    // its own preload subscription and has exactly one in-flight ptyCreate, so
-    // any pre-adopt pty:data reaching THIS pane's listener belongs to THIS pane.
+    // the id check and vanish. So buffer pre-adopt events and replay them on
+    // adopt -- but pty:data is a per-WINDOW broadcast (every mounted pane's
+    // listener sees EVERY pty's data), so the buffer keeps each {id,data} and on
+    // adopt replays ONLY this pane's id. Buffering raw bytes (the old code) wrote
+    // a sibling pane's output -- racing our pre-adopt window -- into this xterm.
+    // (audit PB-H2)
     // idRef is the component-level ref declared above (shared with the scan
     // effect); reset it here so a remount of this pane starts unadopted.
     idRef.current = null;
     let exited = false;
     let disposed = false;
-    const pending: string[] = [];
+    const pending: { id: string; data: string }[] = [];
 
     // Renderer-side flow control. xterm's write(data, cb) fires cb once that
     // chunk is parsed/flushed, so we can count outstanding (unflushed) bytes.
@@ -111,7 +113,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
 
     const offData = window.airlock.onPtyData((e) => {
       if (idRef.current === null) {
-        pending.push(e.data);
+        pending.push(e); // pre-adopt: keep {id,data}, filter on adopt (PB-H2)
         return;
       }
       if (e.id === idRef.current) writeChunk(e.data);
@@ -134,10 +136,13 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
           return;
         }
         idRef.current = id;
-        // Flush pre-adopt bytes now that the id is known. Route through
-        // writeChunk so buffered output also counts toward the flow-control
-        // high-water mark.
-        for (const d of pending) writeChunk(d);
+        // Flush pre-adopt bytes now that the id is known -- but ONLY this pane's
+        // (pty:data is a per-window broadcast, so the buffer may also hold
+        // sibling panes' output). Route through writeChunk so buffered output
+        // also counts toward the flow-control high-water mark.
+        for (const ev of pending) {
+          if (ev.id === id) writeChunk(ev.data);
+        }
         pending.length = 0;
         setTerminalPty(terminalId, id);
       })
