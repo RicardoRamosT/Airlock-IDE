@@ -8,6 +8,11 @@
   --hover: rgba(177, 186, 196, 0.08);
   --selected: rgba(56, 139, 253, 0.15);
   --row-h: 22px;
+  /* Shared height of the two bottom "docks" (the rail's accounts/settings
+     block and the sidebar's quota meter) so their top borders form ONE
+     continuous line across both columns. Sized to fit the meter's tallest
+     state (title + two bars + reset line). */
+  --sidebar-dock-h: 88px;
   font-family: -apple-system, "SF Pro Text", sans-serif;
 }
 
@@ -361,6 +366,10 @@ body,
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Match the quota meter's dock height (buttons anchored at the bottom) so
+     this border-top and the meter's sit at the same level. */
+  min-height: var(--sidebar-dock-h);
+  justify-content: flex-end;
   gap: 2px;
   padding: 6px 0;
   border-top: 1px solid var(--border);
@@ -880,6 +889,9 @@ body,
   flex: none;
   display: flex;
   flex-direction: column;
+  /* Same dock height as .activity-bar-bottom: the two top borders align into
+     one line, and the card no longer jumps between waiting/live states. */
+  min-height: var(--sidebar-dock-h);
   gap: 4px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
