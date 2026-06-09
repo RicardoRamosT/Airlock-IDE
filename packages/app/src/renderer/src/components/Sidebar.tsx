@@ -1,7 +1,7 @@
-import { type ReactNode, useEffect, useState } from "react";
-import type { Section as SectionId } from "../../../shared/ipc";
+import type { ReactNode } from "react";
 import { openPickedFolder } from "../lib/openFolder";
 import { useProjectTab } from "../lib/projectPane";
+import { SECTION_META, effectiveView } from "../lib/sections";
 import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
@@ -14,89 +14,27 @@ import { NeonSection } from "./NeonSection";
 import { QuotaMeter } from "./QuotaMeter";
 import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
-import { SidebarFooter } from "./SidebarFooter";
 
-function Section({
-  id,
-  title,
-  children,
-  actions,
-  defaultOpen = true,
-}: {
-  id: SectionId;
-  title: string;
-  children?: ReactNode;
-  // Hover-revealed header buttons (right-aligned), e.g. FILES' New File/Folder.
-  actions?: ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  useEffect(() => {
-    if (!menu) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenu(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [menu]);
-  return (
-    <div className="section">
-      <div className="section-header">
-        <button
-          type="button"
-          className="section-header-toggle"
-          onClick={() => setOpen(!open)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setMenu({ x: e.clientX, y: e.clientY });
-          }}
-        >
-          <i className={`codicon codicon-chevron-${open ? "down" : "right"}`} />
-          <span className="section-title">{title}</span>
-        </button>
-        {actions && <span className="section-actions">{actions}</span>}
-      </div>
-      {open && <div className="section-body">{children}</div>}
-      {menu && (
-        <>
-          <button
-            type="button"
-            className="popover-backdrop"
-            aria-label="Close menu"
-            onClick={() => setMenu(null)}
-          />
-          <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                void window.airlock.setSectionVisibility(id, false);
-                setMenu(null);
-              }}
-            >
-              <span>Hide {title}</span>
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
+// THE sidebar: one per window (rendered by App, beside the ActivityBar), not
+// one per pane. It shows a single view -- the activity bar's active section --
+// and is always bound to the FOCUSED pane's project: with no ProjectPaneContext
+// provider above it, useProjectTab() falls back to activeTabId, the same
+// "focused pane drives everything" rule the agent, menus, and title follow.
 export function Sidebar() {
-  // Scope the empty-state check to the pane's tab (each pane's sidebar shows its
-  // own project's Files). The openFolder handler stays as-is for now -- per-pane
-  // opening is a later task and single pane is unaffected.
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const vis = useApp((s) => s.sectionVisibility);
+  const activeView = useApp((s) => s.activeView);
   const requestNewFile = useApp((s) => s.requestNewFile);
-  // The quota meter is account-wide, so in a split scene we render it once -- in
-  // the primary pane only -- rather than duplicating it in the secondary pane's
-  // sidebar. It still updates live from either project (one global watcher).
   const split = useApp((s) => s.split);
-  const isSecondarySplitPane = split !== null && tabId === split.b;
+  const activeTabId = useApp((s) => s.activeTabId);
+
+  const view = effectiveView(activeView, vis);
+  const meta = SECTION_META.find((m) => m.id === view) ?? null;
+  // Badge the project only while the split is on screen (two projects visible
+  // -> say which one the sidebar reflects). A single pane needs no reminder.
+  const splitShowing =
+    split !== null && (activeTabId === split.a || activeTabId === split.b);
 
   const openFolder = async () => {
     try {
@@ -107,94 +45,75 @@ export function Sidebar() {
     }
   };
 
+  let body: ReactNode = null;
+  if (view === "files") {
+    body = root ? (
+      <FileTree />
+    ) : (
+      <button type="button" className="open-folder" onClick={openFolder}>
+        Open Folder…
+      </button>
+    );
+  } else if (view === "secrets") body = <SecretsSection />;
+  else if (view === "git") body = <GitSection />;
+  else if (view === "activity") body = <ActivitySection />;
+  else if (view === "databases")
+    body = (
+      <>
+        <NeonSection />
+        <DatabasesSection />
+      </>
+    );
+  else if (view === "docker") body = <DockerSection />;
+  else if (view === "host")
+    body = (
+      <>
+        <LocalHostSection />
+        <RenderSection />
+      </>
+    );
+  else if (view === "audit") body = <AuditSection />;
+
   return (
     <aside className="sidebar">
-      <div className="sidebar-sections">
-        {vis.files && (
-          <Section
-            id="files"
-            title="Files"
-            actions={
-              root ? (
-                <>
-                  <button
-                    type="button"
-                    className="section-action"
-                    title="New File"
-                    onClick={() => requestNewFile(tabId, "file")}
-                  >
-                    <i className="codicon codicon-new-file" />
-                  </button>
-                  <button
-                    type="button"
-                    className="section-action"
-                    title="New Folder"
-                    onClick={() => requestNewFile(tabId, "dir")}
-                  >
-                    <i className="codicon codicon-new-folder" />
-                  </button>
-                </>
-              ) : undefined
-            }
-          >
-            {root ? (
-              <FileTree />
-            ) : (
-              <button
-                type="button"
-                className="open-folder"
-                onClick={openFolder}
-              >
-                Open Folder…
-              </button>
+      {meta ? (
+        <>
+          <div className="sidebar-view-header">
+            <span className="sidebar-view-title">{meta.label}</span>
+            {splitShowing && root && (
+              <span className="sidebar-view-project" title={root}>
+                {root.split("/").pop()}
+              </span>
             )}
-          </Section>
-        )}
-        {vis.secrets && (
-          <Section id="secrets" title="Secrets">
-            <SecretsSection />
-          </Section>
-        )}
-        {vis.git && (
-          <Section id="git" title="Git">
-            <GitSection />
-          </Section>
-        )}
-        {vis.activity && (
-          <Section id="activity" title="Activity" defaultOpen={false}>
-            <ActivitySection />
-          </Section>
-        )}
-        {vis.databases && (
-          <Section id="databases" title="Databases" defaultOpen={false}>
-            <NeonSection />
-            <DatabasesSection />
-          </Section>
-        )}
-        {vis.docker && (
-          <Section id="docker" title="Docker" defaultOpen={false}>
-            <DockerSection />
-          </Section>
-        )}
-        {vis.host && (
-          <Section id="host" title="Host" defaultOpen={false}>
-            <LocalHostSection />
-            <RenderSection />
-          </Section>
-        )}
-        {vis.audit && (
-          <Section id="audit" title="Audit" defaultOpen={false}>
-            <AuditSection />
-          </Section>
-        )}
-        {!Object.values(vis).some(Boolean) && (
-          <div className="sidebar-empty">
-            All sections hidden. Re-enable them from View → Sidebar.
+            {view === "files" && root && (
+              <span className="section-actions">
+                <button
+                  type="button"
+                  className="section-action"
+                  title="New File"
+                  onClick={() => requestNewFile(tabId, "file")}
+                >
+                  <i className="codicon codicon-new-file" />
+                </button>
+                <button
+                  type="button"
+                  className="section-action"
+                  title="New Folder"
+                  onClick={() => requestNewFile(tabId, "dir")}
+                >
+                  <i className="codicon codicon-new-folder" />
+                </button>
+              </span>
+            )}
           </div>
-        )}
-      </div>
-      {!isSecondarySplitPane && <QuotaMeter />}
-      <SidebarFooter />
+          <div className="sidebar-view-body">{body}</div>
+        </>
+      ) : (
+        <div className="sidebar-empty">
+          All sections hidden. Re-enable them from View → Sidebar.
+        </div>
+      )}
+      <QuotaMeter />
     </aside>
   );
 }
