@@ -3,6 +3,7 @@ import type {
   FileContent,
   GitStatus,
   ProjectConfig,
+  QuotaStatus,
   SearchResults,
   SecretMeta,
   SectionVisibility,
@@ -234,6 +235,10 @@ export interface AppState {
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
   theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
   clipboardClearSeconds: number; // app-global (persisted), seconds before clipboard auto-clears (0 = never)
+  quota: QuotaStatus | null;
+  setQuota: (q: QuotaStatus) => void;
+  quotaMeterEnabled: boolean;
+  setQuotaMeterEnabled: (v: boolean) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   layoutHydrated: boolean; // default false
   modal:
@@ -565,6 +570,10 @@ export const useApp = create<AppState>((set) => ({
   sidebarPosition: "left",
   theme: "dark",
   clipboardClearSeconds: 30,
+  quota: null,
+  setQuota: (q) => set({ quota: q }),
+  quotaMeterEnabled: false,
+  setQuotaMeterEnabled: (v) => set({ quotaMeterEnabled: v }),
   sectionVisibility: {
     files: true,
     secrets: true,
