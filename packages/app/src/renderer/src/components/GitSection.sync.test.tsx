@@ -24,6 +24,13 @@ beforeEach(() => {
       gitStatus: () => Promise.resolve(STATUS),
       gitBranches: () => Promise.resolve(["main"]),
       gitPush,
+      resolveGithubAccount: () =>
+        Promise.resolve({ account: null, source: "none", protocol: "unknown" }),
+      githubInfo: () =>
+        Promise.resolve({
+          gh: { installed: true, accounts: [] },
+          identity: { name: null, email: null },
+        }),
     },
     {
       get: (t, p) =>
@@ -72,6 +79,13 @@ it("keeps a failed sync's error visible (does not flash away)", async () => {
       gitStatus: () => Promise.resolve(STATUS),
       gitBranches: () => Promise.resolve(["main"]),
       gitPush: () => Promise.reject(new Error("no tracking information boom")),
+      resolveGithubAccount: () =>
+        Promise.resolve({ account: null, source: "none", protocol: "unknown" }),
+      githubInfo: () =>
+        Promise.resolve({
+          gh: { installed: true, accounts: [] },
+          identity: { name: null, email: null },
+        }),
     },
     {
       get: (t, p) =>
