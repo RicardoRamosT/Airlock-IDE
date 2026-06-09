@@ -90,6 +90,7 @@ import {
   sanitizeAgentPolicy,
   savePrefs,
 } from "./prefs";
+import { getQuota } from "./quota/watch";
 import { guardedCommit } from "./secrets/commit";
 import {
   allOpenRoots,
@@ -577,6 +578,8 @@ export function registerIpc(
 
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
   ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
+
+  ipcMain.handle("quota:get", () => getQuota());
 
   ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
