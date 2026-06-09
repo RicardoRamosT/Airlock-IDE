@@ -82,3 +82,24 @@ export function mergeQuota(
     available: fiveHour !== null || sevenDay !== null,
   };
 }
+
+export interface SessionMeta {
+  sessionId: string | null;
+  transcriptPath: string | null;
+}
+
+// Pull the identifying fields out of the raw statusLine payload: which session
+// wrote it, and where its transcript lives (used to gauge how recently that
+// session was actually active). Tolerant of garbage/missing fields.
+export function parseSessionMeta(text: string): SessionMeta {
+  try {
+    const r = JSON.parse(text) as Record<string, unknown>;
+    return {
+      sessionId: typeof r.session_id === "string" ? r.session_id : null,
+      transcriptPath:
+        typeof r.transcript_path === "string" ? r.transcript_path : null,
+    };
+  } catch {
+    return { sessionId: null, transcriptPath: null };
+  }
+}

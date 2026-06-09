@@ -2,11 +2,16 @@ import { readFile, stat } from "node:fs/promises";
 import { type FSWatcher, watch } from "chokidar";
 import { BrowserWindow } from "electron";
 import type { QuotaStatus } from "../../shared/ipc";
-import { mergeQuota, parseQuota } from "./parse";
+import { parseQuota, parseSessionMeta } from "./parse";
+import { QuotaTracker } from "./tracker";
 
 let watcher: FSWatcher | null = null;
 let watchedPath: string | null = null;
 let latest: QuotaStatus | null = null;
+// Per-session accumulator: the side-channel file is shared by every Claude
+// session, so we track each session's reading and surface the most-recently-
+// active one (an idle session re-emitting a stale snapshot must not win).
+let tracker = new QuotaTracker();
 
 // Last-known status for a newly-opened window to fetch synchronously (quota:get).
 export function getQuota(): QuotaStatus | null {
@@ -21,21 +26,36 @@ function broadcast(s: QuotaStatus): void {
 
 async function readAndBroadcast(outPath: string): Promise<void> {
   let text: string;
-  let emittedAt: number;
+  let emitAt: number;
   try {
     text = await readFile(outPath, "utf8");
-    // Stamp with the file's mtime (when a Claude session last wrote it), NOT
-    // read time -- so on app launch a long-untouched file is correctly seen as
-    // stale ("no active session") instead of looking freshly updated.
-    emittedAt = Math.floor((await stat(outPath)).mtimeMs / 1000);
+    emitAt = Math.floor((await stat(outPath)).mtimeMs / 1000);
   } catch {
     return; // file vanished between event and read; ignore
   }
-  // Fold onto the last-known status so a fresh session's pre-first-response
-  // emit (no rate_limits) carries old data forward instead of flashing
-  // "unavailable".
-  latest = mergeQuota(latest, parseQuota(text, emittedAt));
-  broadcast(latest);
+  const meta = parseSessionMeta(text);
+  const status = parseQuota(text, emitAt);
+  // "Active" = the session's transcript mtime (real API activity), NOT the emit
+  // time -- an idle session keeps emitting (refreshInterval) but its transcript
+  // stops advancing, so it loses to the active session and can't clobber it.
+  let activeAt = emitAt;
+  if (meta.transcriptPath) {
+    try {
+      activeAt = Math.floor((await stat(meta.transcriptPath)).mtimeMs / 1000);
+    } catch {
+      // transcript gone/unreadable: fall back to emit time
+    }
+  }
+  const best = tracker.record(
+    meta.sessionId ?? outPath,
+    status,
+    activeAt,
+    emitAt,
+  );
+  if (best) {
+    latest = best;
+    broadcast(best);
+  }
 }
 
 // Watch the side-channel file. Idempotent: re-pointing to the same path is a
@@ -60,4 +80,5 @@ export async function stopQuotaWatch(): Promise<void> {
   }
   watchedPath = null;
   latest = null;
+  tracker = new QuotaTracker();
 }
