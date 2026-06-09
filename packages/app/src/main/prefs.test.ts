@@ -22,6 +22,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      activeView: "files",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
@@ -76,6 +77,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      activeView: "files",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
@@ -88,6 +90,15 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
     });
+  });
+
+  it("sanitizes activeView to a known section", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(file, JSON.stringify({ activeView: "nonsense" }));
+    expect((await loadPrefs(file)).activeView).toBe("files");
+    await savePrefs(file, { activeView: "git" });
+    expect((await loadPrefs(file)).activeView).toBe("git");
   });
 
   it("sanitizes unknown/garbage fields", async () => {
@@ -116,6 +127,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      activeView: "files",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
@@ -148,6 +160,7 @@ describe("app prefs", () => {
         host: true,
         audit: true,
       },
+      activeView: "files",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
