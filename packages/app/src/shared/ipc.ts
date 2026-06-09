@@ -167,6 +167,18 @@ export interface GithubInfo {
   identity: GitIdentity;
 }
 
+/**
+ * The GitHub account AirLock will use for a project's git remote ops + commit
+ * identity. `source` is how it was chosen; `protocol` is the origin remote's
+ * transport (token injection only applies to https). `account` is null when no
+ * account could be resolved (no remote, or an org repo with no matching login).
+ */
+export interface ResolvedGithubAccount {
+  account: { host: string; username: string } | null;
+  source: "override" | "auto" | "none";
+  protocol: "https" | "ssh" | "unknown";
+}
+
 export type Section =
   | "files"
   | "secrets"
@@ -404,6 +416,13 @@ export interface AirlockApi {
   ): Promise<FileVersions>;
   githubInfo(): Promise<GithubInfo>;
   githubSwitch(host: string, username: string): Promise<void>;
+  // Per-project GitHub account: which account a project resolves to, and a
+  // setter to persist (or clear, with null) a manual override.
+  resolveGithubAccount(root: string): Promise<ResolvedGithubAccount>;
+  setProjectGithubAccount(
+    root: string,
+    account: { host: string; username: string } | null,
+  ): Promise<void>;
   // Databases: id is the secret NAME; no password ever crosses these. dbList
   // returns redacted projections; ping/tables/rows return data or a
   // message-only error -- never the connection string.

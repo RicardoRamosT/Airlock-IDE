@@ -22,4 +22,19 @@ describe("project config", () => {
       injectSecretsIntoTerminal: true,
     });
   });
+
+  it("round-trips an optional githubAccount override", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "cfg-gh-"));
+    expect((await readProjectConfig(dir)).githubAccount).toBeUndefined();
+    await writeProjectConfig(dir, {
+      githubAccount: { host: "github.com", username: "RicardoRamosT" },
+    });
+    expect((await readProjectConfig(dir)).githubAccount).toEqual({
+      host: "github.com",
+      username: "RicardoRamosT",
+    });
+    // Passing undefined clears it (JSON.stringify omits undefined keys).
+    await writeProjectConfig(dir, { githubAccount: undefined });
+    expect((await readProjectConfig(dir)).githubAccount).toBeUndefined();
+  });
 });

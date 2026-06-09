@@ -88,6 +88,10 @@ const api: AirlockApi = {
   githubInfo: () => ipcRenderer.invoke("github:info"),
   githubSwitch: (host, username) =>
     ipcRenderer.invoke("github:switch", host, username),
+  resolveGithubAccount: (root) =>
+    ipcRenderer.invoke("github:resolveAccount", root),
+  setProjectGithubAccount: (root, account) =>
+    ipcRenderer.invoke("github:setProjectAccount", root, account),
   dbList: (root) => ipcRenderer.invoke("db:list", root),
   dbPing: (root, id) => ipcRenderer.invoke("db:ping", root, id),
   dbTables: (root, id) => ipcRenderer.invoke("db:tables", root, id),
