@@ -46,10 +46,16 @@ export function parseGhAuthStatus(raw: string): GhAccount[] {
   return accounts;
 }
 
-export type GhRunner = (args: string[]) => Promise<string>;
+export type GhRunner = (
+  args: string[],
+  env?: Record<string, string>,
+) => Promise<string>;
 
-const realGh: GhRunner = async (args) => {
-  const { stdout } = await exec("gh", args, { maxBuffer: 4 * 1024 * 1024 });
+const realGh: GhRunner = async (args, env) => {
+  const { stdout } = await exec("gh", args, {
+    maxBuffer: 4 * 1024 * 1024,
+    env: env ? { ...process.env, ...env } : process.env,
+  });
   return stdout;
 };
 
@@ -86,4 +92,52 @@ export async function switchGhAccount(
     throw new Error("Invalid host or username");
   }
   await run(["auth", "switch", "--hostname", host, "--user", username]);
+}
+
+export interface GhIdentity {
+  name: string;
+  email: string;
+}
+
+// Token for a SPECIFIC account (not the active one) -- no global switch.
+export async function ghToken(
+  host: string,
+  username: string,
+  run: GhRunner = realGh,
+): Promise<string> {
+  if (!/^[A-Za-z0-9.-]+$/.test(host) || !/^[A-Za-z0-9-]+$/.test(username)) {
+    throw new Error("Invalid host or username");
+  }
+  return (
+    await run(["auth", "token", "--hostname", host, "--user", username])
+  ).trim();
+}
+
+// Parse `gh api user` JSON into a commit identity. name -> login fallback;
+// email -> GitHub no-reply form when private/null.
+export function parseGhUser(json: string): GhIdentity {
+  const u = JSON.parse(json) as {
+    login?: string;
+    id?: number;
+    name?: string | null;
+    email?: string | null;
+  };
+  const login = u.login ?? "";
+  const name = u.name?.trim() || login;
+  const email = u.email?.trim() || `${u.id}+${login}@users.noreply.github.com`;
+  return { name, email };
+}
+
+// Commit identity for a specific account: `gh api user` authenticated with that
+// account's token (passed via env, never argv).
+export async function ghUserIdentity(
+  host: string,
+  username: string,
+  token: string,
+  run: GhRunner = realGh,
+): Promise<GhIdentity> {
+  void username; // identity comes from the token; username kept for the call site
+  return parseGhUser(
+    await run(["api", "user", "--hostname", host], { GH_TOKEN: token }),
+  );
 }

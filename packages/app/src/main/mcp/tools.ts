@@ -29,6 +29,7 @@ import type {
   Section,
   SectionVisibility,
 } from "../../shared/ipc";
+import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
 import { loadPrefs, SECTIONS } from "../prefs";
@@ -260,6 +261,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     async ({ message, confirm }) => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
+      await ensureIdentityFor(root); // author agent commits as the project's account
       try {
         return ok(await guardedCommit(root, message, { gated: true, confirm }));
       } catch (e) {

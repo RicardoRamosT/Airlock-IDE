@@ -8,6 +8,10 @@ export interface ProjectConfig {
   // Optional: undefined by default, so it is omitted from DEFAULTS. A partial
   // { devUrl } patch persists via writeProjectConfig and survives readProjectConfig.
   devUrl?: string;
+  // Per-project GitHub account override for git remote ops + commit identity.
+  // Absent => auto-detect from the repo's origin owner. Stores only a reference
+  // (host + username), never a credential.
+  githubAccount?: { host: string; username: string };
 }
 
 const DEFAULTS: ProjectConfig = { injectSecretsIntoTerminal: false };
