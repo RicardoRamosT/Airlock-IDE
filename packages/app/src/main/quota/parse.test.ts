@@ -20,7 +20,9 @@ it("parses both windows and clamps/floors values", () => {
 });
 
 it("handles only one window present", () => {
-  const text = JSON.stringify({ rate_limits: { five_hour: { used_percentage: 5, resets_at: 10 } } });
+  const text = JSON.stringify({
+    rate_limits: { five_hour: { used_percentage: 5, resets_at: 10 } },
+  });
   const s = parseQuota(text, NOW);
   expect(s.fiveHour).toEqual({ usedPercentage: 5, resetsAt: 10 });
   expect(s.sevenDay).toBeNull();
@@ -28,8 +30,17 @@ it("handles only one window present", () => {
 });
 
 it("reports unavailable when rate_limits is absent", () => {
-  const s = parseQuota(JSON.stringify({ model: "x", cost: { total_cost_usd: 1 } }), NOW);
-  expect(s).toEqual({ fiveHour: null, sevenDay: null, model: "x", updatedAt: NOW, available: false });
+  const s = parseQuota(
+    JSON.stringify({ model: "x", cost: { total_cost_usd: 1 } }),
+    NOW,
+  );
+  expect(s).toEqual({
+    fiveHour: null,
+    sevenDay: null,
+    model: "x",
+    updatedAt: NOW,
+    available: false,
+  });
 });
 
 it("reports unavailable for empty or garbage input", () => {

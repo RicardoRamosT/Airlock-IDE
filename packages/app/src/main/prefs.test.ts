@@ -325,7 +325,9 @@ describe("quotaMeter", () => {
     await savePrefs(f, { quotaMeter: { enabled: true } });
     expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
     // Non-boolean enabled -> falls back to the default (disabled).
-    await savePrefs(f, { quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean } });
+    await savePrefs(f, {
+      quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean },
+    });
     expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: false });
   });
 });

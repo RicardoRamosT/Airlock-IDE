@@ -37,7 +37,10 @@ it("installs into an empty settings dir with prior null", async () => {
   await installQuotaStatusLine(paths);
   const settings = await readJson(paths.settingsPath);
   expect(settings.statusLine.command).toContain("statusline-emit.cjs");
-  expect(await readJson(paths.emitConfigPath)).toEqual({ out: paths.outPath, prior: null });
+  expect(await readJson(paths.emitConfigPath)).toEqual({
+    out: paths.outPath,
+    prior: null,
+  });
   expect((await readJson(paths.bookkeepingPath)).installed).toBe(true);
 });
 
@@ -46,7 +49,9 @@ it("captures and chains a pre-existing user statusLine", async () => {
   await writeFile(paths.settingsPath, JSON.stringify({ statusLine: prior }));
   await installQuotaStatusLine(paths);
   expect((await readJson(paths.emitConfigPath)).prior).toEqual(prior);
-  expect((await readJson(paths.settingsPath)).statusLine.command).toContain("statusline-emit.cjs");
+  expect((await readJson(paths.settingsPath)).statusLine.command).toContain(
+    "statusline-emit.cjs",
+  );
 });
 
 it("is idempotent: re-install never loses the original prior", async () => {

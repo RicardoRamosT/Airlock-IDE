@@ -41,7 +41,11 @@ function main() {
 
   const prior = cfg && cfg.prior;
   if (prior && prior.type === "command" && typeof prior.command === "string") {
-    const r = spawnSync(prior.command, { input, shell: true, encoding: "utf8" });
+    const r = spawnSync(prior.command, {
+      input,
+      shell: true,
+      encoding: "utf8",
+    });
     if (r && r.stdout) process.stdout.write(r.stdout);
   }
 }

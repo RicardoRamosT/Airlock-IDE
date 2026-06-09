@@ -28,7 +28,13 @@ function parseModel(raw: unknown): string | null {
 }
 
 function unavailable(now: number): QuotaStatus {
-  return { fiveHour: null, sevenDay: null, model: null, updatedAt: now, available: false };
+  return {
+    fiveHour: null,
+    sevenDay: null,
+    model: null,
+    updatedAt: now,
+    available: false,
+  };
 }
 
 // Parse the raw statusLine JSON the emitter captured into a QuotaStatus. `now`

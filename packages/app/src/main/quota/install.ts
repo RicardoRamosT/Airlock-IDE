@@ -32,12 +32,17 @@ async function readJson(file: string): Promise<Record<string, unknown> | null> {
 async function writeJsonAtomic(file: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
   await rename(tmp, file);
 }
 
 function isOurs(sl: StatusLine): boolean {
-  return !!sl && typeof sl.command === "string" && sl.command.includes(EMIT_MARKER);
+  return (
+    !!sl && typeof sl.command === "string" && sl.command.includes(EMIT_MARKER)
+  );
 }
 
 // ELECTRON_RUN_AS_NODE makes the app's own Electron binary behave as plain
@@ -50,18 +55,32 @@ export function buildStatusLineCommand(p: QuotaPaths): string {
 export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
   const settings = (await readJson(p.settingsPath)) ?? {};
   const current = settings.statusLine as StatusLine;
-  const book = (await readJson(p.bookkeepingPath)) as unknown as Bookkeeping | null;
+  const book = (await readJson(
+    p.bookkeepingPath,
+  )) as unknown as Bookkeeping | null;
   // Capture the user's prior statusLine ONCE. On re-install reuse the saved
   // prior so we never lose it or chain to our own command.
-  const prior: StatusLine | null = book?.installed ? book.prior : isOurs(current) ? (book?.prior ?? null) : (current ?? null);
+  const prior: StatusLine | null = book?.installed
+    ? book.prior
+    : isOurs(current)
+      ? (book?.prior ?? null)
+      : (current ?? null);
   settings.statusLine = { type: "command", command: buildStatusLineCommand(p) };
   await writeJsonAtomic(p.settingsPath, settings);
-  await writeJsonAtomic(p.emitConfigPath, { out: p.outPath, prior: prior ?? null });
-  await writeJsonAtomic(p.bookkeepingPath, { installed: true, prior: prior ?? null } satisfies Bookkeeping);
+  await writeJsonAtomic(p.emitConfigPath, {
+    out: p.outPath,
+    prior: prior ?? null,
+  });
+  await writeJsonAtomic(p.bookkeepingPath, {
+    installed: true,
+    prior: prior ?? null,
+  } satisfies Bookkeeping);
 }
 
 export async function uninstallQuotaStatusLine(p: QuotaPaths): Promise<void> {
-  const book = (await readJson(p.bookkeepingPath)) as unknown as Bookkeeping | null;
+  const book = (await readJson(
+    p.bookkeepingPath,
+  )) as unknown as Bookkeeping | null;
   const settings = (await readJson(p.settingsPath)) ?? {};
   const current = settings.statusLine as StatusLine;
   // Only touch statusLine if it is still ours -- never clobber a value the user
@@ -72,6 +91,9 @@ export async function uninstallQuotaStatusLine(p: QuotaPaths): Promise<void> {
     else delete settings.statusLine;
     await writeJsonAtomic(p.settingsPath, settings);
   }
-  await writeJsonAtomic(p.bookkeepingPath, { installed: false, prior: undefined } satisfies Bookkeeping);
+  await writeJsonAtomic(p.bookkeepingPath, {
+    installed: false,
+    prior: undefined,
+  } satisfies Bookkeeping);
   await rm(p.emitConfigPath, { force: true });
 }
