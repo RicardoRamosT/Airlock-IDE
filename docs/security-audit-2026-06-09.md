@@ -50,11 +50,11 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] M10 `duplicate()` races and `cp(force)` silently overwrites/merges -- `workspace/fileOps.ts:58-65`.
 
 ### LOW
-- [ ] L1 Output truncation/chunk boundaries split a secret past exact-match redaction -- `command/run.ts:45-62`.
+- [~] L1 Output truncation/chunk boundaries split a secret past exact-match redaction -- `command/run.ts:45-62`. VERDICT: verified; deferred. Inherent to a hard byte-cut + exact-match redaction (a secret must straddle the exact maxBytes cut of a stream). The structural guarantee is the broker's secret-blindness; this redaction is defense-in-depth. Documented at the cap() site; a robust per-stream capture-with-margin-then-redact fix is disproportionate to the edge and risks the just-hardened redaction path.
 - [x] L2 `gitPush` opaque error in detached HEAD -- `git/ops.ts:100-119`.
 - [x] L3 `assertBranchName` permits leading-dot / `.lock` names -- `git/ops.ts:13-18`.
 - [x] L4 `computeHash` covers only 5 fields; extra top-level keys unprotected -- `audit/audit.ts:21-30`.
-- [ ] L5 `withDb` disables TLS cert validation (`rejectUnauthorized:false`) -- `db/client.ts:15-17`.
+- [x] L5 `withDb` disables TLS cert validation (`rejectUnauthorized:false`) -- `db/client.ts:15-17`.
 - [x] L6 `importDotEnv` silently drops a secret named `__proto__` then deletes the `.env` -- `broker/dotenv.ts:26-46`.
 - [x] L7 `setSecret` accepts empty/whitespace-only values -- `broker/broker.ts:21-51`.
 

@@ -43,6 +43,13 @@ export const realRunner: CommandRunner = {
       let stderr = "";
       let truncated = false;
       let timedOut = false;
+      // NOTE (audit L1): truncation is a hard byte cut, so a secret value that
+      // straddles maxBytes can leave a PREFIX that exact-match redaction (which
+      // needs the whole value) misses. The structural guarantee is the broker --
+      // the agent never receives secret VALUES by design; this output redaction
+      // is defense-in-depth. A fully robust fix (capture with a margin, redact,
+      // then truncate per stream) is deferred as disproportionate to this narrow
+      // boundary edge and not worth risking the hardened redaction path.
       const cap = (buf: string, chunk: Buffer): string => {
         if (buf.length >= maxBytes) {
           truncated = true;
