@@ -1011,11 +1011,12 @@ export function registerIpc(
     sessions.set(s.id, s);
     const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
     if (ownerId !== undefined) sessionWindows.set(s.id, ownerId);
-    // Tag the terminal with the project it was spawned under (the sender's root)
-    // so the agent's terminal tools can scope to the ACTIVE tab, not just the
-    // window. root is the same value pty:create used as the spawn cwd above.
-    const sr = rootForEvent(e);
-    if (sr) sessionRoots.set(s.id, sr);
+    // Tag the terminal with the project it was spawned under -- the SAME captured
+    // `root` used for the spawn cwd above, NOT a re-read of rootForEvent(e). A
+    // workspace:setActive can run during the awaits above and change what
+    // rootForEvent(e) returns, so re-reading here would tag the session with a
+    // different project than it actually spawned in. (audit PB-C2)
+    if (root) sessionRoots.set(s.id, root);
     const wc = e.sender;
     const dataSub = s.onData((data) => {
       const prev = ptyBuffers.get(s.id) ?? "";
