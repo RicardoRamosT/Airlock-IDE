@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { type FSWatcher, watch } from "chokidar";
 import { BrowserWindow } from "electron";
 import type { QuotaStatus } from "../../shared/ipc";
@@ -21,15 +21,20 @@ function broadcast(s: QuotaStatus): void {
 
 async function readAndBroadcast(outPath: string): Promise<void> {
   let text: string;
+  let emittedAt: number;
   try {
     text = await readFile(outPath, "utf8");
+    // Stamp with the file's mtime (when a Claude session last wrote it), NOT
+    // read time -- so on app launch a long-untouched file is correctly seen as
+    // stale ("no active session") instead of looking freshly updated.
+    emittedAt = Math.floor((await stat(outPath)).mtimeMs / 1000);
   } catch {
     return; // file vanished between event and read; ignore
   }
   // Fold onto the last-known status so a fresh session's pre-first-response
   // emit (no rate_limits) carries old data forward instead of flashing
   // "unavailable".
-  latest = mergeQuota(latest, parseQuota(text, Math.floor(Date.now() / 1000)));
+  latest = mergeQuota(latest, parseQuota(text, emittedAt));
   broadcast(latest);
 }
 

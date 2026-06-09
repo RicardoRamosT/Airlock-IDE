@@ -15,7 +15,15 @@ export interface QuotaPaths {
 // A statusLine command is OURS iff it references the emitter script.
 const EMIT_MARKER = "statusline-emit.cjs";
 
-type StatusLine = { type?: string; command?: string } | undefined;
+// Re-run the statusLine (hence our emitter) every N seconds while a Claude
+// session is open, in addition to event-driven runs. This keeps the meter live
+// when the session is idle AND lets the UI treat a stale side-channel file as
+// "no active session". (Claude Code statusLine.refreshInterval, min 1s.)
+const STATUSLINE_REFRESH_SECONDS = 10;
+
+type StatusLine =
+  | { type?: string; command?: string; refreshInterval?: number }
+  | undefined;
 interface Bookkeeping {
   installed: boolean;
   prior: StatusLine | null;
@@ -73,7 +81,11 @@ export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
     : isOurs(current)
       ? (book?.prior ?? null)
       : (current ?? null);
-  settings.statusLine = { type: "command", command: buildStatusLineCommand(p) };
+  settings.statusLine = {
+    type: "command",
+    command: buildStatusLineCommand(p),
+    refreshInterval: STATUSLINE_REFRESH_SECONDS,
+  };
   await writeJsonAtomic(p.settingsPath, settings);
   await writeJsonAtomic(p.emitConfigPath, {
     out: p.outPath,

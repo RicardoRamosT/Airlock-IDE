@@ -47,6 +47,8 @@ it("installs into an empty settings dir with prior null", async () => {
   await installQuotaStatusLine(paths);
   const settings = await readJson(paths.settingsPath);
   expect(settings.statusLine.command).toContain("statusline-emit.cjs");
+  // refreshInterval keeps the meter live while a session is idle.
+  expect(settings.statusLine.refreshInterval).toBeGreaterThan(0);
   expect(await readJson(paths.emitConfigPath)).toEqual({
     out: paths.outPath,
     prior: null,

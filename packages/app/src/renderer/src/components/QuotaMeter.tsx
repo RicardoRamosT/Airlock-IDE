@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { clampPct, formatCountdown } from "../lib/quotaFormat";
 import { useApp } from "../store";
 
+// Our installed statusLine re-runs every ~10s while a Claude session is open,
+// so a side-channel emit older than this means no session is currently running.
+const STALE_AFTER_SECONDS = 40;
+
 function Row({ label, pct }: { label: string; pct: number }) {
   return (
     <div className="quota-row">
@@ -33,25 +37,33 @@ export function QuotaMeter() {
 
   if (!enabled) return null;
 
-  if (!quota) {
+  const now = Math.floor(Date.now() / 1000);
+  // No recent statusLine emit => no Claude session is feeding the meter; the
+  // numbers would be a stale snapshot, so prompt the user instead.
+  const fresh = quota !== null && now - quota.updatedAt <= STALE_AFTER_SECONDS;
+
+  if (!fresh) {
     return (
       <div className="quota-meter">
         <div className="quota-title">Plan usage</div>
-        <div className="quota-waiting">Waiting for Claude…</div>
+        <div className="quota-waiting">
+          Start a Claude session to see your usage limits
+        </div>
       </div>
     );
   }
 
   if (!quota.available) {
+    // A session is active but rate limits haven't arrived yet (first response
+    // pending, or an account that doesn't report them).
     return (
       <div className="quota-meter">
         <div className="quota-title">Plan usage</div>
-        <div className="quota-waiting">Rate limits unavailable</div>
+        <div className="quota-waiting">Waiting for usage data…</div>
       </div>
     );
   }
 
-  const now = Math.floor(Date.now() / 1000);
   return (
     <div className="quota-meter" title={quota.model ?? undefined}>
       <div className="quota-title">Plan usage</div>
