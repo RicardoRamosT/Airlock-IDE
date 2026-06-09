@@ -32,7 +32,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
-      quotaMeter: { enabled: false },
+      quotaMeter: { enabled: true },
     });
   });
 
@@ -86,7 +86,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
-      quotaMeter: { enabled: false },
+      quotaMeter: { enabled: true },
     });
   });
 
@@ -126,7 +126,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
-      quotaMeter: { enabled: false },
+      quotaMeter: { enabled: true },
     });
   });
 
@@ -158,7 +158,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
-      quotaMeter: { enabled: false },
+      quotaMeter: { enabled: true },
     });
   });
 
@@ -318,16 +318,16 @@ describe("recentFolders", () => {
 });
 
 describe("quotaMeter", () => {
-  it("defaults quotaMeter to disabled and sanitizes bad input", async () => {
+  it("defaults quotaMeter to enabled, honors explicit false, sanitizes bad input", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "prefs-quota-"));
     const f = path.join(dir, "prefs.json");
-    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: false });
-    await savePrefs(f, { quotaMeter: { enabled: true } });
-    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
-    // Non-boolean enabled -> falls back to the default (disabled).
+    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true }); // default on
+    await savePrefs(f, { quotaMeter: { enabled: false } });
+    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: false }); // explicit off honored
+    // Non-boolean enabled -> falls back to the default (enabled).
     await savePrefs(f, {
       quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean },
     });
-    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: false });
+    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
   });
 });

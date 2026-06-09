@@ -47,7 +47,7 @@ const DEFAULTS: AppPrefs = {
   showRunningProcessNotice: true,
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
-  quotaMeter: { enabled: false },
+  quotaMeter: { enabled: true },
 };
 
 // Most-recent-first list of opened folder paths. Drop non-strings and empty
@@ -116,14 +116,15 @@ function sanitizeMcp(
   return undefined;
 }
 
-// quotaMeter is app-global and opt-in. Only a real boolean `enabled` overrides
-// the default-off; anything else (absent, partial, wrong type) -> disabled.
+// quotaMeter is app-global and ON by default. A real boolean `enabled` (incl.
+// explicit false to turn it off) is honored; anything else (absent, partial,
+// wrong type) -> enabled.
 function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     if (typeof r.enabled === "boolean") return { enabled: r.enabled };
   }
-  return { enabled: false };
+  return { enabled: true };
 }
 
 function sanitize(raw: unknown): AppPrefs {

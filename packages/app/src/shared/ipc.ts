@@ -275,8 +275,9 @@ export interface AppPrefs {
   showRunningProcessNotice: boolean; // app-global; show the kept-busy-terminal notice when opening a folder
   recentFolders: string[]; // app-global; most-recent-first, capped, deduped
   agentPolicy: AgentCommandPolicy; // per-category gate for agent run_command
-  // Claude subscription usage meter. Opt-in (default false): enabling installs
-  // a chained Claude Code statusLine that AirLock reads. App-global.
+  // Claude subscription usage meter. ON by default; installs a chained Claude
+  // Code statusLine that AirLock reads (set enabled:false to turn it off and
+  // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
