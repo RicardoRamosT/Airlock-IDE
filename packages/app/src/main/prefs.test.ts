@@ -35,6 +35,26 @@ describe("app prefs", () => {
     });
   });
 
+  // PB-H13: concurrent saves of distinct fields must ALL survive. Unserialized,
+  // they read the same baseline and the last rename wins, dropping the rest.
+  it("serializes concurrent saves so no patch is lost (PB-H13)", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await Promise.all([
+      savePrefs(file, { theme: "light" }),
+      savePrefs(file, { sidebarPosition: "right" }),
+      savePrefs(file, { clipboardClearSeconds: 5 }),
+      savePrefs(file, { openProjectsAsTabs: false }),
+      savePrefs(file, { showRunningProcessNotice: false }),
+    ]);
+    const prefs = await loadPrefs(file);
+    expect(prefs.theme).toBe("light");
+    expect(prefs.sidebarPosition).toBe("right");
+    expect(prefs.clipboardClearSeconds).toBe(5);
+    expect(prefs.openProjectsAsTabs).toBe(false);
+    expect(prefs.showRunningProcessNotice).toBe(false);
+  });
+
   it("persists and reloads a patch", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     const file = path.join(dir, "prefs.json");

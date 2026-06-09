@@ -1048,25 +1048,35 @@ export function registerIpc(
   // and carries only a session id. Scoped to the sender window's own sessions
   // (consistent with the other pty/terminal handlers). Returns a plain boolean;
   // never throws.
+  // True iff the SENDER window owns this pty session. pty:isBusy and the mutating
+  // handlers (input/resize/kill) gate on it so one window cannot drive (inject
+  // into / resize / kill) another window's pty. Denies when no owner is recorded
+  // or the sender's window can't be resolved (the safe direction). (audit PB-H6)
+  const ownsSession = (
+    e: { sender: Electron.WebContents },
+    id: string,
+  ): boolean => {
+    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
+    return ownerId !== undefined && sessionWindows.get(id) === ownerId;
+  };
+
   ipcMain.handle("pty:isBusy", (e, id: unknown) => {
     if (typeof id !== "string") return false;
-    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
-    if (ownerId !== undefined && sessionWindows.get(id) !== ownerId) {
-      return false;
-    }
+    if (!ownsSession(e, id)) return false;
     const s = sessions.get(id);
     if (!s) return false;
     return ptyHasChild(s.pid);
   });
 
-  ipcMain.on("pty:input", (_e, payload: unknown) => {
+  ipcMain.on("pty:input", (e, payload: unknown) => {
     if (!payload || typeof payload !== "object") return;
     const { id, data } = payload as { id: string; data: string };
-    if (typeof id === "string" && typeof data === "string")
-      sessions.get(id)?.write(data);
+    if (typeof id !== "string" || typeof data !== "string") return;
+    if (!ownsSession(e, id)) return; // cross-window injection guard (PB-H6)
+    sessions.get(id)?.write(data);
   });
 
-  ipcMain.on("pty:resize", (_e, payload: unknown) => {
+  ipcMain.on("pty:resize", (e, payload: unknown) => {
     if (!payload || typeof payload !== "object") return;
     const { id, cols, rows } = payload as {
       id: string;
@@ -1074,17 +1084,20 @@ export function registerIpc(
       rows: number;
     };
     if (
-      typeof id === "string" &&
-      Number.isFinite(cols) &&
-      cols > 0 &&
-      Number.isFinite(rows) &&
-      rows > 0
+      typeof id !== "string" ||
+      !Number.isFinite(cols) ||
+      cols <= 0 ||
+      !Number.isFinite(rows) ||
+      rows <= 0
     )
-      sessions.get(id)?.resize(cols, rows);
+      return;
+    if (!ownsSession(e, id)) return; // PB-H6
+    sessions.get(id)?.resize(cols, rows);
   });
 
-  ipcMain.on("pty:kill", (_e, id: unknown) => {
+  ipcMain.on("pty:kill", (e, id: unknown) => {
     if (typeof id !== "string") return;
+    if (!ownsSession(e, id)) return; // PB-H6
     sessions.get(id)?.kill();
     // onExit cleanup (sessions.delete + pty:exit notify) already wired in pty:create.
   });

@@ -53,7 +53,17 @@ export function runAgentCommand(
       resolve({ ok: false, error: "timed out" });
     }, COMMAND_TIMEOUT_MS);
     pending.set(id, { resolve, timer });
-    win.webContents.send("agent:command", { id, cmd });
+    try {
+      win.webContents.send("agent:command", { id, cmd });
+    } catch {
+      // The window was destroyed between the isDestroyed() check above and this
+      // send. Honor the documented never-rejects contract: clear the timer and
+      // resolve gracefully instead of letting send() throw out of the executor
+      // (which would reject the promise). (audit PB-H14)
+      clearTimeout(timer);
+      pending.delete(id);
+      resolve({ ok: false, error: "window closed" });
+    }
   });
 }
 
