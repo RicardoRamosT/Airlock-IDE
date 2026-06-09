@@ -1,0 +1,77 @@
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+// Every path the installer needs. Supplied by wire.ts (electron-aware) so this
+// module stays electron-free and unit-testable, mirroring prefs.ts.
+export interface QuotaPaths {
+  settingsPath: string; // ~/.claude/settings.json
+  bookkeepingPath: string; // <userData>/quota/install.json (main-only state)
+  emitConfigPath: string; // <userData>/quota/emit-config.json (read by the emitter)
+  outPath: string; // <userData>/quota/rate-limits.json (side-channel)
+  execPath: string; // process.execPath (the app's Electron binary)
+  emitScript: string; // absolute path to statusline-emit.cjs
+}
+
+// A statusLine command is OURS iff it references the emitter script.
+const EMIT_MARKER = "statusline-emit.cjs";
+
+type StatusLine = { type?: string; command?: string } | undefined;
+interface Bookkeeping {
+  installed: boolean;
+  prior: StatusLine | null;
+}
+
+async function readJson(file: string): Promise<Record<string, unknown> | null> {
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonAtomic(file: string, value: unknown): Promise<void> {
+  await mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await rename(tmp, file);
+}
+
+function isOurs(sl: StatusLine): boolean {
+  return !!sl && typeof sl.command === "string" && sl.command.includes(EMIT_MARKER);
+}
+
+// ELECTRON_RUN_AS_NODE makes the app's own Electron binary behave as plain
+// node, so no `node`/`jq` on PATH is assumed (packaged-app safe). Paths are
+// double-quoted for the POSIX shell Claude Code runs the command in.
+export function buildStatusLineCommand(p: QuotaPaths): string {
+  return `ELECTRON_RUN_AS_NODE=1 "${p.execPath}" "${p.emitScript}" "${p.emitConfigPath}"`;
+}
+
+export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
+  const settings = (await readJson(p.settingsPath)) ?? {};
+  const current = settings.statusLine as StatusLine;
+  const book = (await readJson(p.bookkeepingPath)) as unknown as Bookkeeping | null;
+  // Capture the user's prior statusLine ONCE. On re-install reuse the saved
+  // prior so we never lose it or chain to our own command.
+  const prior: StatusLine | null = book?.installed ? book.prior : isOurs(current) ? (book?.prior ?? null) : (current ?? null);
+  settings.statusLine = { type: "command", command: buildStatusLineCommand(p) };
+  await writeJsonAtomic(p.settingsPath, settings);
+  await writeJsonAtomic(p.emitConfigPath, { out: p.outPath, prior: prior ?? null });
+  await writeJsonAtomic(p.bookkeepingPath, { installed: true, prior: prior ?? null } satisfies Bookkeeping);
+}
+
+export async function uninstallQuotaStatusLine(p: QuotaPaths): Promise<void> {
+  const book = (await readJson(p.bookkeepingPath)) as unknown as Bookkeeping | null;
+  const settings = (await readJson(p.settingsPath)) ?? {};
+  const current = settings.statusLine as StatusLine;
+  // Only touch statusLine if it is still ours -- never clobber a value the user
+  // set after we installed.
+  if (isOurs(current)) {
+    const prior = book?.prior;
+    if (prior) settings.statusLine = prior;
+    else delete settings.statusLine;
+    await writeJsonAtomic(p.settingsPath, settings);
+  }
+  await writeJsonAtomic(p.bookkeepingPath, { installed: false, prior: undefined } satisfies Bookkeeping);
+  await rm(p.emitConfigPath, { force: true });
+}
