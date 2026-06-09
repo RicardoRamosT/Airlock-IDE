@@ -3,7 +3,7 @@
 // any regex, string literal, or comment in this file.
 import { spawn } from "node:child_process";
 import { appendAudit } from "../audit/audit";
-import { getSecretValue } from "../broker/broker";
+import { getSecretValue, listSecrets } from "../broker/broker";
 import { isDangerousEnvName } from "../broker/dangerous";
 import type { KeychainStore } from "../broker/keychain";
 import { redactSecrets } from "../redact/redact";
@@ -112,14 +112,37 @@ export async function runCommand(
 ): Promise<RunCommandResult> {
   const runner = opts.runner ?? realRunner;
   const names = opts.injectSecrets ?? [];
-  // Every resolved value goes here -- even dangerous ones we refuse to inject --
-  // so the redactor still scrubs it if the command somehow echoes it.
+  // Redaction set: EVERY vaulted value, not just the injected subset. Any vaulted
+  // secret can surface in the output via the inherited env (e.g. `printenv` on a
+  // command that injects nothing), so the redactor must scrub all of them. This
+  // mirrors the PTY-tail redaction path. (audit C1/H1)
   const values: string[] = [];
+  const seen = new Set<string>();
+  const addValue = (v: string): void => {
+    if (!seen.has(v)) {
+      seen.add(v);
+      values.push(v);
+    }
+  };
+  const valueByName = new Map<string, string>();
+  for (const meta of await listSecrets(root)) {
+    const v = await getSecretValue(root, meta.name, {
+      keychain: opts.keychain,
+    });
+    if (v !== null) {
+      valueByName.set(meta.name, v);
+      addValue(v);
+    }
+  }
+  // Inject only the NAMED secrets. Resolve any not covered by the meta scan (a
+  // reserved name can be seeded directly in the keychain with no meta entry).
   const injectedEnv: Record<string, string> = {};
   const blocked: string[] = [];
   for (const name of names) {
-    const value = await getSecretValue(root, name, { keychain: opts.keychain });
-    if (value === null) {
+    const value =
+      valueByName.get(name) ??
+      (await getSecretValue(root, name, { keychain: opts.keychain }));
+    if (value == null) {
       // Fail-closed: never run a command that asked for a secret we do not have.
       await appendAudit(root, "agent", "command.run.blocked", {
         command,
@@ -127,7 +150,7 @@ export async function runCommand(
       });
       throw new Error(`requested secret not vaulted: ${name}`);
     }
-    values.push(value);
+    addValue(value);
     if (isDangerousEnvName(name)) {
       blocked.push(name);
       continue;

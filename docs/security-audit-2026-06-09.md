@@ -19,7 +19,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 ## PART A -- VERIFIED BY THE AUDIT (re-verified here as we fix)
 
 ### CRITICAL
-- [ ] **C1** `run_command` exposes the full `process.env` + login-shell env to the agent, unredacted; redaction set = only the named injected secrets, and the command classifies to nothing so the gate allows it. `agent-core/src/command/run.ts:117,137-141,149`. Fix: redact against ALL vaulted values; build the child env from a minimal allowlist (not raw `process.env`).
+- [x] **C1** `run_command` exposes the full `process.env` + login-shell env to the agent, unredacted; redaction set = only the named injected secrets, and the command classifies to nothing so the gate allows it. `agent-core/src/command/run.ts:117,137-141,149`. Fix: redact against ALL vaulted values; build the child env from a minimal allowlist (not raw `process.env`).
 - [ ] **C2** Concurrent `appendAudit` forks the hash chain (non-atomic read->modify->write, no lock) -> `verifyAuditChain` fails forever. `agent-core/src/audit/audit.ts:63-103`. Fix: serialize appends through an in-process async mutex keyed by logFile.
 - [ ] **C3** MCP `run_command` `cwd` arg escapes the project and bypasses the `outsideWorkspace` gate (forwarded to spawn with no containment). `app/src/main/mcp/tools.ts:310-339`. Fix: `path.resolve(root, cwd)` and reject unless inside root.
 - [ ] **C4** `redactedTail`/`redactedPreview` truncate by line BEFORE redacting -> a multi-line secret (PEM) gets split, surviving lines reach the agent. `agent-core/src/terminal/tail.ts:43-58`. Fix: redact the full buffer first, then truncate.
@@ -28,7 +28,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] **C7** `fs:writeFile` has no vault guard -> renderer can destroy/forge the audit chain + vault metadata (every other mutating `fs:*` calls `assertNotVault`). `app/src/main/ipc.ts:342-349` + `write.ts:8-15`. Fix: `assertNotVault(relPath)` in the handler (+ self-guard in `writeWorkspaceFile`).
 
 ### HIGH
-- [ ] **H1** `run_command` redaction covers only the named injected secrets, not all vaulted. `command/run.ts:114-117,130,149`. (Same fix as C1.)
+- [x] **H1** `run_command` redaction covers only the named injected secrets, not all vaulted. `command/run.ts:114-117,130,149`. (Same fix as C1.)
 - [ ] **H2** `outsideWorkspace` classifier misses `~/...` tilde (the spec's own example) -- trailing `\b` never matches between `~` and `/`. `command/policy.ts:36`. Fix: drop the broken `\b`; match a leading tilde token; catch `${HOME}`.
 - [ ] **H3** `privilege` block defeated by a path to the binary (`/usr/bin/sudo`, `./sudo`). `command/policy.ts:23,38`. Fix: match the program basename after stripping any leading path.
 - [ ] **H4** A torn/partial last audit line (crash mid-write) is glued to the next entry (`appendFile` adds only a trailing `\n`, never checks). `audit/audit.ts:87`. Fix: ensure trailing newline before appending / write atomically.

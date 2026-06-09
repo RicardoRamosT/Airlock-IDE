@@ -99,6 +99,21 @@ describe("runCommand", () => {
     expect(res.exitCode).toBe(0);
   });
 
+  // C1/H1: redaction must cover EVERY vaulted secret, not just the injected
+  // subset -- a vaulted value can surface via the inherited env on a command
+  // that injects nothing.
+  it("redacts a vaulted secret that was NOT injected", async () => {
+    await setSecret(root, "OTHER_SECRET", "sekret-not-injected-xyz", {
+      keychain: fake,
+    });
+    const runner = makeRunner({
+      stdout: "leaked sekret-not-injected-xyz here",
+    });
+    const res = await runCommand(root, "printenv", { keychain: fake, runner });
+    expect(res.output).not.toContain("sekret-not-injected-xyz");
+    expect(res.output).toContain("***");
+  });
+
   it("fails closed when a requested secret is not vaulted: throws the name, never runs, audits blocked", async () => {
     const runner = makeRunner();
     await expect(
