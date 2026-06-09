@@ -68,6 +68,8 @@ export {
   dockerStop,
   parseDockerPs,
 } from "./docker/docker";
+export { buildAuthedArgs, runGitAuthed } from "./git/auth";
+export { ensureCommitIdentity, type GitIdentity } from "./git/identity";
 export {
   commitStaged,
   createBranch,
@@ -81,6 +83,8 @@ export {
   switchBranch,
   unstageFiles,
 } from "./git/ops";
+export { getOrigin, type ParsedRemote, parseRemote } from "./git/remote";
+export { type ResolvedAccount, resolveProjectAccount } from "./git/resolve";
 export { isGitRepo, runGit } from "./git/run";
 export {
   type BranchInfo,
@@ -96,9 +100,13 @@ export {
 } from "./git/versions";
 export {
   type GhAccount,
+  type GhIdentity,
   type GhStatus,
   ghAccounts,
+  ghToken,
+  ghUserIdentity,
   parseGhAuthStatus,
+  parseGhUser,
   switchGhAccount,
 } from "./github/accounts";
 export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
