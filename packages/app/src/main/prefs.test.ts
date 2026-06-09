@@ -32,6 +32,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
+      quotaMeter: { enabled: false },
     });
   });
 
@@ -85,6 +86,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
+      quotaMeter: { enabled: false },
     });
   });
 
@@ -124,6 +126,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
+      quotaMeter: { enabled: false },
     });
   });
 
@@ -155,6 +158,7 @@ describe("app prefs", () => {
         destructive: "ask",
         privilege: "block",
       },
+      quotaMeter: { enabled: false },
     });
   });
 
@@ -310,5 +314,18 @@ describe("recentFolders", () => {
     const many = Array.from({ length: 15 }, (_, i) => `/p${i}`);
     await writeFile(manyFile, JSON.stringify({ recentFolders: many }));
     expect((await loadPrefs(manyFile)).recentFolders).toHaveLength(10);
+  });
+});
+
+describe("quotaMeter", () => {
+  it("defaults quotaMeter to disabled and sanitizes bad input", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-quota-"));
+    const f = path.join(dir, "prefs.json");
+    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: false });
+    await savePrefs(f, { quotaMeter: { enabled: true } });
+    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
+    // Non-boolean enabled -> falls back to the default (disabled).
+    await savePrefs(f, { quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean } });
+    expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: false });
   });
 });

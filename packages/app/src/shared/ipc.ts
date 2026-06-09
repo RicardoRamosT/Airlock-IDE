@@ -239,6 +239,27 @@ export type AgentCommandResult =
   | { ok: true; data: TabsSnapshot }
   | { ok: false; error: string };
 
+/** One Claude subscription usage window (5-hour or 7-day). */
+export interface QuotaWindow {
+  usedPercentage: number; // 0-100
+  resetsAt: number; // Unix epoch seconds
+}
+
+/**
+ * Account-wide Claude subscription usage, parsed from Claude Code's statusLine
+ * `rate_limits` payload. `available` is false until the first emit carries
+ * rate limits (before the first response, or for non-Pro/Max users). Either
+ * window may be null independently. NO token counts cross -- only percentages,
+ * a reset timestamp, and a model label.
+ */
+export interface QuotaStatus {
+  fiveHour: QuotaWindow | null;
+  sevenDay: QuotaWindow | null;
+  model: string | null;
+  updatedAt: number; // epoch seconds when the emit was read
+  available: boolean;
+}
+
 /**
  * App-global preferences (userData JSON) - distinct from per-project config
  * and the keychain. Defined here as the single source of truth so both the
@@ -254,6 +275,9 @@ export interface AppPrefs {
   showRunningProcessNotice: boolean; // app-global; show the kept-busy-terminal notice when opening a folder
   recentFolders: string[]; // app-global; most-recent-first, capped, deduped
   agentPolicy: AgentCommandPolicy; // per-category gate for agent run_command
+  // Claude subscription usage meter. Opt-in (default false): enabling installs
+  // a chained Claude Code statusLine that AirLock reads. App-global.
+  quotaMeter: { enabled: boolean };
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
@@ -451,6 +475,10 @@ export interface AirlockApi {
   dockerStop(id: string): Promise<void>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
+  // Claude quota meter: last-known account usage (null before the first emit),
+  // pushed live on quota:changed.
+  quotaGet(): Promise<QuotaStatus | null>;
+  onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   setSectionVisibility(
     id: Section,
     visible: boolean,

@@ -47,6 +47,7 @@ const DEFAULTS: AppPrefs = {
   showRunningProcessNotice: true,
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
+  quotaMeter: { enabled: false },
 };
 
 // Most-recent-first list of opened folder paths. Drop non-strings and empty
@@ -115,6 +116,16 @@ function sanitizeMcp(
   return undefined;
 }
 
+// quotaMeter is app-global and opt-in. Only a real boolean `enabled` overrides
+// the default-off; anything else (absent, partial, wrong type) -> disabled.
+function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (typeof r.enabled === "boolean") return { enabled: r.enabled };
+  }
+  return { enabled: false };
+}
+
 function sanitize(raw: unknown): AppPrefs {
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
   const r = raw as Record<string, unknown>;
@@ -141,6 +152,7 @@ function sanitize(raw: unknown): AppPrefs {
         : DEFAULTS.showRunningProcessNotice,
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
+    quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.
