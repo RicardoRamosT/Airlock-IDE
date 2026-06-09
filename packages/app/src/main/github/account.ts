@@ -46,7 +46,10 @@ export async function ensureIdentityFor(root: string): Promise<void> {
     if (!r.account) return;
     const key = `${r.account.host}/${r.account.username}`;
     let id = identityCache.get(key);
-    if (!id && r.protocol === "https") {
+    if (!id) {
+      // Identity comes from `gh api user` (the account token), independent of
+      // the git remote transport -- so set it for SSH-origin repos too, even
+      // though token injection (tokenFor) only applies to https.
       const token = await ghToken(r.account.host, r.account.username);
       id = await ghUserIdentity(r.account.host, r.account.username, token);
       identityCache.set(key, id);
