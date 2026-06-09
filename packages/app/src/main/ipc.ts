@@ -82,7 +82,13 @@ import {
   syncLspServers,
 } from "./lsp/client";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
-import { loadPrefs, RECENT_CAP, SECTIONS, savePrefs } from "./prefs";
+import {
+  loadPrefs,
+  RECENT_CAP,
+  SECTIONS,
+  sanitizeAgentPolicy,
+  savePrefs,
+} from "./prefs";
 import { guardedCommit } from "./secrets/commit";
 import {
   allOpenRoots,
@@ -588,6 +594,17 @@ export function registerIpc(
       throw new Error("Invalid payload");
     }
     return changeSectionVisibility(prefsFile, id as Section, visible);
+  });
+
+  // App-global (NOT requireRoot-gated): read and write the per-category agent
+  // command policy. get returns the current policy; set sanitizes then persists.
+  ipcMain.handle(
+    "agentPolicy:get",
+    async () => (await loadPrefs(prefsFile)).agentPolicy,
+  );
+  ipcMain.handle("agentPolicy:set", async (_e, policy: unknown) => {
+    const clean = sanitizeAgentPolicy(policy);
+    return (await savePrefs(prefsFile, { agentPolicy: clean })).agentPolicy;
   });
 
   ipcMain.handle("audit:read", (e, root: unknown, limit: unknown) =>

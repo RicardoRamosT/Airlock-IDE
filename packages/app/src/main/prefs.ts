@@ -8,6 +8,10 @@
 // one-directional (main depends on shared, never the reverse).
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  type AgentCommandPolicy,
+  DEFAULT_AGENT_POLICY,
+} from "@airlock/agent-core";
 import type { AppPrefs, Section, SectionVisibility } from "../shared/ipc";
 
 export const SECTIONS: Section[] = [
@@ -41,6 +45,7 @@ const DEFAULTS: AppPrefs = {
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
   recentFolders: [],
+  agentPolicy: { ...DEFAULT_AGENT_POLICY },
 };
 
 // Most-recent-first list of opened folder paths. Drop non-strings and empty
@@ -70,6 +75,21 @@ function sanitizeSectionVisibility(raw: unknown): SectionVisibility {
     for (const key of SECTIONS) {
       if (typeof r[key] === "boolean") out[key] = r[key] as boolean;
     }
+  }
+  return out;
+}
+
+// Validates each category's action is one of allow/ask/block, falling back to
+// the default per key. Exported so ipc.ts can import it for the agentPolicy:set
+// handler.
+export function sanitizeAgentPolicy(value: unknown): AgentCommandPolicy {
+  const v = (value ?? {}) as Record<string, unknown>;
+  const out = { ...DEFAULT_AGENT_POLICY };
+  for (const k of Object.keys(
+    DEFAULT_AGENT_POLICY,
+  ) as (keyof AgentCommandPolicy)[]) {
+    const a = v[k];
+    if (a === "allow" || a === "ask" || a === "block") out[k] = a;
   }
   return out;
 }
@@ -119,6 +139,7 @@ function sanitize(raw: unknown): AppPrefs {
         ? r.showRunningProcessNotice
         : DEFAULTS.showRunningProcessNotice,
     recentFolders: sanitizeRecentFolders(r.recentFolders),
+    agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.

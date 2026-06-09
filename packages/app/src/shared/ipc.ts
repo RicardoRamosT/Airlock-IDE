@@ -1,4 +1,5 @@
 import type {
+  AgentCommandPolicy,
   AuditEntry,
   Container,
   DbTable,
@@ -15,6 +16,8 @@ import type {
   NeonProject,
   ProjectConfig,
   QueryResult,
+  RiskAction,
+  RiskCategory,
   SearchFileResult,
   SearchMatch,
   SearchResults,
@@ -22,6 +25,7 @@ import type {
 } from "@airlock/agent-core";
 
 export type {
+  AgentCommandPolicy,
   AuditEntry,
   Container,
   DbTable,
@@ -38,6 +42,8 @@ export type {
   NeonProject,
   ProjectConfig,
   QueryResult,
+  RiskAction,
+  RiskCategory,
   SearchFileResult,
   SearchMatch,
   SearchResults,
@@ -239,6 +245,7 @@ export interface AppPrefs {
   openProjectsAsTabs: boolean; // app-global; true = open folders as tabs, false = separate windows
   showRunningProcessNotice: boolean; // app-global; show the kept-busy-terminal notice when opening a folder
   recentFolders: string[]; // app-global; most-recent-first, capped, deduped
+  agentPolicy: AgentCommandPolicy; // per-category gate for agent run_command
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
@@ -441,6 +448,8 @@ export interface AirlockApi {
     visible: boolean,
   ): Promise<SectionVisibility>;
   onSectionsChanged(cb: (v: SectionVisibility) => void): () => void;
+  getAgentPolicy(): Promise<AgentCommandPolicy>;
+  setAgentPolicy(policy: AgentCommandPolicy): Promise<AgentCommandPolicy>;
   // Agent-requested secret: main pushes agent:request-secret when the
   // request_secret MCP tool asks the user to vault a secret. The renderer opens
   // the secure modal, then reports the outcome via requestSecretResolve. ONLY a
