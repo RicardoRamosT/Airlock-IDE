@@ -60,3 +60,25 @@ export function parseQuota(text: string, now: number): QuotaStatus {
     available: fiveHour !== null || sevenDay !== null,
   };
 }
+
+// Fold a freshly-parsed status onto the last-known one. A fresh Claude Code
+// session renders its statusLine BEFORE the first API response, and rate_limits
+// are absent until then -- so that first emit parses to no windows. Without this
+// merge it would clobber good data with "unavailable" for a few seconds (read as
+// "limit reached"). Each window/model is carried forward when the new emit lacks
+// it, so we only ever go from data -> better data, never data -> blank.
+export function mergeQuota(
+  prev: QuotaStatus | null,
+  next: QuotaStatus,
+): QuotaStatus {
+  if (!prev) return next;
+  const fiveHour = next.fiveHour ?? prev.fiveHour;
+  const sevenDay = next.sevenDay ?? prev.sevenDay;
+  return {
+    fiveHour,
+    sevenDay,
+    model: next.model ?? prev.model,
+    updatedAt: next.updatedAt,
+    available: fiveHour !== null || sevenDay !== null,
+  };
+}

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { type FSWatcher, watch } from "chokidar";
 import { BrowserWindow } from "electron";
 import type { QuotaStatus } from "../../shared/ipc";
-import { parseQuota } from "./parse";
+import { mergeQuota, parseQuota } from "./parse";
 
 let watcher: FSWatcher | null = null;
 let watchedPath: string | null = null;
@@ -26,7 +26,10 @@ async function readAndBroadcast(outPath: string): Promise<void> {
   } catch {
     return; // file vanished between event and read; ignore
   }
-  latest = parseQuota(text, Math.floor(Date.now() / 1000));
+  // Fold onto the last-known status so a fresh session's pre-first-response
+  // emit (no rate_limits) carries old data forward instead of flashing
+  // "unavailable".
+  latest = mergeQuota(latest, parseQuota(text, Math.floor(Date.now() / 1000)));
   broadcast(latest);
 }
 

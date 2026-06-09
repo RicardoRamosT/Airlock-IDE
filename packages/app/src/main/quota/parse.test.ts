@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parseQuota } from "./parse";
+import { mergeQuota, parseQuota } from "./parse";
 
 const NOW = 1_700_000_000;
 
@@ -52,4 +52,52 @@ it("reports unavailable for empty or garbage input", () => {
 it("falls back to model id when no display_name", () => {
   const text = JSON.stringify({ model: { id: "claude-x" }, rate_limits: {} });
   expect(parseQuota(text, NOW).model).toBe("claude-x");
+});
+
+const good: ReturnType<typeof parseQuota> = {
+  fiveHour: { usedPercentage: 47, resetsAt: 1_700_006_480 },
+  sevenDay: { usedPercentage: 58, resetsAt: 1_700_400_000 },
+  model: "Opus 4.8",
+  updatedAt: NOW,
+  available: true,
+};
+
+it("mergeQuota returns next verbatim when there is no prior", () => {
+  expect(mergeQuota(null, good)).toEqual(good);
+});
+
+it("mergeQuota carries last-known windows forward when a new emit has none", () => {
+  // A fresh session's first statusLine render: rate_limits absent.
+  const blank = parseQuota(JSON.stringify({ model: "Opus 4.8" }), NOW + 5);
+  expect(blank.available).toBe(false);
+  const merged = mergeQuota(good, blank);
+  expect(merged.available).toBe(true); // NOT clobbered to unavailable
+  expect(merged.fiveHour).toEqual(good.fiveHour);
+  expect(merged.sevenDay).toEqual(good.sevenDay);
+  expect(merged.updatedAt).toBe(NOW + 5); // an emit did happen
+});
+
+it("mergeQuota prefers fresh windows when the new emit has them", () => {
+  const fresh = {
+    ...good,
+    fiveHour: { usedPercentage: 51, resetsAt: 1_700_006_480 },
+    updatedAt: NOW + 10,
+  };
+  const merged = mergeQuota(good, fresh);
+  expect(merged.fiveHour?.usedPercentage).toBe(51); // new value wins
+  expect(merged.sevenDay).toEqual(good.sevenDay);
+});
+
+it("mergeQuota fills only the missing window independently", () => {
+  const onlySeven = parseQuota(
+    JSON.stringify({
+      rate_limits: {
+        seven_day: { used_percentage: 60, resets_at: 1_700_400_000 },
+      },
+    }),
+    NOW + 10,
+  );
+  const merged = mergeQuota(good, onlySeven);
+  expect(merged.fiveHour).toEqual(good.fiveHour); // carried forward
+  expect(merged.sevenDay?.usedPercentage).toBe(60); // updated
 });
