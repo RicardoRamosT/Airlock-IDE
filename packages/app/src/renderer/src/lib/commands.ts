@@ -1,24 +1,13 @@
-import type { Section } from "../../../shared/ipc";
 import type { AppState } from "../store";
 import { closeEditorFile, openEditorFile } from "./editorFiles";
 import { openPickedFolder } from "./openFolder";
+import { SECTION_META } from "./sections";
 
 export interface Command {
   id: string;
   title: string;
   run: () => void | Promise<void>;
 }
-
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "files", label: "Files" },
-  { id: "secrets", label: "Secrets" },
-  { id: "git", label: "Git" },
-  { id: "activity", label: "Activity" },
-  { id: "databases", label: "Databases" },
-  { id: "docker", label: "Docker" },
-  { id: "host", label: "Host" },
-  { id: "audit", label: "Audit" },
-];
 
 // Build the v1 command set from a live store snapshot. `goToFiles` switches the
 // open palette to files mode (injected by the Palette so this stays UI-agnostic).
@@ -116,8 +105,25 @@ export function buildCommands(s: AppState, goToFiles: () => void): Command[] {
       },
     },
   ];
-  for (const sec of SECTIONS) {
+  for (const sec of SECTION_META) {
     const visible = s.sectionVisibility[sec.id];
+    if (visible) {
+      // Switch the sidebar to this view (re-opening it if collapsed) -- the
+      // keyboard twin of clicking the section's activity-bar icon.
+      cmds.push({
+        id: `show-section-${sec.id}`,
+        title: `Show ${sec.label}`,
+        run: () => {
+          s.setLayoutHydrated(true);
+          s.setActiveView(sec.id);
+          if (!s.sidebarVisible) s.setSidebarVisible(true);
+          void window.airlock.prefsSet({
+            activeView: sec.id,
+            sidebarVisible: true,
+          });
+        },
+      });
+    }
     cmds.push({
       id: `toggle-section-${sec.id}`,
       title: `Toggle ${sec.label} Section`,

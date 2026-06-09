@@ -1,3 +1,4 @@
+import { ActivityBar } from "./components/ActivityBar";
 import { NeonConnectModal } from "./components/NeonConnectModal";
 import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
@@ -5,6 +6,7 @@ import { ProjectTabs } from "./components/ProjectTabs";
 import { RenderConnectModal } from "./components/RenderConnectModal";
 import { SearchPanel } from "./components/SearchPanel";
 import { SecretModal } from "./components/SecretModal";
+import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
@@ -28,6 +30,8 @@ export function App() {
   const activeTabId = useApp((s) => s.activeTabId);
   const searchOpen = useApp((s) => s.searchOpen);
   const split = useApp((s) => s.split);
+  const sidebarVisible = useApp((s) => s.sidebarVisible);
+  const sidebarPosition = useApp((s) => s.sidebarPosition);
   // Show the split ONLY when the focused tab is a member of the pair: switching
   // to a non-pair tab hides the split (the pair persists in `split`), switching
   // back to a member shows it again. Left = a (primary), right = b (secondary);
@@ -39,14 +43,23 @@ export function App() {
       <div className="app-shell">
         <TitleBar />
         <ProjectTabs />
-        {showSplit && split ? (
-          <div className="project-split">
-            <ProjectPane tabId={split.a} focused={activeTabId === split.a} />
-            <ProjectPane tabId={split.b} focused={activeTabId === split.b} />
-          </div>
-        ) : (
-          <ProjectPane tabId={activeTabId} focused />
-        )}
+        <div
+          className={`workspace${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
+        >
+          <ActivityBar />
+          {/* One sidebar per window, bound to the focused pane: no pane
+              provider wraps it, so useProjectTab() inside falls back to
+              activeTabId. */}
+          <Sidebar />
+          {showSplit && split ? (
+            <div className="project-split">
+              <ProjectPane tabId={split.a} focused={activeTabId === split.a} />
+              <ProjectPane tabId={split.b} focused={activeTabId === split.b} />
+            </div>
+          ) : (
+            <ProjectPane tabId={activeTabId} focused />
+          )}
+        </div>
         {/* Mounted ONCE here (NOT inside a pane): it portals every tab's
             terminals into the pane that currently holds that tab, so the ptys
             survive split toggles / focus swaps / tab switches. */}

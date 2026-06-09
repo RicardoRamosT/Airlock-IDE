@@ -287,10 +287,126 @@ body,
   gap: 4px;
 }
 
-.layout {
+/* Window-level workspace row: icon rail | ONE shared sidebar | panes. The rail
+   is always visible; sidebar-hidden collapses only the sidebar column; the
+   sidebar-right variant flips the reading order via `order`. */
+.workspace {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-columns: 44px 230px minmax(0, 1fr);
   min-height: 0;
+}
+
+.workspace > .project-pane,
+.workspace > .project-split {
+  min-width: 0;
+  min-height: 0;
+}
+
+.activity-bar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+}
+
+.activity-bar-icons {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.activity-icon:hover,
+.activity-icon.active {
+  color: var(--fg);
+}
+
+.activity-icon .codicon {
+  font-size: 20px;
+}
+
+/* Active-view indicator: the standard left-edge bar. */
+.activity-icon.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--accent);
+}
+
+.workspace.sidebar-right .activity-icon.active::before {
+  left: auto;
+  right: 0;
+}
+
+/* Rail bottom: the app-global Accounts/Settings buttons; position:relative
+   anchors their bottom-sheet popovers (which overlay the sidebar beside it). */
+.activity-bar-bottom {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+/* The sidebar's single-view chrome. */
+.sidebar-view-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 6px;
+}
+
+.sidebar-view-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.sidebar-view-project {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--fg-dim);
+  opacity: 0.8;
+}
+
+.sidebar-view-header .section-actions {
+  margin-left: auto;
+}
+
+.sidebar-view-header:hover .section-actions {
+  opacity: 1;
+}
+
+.sidebar-view-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
 }
 
 /* Two-project split: the content row becomes two equal ProjectPane columns with
@@ -304,7 +420,7 @@ body,
   background: var(--border);
 }
 
-/* A ProjectPane wraps the existing .layout (sidebar + main) for one tab. It
+/* A ProjectPane wraps one tab's main area (tab bar + content). It
    fills its column (the single-pane case) or its half of .project-split, with
    min-height:0 so the viewer/terminal size correctly. */
 .project-pane {
@@ -314,7 +430,7 @@ body,
   flex-direction: column;
 }
 
-.project-pane > .layout {
+.project-pane > .main {
   flex: 1 1 0;
   min-height: 0;
 }
@@ -335,45 +451,7 @@ body,
   border-right: 1px solid var(--border);
 }
 
-/* The sections area scrolls independently; the footer below is pinned. */
-.sidebar-sections {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 8px 0;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-}
-
-.section-header-toggle {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  padding: 4px 8px;
-  font-family: inherit;
-  text-align: left;
-}
-
-.section-header-toggle:hover {
-  color: var(--fg);
-}
-
-/* Hover-revealed header buttons (e.g. FILES' New File / New Folder). */
+/* Hover-revealed view-header buttons (e.g. FILES' New File / New Folder). */
 .section-actions {
   display: flex;
   align-items: center;
@@ -381,10 +459,6 @@ body,
   padding-right: 6px;
   opacity: 0;
   transition: opacity 0.1s;
-}
-
-.section:hover .section-actions {
-  opacity: 1;
 }
 
 .section-action {
@@ -408,27 +482,12 @@ body,
   vertical-align: middle;
 }
 
-.section-header .codicon {
-  font-size: 13px;
-}
-
 .statusbar .codicon {
   font-size: 12px;
 }
 
 .layout-btn .codicon {
   font-size: 15px;
-}
-
-.section-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.section-body {
-  padding: 2px 8px 8px 10px;
 }
 
 .section-note {
@@ -749,43 +808,47 @@ body,
 /* Sidebar on the right: flip the grid columns and reorder the two children so
    the sidebar (DOM child 1) renders in the right column and main in the left.
    The divider moves to the sidebar's left edge. */
-.layout.sidebar-right {
-  grid-template-columns: minmax(0, 1fr) 230px;
+.workspace.sidebar-right {
+  grid-template-columns: minmax(0, 1fr) 230px 44px;
 }
 
-.layout.sidebar-right .sidebar {
+.workspace.sidebar-right .activity-bar {
+  order: 3;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.workspace.sidebar-right .sidebar {
   order: 2;
   border-right: none;
   border-left: 1px solid var(--border);
 }
 
-.layout.sidebar-right .main {
+.workspace.sidebar-right > .project-pane,
+.workspace.sidebar-right > .project-split {
   order: 1;
 }
 
-/* Sidebar hidden: collapse to a single column and remove the sidebar. */
-.layout.sidebar-hidden {
-  grid-template-columns: minmax(0, 1fr);
+/* Popovers anchored in a right-side rail must open leftward. */
+.workspace.sidebar-right .activity-bar-bottom .popover {
+  left: auto;
+  right: 8px;
 }
 
-.layout.sidebar-hidden .sidebar {
+/* Sidebar hidden: drop only the sidebar column; the rail stays. */
+.workspace.sidebar-hidden {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.workspace.sidebar-hidden.sidebar-right {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.workspace.sidebar-hidden .sidebar {
   display: none;
 }
 
-/* Sidebar footer: pinned at the bottom of the sidebar (flex:none below the
-   scrolling sections). Hosts the accounts + settings icon buttons. Stays at the
-   bottom in both left and right sidebar positions (it is a flex child of
-   .sidebar, independent of the grid order flip) and vanishes with the sidebar
-   when hidden (display:none on .sidebar removes the whole column). */
-.sidebar-footer {
-  position: relative;
-  display: flex;
-  flex: none;
-  gap: 4px;
-  padding: 6px 8px;
-  border-top: 1px solid var(--border);
-}
-
+/* Icon buttons at the activity bar's bottom (accounts + settings). */
 .footer-btn {
   background: none;
   border: none;
@@ -808,9 +871,9 @@ body,
 }
 
 /* Claude quota meter: a fixed-height card pinned at the bottom of the sidebar
-   column, above the footer button row. flex:none reserves its height, so the
-   scrollable .sidebar-sections (flex:1) shrinks above it -- the project sections
-   reflow and scroll, and the meter never overlaps them. */
+   column. flex:none reserves its height, so the scrollable .sidebar-view-body
+   (flex:1) shrinks above it -- the view reflows and scrolls, and the meter
+   never overlaps it. */
 .quota-meter {
   flex: none;
   display: flex;
@@ -876,7 +939,8 @@ body,
   font-style: italic;
 }
 
-/* Popover: bottom-anchored above the footer (sits over the sidebar content). */
+/* Popover: bottom-anchored above the rail's bottom buttons (overlays the
+   sidebar beside the rail). */
 .popover {
   position: absolute;
   bottom: calc(100% + 4px);

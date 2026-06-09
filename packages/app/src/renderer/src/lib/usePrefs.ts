@@ -12,6 +12,7 @@ export function usePrefs(): void {
     (s) => s.setShowRunningProcessNotice,
   );
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
+  const setActiveView = useApp((s) => s.setActiveView);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const theme = useApp((s) => s.theme);
 
@@ -34,6 +35,7 @@ export function usePrefs(): void {
         setOpenProjectsAsTabs(p.openProjectsAsTabs);
         setShowRunningProcessNotice(p.showRunningProcessNotice);
         setSectionVisibility(p.sectionVisibility);
+        setActiveView(p.activeView);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
         useApp.getState().setLayoutHydrated(true);
       })
@@ -49,6 +51,7 @@ export function usePrefs(): void {
     setOpenProjectsAsTabs,
     setShowRunningProcessNotice,
     setSectionVisibility,
+    setActiveView,
     setQuotaMeterEnabled,
   ]);
 

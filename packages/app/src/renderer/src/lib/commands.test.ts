@@ -4,11 +4,17 @@ import { buildCommands } from "./commands";
 
 const initialState = useApp.getState();
 let setSectionVisibility: ReturnType<typeof vi.fn>;
+let prefsSet: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   setSectionVisibility = vi.fn(() => Promise.resolve(undefined));
+  prefsSet = vi.fn(() => Promise.resolve(undefined));
   (globalThis as { window?: unknown }).window = {
-    airlock: { setSectionVisibility, workspaceClose: () => Promise.resolve() },
+    airlock: {
+      setSectionVisibility,
+      prefsSet,
+      workspaceClose: () => Promise.resolve(),
+    },
   };
   useApp.setState(initialState, true);
 });
@@ -42,4 +48,30 @@ it("New Tab opens a blank tab", () => {
     .find((c) => c.id === "new-tab")
     ?.run();
   expect(useApp.getState().tabs.length).toBe(before + 1);
+});
+
+it("offers Show <Section> commands that activate the view", () => {
+  useApp.setState({ sidebarVisible: false });
+  const cmds = buildCommands(useApp.getState(), () => {});
+  const show = cmds.find((c) => c.id === "show-section-git");
+  expect(show?.title).toBe("Show Git");
+  show?.run();
+  expect(useApp.getState().activeView).toBe("git");
+  expect(useApp.getState().sidebarVisible).toBe(true);
+  expect(prefsSet).toHaveBeenCalledWith({
+    activeView: "git",
+    sidebarVisible: true,
+  });
+});
+
+it("omits Show commands for hidden sections but keeps their toggles", () => {
+  useApp.setState({
+    sectionVisibility: {
+      ...useApp.getState().sectionVisibility,
+      git: false,
+    },
+  });
+  const cmds = buildCommands(useApp.getState(), () => {});
+  expect(cmds.find((c) => c.id === "show-section-git")).toBeUndefined();
+  expect(cmds.find((c) => c.id === "toggle-section-git")).toBeTruthy();
 });

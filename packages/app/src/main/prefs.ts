@@ -42,6 +42,7 @@ const DEFAULTS: AppPrefs = {
   sidebarPosition: "left",
   theme: "dark",
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
+  activeView: "files",
   clipboardClearSeconds: 30,
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
@@ -138,6 +139,9 @@ function sanitize(raw: unknown): AppPrefs {
     sidebarPosition: r.sidebarPosition === "right" ? "right" : "left",
     theme: r.theme === "light" ? "light" : "dark",
     sectionVisibility: sanitizeSectionVisibility(r.sectionVisibility),
+    activeView: SECTIONS.includes(r.activeView as Section)
+      ? (r.activeView as Section)
+      : "files",
     clipboardClearSeconds:
       typeof r.clipboardClearSeconds === "number" &&
       Number.isFinite(r.clipboardClearSeconds)

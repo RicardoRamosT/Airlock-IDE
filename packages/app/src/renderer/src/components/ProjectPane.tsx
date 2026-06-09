@@ -10,10 +10,10 @@ import { EditorPane } from "./EditorPane";
 import { ImagePreview } from "./ImagePreview";
 import { MainTabs } from "./MainTabs";
 import { SettingsTab } from "./SettingsTab";
-import { Sidebar } from "./Sidebar";
 import { Viewer } from "./Viewer";
 
-// One full project view (Sidebar + a unified main area) scoped to a single tab.
+// One project's unified main area scoped to a single tab (the window's single
+// sidebar lives in App, beside the activity bar -- panes no longer carry one).
 // The main area is a unified tab bar (terminals + open files) over a content
 // region. The region shows the PRIMARY pane (the selected tab) and, when split,
 // a SECONDARY pane beside it -- each can be a terminal or a file editor, so any
@@ -33,8 +33,6 @@ export function ProjectPane({
   focused: boolean;
 }) {
   const { register, unregister } = useTerminalSlots();
-  const sidebarPosition = useApp((s) => s.sidebarPosition);
-  const sidebarVisible = useApp((s) => s.sidebarVisible);
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
@@ -178,15 +176,10 @@ export function ProjectPane({
         onFocusCapture={focus}
         onMouseDownCapture={focus}
       >
-        <div
-          className={`layout${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
-        >
-          <Sidebar />
-          <div className="main">
-            <MainTabs tabId={tabId} />
-            <div className={`main-content${split ? " main-panes split" : ""}`}>
-              {content}
-            </div>
+        <div className="main">
+          <MainTabs tabId={tabId} />
+          <div className={`main-content${split ? " main-panes split" : ""}`}>
+            {content}
           </div>
         </div>
       </div>
