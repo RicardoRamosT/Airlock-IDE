@@ -807,6 +807,75 @@ body,
   color: var(--fg);
 }
 
+/* Claude quota meter: a fixed-height card pinned at the bottom of the sidebar
+   column, above the footer button row. flex:none reserves its height, so the
+   scrollable .sidebar-sections (flex:1) shrinks above it -- the project sections
+   reflow and scroll, and the meter never overlaps them. */
+.quota-meter {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.quota-title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.quota-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quota-row-label {
+  width: 18px;
+  flex: none;
+  color: var(--fg-dim);
+}
+
+.quota-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hover);
+  overflow: hidden;
+}
+
+.quota-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.quota-pct {
+  width: 34px;
+  flex: none;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.quota-reset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-dim);
+}
+
+.quota-waiting {
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
 /* Popover: bottom-anchored above the footer (sits over the sidebar content). */
 .popover {
   position: absolute;

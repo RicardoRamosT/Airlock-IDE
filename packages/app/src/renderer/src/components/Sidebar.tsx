@@ -11,6 +11,7 @@ import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
 import { LocalHostSection } from "./LocalHostSection";
 import { NeonSection } from "./NeonSection";
+import { QuotaMeter } from "./QuotaMeter";
 import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
 import { SidebarFooter } from "./SidebarFooter";
@@ -187,6 +188,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
+      <QuotaMeter />
       <SidebarFooter />
     </aside>
   );
