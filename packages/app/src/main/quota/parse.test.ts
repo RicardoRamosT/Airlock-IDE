@@ -1,5 +1,28 @@
 import { expect, it } from "vitest";
-import { mergeQuota, parseQuota } from "./parse";
+import { mergeQuota, parseQuota, parseSessionMeta } from "./parse";
+
+it("parseSessionMeta extracts session_id and transcript_path", () => {
+  const text = JSON.stringify({
+    session_id: "abc",
+    transcript_path: "/p/abc.jsonl",
+    rate_limits: {},
+  });
+  expect(parseSessionMeta(text)).toEqual({
+    sessionId: "abc",
+    transcriptPath: "/p/abc.jsonl",
+  });
+});
+
+it("parseSessionMeta tolerates missing fields and garbage", () => {
+  expect(parseSessionMeta("garbage")).toEqual({
+    sessionId: null,
+    transcriptPath: null,
+  });
+  expect(parseSessionMeta("{}")).toEqual({
+    sessionId: null,
+    transcriptPath: null,
+  });
+});
 
 const NOW = 1_700_000_000;
 
