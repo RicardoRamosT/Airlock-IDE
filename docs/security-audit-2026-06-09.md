@@ -24,7 +24,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] **C3** MCP `run_command` `cwd` arg escapes the project and bypasses the `outsideWorkspace` gate (forwarded to spawn with no containment). `app/src/main/mcp/tools.ts:310-339`. Fix: `path.resolve(root, cwd)` and reject unless inside root.
 - [ ] **C4** `redactedTail`/`redactedPreview` truncate by line BEFORE redacting -> a multi-line secret (PEM) gets split, surviving lines reach the agent. `agent-core/src/terminal/tail.ts:43-58`. Fix: redact the full buffer first, then truncate.
 - [x] **C5** `redactConnStrings` leaks the password tail when the password contains a raw `@` (stops at first `@`; RFC/Postgres use the last). `agent-core/src/db/connstr.ts:38`. Fix: userinfo run greedy to the LAST `@` before the host.
-- [ ] **C6** `isDangerousEnvName` misses loader/command-hijack names (BASH_ENV, ENV, GIT_SSH_COMMAND, GIT_EXTERNAL_DIFF, PROMPT_COMMAND, ZDOTDIR, BASH_FUNC_*, PERL5OPT, PYTHONSTARTUP...). `agent-core/src/broker/dangerous.ts:7-28`. Fix: expand the set (incl. `BASH_FUNC_*` prefix).
+- [x] **C6** `isDangerousEnvName` misses loader/command-hijack names (BASH_ENV, ENV, GIT_SSH_COMMAND, GIT_EXTERNAL_DIFF, PROMPT_COMMAND, ZDOTDIR, BASH_FUNC_*, PERL5OPT, PYTHONSTARTUP...). `agent-core/src/broker/dangerous.ts:7-28`. Fix: expand the set (incl. `BASH_FUNC_*` prefix).
 - [ ] **C7** `fs:writeFile` has no vault guard -> renderer can destroy/forge the audit chain + vault metadata (every other mutating `fs:*` calls `assertNotVault`). `app/src/main/ipc.ts:342-349` + `write.ts:8-15`. Fix: `assertNotVault(relPath)` in the handler (+ self-guard in `writeWorkspaceFile`).
 
 ### HIGH
