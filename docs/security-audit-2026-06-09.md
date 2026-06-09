@@ -39,7 +39,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 
 ### MEDIUM
 - [x] M1 Agent-controlled `cwd` to spawn, no containment -- `command/run.ts:143` (same root as C3).
-- [ ] M2 Staged rename diff shows empty original instead of HEAD content -- `git/versions.ts:55-58`.
+- [x] M2 Staged rename diff shows empty original instead of HEAD content -- `git/versions.ts:55-58`.
 - [!] M3 `appendAuditAt` links over a corrupt line (writer skips nulls, verifier rejects them) -- `audit/audit.ts:70-77`. VERDICT: by-design, no fix. The asymmetry is intentional: the writer is RESILIENT (keep logging after a crash, link to the last parseable entry) and the verifier is STRICT (any corrupt line -> false, correct tamper/crash detection). "Consistency" would either brick logging after a crash or weaken tamper detection. `readAudit` still recovers the good entries; `verify` correctly reports the corruption.
 - [x] M4 Lowercase percent-encoding (`%2f`) of a secret bypasses redaction -- `redact/redact.ts:108-114`.
 - [x] M5 JSON-escaped form of a secret (quote/backslash) bypasses redaction -- `redact/redact.ts:124-132`.
@@ -51,8 +51,8 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 
 ### LOW
 - [ ] L1 Output truncation/chunk boundaries split a secret past exact-match redaction -- `command/run.ts:45-62`.
-- [ ] L2 `gitPush` opaque error in detached HEAD -- `git/ops.ts:100-119`.
-- [ ] L3 `assertBranchName` permits leading-dot / `.lock` names -- `git/ops.ts:13-18`.
+- [x] L2 `gitPush` opaque error in detached HEAD -- `git/ops.ts:100-119`.
+- [x] L3 `assertBranchName` permits leading-dot / `.lock` names -- `git/ops.ts:13-18`.
 - [x] L4 `computeHash` covers only 5 fields; extra top-level keys unprotected -- `audit/audit.ts:21-30`.
 - [ ] L5 `withDb` disables TLS cert validation (`rejectUnauthorized:false`) -- `db/client.ts:15-17`.
 - [x] L6 `importDotEnv` silently drops a secret named `__proto__` then deletes the `.env` -- `broker/dotenv.ts:26-46`.

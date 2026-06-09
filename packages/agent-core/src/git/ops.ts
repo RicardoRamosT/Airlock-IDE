@@ -12,8 +12,23 @@ function assertPaths(paths: string[]): void {
 
 const BRANCH_NAME = /^[A-Za-z0-9._/-]+$/;
 
+// Mirror git check-ref-format's main rules (the char class already excludes
+// space and ~^:?*[\ @). Reject the cases the old check missed: a leading dot, a
+// trailing dot/slash, a ".lock" suffix, and a "/." component (audit L3) -- git
+// rejects all of these, so catching them here fails early with a clear message
+// instead of an opaque git error (and avoids a surprising ref like ".x"/"x.lock").
 function assertBranchName(name: string): void {
-  if (!BRANCH_NAME.test(name) || name.startsWith("-") || name.includes("..")) {
+  if (
+    !BRANCH_NAME.test(name) ||
+    name.startsWith("-") ||
+    name.startsWith(".") ||
+    name.endsWith(".") ||
+    name.endsWith("/") ||
+    name.endsWith(".lock") ||
+    name.includes("..") ||
+    name.includes("//") ||
+    name.includes("/.")
+  ) {
     throw new Error(`Invalid branch name: ${name}`);
   }
 }
@@ -113,8 +128,16 @@ export async function gitPush(root: string): Promise<void> {
     await runGit(root, ["push"]);
     return;
   }
-  const branch = (
-    await runGit(root, ["symbolic-ref", "--short", "HEAD"])
-  ).trim();
+  // No upstream: publish the current branch. In DETACHED HEAD there is no
+  // branch, so symbolic-ref throws a raw "ref HEAD is not a symbolic ref" fatal;
+  // translate it into a clear, actionable message. (audit L2)
+  let branch: string;
+  try {
+    branch = (await runGit(root, ["symbolic-ref", "--short", "HEAD"])).trim();
+  } catch {
+    throw new Error(
+      "Cannot push: HEAD is detached (not on a branch). Switch to or create a branch first.",
+    );
+  }
   await runGit(root, ["push", "-u", "origin", branch]);
 }

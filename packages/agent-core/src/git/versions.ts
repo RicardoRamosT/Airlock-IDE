@@ -20,6 +20,38 @@ async function gitShow(root: string, ref: string): Promise<string | null> {
   }
 }
 
+// If relPath is the destination of a STAGED rename/copy, return the SOURCE path
+// so the diff's "original" can be the source's HEAD content (HEAD:<newPath> does
+// not exist, so without this the diff shows an empty original -- as if the file
+// were brand new). `-M` enables rename detection; `--name-status -z` emits
+// "R<score>\0<src>\0<dst>\0" for a rename/copy and "<status>\0<path>\0" for
+// everything else. Null when relPath is not a staged rename destination. (audit M2)
+async function stagedRenameSource(
+  root: string,
+  relPath: string,
+): Promise<string | null> {
+  let out: string;
+  try {
+    out = await runGit(root, ["diff", "--cached", "-M", "--name-status", "-z"]);
+  } catch {
+    return null;
+  }
+  const t = out.split("\0");
+  let i = 0;
+  while (i < t.length) {
+    const status = t[i];
+    if (!status) break; // trailing empty token
+    if (status.startsWith("R") || status.startsWith("C")) {
+      const src = t[i + 1];
+      if (t[i + 2] === relPath && src) return src;
+      i += 3; // status + src + dst
+    } else {
+      i += 2; // status + single path
+    }
+  }
+  return null;
+}
+
 async function worktreeContent(
   root: string,
   relPath: string,
@@ -53,7 +85,13 @@ export async function gitFileVersions(
   // still carry raw bytes, so the NUL scan covers original/staged.
   let worktreeBinary = false;
   if (which === "staged") {
-    original = (await gitShow(root, `HEAD:${relPath}`)) ?? "";
+    // A staged rename's destination has no HEAD:<newPath>; diff against the
+    // renamed-FROM path's HEAD content instead of showing an empty original.
+    const renameSrc = await stagedRenameSource(root, relPath);
+    original =
+      (renameSrc !== null
+        ? await gitShow(root, `HEAD:${renameSrc}`)
+        : await gitShow(root, `HEAD:${relPath}`)) ?? "";
     modified = (await gitShow(root, `:0:${relPath}`)) ?? "";
     truncated = false;
   } else {
