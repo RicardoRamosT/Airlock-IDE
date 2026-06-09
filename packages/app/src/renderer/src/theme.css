@@ -1421,6 +1421,57 @@ body,
   padding-left: 16px;
 }
 
+.agent-policy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.agent-policy-label {
+  font-size: 12px;
+}
+
+/* Segmented Allow/Ask/Block control: all three options visible, the active one
+   filled with its severity color (green/amber/red). Replaces the default select. */
+.seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+  text-transform: capitalize;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.seg-btn + .seg-btn {
+  border-left: 1px solid rgba(128, 128, 128, 0.4);
+}
+.seg-btn:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+.seg-on {
+  color: #fff;
+  font-weight: 600;
+}
+.seg-on.seg-allow {
+  background: #3fb950;
+}
+.seg-on.seg-ask {
+  background: #d08770;
+}
+.seg-on.seg-block {
+  background: #f85149;
+}
+
 .modal-caption {
   font-size: 11px;
   color: var(--fg-dim);

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { AgentSection } from "./AgentSection";
 
 // The Settings tab opens in the viewer-pane slot (mutually exclusive with a
 // file or diff). It surfaces airlock's existing, real settings in one place;
@@ -230,6 +231,11 @@ export function SettingsTab() {
             readable for longer. airlock cannot purge a third-party clipboard
             manager's history.
           </p>
+        </section>
+
+        <section className="settings-section">
+          <h3>Agent</h3>
+          <AgentSection />
         </section>
 
         <div className="settings-footer-note">
