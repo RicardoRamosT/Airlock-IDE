@@ -24,6 +24,8 @@ export function SettingsTab() {
   const setShowRunningProcessNotice = useApp(
     (s) => s.setShowRunningProcessNotice,
   );
+  const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
+  const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   // Per-project bits are scoped to the pane's tab; the app-global controls above
   // (theme, sidebar, clipboard, openProjectsAsTabs, showRunningProcessNotice)
   // stay app-global and are deliberately NOT tied to a tab.
@@ -230,6 +232,35 @@ export function SettingsTab() {
             <strong>0 (never)</strong>, is more convenient but leaves the value
             readable for longer. airlock cannot purge a third-party clipboard
             manager's history.
+          </p>
+        </section>
+
+        <section className="settings-section">
+          <h3>Claude</h3>
+          <div className="settings-row">
+            <label htmlFor="quota-meter">Show Claude usage meter</label>
+            <input
+              id="quota-meter"
+              type="checkbox"
+              checked={quotaMeterEnabled}
+              onChange={(e) => {
+                const v = e.target.checked;
+                useApp.getState().setLayoutHydrated(true);
+                setQuotaMeterEnabled(v);
+                // Drop any cached usage when turning off so re-enabling shows
+                // "waiting" rather than flashing stale numbers (main stops the
+                // watcher; this clears the renderer's copy).
+                if (!v) useApp.setState({ quota: null });
+                void window.airlock.prefsSet({ quotaMeter: { enabled: v } });
+              }}
+            />
+          </div>
+          <p className="settings-note">
+            Shows your Claude subscription usage (5-hour and 7-day limits) and a
+            reset countdown in the sidebar. Enabling installs a Claude Code
+            status line that AirLock reads; if you already have a custom status
+            line, AirLock chains it so your footer is unchanged. Turning this
+            off removes it completely.
           </p>
         </section>
 

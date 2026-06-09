@@ -90,6 +90,8 @@ import {
   sanitizeAgentPolicy,
   savePrefs,
 } from "./prefs";
+import { getQuota } from "./quota/watch";
+import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
 import {
   allOpenRoots,
@@ -578,6 +580,8 @@ export function registerIpc(
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
   ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
 
+  ipcMain.handle("quota:get", () => getQuota());
+
   ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
     const saved = await savePrefs(prefsFile, patch as Partial<AppPrefs>);
@@ -593,6 +597,14 @@ export function registerIpc(
         p.openProjectsAsTabs,
       );
       applyDockMenu(p.openProjectsAsTabs, p.recentFolders);
+    }
+    // Flipping the quota-meter toggle installs/removes the chained Claude
+    // statusLine live (best-effort; never throw out of prefs:set).
+    if ("quotaMeter" in (patch as object)) {
+      const p = await loadPrefs(prefsFile);
+      await reconcileQuotaMeter(p.quotaMeter.enabled).catch((e) =>
+        console.warn("[airlock] quota meter reconcile failed", e),
+      );
     }
     return saved;
   });

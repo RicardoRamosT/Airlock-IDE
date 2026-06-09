@@ -12,6 +12,7 @@ export function usePrefs(): void {
     (s) => s.setShowRunningProcessNotice,
   );
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
+  const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const theme = useApp((s) => s.theme);
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export function usePrefs(): void {
         setOpenProjectsAsTabs(p.openProjectsAsTabs);
         setShowRunningProcessNotice(p.showRunningProcessNotice);
         setSectionVisibility(p.sectionVisibility);
+        setQuotaMeterEnabled(p.quotaMeter.enabled);
         useApp.getState().setLayoutHydrated(true);
       })
       .catch(console.error);
@@ -47,6 +49,7 @@ export function usePrefs(): void {
     setOpenProjectsAsTabs,
     setShowRunningProcessNotice,
     setSectionVisibility,
+    setQuotaMeterEnabled,
   ]);
 
   // Runtime visibility changes (View menu or right-click) arrive as an

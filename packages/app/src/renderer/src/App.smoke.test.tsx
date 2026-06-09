@@ -92,6 +92,7 @@ const DEFAULT_PREFS: AppPrefs = {
     destructive: "ask",
     privilege: "block",
   },
+  quotaMeter: { enabled: false },
 };
 
 // Only the methods whose RESOLVED SHAPE the mount destructures need an explicit

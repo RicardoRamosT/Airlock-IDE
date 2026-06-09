@@ -8,6 +8,7 @@ import type {
   MenuAction,
   PtyDataEvent,
   PtyExitEvent,
+  QuotaStatus,
   SectionVisibility,
 } from "../shared/ipc";
 
@@ -116,6 +117,8 @@ const api: AirlockApi = {
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
+  quotaGet: () => ipcRenderer.invoke("quota:get"),
+  onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
   setSectionVisibility: (id, visible) =>
     ipcRenderer.invoke("sections:set", id, visible),
   onSectionsChanged: (cb) =>

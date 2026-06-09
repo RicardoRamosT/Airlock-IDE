@@ -31,6 +31,10 @@
       {
         "from": "../../node_modules/typescript",
         "to": "ts-lib"
+      },
+      {
+        "from": "resources/statusline-emit.cjs",
+        "to": "statusline-emit.cjs"
       }
     ],
     "mac": {
