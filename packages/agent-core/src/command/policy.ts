@@ -29,7 +29,10 @@ const PATTERNS: { category: RiskCategory; re: RegExp }[] = [
   { category: "destructive", re: /git\s+push\b[^;&|]*\s(--force|-f)\b/ },
   { category: "destructive", re: /git\s+reset\s+--hard/ },
   { category: "destructive", re: /git\s+clean\s+-\w*[fd]/ },
-  { category: "destructive", re: /(^|[\s;&|])(dd|mkfs\w*|shred|truncate)([\s;&|]|$)/ },
+  {
+    category: "destructive",
+    re: /(^|[\s;&|])(dd|mkfs\w*|shred|truncate)([\s;&|]|$)/,
+  },
   { category: "outsideWorkspace", re: /(^|\s)(~|\$HOME)\b/ },
   { category: "outsideWorkspace", re: /\.\.\// },
   { category: "outsideWorkspace", re: /(^|\s)\/(etc|root)\b/ },
@@ -53,7 +56,12 @@ const REASONS: Record<RiskCategory, string> = {
 
 export type GateResult =
   | { run: true }
-  | { run: false; action: "ask" | "block"; categories: RiskCategory[]; reason: string };
+  | {
+      run: false;
+      action: "ask" | "block";
+      categories: RiskCategory[];
+      reason: string;
+    };
 
 // Resolve a command against the policy + confirm. Strictest matched action wins
 // (block > ask > allow); none -> allow. Block is absolute; ask is overridden by
@@ -65,7 +73,8 @@ export function gateCommand(
 ): GateResult {
   const categories = classifyCommand(command);
   let action: RiskAction = "allow";
-  for (const c of categories) if (RANK[policy[c]] > RANK[action]) action = policy[c];
+  for (const c of categories)
+    if (RANK[policy[c]] > RANK[action]) action = policy[c];
   if (action === "allow") return { run: true };
   if (action === "ask" && confirm) return { run: true };
   const reason = `This command ${categories.map((c) => REASONS[c]).join(" and ")}.`;

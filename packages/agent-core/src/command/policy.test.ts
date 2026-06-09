@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  classifyCommand,
-  DEFAULT_AGENT_POLICY,
-  gateCommand,
-} from "./policy";
+import { classifyCommand, DEFAULT_AGENT_POLICY, gateCommand } from "./policy";
 
 describe("classifyCommand", () => {
   it("flags privilege escalation", () => {

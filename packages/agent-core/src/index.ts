@@ -36,20 +36,20 @@ export {
   validateSecretName,
 } from "./broker/validators";
 export {
+  type AgentCommandPolicy,
+  classifyCommand,
+  DEFAULT_AGENT_POLICY,
+  type GateResult,
+  gateCommand,
+  type RiskAction,
+  type RiskCategory,
+} from "./command/policy";
+export {
   type CommandRunner,
   type RunCommandOptions,
   type RunCommandResult,
   runCommand,
 } from "./command/run";
-export {
-  type AgentCommandPolicy,
-  type GateResult,
-  type RiskAction,
-  type RiskCategory,
-  classifyCommand,
-  DEFAULT_AGENT_POLICY,
-  gateCommand,
-} from "./command/policy";
 export { withDb } from "./db/client";
 export { type DbInfo, parseConnString, redactConnStrings } from "./db/connstr";
 export {
