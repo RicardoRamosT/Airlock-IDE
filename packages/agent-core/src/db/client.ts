@@ -3,17 +3,25 @@ import type { DbRunner, QueryResult } from "./explorer";
 
 /**
  * A short-lived pg connection bound to one connection string, exposing the
- * DbRunner interface. Cloud Postgres (Neon etc.) requires SSL; we enable it
- * with rejectUnauthorized:false when the URL asks for sslmode (pragmatic for
- * v1 -- avoids CA wrangling; revisit if strict cert checking is wanted).
+ * DbRunner interface. Cloud Postgres (Neon etc.) requires SSL; we enable it WITH
+ * certificate validation (rejectUnauthorized:true). The previous
+ * rejectUnauthorized:false accepted ANY certificate -- including a forged one --
+ * so the TLS gave encryption but no authentication, leaving the connection open
+ * to a silent MITM that captures the credentials and all query data (audit L5).
+ * Neon/Supabase/most managed Postgres present publicly-trusted certs (covered by
+ * Node's bundled CA store), so validation works without configuration; a server
+ * behind a private CA would need an explicit CA bundle (a future setting) rather
+ * than silently disabling validation.
  * Connect + query are time-bounded so an unreachable DB never hangs the UI.
  */
 export async function withDb<T>(
   connectionString: string,
   fn: (run: DbRunner) => Promise<T>,
 ): Promise<T> {
-  const ssl = /sslmode=require|neon\.tech|\.aws\./.test(connectionString)
-    ? { rejectUnauthorized: false }
+  const ssl = /sslmode=require|sslmode=verify|neon\.tech|\.aws\./.test(
+    connectionString,
+  )
+    ? { rejectUnauthorized: true }
     : undefined;
   const client = new pg.Client({
     connectionString,

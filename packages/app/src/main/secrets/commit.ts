@@ -1,7 +1,7 @@
 // Compose the staged-secret scan with the commit. Advisory (human IPC): commit
 // regardless, return the leaks. Gated (agent git_commit tool): hold back a
 // suspected-leak commit until confirm:true. ASCII-only.
-import { commitStaged } from "@airlock/agent-core";
+import { appendAudit, commitStaged } from "@airlock/agent-core";
 import type { CommitOutcome } from "../../shared/ipc";
 import { scanStaged } from "./scan";
 
@@ -10,10 +10,29 @@ export async function guardedCommit(
   message: string,
   opts: { gated: boolean; confirm?: boolean },
 ): Promise<CommitOutcome> {
-  const leaks = await scanStaged(root);
+  // The single commit path for BOTH the human (gated:false) and the agent
+  // (gated:true). Audit every outcome so the tamper-evident chain covers commits
+  // the way it covers command.run -- in particular a leak-gated agent commit held
+  // back, and a commit that proceeded DESPITE detected leaks (leaks > 0 in the
+  // entry flags it). actor distinguishes the human IPC from the agent tool.
+  const actor: "user" | "agent" = opts.gated ? "agent" : "user";
+  // The leak scan is fail-OPEN for the human (gated:false): it is ADVISORY and
+  // must never block a human commit if scanStaged throws (locked keychain, git
+  // error, denied prompt). It stays fail-CLOSED for the agent (gated:true), where
+  // a scan failure must not let a suspected leak through unflagged. (audit PB-H11)
+  let leaks: CommitOutcome["leaks"] = [];
+  try {
+    leaks = await scanStaged(root);
+  } catch (err) {
+    if (opts.gated) throw err;
+  }
   if (opts.gated && leaks.length > 0 && !opts.confirm) {
+    await appendAudit(root, actor, "git.commit.blocked", {
+      leaks: leaks.length,
+    });
     return { committed: false, sha: null, blocked: true, leaks };
   }
   const sha = await commitStaged(root, message);
+  await appendAudit(root, actor, "git.commit", { sha, leaks: leaks.length });
   return { committed: true, sha, leaks };
 }

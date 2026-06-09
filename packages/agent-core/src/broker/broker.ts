@@ -27,6 +27,12 @@ export async function setSecret(
   const keychain = opts.keychain ?? systemKeychain;
   if (!validateSecretName(name))
     throw new Error(`Invalid secret name: ${name}`);
+  // Reject an empty/whitespace-only value. validateSecret is advisory (never
+  // gates), so without this an empty "secret" would be vaulted -- meaningless,
+  // and a whitespace-only value is UNREDACTABLE (the redactor skips
+  // whitespace-only values), so it could surface verbatim in output. (audit L7)
+  if (value.trim().length === 0)
+    throw new Error("Secret value cannot be empty");
   // Reject reserved/dangerous names at store time. filterDangerousEnv would
   // silently strip these from injection, so vaulting one would create a
   // secret that never injects - an explicit error is clearer than that.
@@ -165,7 +171,8 @@ export async function setGlobalSecret(
   opts: BrokerOptions & { auditLog?: string } = {},
 ): Promise<void> {
   const keychain = opts.keychain ?? systemKeychain;
-  if (!value) throw new Error("Empty secret value");
+  // Same empty/whitespace guard as setSecret (an unredactable value otherwise).
+  if (value.trim().length === 0) throw new Error("Empty secret value");
   keychain.set(SERVICE, globalAccountFor(name), value);
   if (opts.auditLog) {
     await appendAuditAt(opts.auditLog, "user", "secret.global.set", { name });

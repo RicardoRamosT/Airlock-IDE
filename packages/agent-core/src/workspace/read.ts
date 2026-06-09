@@ -1,5 +1,5 @@
 import { open } from "node:fs/promises";
-import { resolveWithin } from "./tree";
+import { resolveWithin, targetsVault } from "./tree";
 
 export interface FileContent {
   content: string;
@@ -14,6 +14,12 @@ export async function readWorkspaceFile(
   root: string,
   relPath: string,
 ): Promise<FileContent> {
+  // Self-guard: the .airlock vault holds the secret-NAME inventory and the audit
+  // log; reading it through the generic file API would expose both. The
+  // fs:readFile handler rejects it too; guard here so every caller is covered.
+  // (audit H7)
+  if (targetsVault(relPath))
+    throw new Error("The .airlock folder is protected");
   const abs = await resolveWithin(root, relPath);
   const fh = await open(abs, "r");
   try {
@@ -73,6 +79,10 @@ export async function readImageDataUrl(
   relPath: string,
   max = 25_000_000,
 ): Promise<{ dataUrl: string; tooLarge: boolean }> {
+  // Same vault self-guard as readWorkspaceFile: never base64 vault bytes out to
+  // the renderer, even via the image path. (audit H7, uniform guard)
+  if (targetsVault(relPath))
+    throw new Error("The .airlock folder is protected");
   const abs = await resolveWithin(root, relPath);
   const fh = await open(abs, "r");
   try {

@@ -6,6 +6,7 @@
 // AppPrefs is defined in ../shared/ipc (the single source of truth shared with
 // the renderer via AirlockApi); imported here as a type so layering stays
 // one-directional (main depends on shared, never the reverse).
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -164,13 +165,42 @@ export async function loadPrefs(file: string): Promise<AppPrefs> {
   }
 }
 
-export async function savePrefs(
+// Serialize writes per file. savePrefs is a read-modify-write (load -> merge ->
+// write); two concurrent calls both read the same baseline and the last rename
+// wins, dropping the other's patch. Chain through a per-file promise queue so the
+// load happens only after the prior write's rename completes -> no lost update.
+// (audit PB-H13)
+const prefsWriteQueues = new Map<string, Promise<unknown>>();
+
+export function savePrefs(
+  file: string,
+  patch: Partial<AppPrefs>,
+): Promise<AppPrefs> {
+  const prev = prefsWriteQueues.get(file) ?? Promise.resolve();
+  const run = prev.then(
+    () => savePrefsNow(file, patch),
+    () => savePrefsNow(file, patch),
+  );
+  // Store a non-rejecting tail so a failed save can't wedge the queue.
+  prefsWriteQueues.set(
+    file,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
+
+async function savePrefsNow(
   file: string,
   patch: Partial<AppPrefs>,
 ): Promise<AppPrefs> {
   const next = sanitize({ ...(await loadPrefs(file)), ...patch });
   await mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
+  // Unique tmp per write so two serialized (or stray concurrent) writers never
+  // share one temp file. (audit PB-H13)
+  const tmp = `${file}.${randomUUID()}.tmp`;
   await writeFile(tmp, `${JSON.stringify(next, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,

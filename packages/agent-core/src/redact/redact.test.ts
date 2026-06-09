@@ -122,6 +122,15 @@ describe("redactSecrets - encoded forms", () => {
     expect(out).toContain("***");
   });
 
+  // H6: a lowercase base32 form (the SAME value, `tr A-Z a-z`) previously slipped
+  // past the uppercase-only [A-Z2-7] scan. Case-insensitive matching catches it.
+  it("redacts a LOWERCASE base32 form of the value (H6)", () => {
+    const b32lower = "orsxg5dumvzxi5dfon2a";
+    const out = redactSecrets(`v=${b32lower}`, [SECRET]);
+    expect(out).not.toContain(b32lower);
+    expect(out).toContain("***");
+  });
+
   it("does NOT over-redact an innocent uppercase base32-ish run", () => {
     const innocent = "MAXBUFFERSIZECONSTANT2345"; // not the secret
     const out = redactSecrets(`X=${innocent}`, [SECRET]);
@@ -133,6 +142,30 @@ describe("redactSecrets - encoded forms", () => {
     const enc = encodeURIComponent(v);
     const out = redactSecrets(`url?x=${enc}`, [v]);
     expect(out).not.toContain(enc);
+    expect(out).toContain("***");
+  });
+
+  // M4: encodeURIComponent emits uppercase hex (%2F); a lowercase %2f form used
+  // a lowercase-letter value so only the HEX case differs from the canonical
+  // encoding -- previously it slipped past the exact-match.
+  it("redacts a lowercase percent-encoded form (M4)", () => {
+    const v = "abc/def=ghi&jkl"; // lowercase letters + chars that encode
+    const encLower = encodeURIComponent(v).toLowerCase(); // %2f, %3d, %26 ...
+    expect(encLower).not.toBe(encodeURIComponent(v)); // hex really is lowercased
+    const out = redactSecrets(`x=${encLower}`, [v]);
+    expect(out).not.toContain(encLower);
+    expect(out).toContain("***");
+  });
+
+  // M5: a value with a quote/backslash is JSON-escaped wherever the command
+  // prints JSON (pa"ss -> pa\"ss), which the raw exact-match misses.
+  it("redacts the JSON-escaped form of a value (M5)", () => {
+    const v = 'pa"ss\\word'; // contains a quote and a backslash
+    const embedded = JSON.stringify({ token: v });
+    const jsonEsc = JSON.stringify(v).slice(1, -1);
+    expect(embedded).toContain(jsonEsc); // escaped form present pre-redaction
+    const out = redactSecrets(embedded, [v]);
+    expect(out).not.toContain(jsonEsc);
     expect(out).toContain("***");
   });
 

@@ -40,17 +40,31 @@ export function scanForSecrets(
   };
   // 4-char floor matches the redactor: shorter values are noise.
   const values = vaulted.filter((s) => s.value.length >= 4);
+  // A vaulted value that itself spans newlines (a PEM body, a multi-line token)
+  // can never be contained in a single split line, so the per-line scan below
+  // would miss it -- match those against the WHOLE text instead. (audit PB-C3)
+  const singleLine = values.filter((s) => !s.value.includes("\n"));
+  const multiLine = values.filter((s) => s.value.includes("\n"));
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
     const lineNo = i + 1;
-    for (const s of values) {
+    for (const s of singleLine) {
       if (line.includes(s.value))
         add(lineNo, { kind: "vaulted", name: s.name });
     }
     for (const p of SECRET_PATTERNS) {
       if (p.re.test(line))
         add(lineNo, { kind: "pattern", patternType: p.patternType });
+    }
+  }
+  // Multi-line vaulted values: match the whole text, map the match start to its
+  // 1-indexed line (number of newlines before the match + 1).
+  for (const s of multiLine) {
+    const idx = text.indexOf(s.value);
+    if (idx !== -1) {
+      const lineNo = text.slice(0, idx).split("\n").length;
+      add(lineNo, { kind: "vaulted", name: s.name });
     }
   }
   return findings;

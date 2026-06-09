@@ -631,6 +631,7 @@ export const useApp = create<AppState>((set) => ({
       // missing from the tab order -- which breaks split adjacency (splitItems
       // only reorders tabs that are in mainTabOrder) and the unified tab bar.
       const tt = s.tabTerminals[id];
+      const cur = s.tabState[id] ?? freshProjectState(null);
       const survivors = tt?.terminals ?? [];
       const activeId = tt?.activeTerminalId ?? survivors[0]?.id ?? null;
       const state: ProjectState = {
@@ -639,7 +640,14 @@ export const useApp = create<AppState>((set) => ({
           kind: "terminal" as const,
           id: t.id,
         })),
-        current: activeId ? { kind: "terminal", id: activeId } : null,
+        // Preserve the blank tab's terminal SPLIT scene: its terminals survive the
+        // attach (tabTerminals[id] is kept), so the split pairing and the focused
+        // pane must survive too -- otherwise the second split pane vanishes. A
+        // blank tab has no folder, so the scene is terminal-only (no editor pane
+        // can dangle). (audit PB-H8)
+        splits: cur.splits,
+        current:
+          cur.current ?? (activeId ? { kind: "terminal", id: activeId } : null),
       };
       return {
         tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
@@ -663,6 +671,11 @@ export const useApp = create<AppState>((set) => ({
         tabs: s.tabs.map((t) => (t.id === id ? { id, root } : t)),
         tabState: { ...s.tabState, [id]: state },
         tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
+        // Replacing the active tab's whole project must dissolve a tab-level split
+        // it belonged to -- otherwise the pair keeps referencing this tab and a
+        // stale split lingers (closeTab dissolves a member the same way). (PB-H9)
+        split:
+          s.split && (s.split.a === id || s.split.b === id) ? null : s.split,
         ...mirrorOf(state),
         modal: null,
       };

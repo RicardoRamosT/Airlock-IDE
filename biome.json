@@ -2,6 +2,14 @@
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
   "linter": { "enabled": true, "rules": { "recommended": true } },
   "files": {
-    "includes": ["**", "!**/out", "!**/dist", "!**/node_modules", "!**/release"]
+    "includes": [
+      "**",
+      "!**/out",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/release",
+      "!**/.claude",
+      "!docs"
+    ]
   }
 }

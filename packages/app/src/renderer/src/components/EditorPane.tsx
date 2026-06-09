@@ -3,7 +3,7 @@ import {
   type CompletionSource,
 } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
-import { EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
@@ -146,6 +146,17 @@ export function EditorPane({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const editable = !file.truncated;
   const lspLang = lspLanguageId(relPath);
+  // Theme lives in a CodeMirror Compartment so a theme toggle RECONFIGURES it in
+  // place (separate effect below) instead of being a dependency of the editor-
+  // construction effect. Rebuilding the editor on a theme change recreated the
+  // EditorState from the (stale) file.content prop, discarding the live buffer's
+  // unsaved edits -- and the next autosave then overwrote disk with the reverted
+  // text. (audit PB-H1)
+  const themeCompartment = useRef(new Compartment()).current;
+  // Read the current theme at construction time without making `theme` a dep of
+  // the construction effect (which would reintroduce the rebuild).
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -200,7 +211,7 @@ export function EditorPane({
         doc: file.content,
         extensions: [
           basicSetup,
-          ...(theme === "dark" ? [oneDark] : []),
+          themeCompartment.of(themeRef.current === "dark" ? oneDark : []),
           EditorView.theme({ "&": { height: "100%" } }),
           lintGutter(),
           ...(lspLang
@@ -289,7 +300,20 @@ export function EditorPane({
       view.destroy();
       viewRef.current = null;
     };
-  }, [root, relPath, file, theme, editable, lspLang, tabId]);
+    // NOTE: `theme` is deliberately NOT a dependency -- it is applied via the
+    // compartment in the effect below so a toggle never rebuilds the editor.
+  }, [root, relPath, file, editable, lspLang, tabId, themeCompartment]);
+
+  // Apply the theme by reconfiguring the compartment IN PLACE, preserving the
+  // live document. Runs on mount too (harmless: the compartment was initialized
+  // to the same theme), and on every theme toggle thereafter. (audit PB-H1)
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: themeCompartment.reconfigure(theme === "dark" ? oneDark : []),
+    });
+  }, [theme, themeCompartment]);
 
   // When a caller (e.g. search) reveals this file in this pane, scroll + select
   // to the line. The nonce in `reveal` is in the deps so repeated reveals of the

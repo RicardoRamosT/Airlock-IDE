@@ -24,6 +24,41 @@ describe("classifyCommand", () => {
     expect(classifyCommand("git status")).toEqual([]);
     expect(classifyCommand("ls src")).toEqual([]);
   });
+
+  // H3: a privilege binary invoked BY PATH (/usr/bin/sudo, ./sudo) must still be
+  // flagged -- matching only a separator-delimited basename was the bypass.
+  it("flags privilege even when the binary is invoked by path (H3)", () => {
+    expect(classifyCommand("/usr/bin/sudo rm x")).toContain("privilege");
+    expect(classifyCommand("./sudo whoami")).toContain("privilege");
+    expect(classifyCommand("/bin/su -")).toContain("privilege");
+    // a mere substring is still not a match
+    expect(classifyCommand("echo sudoku")).not.toContain("privilege");
+  });
+
+  // H3 class: the same path-prefix bypass defeated network + destructive.
+  it("flags network/destructive binaries invoked by path", () => {
+    expect(classifyCommand("/usr/bin/curl http://x")).toContain("network");
+    expect(classifyCommand("/bin/rm -rf build")).toContain("destructive");
+  });
+
+  // H2: a trailing \b never matched between "~" and "/", so "~/..." and bare "~"
+  // were missed (the existing ~/.ssh test passed only via the /.ssh pattern),
+  // and ${HOME} was not caught. Catch the tilde token + both $HOME forms.
+  it("flags tilde and $HOME paths the classifier used to miss (H2)", () => {
+    expect(classifyCommand("cat ~/notes.txt")).toContain("outsideWorkspace");
+    expect(classifyCommand("cd ~")).toContain("outsideWorkspace");
+    expect(classifyCommand("cat $HOME/notes")).toContain("outsideWorkspace");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal shell "${HOME}", not a JS template
+    expect(classifyCommand("cat ${HOME}/notes")).toContain("outsideWorkspace");
+    // a "~5"-style approximation in text is not a path -> no false positive
+    expect(classifyCommand('echo "approx ~5 items"')).not.toContain(
+      "outsideWorkspace",
+    );
+    // a git ref like HEAD~1 has no token boundary before "~" -> not flagged
+    expect(classifyCommand("git reset --hard HEAD~1")).not.toContain(
+      "outsideWorkspace",
+    );
+  });
 });
 
 describe("gateCommand", () => {

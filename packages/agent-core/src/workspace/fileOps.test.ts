@@ -57,6 +57,17 @@ describe("move", () => {
     writeFileSync(path.join(root, "a.ts"), "x");
     writeFileSync(path.join(root, "b.ts"), "y");
     await expect(move(root, "a.ts", "b.ts")).rejects.toThrow(/exists/i);
+    // M9: the destination is NOT clobbered and the source survives the rejection
+    expect(readFileSync(path.join(root, "b.ts"), "utf8")).toBe("y");
+    expect(readFileSync(path.join(root, "a.ts"), "utf8")).toBe("x");
+  });
+  // M9: a directory move takes the link->EISDIR/EPERM fallback to rename.
+  it("moves a directory", async () => {
+    mkdirSync(path.join(root, "src"));
+    writeFileSync(path.join(root, "src/a.ts"), "x");
+    await move(root, "src", "lib");
+    expect(existsSync(path.join(root, "src"))).toBe(false);
+    expect(readFileSync(path.join(root, "lib/a.ts"), "utf8")).toBe("x");
   });
 });
 

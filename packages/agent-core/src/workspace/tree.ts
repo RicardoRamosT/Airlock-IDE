@@ -134,6 +134,12 @@ export async function listDirectory(
   root: string,
   relPath = ".",
 ): Promise<DirEntry[]> {
+  // Self-guard: never list INTO the vault. The IGNORED filter only hides
+  // .airlock when listing its PARENT, so a direct listDirectory(root, ".airlock")
+  // (or ".airlock/audit") would enumerate the secret-metadata + audit files.
+  // The fs:listDir handler rejects it too; guard here for every caller. (audit H8)
+  if (targetsVault(relPath))
+    throw new Error("The .airlock folder is protected");
   const abs = await resolveWithin(root, relPath);
   const dirents = await readdir(abs, { withFileTypes: true });
   return dirents

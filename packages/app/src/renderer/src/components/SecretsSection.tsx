@@ -30,6 +30,17 @@ export function SecretsSection() {
     if (root) refresh().catch(console.error);
   }, [root, refresh]);
 
+  // Drop inline reveals whenever the secrets META changes. An UPDATE via the
+  // modal calls the store's setSecrets directly (bypassing refresh()), so without
+  // this a revealed value would linger as STALE plaintext next to the now-changed
+  // secret. The functional updater no-ops when already empty, so a transient
+  // new-array selector result (the `?? []` fallback before the list loads) cannot
+  // loop. (audit PB-H12)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `secrets` is the intentional change-trigger (clear reveals when the meta changes), not a value read in the body -- removing it breaks the fix.
+  useEffect(() => {
+    setRevealed((r) => (Object.keys(r).length === 0 ? r : {}));
+  }, [secrets]);
+
   if (!root) return <div className="section-note">open a folder first</div>;
 
   const toggleInject = async () => {

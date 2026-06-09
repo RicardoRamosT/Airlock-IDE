@@ -29,6 +29,18 @@ describe("readWorkspaceFile", () => {
     expect(f.truncated).toBe(true);
   });
 
+  // H7: the .airlock vault holds the secret-NAME inventory + the audit log;
+  // readWorkspaceFile must refuse it (the fs:readFile handler does too), whether
+  // or not the path exists, including path-normalized bypasses.
+  it("rejects reading inside the .airlock vault", async () => {
+    await expect(
+      readWorkspaceFile(root, ".airlock/secrets.json"),
+    ).rejects.toThrow(/\.airlock/);
+    await expect(
+      readWorkspaceFile(root, "./.airlock/audit/log.jsonl"),
+    ).rejects.toThrow(/\.airlock/);
+  });
+
   it("rejects traversal outside the workspace", async () => {
     await expect(readWorkspaceFile(root, "../../etc/hosts")).rejects.toThrow(
       /escapes workspace/,

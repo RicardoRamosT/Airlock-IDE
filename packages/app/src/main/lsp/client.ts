@@ -108,6 +108,20 @@ function startServer(root: string): Server {
   );
   conn.listen();
 
+  // Reap a crashed/exited server: drop it from the registry (if it is still the
+  // current entry for this root) so the NEXT ensure() spawns a fresh one, rather
+  // than handing back a dead connection whose requests hang/fail forever. Without
+  // this, a crashed typescript-language-server stays in `servers` permanently and
+  // LSP is dead for that root until the folder is closed + reopened. (audit PB-H10)
+  proc.on("exit", () => {
+    if (servers.get(root)?.proc === proc) servers.delete(root);
+    try {
+      conn.dispose();
+    } catch {
+      // connection already torn down
+    }
+  });
+
   const ready = conn
     .sendRequest("initialize", {
       processId: process.pid,
@@ -132,6 +146,13 @@ function startServer(root: string): Server {
 
 function ensure(root: string): Server {
   let s = servers.get(root);
+  // Defensive against a dead-but-not-yet-reaped entry (the exit handler is async,
+  // so a crashed proc may still be in the map): drop a killed/exited server and
+  // respawn rather than return a dead connection. (audit PB-H10)
+  if (s && (s.proc.exitCode !== null || s.proc.killed)) {
+    servers.delete(root);
+    s = undefined;
+  }
   if (!s) {
     s = startServer(root);
     servers.set(root, s);

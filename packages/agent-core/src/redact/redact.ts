@@ -11,6 +11,25 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Build a regex source from a percent-encoded string in which each "%XX" hex
+// pair matches EITHER case (so a lowercase %2f matches encodeURIComponent's
+// uppercase %2F), while literal chars stay exact-escaped so we never over-match
+// a different-case value. (audit M4)
+function percentEncodingPattern(enc: string): string {
+  const HEX = /[0-9A-Fa-f]/;
+  let src = "";
+  for (let i = 0; i < enc.length; i++) {
+    const c = enc[i] ?? "";
+    if (c === "%" && HEX.test(enc[i + 1] ?? "") && HEX.test(enc[i + 2] ?? "")) {
+      src += "%[0-9A-Fa-f][0-9A-Fa-f]";
+      i += 2;
+    } else {
+      src += escapeRegExp(c);
+    }
+  }
+  return src;
+}
+
 // Decode a base64 run to bytes (standard or url-safe); null if it yields nothing.
 // Buffer.from(.,"base64") is lenient -- a non-base64 run just yields junk bytes
 // that will not contain a secret, so a bad guess is harmless.
@@ -97,19 +116,36 @@ function redactEncoded(text: string, vals: string[]): string {
     return buf.length > 0 && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
   });
 
-  // base32 (RFC 4648, uppercase): runs of [A-Z2-7], decode, redact if they
-  // carry a secret. Same tier as base64 (ubiquitous `base32` CLI).
+  // base32 (RFC 4648): runs of [A-Za-z2-7] -- matched CASE-INSENSITIVELY, since a
+  // lowercase form (e.g. `base32 | tr A-Z a-z`) would otherwise bypass the scan
+  // (audit H6); decodeBase32 uppercases the run internally. Decode, redact if it
+  // carries a secret. Same tier as base64 (ubiquitous `base32` CLI).
   const b32min = Math.max(8, Math.ceil((minBytes * 8) / 5));
-  out = out.replace(new RegExp(`[A-Z2-7]{${b32min},}={0,6}`, "g"), (run) => {
+  out = out.replace(new RegExp(`[A-Za-z2-7]{${b32min},}={0,6}`, "g"), (run) => {
     const buf = decodeBase32(run);
     return buf && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
   });
 
-  // percent / URL-encoding: byte-local, so forward-encode + exact-match.
+  // percent / URL-encoding: forward-encode + match. encodeURIComponent emits
+  // UPPERCASE hex (%2F), so match each hex pair case-insensitively -- a lowercase
+  // %2f form would otherwise bypass the exact-match (audit M4).
   for (const v of use) {
     const enc = encodeURIComponent(v);
     if (enc !== v) {
-      out = out.replace(new RegExp(escapeRegExp(enc), "g"), PLACEHOLDER);
+      out = out.replace(
+        new RegExp(percentEncodingPattern(enc), "g"),
+        PLACEHOLDER,
+      );
+    }
+  }
+  // JSON-escaped form: a value with a quote/backslash/control char appears
+  // ESCAPED inside any JSON the command prints (pa"ss -> pa\"ss, a\b -> a\\b),
+  // which the raw exact-match misses. Mask the escaped inner form too (the
+  // slice strips JSON.stringify's surrounding quotes). (audit M5)
+  for (const v of use) {
+    const jsonEsc = JSON.stringify(v).slice(1, -1);
+    if (jsonEsc !== v) {
+      out = out.replace(new RegExp(escapeRegExp(jsonEsc), "g"), PLACEHOLDER);
     }
   }
   return out;

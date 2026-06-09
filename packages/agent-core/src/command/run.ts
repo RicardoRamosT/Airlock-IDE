@@ -2,8 +2,9 @@
 // Electron's cjs_lexer crashes on multibyte chars, so no smart punctuation in
 // any regex, string literal, or comment in this file.
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { appendAudit } from "../audit/audit";
-import { getSecretValue } from "../broker/broker";
+import { getSecretValue, listSecrets } from "../broker/broker";
 import { isDangerousEnvName } from "../broker/dangerous";
 import type { KeychainStore } from "../broker/keychain";
 import { redactSecrets } from "../redact/redact";
@@ -42,6 +43,13 @@ export const realRunner: CommandRunner = {
       let stderr = "";
       let truncated = false;
       let timedOut = false;
+      // NOTE (audit L1): truncation is a hard byte cut, so a secret value that
+      // straddles maxBytes can leave a PREFIX that exact-match redaction (which
+      // needs the whole value) misses. The structural guarantee is the broker --
+      // the agent never receives secret VALUES by design; this output redaction
+      // is defense-in-depth. A fully robust fix (capture with a margin, redact,
+      // then truncate per stream) is deferred as disproportionate to this narrow
+      // boundary edge and not worth risking the hardened redaction path.
       const cap = (buf: string, chunk: Buffer): string => {
         if (buf.length >= maxBytes) {
           truncated = true;
@@ -112,14 +120,56 @@ export async function runCommand(
 ): Promise<RunCommandResult> {
   const runner = opts.runner ?? realRunner;
   const names = opts.injectSecrets ?? [];
-  // Every resolved value goes here -- even dangerous ones we refuse to inject --
-  // so the redactor still scrubs it if the command somehow echoes it.
+  // Contain the working directory inside the workspace root (fail-closed). cwd is
+  // agent-controlled (the run_command tool forwards it verbatim) and is NOT seen
+  // by the command-policy classifier, which only inspects the command string. So
+  // without this an innocent-looking command (e.g. "cat .env") with cwd pointing
+  // at another project would run there and read its files -- and the per-project
+  // redactor would not even mask that other project's secrets. Resolve against
+  // the root and reject anything that is not the root or a descendant. This is
+  // LEXICAL containment; a symlink inside the workspace that points out is the
+  // user's own setup and out of scope. (audit C3 / M1)
+  const base = path.resolve(root);
+  const resolvedCwd = path.resolve(base, opts.cwd ?? ".");
+  if (resolvedCwd !== base && !resolvedCwd.startsWith(base + path.sep)) {
+    await appendAudit(root, "agent", "command.run.blocked", {
+      command,
+      cwd: opts.cwd,
+      reason: "cwd outside workspace",
+    });
+    throw new Error("command cwd is outside the workspace");
+  }
+  // Redaction set: EVERY vaulted value, not just the injected subset. Any vaulted
+  // secret can surface in the output via the inherited env (e.g. `printenv` on a
+  // command that injects nothing), so the redactor must scrub all of them. This
+  // mirrors the PTY-tail redaction path. (audit C1/H1)
   const values: string[] = [];
+  const seen = new Set<string>();
+  const addValue = (v: string): void => {
+    if (!seen.has(v)) {
+      seen.add(v);
+      values.push(v);
+    }
+  };
+  const valueByName = new Map<string, string>();
+  for (const meta of await listSecrets(root)) {
+    const v = await getSecretValue(root, meta.name, {
+      keychain: opts.keychain,
+    });
+    if (v !== null) {
+      valueByName.set(meta.name, v);
+      addValue(v);
+    }
+  }
+  // Inject only the NAMED secrets. Resolve any not covered by the meta scan (a
+  // reserved name can be seeded directly in the keychain with no meta entry).
   const injectedEnv: Record<string, string> = {};
   const blocked: string[] = [];
   for (const name of names) {
-    const value = await getSecretValue(root, name, { keychain: opts.keychain });
-    if (value === null) {
+    const value =
+      valueByName.get(name) ??
+      (await getSecretValue(root, name, { keychain: opts.keychain }));
+    if (value == null) {
       // Fail-closed: never run a command that asked for a secret we do not have.
       await appendAudit(root, "agent", "command.run.blocked", {
         command,
@@ -127,7 +177,7 @@ export async function runCommand(
       });
       throw new Error(`requested secret not vaulted: ${name}`);
     }
-    values.push(value);
+    addValue(value);
     if (isDangerousEnvName(name)) {
       blocked.push(name);
       continue;
@@ -140,7 +190,7 @@ export async function runCommand(
     ...injectedEnv,
   };
   const res = await runner.run(command, {
-    cwd: opts.cwd ?? root,
+    cwd: resolvedCwd,
     env,
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxBytes: opts.maxBytes ?? DEFAULT_MAX_BYTES,
@@ -149,6 +199,7 @@ export async function runCommand(
   const output = redactSecrets(combined, values);
   await appendAudit(root, "agent", "command.run", {
     command,
+    cwd: resolvedCwd,
     names: Object.keys(injectedEnv),
     blocked,
     exitCode: res.exitCode,

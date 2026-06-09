@@ -38,21 +38,26 @@ export function previewLines(text: string, n: number): string {
   return nonEmpty.slice(-n).join("\n");
 }
 
-// Clean -> last n lines -> redact every provided value. The security-critical
+// Clean -> REDACT the full buffer -> last n lines. The security-critical
 // composite the tool returns: a secret value present in the buffer is masked.
+// Redaction runs on the WHOLE cleaned buffer BEFORE truncation: a multi-line
+// secret (e.g. a PEM key) split by the line cut would no longer match its full
+// value, so truncating first would leak the surviving lines (audit C4).
 export function redactedTail(
   raw: string,
   values: string[],
   lines: number,
 ): string {
-  return redactSecrets(lastLines(cleanTerminalOutput(raw), lines), values);
+  return lastLines(redactSecrets(cleanTerminalOutput(raw), values), lines);
 }
 
-// Clean -> last n non-empty lines -> redact: the per-terminal list preview.
+// Clean -> REDACT the full buffer -> last n non-empty lines: the per-terminal
+// list preview. Same order as redactedTail so a multi-line secret cannot
+// survive the truncation (audit C4).
 export function redactedPreview(
   raw: string,
   values: string[],
   n: number,
 ): string {
-  return redactSecrets(previewLines(cleanTerminalOutput(raw), n), values);
+  return previewLines(redactSecrets(cleanTerminalOutput(raw), values), n);
 }

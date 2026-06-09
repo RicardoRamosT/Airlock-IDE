@@ -37,6 +37,17 @@ describe("gitFileVersions", () => {
     expect(v.modified).toBe("staged edit\n");
   });
 
+  // M2: a staged rename has no HEAD:<newPath>, so before the fix the original
+  // showed as "" (the diff looked like a brand-new file). It must diff against
+  // the renamed-FROM path's HEAD content.
+  it("staged rename: original is the renamed-from HEAD content, not empty (M2)", async () => {
+    const root = await makeRepo();
+    await runGit(root, ["mv", "a.txt", "renamed.txt"]); // pure staged rename (R100)
+    const v = await gitFileVersions(root, "renamed.txt", "staged");
+    expect(v.original).toBe("committed\n");
+    expect(v.modified).toBe("committed\n");
+  });
+
   it("untracked file: empty original", async () => {
     const root = await makeRepo();
     await writeFile(path.join(root, "new.txt"), "brand new\n");

@@ -64,6 +64,18 @@ describe("redactedTail (security-critical)", () => {
   it("returns the last n cleaned lines", () => {
     expect(redactedTail("a\nb\nc\n", [], 2)).toBe("b\nc");
   });
+  // C4: a multi-line secret must be masked even when the line cut would split
+  // it. Redacting the full buffer first collapses the value to ***; truncating
+  // first leaves the surviving lines un-redacted (the full value no longer
+  // matches), leaking the tail of a PEM/key to the agent.
+  it("redacts a multi-line secret that the line cut would split", () => {
+    const secret = "-----BEGIN KEY-----\nLINE1abc\nLINE2def\n-----END KEY-----";
+    const raw = `noise before\n${secret}\ntail line 1\ntail line 2`;
+    const out = redactedTail(raw, [secret], 3);
+    expect(out).not.toContain("LINE2def");
+    expect(out).not.toContain("END KEY");
+    expect(out).toContain("***");
+  });
 });
 
 describe("redactedPreview", () => {

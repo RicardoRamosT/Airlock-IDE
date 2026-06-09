@@ -102,4 +102,43 @@ describe("redactConnStrings", () => {
       "connect ECONNREFUSED postgres://***@ep-foo.aws.neon.tech/db",
     );
   });
+
+  // C5: a password containing a raw @ must be FULLY redacted. The userinfo/host
+  // split is the LAST @ (RFC 3986 / Postgres); stopping at the first @ left the
+  // tail exposed ("postgres://***@ss@host/db" still leaks "ss@host").
+  it("redacts a password that contains a raw @ (splits at the last @)", () => {
+    const out = redactConnStrings("postgres://user:p@ss@host/db");
+    expect(out).toBe("postgres://***@host/db");
+    expect(out).not.toContain("p@ss");
+    expect(out).not.toContain("ss@host");
+  });
+
+  // H5: a long line with no connstr must not trigger catastrophic O(n^2)
+  // backtracking. The old unbounded scheme run hung the main process ~97s on
+  // ~400k chars; with the bounded runs this returns immediately. On the old
+  // regex this test exceeds the default timeout and fails.
+  it("does not hang on a long non-matching line (bounded backtracking)", () => {
+    const long = "a".repeat(300_000);
+    expect(redactConnStrings(long)).toBe(long);
+  });
+
+  // M6: credentials in query parameters are not in the userinfo, so the
+  // userinfo pass misses them. Redact the value of credential-named params,
+  // keeping the param name and any non-credential params.
+  it("redacts credentials in connection-string query parameters (M6)", () => {
+    const out = redactConnStrings(
+      "postgres://host/db?sslmode=require&password=hunter2&token=abc.def",
+    );
+    expect(out).not.toContain("hunter2");
+    expect(out).not.toContain("abc.def");
+    expect(out).toContain("password=***");
+    expect(out).toContain("token=***");
+    expect(out).toContain("sslmode=require"); // non-credential param kept
+  });
+
+  it("redacts query credentials case-insensitively", () => {
+    expect(redactConnStrings("mysql://h/d?Password=Secret1")).toBe(
+      "mysql://h/d?Password=***",
+    );
+  });
 });

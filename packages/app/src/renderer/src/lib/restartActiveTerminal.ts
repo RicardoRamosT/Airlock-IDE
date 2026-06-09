@@ -17,5 +17,9 @@ export function restartActiveTerminal(tabId?: string): void {
   if (active?.ptyId) window.airlock.ptyKill(active.ptyId);
   if (active) s.removeTerminal(active.id);
   const after = useApp.getState().tabTerminals[tid];
-  if (after && after.terminals.length > 0) s.addTerminal(tid);
+  // Replace the killed terminal whenever the tab slice still exists. removeTerminal
+  // KEEPS the slice but empties `terminals`, so the old `length > 0` guard skipped
+  // the single-terminal case -- leaving a non-visible tab with no terminal at all
+  // (a visible tab was only saved by ProjectTerminals' auto-respawn). (audit PB-H7)
+  if (after) s.addTerminal(tid);
 }

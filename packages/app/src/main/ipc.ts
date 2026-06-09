@@ -41,6 +41,7 @@ import {
   redactConnStrings,
   redactedPreview,
   redactedTail,
+  redactSecrets,
   resolveWithin,
   runGit,
   searchProject,
@@ -309,6 +310,7 @@ export function registerIpc(
 
   ipcMain.handle("fs:listDir", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
     return listDirectory(resolveRoot(e, root), relPath);
   });
 
@@ -323,6 +325,7 @@ export function registerIpc(
 
   ipcMain.handle("fs:readFile", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
     return readWorkspaceFile(resolveRoot(e, root), relPath);
   });
   ipcMain.handle("fs:readImage", (e, root: unknown, relPath: unknown) => {
@@ -344,6 +347,7 @@ export function registerIpc(
     (e, root: unknown, relPath: unknown, content: unknown) => {
       if (typeof relPath !== "string" || typeof content !== "string")
         throw new Error("Invalid payload");
+      assertNotVault(relPath);
       return writeWorkspaceFile(resolveRoot(e, root), relPath, content);
     },
   );
@@ -484,16 +488,27 @@ export function registerIpc(
     listSecrets(resolveRoot(e, root)),
   );
 
-  ipcMain.handle("secrets:set", (e, root: unknown, name, value) => {
+  ipcMain.handle("secrets:set", async (e, root: unknown, name, value) => {
     if (typeof name !== "string" || typeof value !== "string") {
       throw new Error("Invalid payload");
     }
-    return setSecret(resolveRoot(e, root), name, value);
+    const resolved = resolveRoot(e, root);
+    // Rotation: capture the OLD value first, then scrub it from PTY buffers so a
+    // get_terminal_tail can't return the superseded value. (audit PB-H4)
+    const old = await getSecretValue(resolved, name);
+    const meta = await setSecret(resolved, name, value);
+    if (old !== null && old !== value) scrubSecretFromBuffers(old);
+    return meta;
   });
 
-  ipcMain.handle("secrets:delete", (e, root: unknown, name) => {
+  ipcMain.handle("secrets:delete", async (e, root: unknown, name) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
-    return deleteSecret(resolveRoot(e, root), name);
+    const resolved = resolveRoot(e, root);
+    // Scrub the deleted value from PTY buffers (it just left the vault, so the
+    // tail redactor would no longer mask it). (audit PB-H4)
+    const old = await getSecretValue(resolved, name);
+    await deleteSecret(resolved, name);
+    if (old !== null) scrubSecretFromBuffers(old);
   });
 
   // OWNER-ONLY value path. The renderer is the human's surface; the agent (a
@@ -1008,11 +1023,12 @@ export function registerIpc(
     sessions.set(s.id, s);
     const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
     if (ownerId !== undefined) sessionWindows.set(s.id, ownerId);
-    // Tag the terminal with the project it was spawned under (the sender's root)
-    // so the agent's terminal tools can scope to the ACTIVE tab, not just the
-    // window. root is the same value pty:create used as the spawn cwd above.
-    const sr = rootForEvent(e);
-    if (sr) sessionRoots.set(s.id, sr);
+    // Tag the terminal with the project it was spawned under -- the SAME captured
+    // `root` used for the spawn cwd above, NOT a re-read of rootForEvent(e). A
+    // workspace:setActive can run during the awaits above and change what
+    // rootForEvent(e) returns, so re-reading here would tag the session with a
+    // different project than it actually spawned in. (audit PB-C2)
+    if (root) sessionRoots.set(s.id, root);
     const wc = e.sender;
     const dataSub = s.onData((data) => {
       const prev = ptyBuffers.get(s.id) ?? "";
@@ -1044,25 +1060,35 @@ export function registerIpc(
   // and carries only a session id. Scoped to the sender window's own sessions
   // (consistent with the other pty/terminal handlers). Returns a plain boolean;
   // never throws.
+  // True iff the SENDER window owns this pty session. pty:isBusy and the mutating
+  // handlers (input/resize/kill) gate on it so one window cannot drive (inject
+  // into / resize / kill) another window's pty. Denies when no owner is recorded
+  // or the sender's window can't be resolved (the safe direction). (audit PB-H6)
+  const ownsSession = (
+    e: { sender: Electron.WebContents },
+    id: string,
+  ): boolean => {
+    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
+    return ownerId !== undefined && sessionWindows.get(id) === ownerId;
+  };
+
   ipcMain.handle("pty:isBusy", (e, id: unknown) => {
     if (typeof id !== "string") return false;
-    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
-    if (ownerId !== undefined && sessionWindows.get(id) !== ownerId) {
-      return false;
-    }
+    if (!ownsSession(e, id)) return false;
     const s = sessions.get(id);
     if (!s) return false;
     return ptyHasChild(s.pid);
   });
 
-  ipcMain.on("pty:input", (_e, payload: unknown) => {
+  ipcMain.on("pty:input", (e, payload: unknown) => {
     if (!payload || typeof payload !== "object") return;
     const { id, data } = payload as { id: string; data: string };
-    if (typeof id === "string" && typeof data === "string")
-      sessions.get(id)?.write(data);
+    if (typeof id !== "string" || typeof data !== "string") return;
+    if (!ownsSession(e, id)) return; // cross-window injection guard (PB-H6)
+    sessions.get(id)?.write(data);
   });
 
-  ipcMain.on("pty:resize", (_e, payload: unknown) => {
+  ipcMain.on("pty:resize", (e, payload: unknown) => {
     if (!payload || typeof payload !== "object") return;
     const { id, cols, rows } = payload as {
       id: string;
@@ -1070,17 +1096,20 @@ export function registerIpc(
       rows: number;
     };
     if (
-      typeof id === "string" &&
-      Number.isFinite(cols) &&
-      cols > 0 &&
-      Number.isFinite(rows) &&
-      rows > 0
+      typeof id !== "string" ||
+      !Number.isFinite(cols) ||
+      cols <= 0 ||
+      !Number.isFinite(rows) ||
+      rows <= 0
     )
-      sessions.get(id)?.resize(cols, rows);
+      return;
+    if (!ownsSession(e, id)) return; // PB-H6
+    sessions.get(id)?.resize(cols, rows);
   });
 
-  ipcMain.on("pty:kill", (_e, id: unknown) => {
+  ipcMain.on("pty:kill", (e, id: unknown) => {
     if (typeof id !== "string") return;
+    if (!ownsSession(e, id)) return; // PB-H6
     sessions.get(id)?.kill();
     // onExit cleanup (sessions.delete + pty:exit notify) already wired in pty:create.
   });
@@ -1098,6 +1127,20 @@ export function killAllSessions(): void {
 // the tail/preview can be redacted. Delegates to the broker's named gather.
 async function allVaultedValues(root: string): Promise<string[]> {
   return (await vaultedSecrets(root)).map((s) => s.value);
+}
+
+// Scrub a (now-removed) secret value out of EVERY live PTY ring buffer.
+// get_terminal_tail redacts against the CURRENTLY vaulted values, so once a
+// secret is deleted or rotated its old value would otherwise linger in a buffer
+// and be returned to the agent un-redacted. Scrub eagerly on delete/rotate
+// (redactSecrets also catches the value's encoded forms). Over-scrubbing other
+// windows' buffers is harmless and the safe direction. (audit PB-H4)
+function scrubSecretFromBuffers(value: string): void {
+  if (!value) return;
+  for (const [id, raw] of ptyBuffers) {
+    const scrubbed = redactSecrets(raw, [value]);
+    if (scrubbed !== raw) ptyBuffers.set(id, scrubbed);
+  }
 }
 
 // The redacted tail of one terminal's recent output. Root-gated + audited

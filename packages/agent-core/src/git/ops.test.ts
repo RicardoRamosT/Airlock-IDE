@@ -69,6 +69,31 @@ describe("git ops", () => {
     await expect(createBranch(root, "has space")).rejects.toThrow(
       /branch name/i,
     );
+    // L3: names git itself forbids -- leading dot, ".lock" suffix, trailing
+    // dot/slash, "..", "//", and a "/." component.
+    for (const bad of [
+      ".hidden",
+      "feature.lock",
+      "trailing.",
+      "trailing/",
+      "a..b",
+      "a//b",
+      "foo/.bar",
+    ]) {
+      await expect(createBranch(root, bad)).rejects.toThrow(/branch name/i);
+    }
+    // a valid dotted/slashed name still works
+    await createBranch(root, "feature/ok-1.2");
+    expect(await listBranches(root)).toContain("feature/ok-1.2");
+  });
+
+  // L2: pushing in detached HEAD gave the raw "ref HEAD is not a symbolic ref"
+  // fatal; it must be a clear, actionable message instead.
+  it("gitPush gives a clear error in detached HEAD (L2)", async () => {
+    const root = await makeRepo();
+    const sha = (await runGit(root, ["rev-parse", "HEAD"])).trim();
+    await runGit(root, ["checkout", sha]); // detach HEAD
+    await expect(gitPush(root)).rejects.toThrow(/detached/i);
   });
 
   it("unstages on an unborn branch (no commits yet)", async () => {

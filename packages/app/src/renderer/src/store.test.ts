@@ -908,6 +908,66 @@ describe("restartActiveTerminal", () => {
       [b1],
     );
   });
+
+  // PB-H7: restarting the ONLY terminal must leave a replacement, not an empty
+  // tab. The old `terminals.length > 0` guard added a replacement only when a
+  // sibling survived, so a single-terminal (e.g. non-visible) tab went empty.
+  it("replaces the only terminal instead of emptying the tab (PB-H7)", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1);
+    const t1 = get().addTerminal(aId);
+    get().setTerminalPty(t1, "pty-1");
+    expect(get().tabTerminals[aId]?.terminals).toHaveLength(1);
+    restartActiveTerminal(aId);
+    const after = get().tabTerminals[aId]?.terminals ?? [];
+    expect(after).toHaveLength(1); // replaced, not emptied (was 0 before the fix)
+    expect(after[0]?.id).not.toBe(t1); // a fresh terminal
+  });
+});
+
+describe("split preservation: fillActiveTab / replaceActiveProject (PB-H8/H9)", () => {
+  it("fillActiveTab preserves the blank tab's terminal split (PB-H8)", () => {
+    const blankId = tabIdAt(0); // initial blank tab is active
+    const t1 = { kind: "terminal" as const, id: "term-1" };
+    const t2 = { kind: "terminal" as const, id: "term-2" };
+    const ps0 = get().tabState[blankId];
+    if (!ps0) throw new Error("no blank state");
+    useApp.setState({
+      tabState: {
+        ...get().tabState,
+        [blankId]: { ...ps0, splits: [[t1, t2]], current: t1 },
+      },
+    });
+    get().fillActiveTab("/a");
+    const ps = get().tabState[blankId];
+    expect(ps?.root).toBe("/a"); // folder attached in place
+    expect(ps?.splits).toEqual([[t1, t2]]); // split preserved (was [] before the fix)
+  });
+
+  it("replaceActiveProject dissolves a split the replaced tab was in (PB-H9)", () => {
+    get().openProject("/a");
+    get().openProject("/b"); // active /b
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    get().splitActiveWith(aId); // pair {a: bId, b: aId}, active = bId
+    expect(get().split).toEqual({ a: bId, b: aId });
+    get().replaceActiveProject("/c"); // replace the active (bId), a split member
+    expect(get().split).toBeNull(); // stale pair dissolved
+    expect(get().tabs.find((t) => t.id === bId)?.root).toBe("/c");
+  });
+
+  it("replaceActiveProject keeps a split not involving the replaced tab (PB-H9)", () => {
+    get().openProject("/a");
+    get().openProject("/b"); // active /b
+    const aId = tabIdAt(1);
+    const bId = tabIdAt(2);
+    get().splitActiveWith(aId); // pair {a: bId, b: aId}
+    get().openProject("/d"); // active /d, split persists (hidden)
+    const dId = tabIdAt(3);
+    expect(get().activeTabId).toBe(dId);
+    get().replaceActiveProject("/c"); // replace /d (NOT a split member)
+    expect(get().split).toEqual({ a: bId, b: aId }); // unrelated split kept
+  });
 });
 
 describe("editor tabs (unified main pane)", () => {
