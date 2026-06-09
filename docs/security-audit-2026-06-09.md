@@ -33,7 +33,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] **H3** `privilege` block defeated by a path to the binary (`/usr/bin/sudo`, `./sudo`). `command/policy.ts:23,38`. Fix: match the program basename after stripping any leading path.
 - [ ] **H4** A torn/partial last audit line (crash mid-write) is glued to the next entry (`appendFile` adds only a trailing `\n`, never checks). `audit/audit.ts:87`. Fix: ensure trailing newline before appending / write atomically.
 - [x] **H5** Catastrophic O(n^2) backtracking in `redactConnStrings` hangs main on one long line (~97s on 400k chars). `db/connstr.ts:38`. Fix: non-overlapping / length-bounded userinfo class.
-- [ ] **H6** Lowercase base32 encoding of a secret bypasses redaction (scan only matches uppercase `[A-Z2-7]`). `redact/redact.ts:102-106`. Fix: match base32 case-insensitively.
+- [x] **H6** Lowercase base32 encoding of a secret bypasses redaction (scan only matches uppercase `[A-Z2-7]`). `redact/redact.ts:102-106`. Fix: match base32 case-insensitively.
 - [x] **H7** `fs:readFile` has no vault guard -> renderer can read the secret-name inventory + full audit log. `app/src/main/ipc.ts:324-327`. Fix: `assertNotVault(relPath)` (mirror `fs:readImage`).
 - [x] **H8** `fs:listDir` has no vault guard + `listDirectory` doesn't block listing INTO `.airlock` (IGNORED filter only drops it as a child). `app/src/main/ipc.ts:310-313` + `tree.ts:133-154`. Fix: `assertNotVault` in handler + reject `targetsVault(relPath)` in `listDirectory`.
 

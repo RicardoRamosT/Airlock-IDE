@@ -97,10 +97,12 @@ function redactEncoded(text: string, vals: string[]): string {
     return buf.length > 0 && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
   });
 
-  // base32 (RFC 4648, uppercase): runs of [A-Z2-7], decode, redact if they
-  // carry a secret. Same tier as base64 (ubiquitous `base32` CLI).
+  // base32 (RFC 4648): runs of [A-Za-z2-7] -- matched CASE-INSENSITIVELY, since a
+  // lowercase form (e.g. `base32 | tr A-Z a-z`) would otherwise bypass the scan
+  // (audit H6); decodeBase32 uppercases the run internally. Decode, redact if it
+  // carries a secret. Same tier as base64 (ubiquitous `base32` CLI).
   const b32min = Math.max(8, Math.ceil((minBytes * 8) / 5));
-  out = out.replace(new RegExp(`[A-Z2-7]{${b32min},}={0,6}`, "g"), (run) => {
+  out = out.replace(new RegExp(`[A-Za-z2-7]{${b32min},}={0,6}`, "g"), (run) => {
     const buf = decodeBase32(run);
     return buf && containsAny(buf, valueBufs) ? PLACEHOLDER : run;
   });

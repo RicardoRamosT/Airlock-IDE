@@ -122,6 +122,15 @@ describe("redactSecrets - encoded forms", () => {
     expect(out).toContain("***");
   });
 
+  // H6: a lowercase base32 form (the SAME value, `tr A-Z a-z`) previously slipped
+  // past the uppercase-only [A-Z2-7] scan. Case-insensitive matching catches it.
+  it("redacts a LOWERCASE base32 form of the value (H6)", () => {
+    const b32lower = "orsxg5dumvzxi5dfon2a";
+    const out = redactSecrets(`v=${b32lower}`, [SECRET]);
+    expect(out).not.toContain(b32lower);
+    expect(out).toContain("***");
+  });
+
   it("does NOT over-redact an innocent uppercase base32-ish run", () => {
     const innocent = "MAXBUFFERSIZECONSTANT2345"; // not the secret
     const out = redactSecrets(`X=${innocent}`, [SECRET]);
