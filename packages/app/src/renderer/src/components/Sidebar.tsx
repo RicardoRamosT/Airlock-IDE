@@ -92,6 +92,11 @@ export function Sidebar() {
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const vis = useApp((s) => s.sectionVisibility);
   const requestNewFile = useApp((s) => s.requestNewFile);
+  // The quota meter is account-wide, so in a split scene we render it once -- in
+  // the primary pane only -- rather than duplicating it in the secondary pane's
+  // sidebar. It still updates live from either project (one global watcher).
+  const split = useApp((s) => s.split);
+  const isSecondarySplitPane = split !== null && tabId === split.b;
 
   const openFolder = async () => {
     try {
@@ -188,7 +193,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
-      <QuotaMeter />
+      {!isSecondarySplitPane && <QuotaMeter />}
       <SidebarFooter />
     </aside>
   );
