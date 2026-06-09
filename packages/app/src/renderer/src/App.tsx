@@ -14,6 +14,7 @@ import { useFsWatch } from "./lib/useFsWatch";
 import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
 import { usePrefs } from "./lib/usePrefs";
+import { useQuota } from "./lib/useQuota";
 import { useApp } from "./store";
 
 export function App() {
@@ -22,6 +23,7 @@ export function App() {
   useMenuActions();
   useAgentCommands();
   useFsWatch();
+  useQuota();
   const modal = useApp((s) => s.modal);
   const activeTabId = useApp((s) => s.activeTabId);
   const searchOpen = useApp((s) => s.searchOpen);
