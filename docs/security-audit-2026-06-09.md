@@ -21,7 +21,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 ### CRITICAL
 - [x] **C1** `run_command` exposes the full `process.env` + login-shell env to the agent, unredacted; redaction set = only the named injected secrets, and the command classifies to nothing so the gate allows it. `agent-core/src/command/run.ts:117,137-141,149`. Fix: redact against ALL vaulted values; build the child env from a minimal allowlist (not raw `process.env`).
 - [x] **C2** Concurrent `appendAudit` forks the hash chain (non-atomic read->modify->write, no lock) -> `verifyAuditChain` fails forever. `agent-core/src/audit/audit.ts:63-103`. Fix: serialize appends through an in-process async mutex keyed by logFile.
-- [ ] **C3** MCP `run_command` `cwd` arg escapes the project and bypasses the `outsideWorkspace` gate (forwarded to spawn with no containment). `app/src/main/mcp/tools.ts:310-339`. Fix: `path.resolve(root, cwd)` and reject unless inside root.
+- [x] **C3** MCP `run_command` `cwd` arg escapes the project and bypasses the `outsideWorkspace` gate (forwarded to spawn with no containment). `app/src/main/mcp/tools.ts:310-339`. Fix: `path.resolve(root, cwd)` and reject unless inside root.
 - [x] **C4** `redactedTail`/`redactedPreview` truncate by line BEFORE redacting -> a multi-line secret (PEM) gets split, surviving lines reach the agent. `agent-core/src/terminal/tail.ts:43-58`. Fix: redact the full buffer first, then truncate.
 - [x] **C5** `redactConnStrings` leaks the password tail when the password contains a raw `@` (stops at first `@`; RFC/Postgres use the last). `agent-core/src/db/connstr.ts:38`. Fix: userinfo run greedy to the LAST `@` before the host.
 - [x] **C6** `isDangerousEnvName` misses loader/command-hijack names (BASH_ENV, ENV, GIT_SSH_COMMAND, GIT_EXTERNAL_DIFF, PROMPT_COMMAND, ZDOTDIR, BASH_FUNC_*, PERL5OPT, PYTHONSTARTUP...). `agent-core/src/broker/dangerous.ts:7-28`. Fix: expand the set (incl. `BASH_FUNC_*` prefix).
@@ -38,7 +38,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] **H8** `fs:listDir` has no vault guard + `listDirectory` doesn't block listing INTO `.airlock` (IGNORED filter only drops it as a child). `app/src/main/ipc.ts:310-313` + `tree.ts:133-154`. Fix: `assertNotVault` in handler + reject `targetsVault(relPath)` in `listDirectory`.
 
 ### MEDIUM
-- [ ] M1 Agent-controlled `cwd` to spawn, no containment -- `command/run.ts:143` (same root as C3).
+- [x] M1 Agent-controlled `cwd` to spawn, no containment -- `command/run.ts:143` (same root as C3).
 - [ ] M2 Staged rename diff shows empty original instead of HEAD content -- `git/versions.ts:55-58`.
 - [ ] M3 `appendAuditAt` links over a corrupt line (writer skips nulls, verifier rejects them) -- `audit/audit.ts:70-77`.
 - [ ] M4 Lowercase percent-encoding (`%2f`) of a secret bypasses redaction -- `redact/redact.ts:108-114`.

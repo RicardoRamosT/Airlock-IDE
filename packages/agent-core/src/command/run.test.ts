@@ -70,14 +70,41 @@ describe("runCommand", () => {
     expect(runner.calls[0]?.cwd).toBe(root);
   });
 
-  it("uses the passed cwd over the root when provided", async () => {
+  it("resolves an in-root subdirectory cwd and uses it", async () => {
     const runner = makeRunner();
-    await runCommand(root, "echo hi", {
-      cwd: "/tmp/somewhere",
-      keychain: fake,
-      runner,
-    });
-    expect(runner.calls[0]?.cwd).toBe("/tmp/somewhere");
+    const sub = path.join(root, "packages", "app");
+    await runCommand(root, "echo hi", { cwd: sub, keychain: fake, runner });
+    expect(runner.calls[0]?.cwd).toBe(sub);
+  });
+
+  // C3 / M1: cwd is agent-controlled and is NOT inspected by the command-policy
+  // classifier. A cwd outside the workspace lets an innocent command (e.g.
+  // "cat .env") run in another project and read its files -- and the per-project
+  // redactor would not mask that project's secrets. Fail closed: reject, never
+  // run, audit blocked with the cwd.
+  it("rejects (fail-closed) a cwd outside the workspace", async () => {
+    const runner = makeRunner();
+    await expect(
+      runCommand(root, "cat .env", {
+        cwd: "/tmp/other-project",
+        keychain: fake,
+        runner,
+      }),
+    ).rejects.toThrow(/outside the workspace/i);
+    expect(runner.calls).toHaveLength(0);
+    const blocked = (await readAudit(root)).find(
+      (e) => e.op === "command.run.blocked",
+    );
+    expect(blocked).toBeDefined();
+    expect(JSON.stringify(blocked?.detail)).toContain("cwd");
+  });
+
+  it("rejects a relative cwd that escapes the root via ..", async () => {
+    const runner = makeRunner();
+    await expect(
+      runCommand(root, "ls", { cwd: "../..", keychain: fake, runner }),
+    ).rejects.toThrow(/outside the workspace/i);
+    expect(runner.calls).toHaveLength(0);
   });
 
   // THE REDACTION GUARD: a command that echoes an injected secret value MUST

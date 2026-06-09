@@ -2,6 +2,7 @@
 // Electron's cjs_lexer crashes on multibyte chars, so no smart punctuation in
 // any regex, string literal, or comment in this file.
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { appendAudit } from "../audit/audit";
 import { getSecretValue, listSecrets } from "../broker/broker";
 import { isDangerousEnvName } from "../broker/dangerous";
@@ -112,6 +113,25 @@ export async function runCommand(
 ): Promise<RunCommandResult> {
   const runner = opts.runner ?? realRunner;
   const names = opts.injectSecrets ?? [];
+  // Contain the working directory inside the workspace root (fail-closed). cwd is
+  // agent-controlled (the run_command tool forwards it verbatim) and is NOT seen
+  // by the command-policy classifier, which only inspects the command string. So
+  // without this an innocent-looking command (e.g. "cat .env") with cwd pointing
+  // at another project would run there and read its files -- and the per-project
+  // redactor would not even mask that other project's secrets. Resolve against
+  // the root and reject anything that is not the root or a descendant. This is
+  // LEXICAL containment; a symlink inside the workspace that points out is the
+  // user's own setup and out of scope. (audit C3 / M1)
+  const base = path.resolve(root);
+  const resolvedCwd = path.resolve(base, opts.cwd ?? ".");
+  if (resolvedCwd !== base && !resolvedCwd.startsWith(base + path.sep)) {
+    await appendAudit(root, "agent", "command.run.blocked", {
+      command,
+      cwd: opts.cwd,
+      reason: "cwd outside workspace",
+    });
+    throw new Error("command cwd is outside the workspace");
+  }
   // Redaction set: EVERY vaulted value, not just the injected subset. Any vaulted
   // secret can surface in the output via the inherited env (e.g. `printenv` on a
   // command that injects nothing), so the redactor must scrub all of them. This
@@ -163,7 +183,7 @@ export async function runCommand(
     ...injectedEnv,
   };
   const res = await runner.run(command, {
-    cwd: opts.cwd ?? root,
+    cwd: resolvedCwd,
     env,
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxBytes: opts.maxBytes ?? DEFAULT_MAX_BYTES,
@@ -172,6 +192,7 @@ export async function runCommand(
   const output = redactSecrets(combined, values);
   await appendAudit(root, "agent", "command.run", {
     command,
+    cwd: resolvedCwd,
     names: Object.keys(injectedEnv),
     blocked,
     exitCode: res.exitCode,
