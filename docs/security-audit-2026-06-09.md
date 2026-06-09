@@ -80,7 +80,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] PB-H9 `replaceActiveProject` leaves a stale project-level split -- `store.ts:658-672`.
 - [x] PB-H10 Crashed `typescript-language-server` never reaped/restarted -- `lsp/client.ts:79-140`.
 - [x] PB-H11 Human 'advisory' commit is NOT fail-open -- scan/keychain error blocks the human's commit -- `secrets/commit.ts:13-18`.
-- [ ] PB-H12 `SecretsSection` shows stale plaintext after a secret is updated -- `SecretsSection.tsx:17,51-62`.
+- [x] PB-H12 `SecretsSection` shows stale plaintext after a secret is updated -- `SecretsSection.tsx:17,51-62`.
 - [ ] PB-H13 `savePrefs` unguarded read-modify-write race -- `prefs.ts:167-180`.
 - [ ] PB-H14 `runAgentCommand` TOCTOU between `isDestroyed()` and `send()` -- `agent-commands.ts:45-56`.
 
