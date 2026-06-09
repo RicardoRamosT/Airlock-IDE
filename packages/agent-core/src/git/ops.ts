@@ -1,3 +1,4 @@
+import { runGitAuthed } from "./auth";
 import { runGit } from "./run";
 
 function assertPaths(paths: string[]): void {
@@ -100,19 +101,31 @@ export async function headSha(root: string, ref = "HEAD"): Promise<string> {
   return (await runGit(root, ["rev-parse", ref])).trim();
 }
 
-// Remote sync. All shell out to git, so the user's configured credential helper /
-// SSH keys apply (like the terminal). pull is --ff-only: a diverged branch fails
-// cleanly with a message instead of opening a merge-message editor in our no-TTY
-// child process (which would hang). push auto-publishes when there is no upstream.
-export async function gitFetch(root: string): Promise<void> {
-  await runGit(root, ["fetch"]);
+// Remote sync. Network ops go through runGitAuthed: with a token (per-project
+// account) it injects that account's credentials for this one call; with null
+// it falls back to the user's configured credential helper / SSH keys (today's
+// behavior). The local rev-parse/symbolic-ref need no network, so they stay on
+// plain runGit. pull is --ff-only: a diverged branch fails cleanly instead of
+// opening a merge-message editor in our no-TTY child (which would hang). push
+// auto-publishes when there is no upstream.
+export async function gitFetch(
+  root: string,
+  token: string | null = null,
+): Promise<void> {
+  await runGitAuthed(root, token, ["fetch"]);
 }
 
-export async function gitPull(root: string): Promise<void> {
-  await runGit(root, ["pull", "--ff-only"]);
+export async function gitPull(
+  root: string,
+  token: string | null = null,
+): Promise<void> {
+  await runGitAuthed(root, token, ["pull", "--ff-only"]);
 }
 
-export async function gitPush(root: string): Promise<void> {
+export async function gitPush(
+  root: string,
+  token: string | null = null,
+): Promise<void> {
   let hasUpstream = true;
   try {
     await runGit(root, [
@@ -125,7 +138,7 @@ export async function gitPush(root: string): Promise<void> {
     hasUpstream = false;
   }
   if (hasUpstream) {
-    await runGit(root, ["push"]);
+    await runGitAuthed(root, token, ["push"]);
     return;
   }
   // No upstream: publish the current branch. In DETACHED HEAD there is no
@@ -139,5 +152,5 @@ export async function gitPush(root: string): Promise<void> {
       "Cannot push: HEAD is detached (not on a branch). Switch to or create a branch first.",
     );
   }
-  await runGit(root, ["push", "-u", "origin", branch]);
+  await runGitAuthed(root, token, ["push", "-u", "origin", branch]);
 }

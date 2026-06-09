@@ -62,6 +62,7 @@ import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { syncWindowWatchers } from "./fsWatch";
+import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
   dockerStatus,
   gitStatusFor,
@@ -665,24 +666,29 @@ export function registerIpc(
     return unstageFiles(resolveRoot(e, root), paths as string[]);
   });
 
-  ipcMain.handle("git:commit", (e, root: unknown, message: unknown) => {
+  ipcMain.handle("git:commit", async (e, root: unknown, message: unknown) => {
     if (typeof message !== "string") throw new Error("Invalid payload");
-    return guardedCommit(resolveRoot(e, root), message, { gated: false });
+    const resolved = resolveRoot(e, root);
+    await ensureIdentityFor(resolved); // author commits as the project's account
+    return guardedCommit(resolved, message, { gated: false });
   });
 
   ipcMain.handle("git:branches", (e, root: unknown) =>
     listBranches(resolveRoot(e, root)),
   );
 
-  ipcMain.handle("git:fetch", (e, root: unknown) =>
-    gitFetch(resolveRoot(e, root)),
-  );
-  ipcMain.handle("git:pull", (e, root: unknown) =>
-    gitPull(resolveRoot(e, root)),
-  );
-  ipcMain.handle("git:push", (e, root: unknown) =>
-    gitPush(resolveRoot(e, root)),
-  );
+  ipcMain.handle("git:fetch", async (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    return gitFetch(resolved, await tokenFor(resolved));
+  });
+  ipcMain.handle("git:pull", async (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    return gitPull(resolved, await tokenFor(resolved));
+  });
+  ipcMain.handle("git:push", async (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    return gitPush(resolved, await tokenFor(resolved));
+  });
 
   ipcMain.handle("git:switchBranch", (e, root: unknown, name: unknown) => {
     if (typeof name !== "string") throw new Error("Invalid payload");
@@ -732,6 +738,30 @@ export function registerIpc(
     }
     return switchGhAccount(host, username);
   });
+
+  // Per-project account: which account a project resolves to (for the Git
+  // section readout), and a setter that persists/clears a manual override.
+  ipcMain.handle("github:resolveAccount", (e, root: unknown) =>
+    resolveFor(resolveRoot(e, root)),
+  );
+  ipcMain.handle(
+    "github:setProjectAccount",
+    async (e, root: unknown, account: unknown) => {
+      const resolved = resolveRoot(e, root);
+      const acct =
+        account &&
+        typeof account === "object" &&
+        typeof (account as { host?: unknown }).host === "string" &&
+        typeof (account as { username?: unknown }).username === "string"
+          ? {
+              host: (account as { host: string }).host,
+              username: (account as { username: string }).username,
+            }
+          : undefined; // null/invalid => clear the override (back to auto)
+      await writeProjectConfig(resolved, { githubAccount: acct });
+      await ensureIdentityFor(resolved); // apply the new account's identity now
+    },
+  );
 
   // Databases. The connection string (with its password) is resolved MAIN-SIDE
   // from the broker by secret name and used ONLY to open a short-lived pg
