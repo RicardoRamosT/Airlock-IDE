@@ -26,6 +26,12 @@ describe("app prefs", () => {
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
+      agentPolicy: {
+        network: "allow",
+        outsideWorkspace: "ask",
+        destructive: "ask",
+        privilege: "block",
+      },
     });
   });
 
@@ -53,6 +59,12 @@ describe("app prefs", () => {
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
+      agentPolicy: {
+        network: "allow",
+        outsideWorkspace: "ask",
+        destructive: "ask",
+        privilege: "block",
+      },
     });
   });
 
@@ -86,6 +98,12 @@ describe("app prefs", () => {
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
+      agentPolicy: {
+        network: "allow",
+        outsideWorkspace: "ask",
+        destructive: "ask",
+        privilege: "block",
+      },
     });
   });
 
@@ -111,6 +129,12 @@ describe("app prefs", () => {
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
+      agentPolicy: {
+        network: "allow",
+        outsideWorkspace: "ask",
+        destructive: "ask",
+        privilege: "block",
+      },
     });
   });
 

@@ -86,6 +86,12 @@ const DEFAULT_PREFS: AppPrefs = {
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
   recentFolders: [],
+  agentPolicy: {
+    network: "allow",
+    outsideWorkspace: "ask",
+    destructive: "ask",
+    privilege: "block",
+  },
 };
 
 // Only the methods whose RESOLVED SHAPE the mount destructures need an explicit

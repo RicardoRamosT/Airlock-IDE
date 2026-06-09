@@ -18,8 +18,16 @@ import { registerTools, TOOL_NAMES } from "./tools";
 // NOT invoked on the fail-closed (no-workspace) path. tools.ts imports runCommand
 // directly (it does NOT inject it), so a module mock is the only seam. This also
 // keeps the test from resolving/injecting real secrets or spawning a process.
+// DEFAULT_AGENT_POLICY is included because prefs.ts (imported by tools.ts) reads
+// it at module-init time to build DEFAULTS -- the mock must export it.
 const runCommandMock = vi.fn();
 vi.mock("@airlock/agent-core", () => ({
+  DEFAULT_AGENT_POLICY: {
+    network: "allow",
+    outsideWorkspace: "ask",
+    destructive: "ask",
+    privilege: "block",
+  },
   runCommand: (...args: unknown[]) => runCommandMock(...args),
 }));
 
