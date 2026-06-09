@@ -5,6 +5,7 @@ import type {
   ProjectConfig,
   QuotaStatus,
   SearchResults,
+  Section,
   SecretMeta,
   SectionVisibility,
 } from "../../shared/ipc";
@@ -240,6 +241,7 @@ export interface AppState {
   quotaMeterEnabled: boolean;
   setQuotaMeterEnabled: (v: boolean) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
+  activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
   layoutHydrated: boolean; // default false
   modal:
     | "add-secret"
@@ -334,6 +336,7 @@ export interface AppState {
   setTheme: (t: "dark" | "light") => void;
   setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
+  setActiveView: (v: Section) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
   // The command/quick-open palette overlay (window-level, one per window).
   palette: { mode: "files" | "commands" } | null;
@@ -584,6 +587,7 @@ export const useApp = create<AppState>((set) => ({
     host: true,
     audit: true,
   },
+  activeView: "files",
   layoutHydrated: false,
   runningNotice: null,
 
@@ -1216,6 +1220,7 @@ export const useApp = create<AppState>((set) => ({
   setClipboardClearSeconds: (clipboardClearSeconds) =>
     set({ clipboardClearSeconds }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
+  setActiveView: (activeView) => set({ activeView }),
   // Settings is an OVERLAY: opening it clears the other overlays (diff/dbView)
   // but NOT the editor (selectedFile/editorTabs), so closing it restores the
   // editor/terminal underneath. Closing leaves the rest untouched.
