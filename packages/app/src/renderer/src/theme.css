@@ -406,7 +406,9 @@ body,
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 8px;
+  /* Horizontal inset keeps the view's content off the rail divider (the old
+     accordion's .section-body carried the same values). */
+  padding: 2px 8px 8px 10px;
 }
 
 /* Two-project split: the content row becomes two equal ProjectPane columns with
