@@ -2466,6 +2466,26 @@ textarea:focus-visible {
   opacity: 0.5;
   cursor: default;
 }
+.git-account-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.git-account-label {
+  color: var(--fg-dim);
+}
+.git-account {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
 
 /* LSP hover tooltip (type/doc on hover). */
 .cm-lsp-hover {

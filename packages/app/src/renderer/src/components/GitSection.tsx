@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import type { GitStatus, SecretLeak } from "../../../shared/ipc";
+import type {
+  GitStatus,
+  ResolvedGithubAccount,
+  SecretLeak,
+} from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
@@ -18,6 +22,8 @@ export function GitSection() {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [leaks, setLeaks] = useState<SecretLeak[]>([]);
+  const [account, setAccount] = useState<ResolvedGithubAccount | null>(null);
+  const [accountList, setAccountList] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     if (!root) return;
@@ -32,6 +38,13 @@ export function GitSection() {
       setStatus(s);
       setGitStatus(s, tabId);
       setBranches(await window.airlock.gitBranches(root));
+      setAccount(await window.airlock.resolveGithubAccount(root));
+      const info = await window.airlock.githubInfo();
+      setAccountList(
+        info.gh.accounts
+          .filter((a) => a.host === "github.com")
+          .map((a) => a.username),
+      );
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -115,6 +128,53 @@ export function GitSection() {
           </span>
         )}
       </div>
+      {account && (
+        <div className="git-account-row" title={`source: ${account.source}`}>
+          <i className="codicon codicon-github" />
+          {account.protocol === "ssh" ? (
+            <span className="section-note">
+              push as: SSH remote — uses your keys
+            </span>
+          ) : (
+            <>
+              <span className="git-account-label">push as</span>
+              <select
+                className="git-account"
+                value={
+                  account.source === "override" && account.account
+                    ? account.account.username
+                    : "__auto__"
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  void run(() =>
+                    window.airlock.setProjectGithubAccount(
+                      root,
+                      v === "__auto__"
+                        ? null
+                        : { host: "github.com", username: v },
+                    ),
+                  );
+                }}
+              >
+                <option value="__auto__">
+                  Auto
+                  {account.source !== "override" && account.account
+                    ? ` (${account.account.username})`
+                    : account.source === "none"
+                      ? " (none — pick one)"
+                      : ""}
+                </option>
+                {accountList.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+      )}
       <div className="git-sync-row">
         <button
           type="button"
