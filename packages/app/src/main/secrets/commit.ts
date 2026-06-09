@@ -16,7 +16,16 @@ export async function guardedCommit(
   // back, and a commit that proceeded DESPITE detected leaks (leaks > 0 in the
   // entry flags it). actor distinguishes the human IPC from the agent tool.
   const actor: "user" | "agent" = opts.gated ? "agent" : "user";
-  const leaks = await scanStaged(root);
+  // The leak scan is fail-OPEN for the human (gated:false): it is ADVISORY and
+  // must never block a human commit if scanStaged throws (locked keychain, git
+  // error, denied prompt). It stays fail-CLOSED for the agent (gated:true), where
+  // a scan failure must not let a suspected leak through unflagged. (audit PB-H11)
+  let leaks: CommitOutcome["leaks"] = [];
+  try {
+    leaks = await scanStaged(root);
+  } catch (err) {
+    if (opts.gated) throw err;
+  }
   if (opts.gated && leaks.length > 0 && !opts.confirm) {
     await appendAudit(root, actor, "git.commit.blocked", {
       leaks: leaks.length,

@@ -80,4 +80,25 @@ describe("guardedCommit", () => {
       leaks: 0,
     });
   });
+
+  // PB-H11: the scan is ADVISORY for the human -- if it throws (locked keychain,
+  // git error), the human's commit must still proceed (fail-open), not error out.
+  it("human commit is fail-open when the scan throws (PB-H11)", async () => {
+    scanMock.mockRejectedValue(new Error("keychain locked"));
+    commitMock.mockClear();
+    const out = await guardedCommit("/r", "msg", { gated: false });
+    expect(commitMock).toHaveBeenCalledWith("/r", "msg");
+    expect(out).toEqual({ committed: true, sha: "abc1234", leaks: [] });
+  });
+
+  // ...but the agent stays fail-CLOSED: a scan failure must not let a possible
+  // leak through, so the gated commit propagates the error and does not commit.
+  it("agent commit is fail-closed when the scan throws (PB-H11)", async () => {
+    scanMock.mockRejectedValue(new Error("keychain locked"));
+    commitMock.mockClear();
+    await expect(guardedCommit("/r", "msg", { gated: true })).rejects.toThrow(
+      /keychain/,
+    );
+    expect(commitMock).not.toHaveBeenCalled();
+  });
 });
