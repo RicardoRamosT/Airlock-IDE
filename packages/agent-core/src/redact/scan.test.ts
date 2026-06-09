@@ -41,6 +41,17 @@ describe("scanForSecrets", () => {
     expect(f.filter((x) => x.name === "T")).toHaveLength(1);
   });
 
+  // PB-C3: a MULTI-LINE vaulted value can't be found by the per-line includes
+  // scan; it must be matched against the whole text and reported at its start
+  // line. (Value chosen to match no SECRET_PATTERN, so only the multi-line path
+  // can catch it.)
+  it("detects a multi-line vaulted value at its start line (PB-C3)", () => {
+    const value = "CUSTOM-BLOB-START\nzzz-secret-body-zzz\nCUSTOM-BLOB-END";
+    const text = `before\n${value}\nafter`;
+    const f = scanForSecrets(text, [{ name: "BLOB", value }]);
+    expect(f).toEqual([{ line: 2, kind: "vaulted", name: "BLOB" }]);
+  });
+
   it("never includes the secret value in any finding", () => {
     const value = "topsecretpassword";
     const f = scanForSecrets(`pw=${value}`, [{ name: "PW", value }]);

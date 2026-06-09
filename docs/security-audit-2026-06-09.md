@@ -65,7 +65,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 ### CRITICAL
 - [ ] PB-C1 `open_tab` -> `workspace:open` sets the agent root to ANY path, zero validation -- `app/src/main/ipc.ts:256-260`.
 - [ ] PB-C2 `pty:create` stale `rootForEvent` re-read after async gap tags `sessionRoots` with the wrong project -- `ipc.ts:971,1014`.
-- [ ] PB-C3 Vaulted MULTI-LINE secret never detected by the pre-commit leak scan (per-line `includes`) -- `redact/scan.ts:43-49`.
+- [x] PB-C3 Vaulted MULTI-LINE secret never detected by the pre-commit leak scan (per-line `includes`) -- `redact/scan.ts:43-49`.
 - [ ] PB-C4 `fsWatch` map keyed by `WebContents.id` but disposed via `BrowserWindow.id` -> watchers never closed -- `fsWatch.ts:29`.
 
 ### HIGH (Part B)
