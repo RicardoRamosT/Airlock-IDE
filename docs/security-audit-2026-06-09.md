@@ -44,8 +44,8 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] M4 Lowercase percent-encoding (`%2f`) of a secret bypasses redaction -- `redact/redact.ts:108-114`.
 - [x] M5 JSON-escaped form of a secret (quote/backslash) bypasses redaction -- `redact/redact.ts:124-132`.
 - [x] M6 `redactConnStrings` ignores credentials in query parameters -- `db/connstr.ts:38`.
-- [ ] M7 `readMeta` doesn't validate parsed JSON is an array -- `broker/meta.ts:18-25`.
-- [ ] M8 Corrupt `secrets.json` silently degrades to empty list + overwrites the `.bak` -- `broker/meta.ts:18-45`.
+- [x] M7 `readMeta` doesn't validate parsed JSON is an array -- `broker/meta.ts:18-25`.
+- [x] M8 Corrupt `secrets.json` silently degrades to empty list + overwrites the `.bak` -- `broker/meta.ts:18-45`.
 - [ ] M9 `move()` check-then-rename races, silently clobbers -- `workspace/fileOps.ts:32-41`.
 - [ ] M10 `duplicate()` races and `cp(force)` silently overwrites/merges -- `workspace/fileOps.ts:58-65`.
 
@@ -55,8 +55,8 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] L3 `assertBranchName` permits leading-dot / `.lock` names -- `git/ops.ts:13-18`.
 - [ ] L4 `computeHash` covers only 5 fields; extra top-level keys unprotected -- `audit/audit.ts:21-30`.
 - [ ] L5 `withDb` disables TLS cert validation (`rejectUnauthorized:false`) -- `db/client.ts:15-17`.
-- [ ] L6 `importDotEnv` silently drops a secret named `__proto__` then deletes the `.env` -- `broker/dotenv.ts:26-46`.
-- [ ] L7 `setSecret` accepts empty/whitespace-only values -- `broker/broker.ts:21-51`.
+- [x] L6 `importDotEnv` silently drops a secret named `__proto__` then deletes the `.env` -- `broker/dotenv.ts:26-46`.
+- [x] L7 `setSecret` accepts empty/whitespace-only values -- `broker/broker.ts:21-51`.
 
 ---
 

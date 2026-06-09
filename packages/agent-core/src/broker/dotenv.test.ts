@@ -56,4 +56,17 @@ describe("parseDotEnv", () => {
   it("keeps the last occurrence of duplicate keys", () => {
     expect(parseDotEnv("A=1\nA=2")).toEqual({ A: "2" });
   });
+
+  // L6: a "__proto__" key must become a normal OWN property, not mutate the
+  // prototype -- otherwise it is dropped from Object.entries and importDotEnv
+  // silently loses it (and may then delete the .env). Also guards against
+  // prototype pollution from a hostile .env.
+  it("captures __proto__ as an own key without polluting the prototype (L6)", () => {
+    const out = parseDotEnv("__proto__=evil\nNORMAL=ok");
+    expect(Object.keys(out)).toContain("__proto__");
+    expect(out.NORMAL).toBe("ok");
+    expect(Object.getPrototypeOf(out)).toBeNull();
+    // a fresh object is unaffected (no pollution)
+    expect(({} as Record<string, unknown>).evil).toBeUndefined();
+  });
 });

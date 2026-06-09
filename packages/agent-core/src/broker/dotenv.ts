@@ -23,7 +23,13 @@ function unescapeDoubleQuoted(val: string): string {
   return val.replace(/\\(.)/g, (_, c: string) => DQ_ESCAPES[c] ?? `\\${c}`);
 }
 export function parseDotEnv(text: string): Record<string, string> {
-  const out: Record<string, string> = {};
+  // Null-prototype map so a key like "__proto__" (or "constructor"/"prototype")
+  // becomes a normal OWN property instead of mutating the prototype -- with a
+  // plain {} the assignment is dropped, so the entry never appears in
+  // Object.entries and importDotEnv would silently lose it (then delete the
+  // .env on deleteAfter, an unrecoverable loss). Also avoids prototype
+  // pollution from a hostile .env. (audit L6)
+  const out: Record<string, string> = Object.create(null);
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;

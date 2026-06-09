@@ -48,6 +48,7 @@ describe("classifyCommand", () => {
     expect(classifyCommand("cat ~/notes.txt")).toContain("outsideWorkspace");
     expect(classifyCommand("cd ~")).toContain("outsideWorkspace");
     expect(classifyCommand("cat $HOME/notes")).toContain("outsideWorkspace");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal shell "${HOME}", not a JS template
     expect(classifyCommand("cat ${HOME}/notes")).toContain("outsideWorkspace");
     // a "~5"-style approximation in text is not a path -> no false positive
     expect(classifyCommand('echo "approx ~5 items"')).not.toContain(

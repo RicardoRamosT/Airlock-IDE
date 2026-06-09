@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -21,6 +21,35 @@ const metaA = {
 describe("secrets meta index", () => {
   it("reads empty when missing", async () => {
     expect(await readMeta(root)).toEqual([]);
+  });
+
+  // M7: a file that PARSES but is not an array of entries is corruption, not
+  // empty -- readMeta must throw, never silently return [] (which would make the
+  // secrets look gone and let the next write clobber the backup).
+  it("throws on a non-array or unparseable secrets.json (M7)", async () => {
+    await upsertMeta(root, metaA); // create .airlock + a valid file
+    const file = path.join(root, ".airlock", "secrets.json");
+    await writeFile(file, '{"not":"an array"}');
+    await expect(readMeta(root)).rejects.toThrow(/corrupt/i);
+    await writeFile(file, "{ not even json");
+    await expect(readMeta(root)).rejects.toThrow(/corrupt/i);
+    await writeFile(file, '[{"noName":true}]'); // array of wrong-shape entries
+    await expect(readMeta(root)).rejects.toThrow(/corrupt/i);
+  });
+
+  // M8: with a corrupt file, a write must NOT proceed -- otherwise it copies the
+  // corrupt file over the .bak and persists a degraded list, losing the name
+  // index. The write throws and the good .bak is preserved for recovery.
+  it("does not clobber the .bak when the file is corrupt (M8)", async () => {
+    await upsertMeta(root, metaA); // write 1 (no .bak yet)
+    await upsertMeta(root, { ...metaA, name: "B" }); // write 2 -> .bak = [A]
+    const file = path.join(root, ".airlock", "secrets.json");
+    await writeFile(file, "CORRUPT NOT JSON");
+    await expect(upsertMeta(root, { ...metaA, name: "C" })).rejects.toThrow(
+      /corrupt/i,
+    );
+    const bakText = await readFile(`${file}.bak`, "utf8");
+    expect(Array.isArray(JSON.parse(bakText))).toBe(true); // good backup intact
   });
 
   it("upserts and persists", async () => {

@@ -55,6 +55,21 @@ describe("broker", () => {
     ).rejects.toThrow(/invalid secret name/i);
   });
 
+  // L7: an empty/whitespace-only value is meaningless and, worse, UNREDACTABLE
+  // (the redactor skips whitespace-only values), so it must be rejected, not
+  // vaulted. validateSecret is advisory and never gated this.
+  it("rejects an empty or whitespace-only secret value (L7)", async () => {
+    await expect(
+      setSecret(root, "EMPTY", "", { keychain: fake }),
+    ).rejects.toThrow(/empty/i);
+    await expect(
+      setSecret(root, "BLANK", "   ", { keychain: fake }),
+    ).rejects.toThrow(/empty/i);
+    // nothing was vaulted
+    expect(await listSecrets(root)).toEqual([]);
+    expect(store.size).toBe(0);
+  });
+
   it("lists metadata only and deletes everywhere", async () => {
     await setSecret(root, "A", "value-a", { keychain: fake });
     await setSecret(root, "B", "value-b", { keychain: fake });
