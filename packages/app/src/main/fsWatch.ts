@@ -1,5 +1,5 @@
 import { type FSWatcher, watch } from "chokidar";
-import type { WebContents } from "electron";
+import { BrowserWindow, type WebContents } from "electron";
 
 // One watcher per (window, root). Emits a debounced "fs:changed" {root} to the
 // window so its FileTree re-lists. Single source of tree freshness: user ops,
@@ -26,7 +26,12 @@ export function isIgnored(p: string): boolean {
 
 // Reconcile the set of watchers for one window to exactly `roots`.
 export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
-  const id = wc.id;
+  // Key by BrowserWindow id, NOT WebContents id: disposeWindowWatchers is called
+  // with the BrowserWindow id on window-close, so keying this map by wc.id would
+  // never match the dispose and every closed window would leak its watchers.
+  // (audit PB-C4)
+  const id = BrowserWindow.fromWebContents(wc)?.id;
+  if (id === undefined) return;
   const current = watchers.get(id) ?? new Map<string, FSWatcher>();
   // Stop watchers for roots no longer open.
   for (const [root, w] of current) {
