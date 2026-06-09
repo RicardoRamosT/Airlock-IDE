@@ -22,6 +22,7 @@ import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs } from "./prefs";
+import { reconcileQuotaMeter } from "./quota/wire";
 import { createWindow, lastFocusedRoot } from "./window";
 
 app.setName("AirLock");
@@ -102,6 +103,12 @@ function bootstrap(): void {
     registerAgentCommandIpc();
     createWindow();
     const prefs = await loadPrefs(prefsFile);
+    // Quota meter: install/uninstall the chained Claude statusLine to match the
+    // saved pref, then start watching the side-channel file. Best-effort -- a
+    // failure to touch ~/.claude/settings.json must never break startup.
+    await reconcileQuotaMeter(prefs.quotaMeter.enabled).catch((e) =>
+      console.warn("[airlock] quota meter wiring failed", e),
+    );
     applyAppMenu(
       prefsFile,
       prefs.sectionVisibility,
