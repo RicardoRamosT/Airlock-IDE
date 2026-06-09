@@ -75,9 +75,9 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] PB-H4 Deleted/rotated secret still in the PTY ring buffer returned un-redacted -- `ipc.ts:1099-1101` (redact against all-ever-vaulted / scrub on delete).
 - [ ] PB-H5 MCP bearer token in the process argv (`ps` leak) -- `mcp/register.ts:49-62` (pass via env / 0600 file).
 - [ ] PB-H6 `pty:input`/`resize`/`kill` missing window-ownership check -> cross-window injection -- `ipc.ts:1058-1086` (found 3x).
-- [ ] PB-H7 `restartActiveTerminal` inverted guard leaves the tab empty -- `restartActiveTerminal.ts:19-21`.
-- [ ] PB-H8 `fillActiveTab` drops the blank tab's terminal split/files -- `store.ts:625-653`.
-- [ ] PB-H9 `replaceActiveProject` leaves a stale project-level split -- `store.ts:658-672`.
+- [x] PB-H7 `restartActiveTerminal` inverted guard leaves the tab empty -- `restartActiveTerminal.ts:19-21`.
+- [x] PB-H8 `fillActiveTab` drops the blank tab's terminal split/files -- `store.ts:625-653`.
+- [x] PB-H9 `replaceActiveProject` leaves a stale project-level split -- `store.ts:658-672`.
 - [x] PB-H10 Crashed `typescript-language-server` never reaped/restarted -- `lsp/client.ts:79-140`.
 - [x] PB-H11 Human 'advisory' commit is NOT fail-open -- scan/keychain error blocks the human's commit -- `secrets/commit.ts:13-18`.
 - [x] PB-H12 `SecretsSection` shows stale plaintext after a secret is updated -- `SecretsSection.tsx:17,51-62`.
