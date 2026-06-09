@@ -19,21 +19,34 @@ export const DEFAULT_AGENT_POLICY: AgentCommandPolicy = {
   privilege: "block",
 };
 
+// Binary-name patterns allow an OPTIONAL leading path component -- (\S*\/)? --
+// so an invocation BY PATH (/usr/bin/sudo, ./sudo, /bin/rm) classifies the same
+// as the bare name. Matching only a separator-delimited basename was a bypass:
+// the audit flagged it for sudo (H3), and the same hole defeated the network and
+// destructive binaries too, so the prefix is applied across the class.
+// The tilde pattern matches a leading "~" token followed by a path char, a
+// separator, or end -- a trailing \b never sat between "~" and "/", so "~/.ssh"
+// (the spec's own example) and a bare "cd ~" were silently missed (H2). The home
+// variable is matched as $HOME and ${HOME} (the braced form was also missed).
 const PATTERNS: { category: RiskCategory; re: RegExp }[] = [
-  { category: "privilege", re: /(^|[\s;&|])(sudo|doas|pkexec|su)([\s;&|]|$)/ },
+  {
+    category: "privilege",
+    re: /(^|[\s;&|])(\S*\/)?(sudo|doas|pkexec|su)([\s;&|]|$)/,
+  },
   {
     category: "network",
-    re: /(^|[\s;&|])(curl|wget|nc|ncat|telnet|ssh|scp|sftp|ftp)([\s;&|]|$)/,
+    re: /(^|[\s;&|])(\S*\/)?(curl|wget|nc|ncat|telnet|ssh|scp|sftp|ftp)([\s;&|]|$)/,
   },
-  { category: "destructive", re: /(^|[\s;&|])rm\s+-\w*[rf]/ },
+  { category: "destructive", re: /(^|[\s;&|])(\S*\/)?rm\s+-\w*[rf]/ },
   { category: "destructive", re: /git\s+push\b[^;&|]*\s(--force|-f)\b/ },
   { category: "destructive", re: /git\s+reset\s+--hard/ },
   { category: "destructive", re: /git\s+clean\s+-\w*[fd]/ },
   {
     category: "destructive",
-    re: /(^|[\s;&|])(dd|mkfs\w*|shred|truncate)([\s;&|]|$)/,
+    re: /(^|[\s;&|])(\S*\/)?(dd|mkfs\w*|shred|truncate)([\s;&|]|$)/,
   },
-  { category: "outsideWorkspace", re: /(^|\s)(~|\$HOME)\b/ },
+  { category: "outsideWorkspace", re: /(^|[\s;&|])~([\w.-]*\/|[\s;&|]|$)/ },
+  { category: "outsideWorkspace", re: /\$\{?HOME\b/ },
   { category: "outsideWorkspace", re: /\.\.\// },
   { category: "outsideWorkspace", re: /(^|\s)\/(etc|root)\b/ },
   { category: "outsideWorkspace", re: /\/\.(ssh|aws|gnupg|config)\b/ },
