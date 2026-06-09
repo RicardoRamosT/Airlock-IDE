@@ -309,6 +309,7 @@ export function registerIpc(
 
   ipcMain.handle("fs:listDir", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
     return listDirectory(resolveRoot(e, root), relPath);
   });
 
@@ -323,6 +324,7 @@ export function registerIpc(
 
   ipcMain.handle("fs:readFile", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
     return readWorkspaceFile(resolveRoot(e, root), relPath);
   });
   ipcMain.handle("fs:readImage", (e, root: unknown, relPath: unknown) => {
@@ -344,6 +346,7 @@ export function registerIpc(
     (e, root: unknown, relPath: unknown, content: unknown) => {
       if (typeof relPath !== "string" || typeof content !== "string")
         throw new Error("Invalid payload");
+      assertNotVault(relPath);
       return writeWorkspaceFile(resolveRoot(e, root), relPath, content);
     },
   );

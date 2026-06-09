@@ -80,6 +80,16 @@ describe("listDirectory", () => {
     const names = (await listDirectory(root2, ".")).map((e) => e.name);
     expect(names).toEqual(["a.ts"]);
   });
+
+  // H8: the IGNORED filter only hides .airlock when listing its PARENT; a direct
+  // listing INTO the vault would enumerate the secret-metadata + audit files.
+  // listDirectory must reject it (the fs:listDir handler does too).
+  it("rejects listing into the .airlock vault", async () => {
+    await expect(listDirectory(root, ".airlock")).rejects.toThrow(/\.airlock/);
+    await expect(listDirectory(root, ".airlock/audit")).rejects.toThrow(
+      /\.airlock/,
+    );
+  });
 });
 
 describe("targetsVault", () => {

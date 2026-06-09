@@ -25,7 +25,7 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [x] **C4** `redactedTail`/`redactedPreview` truncate by line BEFORE redacting -> a multi-line secret (PEM) gets split, surviving lines reach the agent. `agent-core/src/terminal/tail.ts:43-58`. Fix: redact the full buffer first, then truncate.
 - [x] **C5** `redactConnStrings` leaks the password tail when the password contains a raw `@` (stops at first `@`; RFC/Postgres use the last). `agent-core/src/db/connstr.ts:38`. Fix: userinfo run greedy to the LAST `@` before the host.
 - [x] **C6** `isDangerousEnvName` misses loader/command-hijack names (BASH_ENV, ENV, GIT_SSH_COMMAND, GIT_EXTERNAL_DIFF, PROMPT_COMMAND, ZDOTDIR, BASH_FUNC_*, PERL5OPT, PYTHONSTARTUP...). `agent-core/src/broker/dangerous.ts:7-28`. Fix: expand the set (incl. `BASH_FUNC_*` prefix).
-- [ ] **C7** `fs:writeFile` has no vault guard -> renderer can destroy/forge the audit chain + vault metadata (every other mutating `fs:*` calls `assertNotVault`). `app/src/main/ipc.ts:342-349` + `write.ts:8-15`. Fix: `assertNotVault(relPath)` in the handler (+ self-guard in `writeWorkspaceFile`).
+- [x] **C7** `fs:writeFile` has no vault guard -> renderer can destroy/forge the audit chain + vault metadata (every other mutating `fs:*` calls `assertNotVault`). `app/src/main/ipc.ts:342-349` + `write.ts:8-15`. Fix: `assertNotVault(relPath)` in the handler (+ self-guard in `writeWorkspaceFile`).
 
 ### HIGH
 - [x] **H1** `run_command` redaction covers only the named injected secrets, not all vaulted. `command/run.ts:114-117,130,149`. (Same fix as C1.)
@@ -34,8 +34,8 @@ re-verified against the code before fixing (verdict in the commit). `[ ]` = open
 - [ ] **H4** A torn/partial last audit line (crash mid-write) is glued to the next entry (`appendFile` adds only a trailing `\n`, never checks). `audit/audit.ts:87`. Fix: ensure trailing newline before appending / write atomically.
 - [x] **H5** Catastrophic O(n^2) backtracking in `redactConnStrings` hangs main on one long line (~97s on 400k chars). `db/connstr.ts:38`. Fix: non-overlapping / length-bounded userinfo class.
 - [ ] **H6** Lowercase base32 encoding of a secret bypasses redaction (scan only matches uppercase `[A-Z2-7]`). `redact/redact.ts:102-106`. Fix: match base32 case-insensitively.
-- [ ] **H7** `fs:readFile` has no vault guard -> renderer can read the secret-name inventory + full audit log. `app/src/main/ipc.ts:324-327`. Fix: `assertNotVault(relPath)` (mirror `fs:readImage`).
-- [ ] **H8** `fs:listDir` has no vault guard + `listDirectory` doesn't block listing INTO `.airlock` (IGNORED filter only drops it as a child). `app/src/main/ipc.ts:310-313` + `tree.ts:133-154`. Fix: `assertNotVault` in handler + reject `targetsVault(relPath)` in `listDirectory`.
+- [x] **H7** `fs:readFile` has no vault guard -> renderer can read the secret-name inventory + full audit log. `app/src/main/ipc.ts:324-327`. Fix: `assertNotVault(relPath)` (mirror `fs:readImage`).
+- [x] **H8** `fs:listDir` has no vault guard + `listDirectory` doesn't block listing INTO `.airlock` (IGNORED filter only drops it as a child). `app/src/main/ipc.ts:310-313` + `tree.ts:133-154`. Fix: `assertNotVault` in handler + reject `targetsVault(relPath)` in `listDirectory`.
 
 ### MEDIUM
 - [x] M1 Agent-controlled `cwd` to spawn, no containment -- `command/run.ts:143` (same root as C3).

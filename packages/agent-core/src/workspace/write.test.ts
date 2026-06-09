@@ -28,4 +28,17 @@ describe("writeWorkspaceFile", () => {
       writeWorkspaceFile(root, "../escape.txt", "x"),
     ).rejects.toBeDefined();
   });
+
+  // C7: a write into .airlock could forge or destroy the tamper-evident audit
+  // chain + the vault metadata. writeWorkspaceFile must reject it (the
+  // fs:writeFile handler does too); this self-guard covers every caller, and
+  // path-normalized bypasses must be caught.
+  it("rejects a write into the .airlock vault", async () => {
+    await expect(
+      writeWorkspaceFile(root, ".airlock/secrets.json", "[]"),
+    ).rejects.toThrow(/\.airlock/);
+    await expect(
+      writeWorkspaceFile(root, "sub/../.airlock/audit/log.jsonl", "x"),
+    ).rejects.toThrow(/\.airlock/);
+  });
 });
