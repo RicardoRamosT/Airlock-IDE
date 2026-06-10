@@ -35,8 +35,17 @@ export function AgentSection() {
   return (
     <div className="agent-policy">
       <div className="settings-note">
-        How the agent's commands are gated. "Ask" lets the agent proceed only
-        after it confirms with you; "Block" is absolute.
+        These rules gate commands the agent runs{" "}
+        <strong>through AirLock's own tool</strong> (the{" "}
+        <code>run_command</code> bridge, used mainly to inject your vaulted
+        secrets). <strong>Block</strong> stops a matching command there
+        outright; <strong>Ask</strong> makes the agent re-confirm before it
+        proceeds (the agent re-confirms — it is not a prompt to you).
+      </div>
+      <div className="agent-policy-scope">
+        Not a sandbox: a <code>claude</code> session in the terminal uses its
+        own shell tools (Bash, file edits), which bypass AirLock entirely. Those
+        are governed by Claude Code's own permissions, not these settings.
       </div>
       {ROWS.map((row) => (
         <div key={row.key} className="agent-policy-row">
