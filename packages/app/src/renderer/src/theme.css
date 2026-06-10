@@ -724,8 +724,15 @@ body,
 .open-folder-empty {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 4px;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+/* Kill the <p> default margins so the container's gap is the ONLY spacing --
+   symmetrical above and below the note. */
+.open-folder-empty .section-note {
+  margin: 0;
+  padding: 0 2px;
 }
 
 .open-folder {
