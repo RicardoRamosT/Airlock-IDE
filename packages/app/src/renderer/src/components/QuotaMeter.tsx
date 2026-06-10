@@ -78,13 +78,16 @@ export function QuotaMeter() {
     );
   }
 
-  // Each present window gets a labeled reset countdown ("5h 1h57m"); the 5h
-  // (session) and 7d (weekly) windows share one line — joined by " · " — so both
-  // the session and weekly turnover are visible at a glance. A 7d-only status
-  // still gets its line rather than a bar with no reset time.
+  // Each present window gets a labeled reset countdown; the 5h and 7d windows
+  // share one line — joined by " · " — so both turnovers are visible at a
+  // glance. The reset line uses the words "session" / "weekly" rather than the
+  // bars' "5h" / "7d": a bare "5h"/"7d" label sits right against an h/d
+  // countdown ("5h 1h57m") and reads as one nonsensical duration. A weekly-only
+  // status still gets its line rather than a bar with no reset time.
   const resets = [
-    quota.fiveHour && `5h ${formatCountdown(quota.fiveHour.resetsAt - now)}`,
-    quota.sevenDay && `7d ${formatCountdown(quota.sevenDay.resetsAt - now)}`,
+    quota.fiveHour &&
+      `session ${formatCountdown(quota.fiveHour.resetsAt - now)}`,
+    quota.sevenDay && `weekly ${formatCountdown(quota.sevenDay.resetsAt - now)}`,
   ].filter(Boolean);
 
   return (
