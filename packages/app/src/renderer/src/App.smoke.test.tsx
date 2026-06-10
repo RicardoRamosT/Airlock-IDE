@@ -83,6 +83,7 @@ const DEFAULT_PREFS: AppPrefs = {
     audit: true,
   },
   activeView: "files",
+  claudeAutoStart: "off",
   clipboardClearSeconds: 30,
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,

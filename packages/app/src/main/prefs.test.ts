@@ -23,6 +23,7 @@ describe("app prefs", () => {
         audit: true,
       },
       activeView: "files",
+      claudeAutoStart: "first",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
@@ -78,6 +79,7 @@ describe("app prefs", () => {
         audit: true,
       },
       activeView: "files",
+      claudeAutoStart: "first",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
@@ -99,6 +101,17 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).activeView).toBe("files");
     await savePrefs(file, { activeView: "git" });
     expect((await loadPrefs(file)).activeView).toBe("git");
+  });
+
+  it("sanitizes claudeAutoStart to a known mode", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(file, JSON.stringify({ claudeAutoStart: "sometimes" }));
+    expect((await loadPrefs(file)).claudeAutoStart).toBe("first");
+    await savePrefs(file, { claudeAutoStart: "off" });
+    expect((await loadPrefs(file)).claudeAutoStart).toBe("off");
+    await savePrefs(file, { claudeAutoStart: "every" });
+    expect((await loadPrefs(file)).claudeAutoStart).toBe("every");
   });
 
   it("sanitizes unknown/garbage fields", async () => {
@@ -128,6 +141,7 @@ describe("app prefs", () => {
         audit: true,
       },
       activeView: "files",
+      claudeAutoStart: "first",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
@@ -161,6 +175,7 @@ describe("app prefs", () => {
         audit: true,
       },
       activeView: "files",
+      claudeAutoStart: "first",
       clipboardClearSeconds: 30,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,

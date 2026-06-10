@@ -13,7 +13,12 @@ import {
   type AgentCommandPolicy,
   DEFAULT_AGENT_POLICY,
 } from "@airlock/agent-core";
-import type { AppPrefs, Section, SectionVisibility } from "../shared/ipc";
+import type {
+  AppPrefs,
+  ClaudeAutoStart,
+  Section,
+  SectionVisibility,
+} from "../shared/ipc";
 
 export const SECTIONS: Section[] = [
   "files",
@@ -49,7 +54,10 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
+  claudeAutoStart: "first",
 };
+
+const CLAUDE_AUTO_MODES: ClaudeAutoStart[] = ["off", "first", "every"];
 
 // Most-recent-first list of opened folder paths. Drop non-strings and empty
 // strings, dedupe (keeping the first/most-recent occurrence), and cap the
@@ -158,6 +166,11 @@ function sanitize(raw: unknown): AppPrefs {
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
+    claudeAutoStart: CLAUDE_AUTO_MODES.includes(
+      r.claudeAutoStart as ClaudeAutoStart,
+    )
+      ? (r.claudeAutoStart as ClaudeAutoStart)
+      : "first",
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  ClaudeAutoStart,
   FileContent,
   GitStatus,
   ProjectConfig,
@@ -242,6 +243,7 @@ export interface AppState {
   setQuotaMeterEnabled: (v: boolean) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
+  claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
   layoutHydrated: boolean; // default false
   modal:
     | "add-secret"
@@ -337,6 +339,7 @@ export interface AppState {
   setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
   setActiveView: (v: Section) => void;
+  setClaudeAutoStart: (v: ClaudeAutoStart) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
   // The command/quick-open palette overlay (window-level, one per window).
   palette: { mode: "files" | "commands" } | null;
@@ -588,6 +591,7 @@ export const useApp = create<AppState>((set) => ({
     audit: true,
   },
   activeView: "files",
+  claudeAutoStart: "first",
   layoutHydrated: false,
   runningNotice: null,
 
@@ -1221,6 +1225,7 @@ export const useApp = create<AppState>((set) => ({
     set({ clipboardClearSeconds }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   setActiveView: (activeView) => set({ activeView }),
+  setClaudeAutoStart: (claudeAutoStart) => set({ claudeAutoStart }),
   // Settings is an OVERLAY: opening it clears the other overlays (diff/dbView)
   // but NOT the editor (selectedFile/editorTabs), so closing it restores the
   // editor/terminal underneath. Closing leaves the rest untouched.
