@@ -1,8 +1,4 @@
-import type {
-  QuotaStatus,
-  QuotaWindow,
-  SessionUsage,
-} from "../../shared/ipc";
+import type { QuotaStatus, QuotaWindow, SessionUsage } from "../../shared/ipc";
 
 function parseWindow(raw: unknown): QuotaWindow | null {
   if (!raw || typeof raw !== "object") return null;
