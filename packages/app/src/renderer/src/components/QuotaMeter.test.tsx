@@ -53,6 +53,20 @@ it("shows 'waiting for usage data' when a session is active but limits are absen
   expect(screen.getByText("Waiting for usage data…")).toBeTruthy();
 });
 
+it("shows the reset countdown when only the 7d window is present", () => {
+  // {fiveHour: null, sevenDay: set} is a valid parsed state (each window is
+  // validated independently); the reset line must not vanish with the 5h one.
+  useApp.setState({
+    quotaMeterEnabled: true,
+    quota: liveQuota({ fiveHour: null }),
+  });
+  const { container } = render(<QuotaMeter />);
+  expect(screen.getByText("7d")).toBeTruthy();
+  const reset = container.querySelector(".quota-reset");
+  expect(reset).toBeTruthy();
+  expect(reset?.textContent).toContain("resets");
+});
+
 it("renders 5h and 7d rows with percentages when fresh and available", () => {
   useApp.setState({ quotaMeterEnabled: true, quota: liveQuota() });
   render(<QuotaMeter />);
