@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-09
 **Status:** Approved by owner (approach A confirmed via Q&A). Branch
-feat/file-type-icons.
+feat/file-type-icons. Implemented.
 
 VS Code-style per-type icons in the Files tree (owner supplied a Seti-theme
 screenshot as the reference): a colored glyph or two-letter badge per file
