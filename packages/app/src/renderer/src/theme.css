@@ -1473,15 +1473,28 @@ body,
 }
 
 .btn {
-  background: var(--bg-panel);
+  background: var(--hover);
   border: 1px solid var(--border);
   color: var(--fg);
-  border-radius: 6px;
-  height: 24px;
+  border-radius: 4px;
+  height: 22px;
   padding: 0 10px;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   font-family: inherit;
+  transition:
+    border-color 0.1s,
+    background 0.1s;
+}
+
+.btn:hover {
+  background: var(--bg-panel);
+  border-color: var(--fg-dim);
+}
+
+.btn:active {
+  background: var(--selected);
 }
 
 .btn:hover {
@@ -1502,11 +1515,57 @@ body,
 .inject-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 12px;
   color: var(--fg-dim);
-  margin-top: 6px;
+  margin-top: 8px;
   cursor: pointer;
+}
+
+.inject-toggle:hover {
+  color: var(--fg);
+}
+
+/* The native checkbox restyled as a small switch: pill track + sliding knob.
+   Same input element, so the label/IPC wiring is untouched. */
+.inject-toggle input {
+  appearance: none;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--hover);
+  position: relative;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.inject-toggle input::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+
+.inject-toggle input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.inject-toggle input:checked::after {
+  transform: translateX(12px);
+  background: var(--bg);
 }
 
 .restart-hint {
