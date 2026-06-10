@@ -50,9 +50,13 @@ export function Sidebar() {
     body = root ? (
       <FileTree />
     ) : (
-      <button type="button" className="open-folder" onClick={openFolder}>
-        Open Folder…
-      </button>
+      <div className="open-folder-empty">
+        <p className="section-note">No folder is open in this tab.</p>
+        <button type="button" className="open-folder" onClick={openFolder}>
+          <i className="codicon codicon-folder-opened" />
+          Open Folder…
+        </button>
+      </div>
     );
   } else if (view === "secrets") body = <SecretsSection />;
   else if (view === "git") body = <GitSection />;
