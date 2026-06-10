@@ -7,6 +7,7 @@
   --accent: #58a6ff;
   --hover: rgba(177, 186, 196, 0.08);
   --selected: rgba(56, 139, 253, 0.15);
+  --accent-glow: rgba(88, 166, 255, 0.35);
   --row-h: 22px;
   /* Shared height of the two bottom "docks" (the rail's accounts/settings
      block and the sidebar's quota meter) so their top borders form ONE
@@ -30,6 +31,7 @@
   --accent: #0969da;
   --hover: rgba(31, 35, 40, 0.06);
   --selected: rgba(9, 105, 218, 0.12);
+  --accent-glow: rgba(9, 105, 218, 0.28);
 }
 
 /* VS Code-style overlay scrollbars (WebKit) */
@@ -1835,6 +1837,8 @@ textarea:focus-visible {
 .terminal-pane-slot {
   min-width: 0;
   min-height: 0;
+  /* Anchors the focused-terminal glow overlay (::after below). */
+  position: relative;
   /* Each slot paints the terminal background; only the .split gap (above)
      shows through as the divider. Non-split layouts have no gap, so this is
      visually inert there. */
@@ -1843,6 +1847,26 @@ textarea:focus-visible {
 
 .terminal-pane-slot.hidden {
   display: none;
+}
+
+/* Focused-terminal glow: whenever several panes are visible (in-tab terminal
+   split, file|terminal split, or the project split), the terminal that owns
+   the keyboard gets a rounded accent ring + soft glow. :focus-within tracks
+   xterm's hidden textarea, so the glow always marks exactly where typing
+   goes. Drawn by a pointer-events:none overlay ABOVE the canvas -- no
+   padding/layout change, no xterm refit, nothing to clip. */
+.terminal-panes.split .terminal-pane-slot:focus-within::after,
+.main-panes.split .terminal-pane-slot:focus-within::after,
+.project-split .terminal-pane-slot:focus-within::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 6px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 10px 1px var(--accent-glow),
+    inset 0 0 8px var(--accent-glow);
 }
 
 .terminal-tabs {
