@@ -970,18 +970,27 @@ body,
   color: var(--fg);
 }
 
-/* Full-page Usage overlay: below the titlebar, above the panes; the status
-   bar stays visible (bottom inset = its 22px row). */
-.usage-overlay {
-  position: fixed;
-  top: 38px;
-  left: 0;
-  right: 0;
-  bottom: 22px;
-  z-index: 25;
-  background: var(--bg);
+/* The Usage page renders IN the pane's content slot (a page-tab in the main
+   tab bar, exactly like Settings). */
+.usage-page {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Page-tabs (Settings/Usage): the label is a non-clickable span (the page is
+   already on top); only the close button acts. */
+.page-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  cursor: default;
 }
 
 .usage-body {

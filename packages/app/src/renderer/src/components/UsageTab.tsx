@@ -13,16 +13,11 @@ const LIVE_WITHIN_S = 20;
 const basename = (p: string | null): string =>
   p ? (p.split("/").pop() ?? p) : "—";
 
-// Full-page, window-level Usage view (the data is account-wide, like the
-// meter that opens it). Polls usage:get while open; Esc or the close button
+// The Usage page: account-wide data rendered like a per-tab page in the
+// focused pane (ProjectPane gates on usageOpen+focused; MainTabs shows its
+// page-tab). Polls usage:get while mounted; Esc or the tab's close button
 // dismisses it.
 export function UsageTab() {
-  const usageOpen = useApp((s) => s.usageOpen);
-  if (!usageOpen) return null;
-  return <UsageInner />;
-}
-
-function UsageInner() {
   const setUsageOpen = useApp((s) => s.setUsageOpen);
   const quota = useApp((s) => s.quota);
   const [sessions, setSessions] = useState<SessionUsage[]>([]);
@@ -73,7 +68,7 @@ function UsageInner() {
   );
 
   return (
-    <div className="usage-overlay">
+    <div className="usage-page">
       <div className="settings-tab-header">
         <span>Usage</span>
         <button

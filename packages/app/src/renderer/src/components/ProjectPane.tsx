@@ -10,6 +10,7 @@ import { EditorPane } from "./EditorPane";
 import { ImagePreview } from "./ImagePreview";
 import { MainTabs } from "./MainTabs";
 import { SettingsTab } from "./SettingsTab";
+import { UsageTab } from "./UsageTab";
 import { Viewer } from "./Viewer";
 
 // One project's unified main area scoped to a single tab (the window's single
@@ -43,6 +44,10 @@ export function ProjectPane({
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
   const theme = useApp((s) => s.theme);
+  // The Usage page is window-level (account-wide data) but renders like a
+  // per-tab page, in the FOCUSED pane only.
+  const usageOpen = useApp((s) => s.usageOpen);
+  const showUsage = usageOpen && focused;
 
   // The shown scene's file panes load their content on demand: the PRIMARY
   // (left) editor when mainPrimary is "editor", and the SECONDARY (right) pane
@@ -101,7 +106,7 @@ export function ProjectPane({
 
   const focus = () => useApp.getState().switchTab(tabId);
 
-  const overlay = !!dbView || settingsOpen || !!diff;
+  const overlay = !!dbView || settingsOpen || !!diff || showUsage;
   // The primary pane is an editor only when an editor file is the primary; else
   // it is the terminal.
   const primaryEditorPath =
@@ -153,7 +158,8 @@ export function ProjectPane({
         : editorArea(mainSecondary.path, secContent);
 
   let content: React.ReactNode;
-  if (dbView) content = <DataGrid />;
+  if (showUsage) content = <UsageTab />;
+  else if (dbView) content = <DataGrid />;
   else if (settingsOpen) content = <SettingsTab />;
   else if (diff) content = <Viewer />;
   else if (bothTerminals)
