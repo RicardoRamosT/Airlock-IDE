@@ -1005,8 +1005,53 @@ body,
   max-width: 900px;
 }
 
+/* KPI summary cards across the top of the dashboard. */
+.usage-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.usage-kpi {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.usage-kpi-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-kpi-sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-dim);
+}
+
+.usage-kpi-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+/* Each section is a card; its h3 is the card's label. */
+.usage-section {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
 .usage-section h3 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1049,9 +1094,24 @@ body,
   font-weight: 500;
 }
 
+.usage-table tbody tr:hover td {
+  background: var(--hover);
+}
+
+.usage-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .usage-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Inside a table cell the dot must be inline-block or its size collapses to
+   a sliver. */
+.usage-table .status-dot {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* The meter card is a click-through button to the Usage page; keep its card

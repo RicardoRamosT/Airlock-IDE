@@ -49,6 +49,12 @@ export function UsageTab() {
 
   const now = Math.floor(Date.now() / 1000);
   const models = aggregateByModel(sessions);
+  const totalCost = sessions.reduce((a, s) => a + s.costUsd, 0);
+  const totalIn = sessions.reduce((a, s) => a + s.totalInputTokens, 0);
+  const totalOut = sessions.reduce((a, s) => a + s.totalOutputTokens, 0);
+  const liveCount = sessions.filter(
+    (s) => now - s.lastEmitAt <= LIVE_WITHIN_S,
+  ).length;
 
   const windowRow = (label: string, pct: number, resetsAt: number) => (
     <div className="quota-row usage-scale">
@@ -80,6 +86,27 @@ export function UsageTab() {
         </button>
       </div>
       <div className="usage-body">
+        <div className="usage-kpis">
+          <div className="usage-kpi">
+            <span className="usage-kpi-value">{formatUsd(totalCost)}</span>
+            <span className="usage-kpi-label">total cost</span>
+          </div>
+          <div className="usage-kpi">
+            <span className="usage-kpi-value">{formatTokens(totalOut)}</span>
+            <span className="usage-kpi-label">output tokens</span>
+          </div>
+          <div className="usage-kpi">
+            <span className="usage-kpi-value">{formatTokens(totalIn)}</span>
+            <span className="usage-kpi-label">input tokens</span>
+          </div>
+          <div className="usage-kpi">
+            <span className="usage-kpi-value">
+              {liveCount}
+              <span className="usage-kpi-sub">/{sessions.length}</span>
+            </span>
+            <span className="usage-kpi-label">live sessions</span>
+          </div>
+        </div>
         <section className="usage-section">
           <h3>Plan windows</h3>
           {quota?.fiveHour &&
