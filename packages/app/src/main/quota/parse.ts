@@ -1,4 +1,8 @@
-import type { QuotaStatus, QuotaWindow } from "../../shared/ipc";
+import type {
+  QuotaStatus,
+  QuotaWindow,
+  SessionUsage,
+} from "../../shared/ipc";
 
 function parseWindow(raw: unknown): QuotaWindow | null {
   if (!raw || typeof raw !== "object") return null;
@@ -86,6 +90,63 @@ export function mergeQuota(
 export interface SessionMeta {
   sessionId: string | null;
   transcriptPath: string | null;
+}
+
+const num = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : 0;
+
+// Extract one session's cumulative usage from a raw statusLine payload.
+// Defensive like parseQuota: absent cost/context_window become zeros; only a
+// missing session_id (or non-JSON) yields null.
+export function parseSessionUsage(
+  text: string,
+  emitAt: number,
+): SessionUsage | null {
+  let r: Record<string, unknown>;
+  try {
+    r = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (!r || typeof r !== "object" || typeof r.session_id !== "string")
+    return null;
+  const cw = (r.context_window ?? {}) as Record<string, unknown>;
+  const cu = (cw.current_usage ?? {}) as Record<string, unknown>;
+  const cost = (r.cost ?? {}) as Record<string, unknown>;
+  return {
+    sessionId: r.session_id,
+    cwd: typeof r.cwd === "string" ? r.cwd : null,
+    model: parseModel(r.model),
+    totalInputTokens: num(cw.total_input_tokens),
+    totalOutputTokens: num(cw.total_output_tokens),
+    cacheReadTokens: num(cu.cache_read_input_tokens),
+    cacheCreateTokens: num(cu.cache_creation_input_tokens),
+    costUsd: num(cost.total_cost_usd),
+    apiMs: num(cost.total_api_duration_ms),
+    linesAdded: num(cost.total_lines_added),
+    linesRemoved: num(cost.total_lines_removed),
+    lastEmitAt: emitAt,
+  };
+}
+
+// Fold one snapshot into the ledger: latest emit per session wins; past the
+// cap the OLDEST-emitting session is evicted (history, not liveness, decides).
+export function recordUsage(
+  ledger: Map<string, SessionUsage>,
+  u: SessionUsage,
+  cap = 50,
+): void {
+  ledger.set(u.sessionId, u);
+  if (ledger.size <= cap) return;
+  let oldest: string | null = null;
+  let oldestAt = Number.POSITIVE_INFINITY;
+  for (const [id, s] of ledger) {
+    if (s.lastEmitAt < oldestAt) {
+      oldestAt = s.lastEmitAt;
+      oldest = id;
+    }
+  }
+  if (oldest !== null) ledger.delete(oldest);
 }
 
 // Pull the identifying fields out of the raw statusLine payload: which session

@@ -1,5 +1,85 @@
-import { expect, it } from "vitest";
-import { mergeQuota, parseQuota, parseSessionMeta } from "./parse";
+import { describe, expect, it } from "vitest";
+import type { SessionUsage } from "../../shared/ipc";
+import {
+  mergeQuota,
+  parseQuota,
+  parseSessionMeta,
+  parseSessionUsage,
+  recordUsage,
+} from "./parse";
+
+describe("parseSessionUsage", () => {
+  const PAYLOAD = JSON.stringify({
+    session_id: "abc",
+    cwd: "/Users/r/Projects/lendlogic",
+    model: { id: "claude-fable-5", display_name: "Fable 5" },
+    cost: {
+      total_cost_usd: 1.25,
+      total_duration_ms: 90_000,
+      total_api_duration_ms: 30_000,
+      total_lines_added: 10,
+      total_lines_removed: 3,
+    },
+    context_window: {
+      total_input_tokens: 50_000,
+      total_output_tokens: 2_000,
+      current_usage: {
+        cache_read_input_tokens: 40_000,
+        cache_creation_input_tokens: 5_000,
+      },
+    },
+  });
+
+  it("extracts a full snapshot", () => {
+    expect(parseSessionUsage(PAYLOAD, 123)).toEqual({
+      sessionId: "abc",
+      cwd: "/Users/r/Projects/lendlogic",
+      model: "Fable 5",
+      totalInputTokens: 50_000,
+      totalOutputTokens: 2_000,
+      cacheReadTokens: 40_000,
+      cacheCreateTokens: 5_000,
+      costUsd: 1.25,
+      apiMs: 30_000,
+      linesAdded: 10,
+      linesRemoved: 3,
+      lastEmitAt: 123,
+    });
+  });
+
+  it("zeros missing cost/context_window and tolerates garbage", () => {
+    const u = parseSessionUsage(JSON.stringify({ session_id: "x" }), 5);
+    expect(u).toMatchObject({
+      sessionId: "x",
+      totalInputTokens: 0,
+      costUsd: 0,
+      model: null,
+      cwd: null,
+    });
+    expect(parseSessionUsage("not json", 5)).toBeNull();
+    expect(parseSessionUsage(JSON.stringify({ no_session: 1 }), 5)).toBeNull();
+  });
+});
+
+describe("recordUsage", () => {
+  const mkU = (id: string, emitAt: number) =>
+    parseSessionUsage(JSON.stringify({ session_id: id }), emitAt);
+  it("keeps the latest snapshot per session and evicts the oldest at cap", () => {
+    const m = new Map<string, SessionUsage>();
+    const a1 = mkU("a", 1);
+    const a2 = mkU("a", 9);
+    if (!a1 || !a2) throw new Error("fixture");
+    recordUsage(m, a1, 2);
+    recordUsage(m, a2, 2);
+    expect(m.get("a")?.lastEmitAt).toBe(9); // latest wins, no dup entry
+    const b = mkU("b", 5);
+    const c = mkU("c", 6);
+    if (!b || !c) throw new Error("fixture");
+    recordUsage(m, b, 2);
+    recordUsage(m, c, 2); // cap 2: a=9, b=5, c=6 -> evict b (oldest emit)
+    expect([...m.keys()].sort()).toEqual(["a", "c"]);
+  });
+});
 
 it("parseSessionMeta extracts session_id and transcript_path", () => {
   const text = JSON.stringify({
