@@ -1504,7 +1504,16 @@ body,
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #06121f;
+  /* Theme-correct on-accent text (dark on the light-blue dark-theme accent,
+     white on the deeper light-theme accent). */
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  filter: brightness(1.1);
 }
 
 .btn:disabled {
@@ -1801,24 +1810,32 @@ body,
 .git {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .git-branch-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .git-branch {
-  background: var(--bg);
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  background: var(--hover);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--fg);
   font-size: 12px;
-  padding: 3px 6px;
+  padding: 2px 6px;
   font-family: inherit;
-  max-width: 160px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.git-branch:hover {
+  border-color: var(--fg-dim);
 }
 
 .git-group-title {
@@ -1899,6 +1916,18 @@ body,
 
 .git-message {
   resize: vertical;
+  /* Override .modal-input's mono: a commit message is prose, and the section
+     reads calmer in the UI face at the sidebar's 12px scale. */
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 4px;
+  min-height: 56px;
+}
+
+/* The full-width Commit action sits directly under the message box. */
+.git > .btn.primary {
+  height: 24px;
 }
 
 .git-new-branch {
@@ -2689,20 +2718,27 @@ textarea:focus-visible {
 .git-sync-row {
   display: flex;
   gap: 6px;
-  padding: 4px 0 8px;
+  padding: 0 0 2px;
 }
 .git-sync-btn {
   flex: 1;
-  padding: 4px 8px;
+  height: 22px;
+  padding: 0 8px;
   font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
   color: var(--fg);
-  background: var(--bg-panel);
+  background: var(--hover);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
+  transition:
+    border-color 0.1s,
+    background 0.1s;
 }
 .git-sync-btn:hover:not(:disabled) {
-  background: var(--hover);
+  background: var(--bg-panel);
+  border-color: var(--fg-dim);
 }
 .git-sync-btn:disabled {
   opacity: 0.5;
@@ -2722,11 +2758,20 @@ textarea:focus-visible {
 .git-account {
   flex: 1;
   min-width: 0;
-  background: var(--bg-panel);
+  height: 24px;
+  background: var(--hover);
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.git-account:hover {
+  border-color: var(--fg-dim);
 }
 
 /* LSP hover tooltip (type/doc on hover). */
