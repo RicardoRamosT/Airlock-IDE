@@ -11,6 +11,7 @@ import { openEditorFile } from "../lib/editorFiles";
 import { applyOrder, dropZone, reorderNames } from "../lib/fileOrder";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { FileIcon } from "./FileIcon";
 
 function join(parent: string, name: string): string {
   return parent === "." ? name : `${parent}/${name}`;
@@ -300,8 +301,8 @@ function FileNode({
       onDragLeave={dnd.onDragLeave}
       onDrop={dnd.onDrop}
     >
-      <i className="codicon codicon-file" />
-      {name}
+      <FileIcon name={name} />
+      <span className="tree-label">{name}</span>
     </button>
   );
 }

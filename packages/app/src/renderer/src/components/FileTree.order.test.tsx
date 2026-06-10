@@ -51,7 +51,9 @@ it("renders entries in the saved custom order", async () => {
     </ProjectPaneContext.Provider>,
   );
   await waitFor(() => {
-    const rows = [...container.querySelectorAll(".tree-item")].map(
+    // Read the name node, not the row's full textContent -- the row also
+    // contains the decorative file-type badge ("TS").
+    const rows = [...container.querySelectorAll(".tree-item .tree-label")].map(
       (n) => n.textContent,
     );
     // b.ts before a.ts per the saved order (default sort would be a, b).

@@ -8,6 +8,31 @@
   --hover: rgba(177, 186, 196, 0.08);
   --selected: rgba(56, 139, 253, 0.15);
   --accent-glow: rgba(88, 166, 255, 0.22);
+  /* File-type icon palette (Seti-ish): badge text + codicon tints. */
+  --ficon-ts: #3178c6;
+  --ficon-tsx: #5fb0e8;
+  --ficon-js: #e0c341;
+  --ficon-jsx: #44b9d6;
+  --ficon-json: #cbcb41;
+  --ficon-pkg: #3ba776;
+  --ficon-md: #519aba;
+  --ficon-html: #e37933;
+  --ficon-css: #519aba;
+  --ficon-scss: #f55385;
+  --ficon-img: #a074c4;
+  --ficon-pdf: #cc3e44;
+  --ficon-env: #c6a93f;
+  --ficon-git: #e37933;
+  --ficon-test: #3ba776;
+  --ficon-shell: #3ba776;
+  --ficon-py: #519aba;
+  --ficon-rb: #cc3e44;
+  --ficon-go: #44b9d6;
+  --ficon-rs: #c98a4b;
+  --ficon-db: #519aba;
+  --ficon-conf: #8b949e;
+  --ficon-claude: #b180d7;
+  --ficon-vm: #519aba;
   --row-h: 22px;
   /* Shared height of the two bottom "docks" (the rail's accounts/settings
      block and the sidebar's quota meter) so their top borders form ONE
@@ -32,6 +57,11 @@
   --hover: rgba(31, 35, 40, 0.06);
   --selected: rgba(9, 105, 218, 0.12);
   --accent-glow: rgba(9, 105, 218, 0.18);
+  /* Yellows/grays need darkening for legibility on the light surface. */
+  --ficon-js: #b7a512;
+  --ficon-json: #9a9a2f;
+  --ficon-env: #9a8526;
+  --ficon-conf: #6e7781;
 }
 
 /* VS Code-style overlay scrollbars (WebKit) */
@@ -420,6 +450,19 @@ body,
   /* Horizontal inset keeps the view's content off the rail divider (the old
      accordion's .section-body carried the same values). */
   padding: 2px 8px 8px 10px;
+}
+
+/* Two-letter file-type badge ("TS"): colored text in the same fixed slot a
+   codicon occupies, so tree rows and tab labels align identically. */
+.file-icon-badge {
+  flex: none;
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 /* Two-project split: the content row becomes two equal ProjectPane columns with

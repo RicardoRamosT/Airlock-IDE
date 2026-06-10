@@ -17,6 +17,8 @@ const badge = (text: string, color: string): FileIcon => ({
   color,
 });
 
+const ENV_ICON = codicon("lock", "var(--ficon-env)");
+
 const EXACT: Record<string, FileIcon> = {
   dockerfile: codicon("vm", "var(--ficon-vm)"),
   "docker-compose.yml": codicon("vm", "var(--ficon-vm)"),
@@ -55,7 +57,7 @@ const EXT: Record<string, FileIcon> = {
   gz: codicon("file-zip"),
   tar: codicon("file-zip"),
   tgz: codicon("file-zip"),
-  env: codicon("lock", "var(--ficon-env)"),
+  env: ENV_ICON,
   lock: codicon("lock", "var(--ficon-conf)"),
   sh: codicon("terminal", "var(--ficon-shell)"),
   zsh: codicon("terminal", "var(--ficon-shell)"),
@@ -77,7 +79,7 @@ export function fileIconFor(name: string): FileIcon {
   const n = name.toLowerCase();
   const exact = EXACT[n];
   if (exact) return exact;
-  if (n === ".env" || n.startsWith(".env.")) return EXT.env;
+  if (n === ".env" || n.startsWith(".env.")) return ENV_ICON;
   if (/\.(test|spec)\.[^.]+$/.test(n))
     return codicon("beaker", "var(--ficon-test)");
   if (/\.config\.(ts|js|mjs|cjs)$/.test(n))
