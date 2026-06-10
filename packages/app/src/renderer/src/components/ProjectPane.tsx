@@ -9,8 +9,6 @@ import { DataGrid } from "./DataGrid";
 import { EditorPane } from "./EditorPane";
 import { ImagePreview } from "./ImagePreview";
 import { MainTabs } from "./MainTabs";
-import { SettingsTab } from "./SettingsTab";
-import { UsageTab } from "./UsageTab";
 import { Viewer } from "./Viewer";
 
 // One project's unified main area scoped to a single tab (the window's single
@@ -37,17 +35,12 @@ export function ProjectPane({
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
-  const settingsOpen = useApp((s) => s.tabState[tabId]?.settingsOpen ?? false);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
   const mainPrimary = useApp(
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
   const theme = useApp((s) => s.theme);
-  // The Usage page is window-level (account-wide data) but renders like a
-  // per-tab page, in the FOCUSED pane only.
-  const usageOpen = useApp((s) => s.usageOpen);
-  const showUsage = usageOpen && focused;
 
   // The shown scene's file panes load their content on demand: the PRIMARY
   // (left) editor when mainPrimary is "editor", and the SECONDARY (right) pane
@@ -106,7 +99,7 @@ export function ProjectPane({
 
   const focus = () => useApp.getState().switchTab(tabId);
 
-  const overlay = !!dbView || settingsOpen || !!diff || showUsage;
+  const overlay = !!dbView || !!diff;
   // The primary pane is an editor only when an editor file is the primary; else
   // it is the terminal.
   const primaryEditorPath =
@@ -158,9 +151,7 @@ export function ProjectPane({
         : editorArea(mainSecondary.path, secContent);
 
   let content: React.ReactNode;
-  if (showUsage) content = <UsageTab />;
-  else if (dbView) content = <DataGrid />;
-  else if (settingsOpen) content = <SettingsTab />;
+  if (dbView) content = <DataGrid />;
   else if (diff) content = <Viewer />;
   else if (bothTerminals)
     content = slot; // ProjectTerminals shows both

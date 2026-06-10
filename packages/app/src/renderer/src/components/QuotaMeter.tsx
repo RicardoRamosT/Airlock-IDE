@@ -43,8 +43,8 @@ export function QuotaMeter() {
   // numbers would be a stale snapshot, so prompt the user instead.
   const fresh = quota !== null && now - quota.updatedAt <= STALE_AFTER_SECONDS;
 
-  // Every state of the card is a click-through to the full Usage page.
-  const openUsage = () => useApp.getState().setUsageOpen(true);
+  // Every state of the card is a click-through to the Usage page-tab.
+  const openUsage = () => useApp.getState().openAppPage("usage");
 
   if (!fresh) {
     return (

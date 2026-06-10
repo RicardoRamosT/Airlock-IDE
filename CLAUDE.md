@@ -62,13 +62,13 @@ watches.
   (dev). It runs via `ELECTRON_RUN_AS_NODE` on the app's own Electron binary
   (no `node`/`jq` on PATH assumed); shell paths are single-quoted.
 
-Clicking the meter opens the **Usage dashboard** — an in-pane page with a
-closable page-tab in the main tab bar (like Settings; focused pane only):
-per-session/per-model tokens+cost from a capped ledger the watcher folds on
-every emit (`parseSessionUsage`/`recordUsage` in `parse.ts`, `usage:get`
-IPC). Tokens lead the comparison — subscription sessions report
-`total_cost_usd: 0`. One page at a time: usage/settings/db exclude each
-other, and any focused-pane scene change (`setView`) dismisses the page.
+Clicking the meter opens the **Usage dashboard** — an IDE-level page-tab in
+the PROJECT strip (like Settings; both can be open at once, `appPage` selects
+the shown one, rendered in the workspace panes slot): per-session/per-model
+tokens+cost from a capped ledger the watcher folds on every emit
+(`parseSessionUsage`/`recordUsage` in `parse.ts`, `usage:get` IPC). Tokens
+lead the comparison — subscription sessions report `total_cost_usd: 0`.
+Selecting a project tab hides the page but keeps its tab open.
 
 Spec: `docs/superpowers/specs/2026-06-09-claude-quota-meter-design.md` ·
 Plan: `docs/superpowers/plans/2026-06-09-claude-quota-meter.md`.

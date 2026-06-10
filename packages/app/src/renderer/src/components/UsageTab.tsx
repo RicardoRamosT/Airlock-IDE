@@ -13,12 +13,11 @@ const LIVE_WITHIN_S = 20;
 const basename = (p: string | null): string =>
   p ? (p.split("/").pop() ?? p) : "—";
 
-// The Usage page: account-wide data rendered like a per-tab page in the
-// focused pane (ProjectPane gates on usageOpen+focused; MainTabs shows its
-// page-tab). Polls usage:get while mounted; Esc or the tab's close button
-// dismisses it.
+// The Usage page: an IDE-level page-tab in the PROJECT strip (App renders it
+// in the workspace panes slot while appPage === "usage"). Polls usage:get
+// while mounted; Esc or the tab's close button dismisses it.
 export function UsageTab() {
-  const setUsageOpen = useApp((s) => s.setUsageOpen);
+  const closeAppPage = useApp((s) => s.closeAppPage);
   const quota = useApp((s) => s.quota);
   const [sessions, setSessions] = useState<SessionUsage[]>([]);
   const [, setTick] = useState(0);
@@ -38,7 +37,7 @@ export function UsageTab() {
       setTick((t) => t + 1);
     }, 2000);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setUsageOpen(false);
+      if (e.key === "Escape") closeAppPage("usage");
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -46,7 +45,7 @@ export function UsageTab() {
       clearInterval(id);
       window.removeEventListener("keydown", onKey);
     };
-  }, [setUsageOpen]);
+  }, [closeAppPage]);
 
   const now = Math.floor(Date.now() / 1000);
   const models = aggregateByModel(sessions);
@@ -75,7 +74,7 @@ export function UsageTab() {
           type="button"
           className="viewer-close"
           title="Close usage"
-          onClick={() => setUsageOpen(false)}
+          onClick={() => closeAppPage("usage")}
         >
           <i className="codicon codicon-close" />
         </button>

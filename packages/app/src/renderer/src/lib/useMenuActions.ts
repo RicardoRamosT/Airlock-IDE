@@ -35,10 +35,10 @@ export function useMenuActions(): void {
           break;
         }
         case "close-editor": {
-          // Close whatever the content area is showing: an overlay
-          // (diff/settings/db) if one is up, otherwise the active editor tab.
-          if (s.diff) s.setDiff(null);
-          else if (s.settingsOpen) s.setSettingsOpen(false);
+          // Close whatever the content area is showing: a shown IDE page-tab
+          // (settings/usage), an overlay (diff/db), else the active editor tab.
+          if (s.appPage) s.closeAppPage(s.appPage);
+          else if (s.diff) s.setDiff(null);
           else if (s.dbView) s.setDbView(null);
           else if (s.selectedFile)
             await closeEditorFile(s.activeTabId, s.selectedFile);

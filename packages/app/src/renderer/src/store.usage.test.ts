@@ -4,28 +4,49 @@ import { useApp } from "./store";
 const initialState = useApp.getState();
 beforeEach(() => {
   (globalThis as { window?: unknown }).window = {
-    airlock: { workspaceRoots: () => Promise.resolve() },
+    airlock: {
+      workspaceRoots: () => Promise.resolve(),
+      workspaceSetActive: () => Promise.resolve(),
+      workspaceClose: () => Promise.resolve(),
+    },
   };
   useApp.setState(initialState, true);
 });
 afterEach(() => useApp.setState(initialState, true));
 
-it("usage and settings pages exclude each other (one page at a time)", () => {
-  useApp.getState().setSettingsOpen(true);
-  useApp.getState().setUsageOpen(true);
-  const active = useApp.getState().activeTabId;
-  expect(useApp.getState().usageOpen).toBe(true);
-  expect(useApp.getState().tabState[active]?.settingsOpen).toBe(false);
-  useApp.getState().setSettingsOpen(true);
-  expect(useApp.getState().usageOpen).toBe(false);
-  expect(useApp.getState().tabState[active]?.settingsOpen).toBe(true);
+it("settings and usage page-tabs can BOTH be open; appPage selects the shown one", () => {
+  useApp.getState().openAppPage("settings");
+  useApp.getState().openAppPage("usage");
+  expect(useApp.getState().settingsTabOpen).toBe(true);
+  expect(useApp.getState().usageTabOpen).toBe(true);
+  expect(useApp.getState().appPage).toBe("usage");
+  useApp.getState().showAppPage("settings");
+  expect(useApp.getState().appPage).toBe("settings");
+  expect(useApp.getState().usageTabOpen).toBe(true); // tab kept
 });
 
-it("a focused-pane scene change dismisses the usage page", () => {
-  useApp.getState().setUsageOpen(true);
-  expect(useApp.getState().usageOpen).toBe(true);
-  // Adding a terminal re-sets the focused tab's scene -- the page closes the
-  // same way Settings/DB do when the user clicks back into real tabs.
-  useApp.getState().addTerminal();
-  expect(useApp.getState().usageOpen).toBe(false);
+it("selecting a project tab hides the page but keeps its tab open", () => {
+  useApp.getState().openBlankTab();
+  const other = useApp.getState().activeTabId;
+  useApp.getState().openAppPage("usage");
+  expect(useApp.getState().appPage).toBe("usage");
+  useApp.getState().switchTab(other); // re-click the active project tab
+  expect(useApp.getState().appPage).toBeNull();
+  expect(useApp.getState().usageTabOpen).toBe(true);
+});
+
+it("closing a page-tab drops it (and hides it when it was shown)", () => {
+  useApp.getState().openAppPage("settings");
+  useApp.getState().closeAppPage("settings");
+  expect(useApp.getState().appPage).toBeNull();
+  expect(useApp.getState().settingsTabOpen).toBe(false);
+});
+
+it("setSettingsOpen shim drives the page-tab (existing callers keep working)", () => {
+  useApp.getState().setSettingsOpen(true);
+  expect(useApp.getState().appPage).toBe("settings");
+  expect(useApp.getState().settingsTabOpen).toBe(true);
+  useApp.getState().setSettingsOpen(false);
+  expect(useApp.getState().appPage).toBeNull();
+  expect(useApp.getState().settingsTabOpen).toBe(false);
 });

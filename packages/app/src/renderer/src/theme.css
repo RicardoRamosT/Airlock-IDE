@@ -980,17 +980,18 @@ body,
   background: var(--bg);
 }
 
-/* Page-tabs (Settings/Usage): the label is a non-clickable span (the page is
-   already on top); only the close button acts. */
-.page-tab-label {
+/* An IDE-level page (Settings/Usage) fills the workspace panes slot. */
+.app-page {
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: none;
-  color: inherit;
-  padding: 0;
-  cursor: default;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.app-page > * {
+  flex: 1;
+  min-height: 0;
 }
 
 .usage-body {
