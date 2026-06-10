@@ -2,6 +2,7 @@
 
 **Date:** 2026-06-09
 **Status:** Approved by owner via Q&A. Branch feat/usage-dashboard.
+Implemented.
 
 Clicking the sidebar's Plan Usage card opens a full-page **Usage** view: the
 account's 5h/7d windows plus a live per-model and per-session breakdown of
