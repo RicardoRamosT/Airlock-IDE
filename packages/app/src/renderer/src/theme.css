@@ -112,8 +112,10 @@ body,
 
 .titlebar {
   -webkit-app-region: drag;
+  position: relative; /* centering origin for the absolute title */
   display: flex;
   align-items: center;
+  justify-content: flex-end; /* the controls hug the right edge */
   padding-left: 78px; /* clear the macOS traffic lights */
   padding-right: 8px;
   background: var(--bg-panel);
@@ -121,9 +123,18 @@ body,
 }
 
 .titlebar-title {
+  /* True center of the WINDOW (not of the space between traffic lights and
+     the layout controls): absolutely centered so asymmetric chrome on either
+     side cannot skew it. The bar itself stays the drag region. */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--fg-dim);
-  margin: 0 auto 0 0; /* left, push the controls to the right edge */
 }
 
 .layout-controls {
