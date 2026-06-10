@@ -1247,8 +1247,7 @@ export const useApp = create<AppState>((set) => ({
       }
       const tt = s.tabTerminals[tabId];
       if (!tt) return {};
-      if (tt.claudeAutoId !== null && tt.claudeAutoId !== terminalId)
-        return {}; // another terminal already holds the claim
+      if (tt.claudeAutoId !== null && tt.claudeAutoId !== terminalId) return {}; // another terminal already holds the claim
       granted = true;
       if (tt.claudeAutoId === terminalId) return {}; // already ours
       return {
