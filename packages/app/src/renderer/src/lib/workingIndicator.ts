@@ -16,10 +16,23 @@
 // So we match the truncation-resistant prefix "esc to inter": distinctive to
 // the working footer (idle hints like "esc to clear" do not contain it) yet
 // intact for the truncations seen in real split widths.
-const WORKING_INDICATOR = /esc to inter/i;
+//
+//   3. ROTATION (Claude Code v2.1.x): the status line cycles its hint segment
+//      ("esc to interrupt" <-> "N tokens" <-> "thinking with xhigh effort"),
+//      so the esc hint is ABSENT for long stretches while Claude is plainly
+//      working ("· Burrowing… (3s · ↓ 45 tokens · ...)"). Match the stable
+//      core every rotation keeps: a spinner glyph, the gerund verb, then
+//      "… (" + the elapsed counter's digits. Finished summaries ("✳ Churned
+//      for 6s") and idle hints ("(shift+tab to cycle)") lack that exact core.
+const WORKING_PATTERNS: RegExp[] = [
+  /esc to inter/i,
+  /[·✢✳∗✻✽✶]\s?\S+…\s?\(\d+/u,
+];
 
 // True if `terminalText` (the joined bottom rows of an xterm buffer) contains
-// Claude's working indicator, tolerant of wrapping and width truncation.
+// Claude's working indicator, tolerant of wrapping, width truncation, and the
+// v2 hint rotation.
 export function hasWorkingIndicator(terminalText: string): boolean {
-  return WORKING_INDICATOR.test(terminalText.replace(/\s+/g, " "));
+  const t = terminalText.replace(/\s+/g, " ");
+  return WORKING_PATTERNS.some((p) => p.test(t));
 }
