@@ -199,7 +199,7 @@ export function SettingsTab() {
                 checked={config?.injectSecretsIntoTerminal ?? false}
                 onChange={toggleInject}
               />
-              Inject secrets into terminal
+              Make secrets available in new terminals
             </label>
           ) : (
             <div className="settings-note">

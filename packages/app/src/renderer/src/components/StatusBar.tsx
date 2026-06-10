@@ -34,9 +34,9 @@ export function StatusBar() {
         {config && (
           <span
             className="statusbar-item"
-            title="Secret injection into new terminal sessions"
+            title="Whether new terminal sessions start with this project's secrets as environment variables"
           >
-            inject {config.injectSecretsIntoTerminal ? "on" : "off"}
+            terminal secrets {config.injectSecretsIntoTerminal ? "on" : "off"}
           </span>
         )}
       </div>

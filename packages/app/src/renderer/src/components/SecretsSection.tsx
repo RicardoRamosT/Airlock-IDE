@@ -180,14 +180,14 @@ export function SecretsSection() {
       {importMsg && <div className="section-note">{importMsg}</div>}
       <label
         className="inject-toggle"
-        title="New terminal sessions get these as env vars"
+        title="New terminals in this project start with these secrets as environment variables — everything run there (including Claude) can read them"
       >
         <input
           type="checkbox"
           checked={config?.injectSecretsIntoTerminal ?? false}
           onChange={toggleInject}
         />
-        inject into terminal
+        Make available in terminals
       </label>
       {needsRestart && (
         <button
