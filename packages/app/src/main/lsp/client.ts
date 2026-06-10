@@ -15,6 +15,7 @@ import type {
   LspDiagnostic,
 } from "../../shared/ipc";
 import { firstDefinitionLocation } from "./definition";
+import { bundledLanguageServerCli } from "./serverPath";
 
 // One typescript-language-server child per workspace root (it needs the project
 // root for tsconfig). Spawned lazily on the first didOpen; disposed when the
@@ -77,10 +78,14 @@ function tsserverPath(): string | undefined {
 }
 
 function startServer(root: string): Server {
-  // The main bundle is CJS, so require.resolve finds the externalized CLI; its
-  // cli.mjs runs as ESM under Electron's Node mode (no separate node binary in a
-  // packaged app).
-  const cli = require.resolve("typescript-language-server/lib/cli.mjs");
+  // Packaged: spawn the extraResources copy (lsp-server/lib/cli.mjs) -- the
+  // asar-bundled one is unreachable for a plain-Node child (see serverPath.ts).
+  // Dev/tests: no bundled copy -> require.resolve on the real on-disk
+  // node_modules (the main bundle is CJS, so require.resolve is available).
+  const cli =
+    bundledLanguageServerCli(
+      (process as { resourcesPath?: string }).resourcesPath,
+    ) ?? require.resolve("typescript-language-server/lib/cli.mjs");
   const proc = spawn(process.execPath, [cli, "--stdio"], {
     cwd: root,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },

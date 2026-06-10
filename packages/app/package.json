@@ -33,6 +33,10 @@
         "to": "ts-lib"
       },
       {
+        "from": "../../node_modules/typescript-language-server",
+        "to": "lsp-server"
+      },
+      {
         "from": "resources/statusline-emit.cjs",
         "to": "statusline-emit.cjs"
       }
