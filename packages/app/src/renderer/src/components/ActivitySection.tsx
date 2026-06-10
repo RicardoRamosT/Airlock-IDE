@@ -172,7 +172,7 @@ export function ActivitySection() {
                       void window.airlock.hostOpenExternal(item.href);
                   }}
                 >
-                  ↗
+                  <i className="codicon codicon-link-external" />
                 </button>
               )}
               <button

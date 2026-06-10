@@ -2158,7 +2158,8 @@ textarea:focus-visible {
 
 .db-toolbar {
   display: flex;
-  margin-bottom: 2px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .db-row {
@@ -2470,15 +2471,18 @@ textarea:focus-visible {
   background: var(--hover);
 }
 .activity-title {
+  /* The title owns the row's free space; the subtitle yields first. */
+  flex: 1;
+  min-width: 40px;
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .activity-sub {
+  flex: none;
   font-size: 11px;
   color: var(--fg-dim);
-  margin-left: auto;
   max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2516,17 +2520,17 @@ textarea:focus-visible {
   color: #f85149;
 }
 .activity-progress-label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--fg-dim);
-  padding: 0 4px 2px;
+  padding: 1px 4px 2px;
 }
 
 /* Progress bar: determinate fill (smooth width) + indeterminate shimmer sweep */
 .progress-bar {
   height: 3px;
-  margin: 0 4px;
+  margin: 1px 4px;
   border-radius: 2px;
-  background: var(--border);
+  background: var(--hover);
   overflow: hidden;
 }
 .progress-bar .fill {
