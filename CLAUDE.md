@@ -64,3 +64,16 @@ watches.
 
 Spec: `docs/superpowers/specs/2026-06-09-claude-quota-meter-design.md` ·
 Plan: `docs/superpowers/plans/2026-06-09-claude-quota-meter.md`.
+
+## Claude auto-start in terminals
+
+App-global pref `claudeAutoStart` (`"off" | "first" | "every"`, default
+`"first"`; Settings tab → Claude). New PROJECT terminals auto-run `claude`:
+`first` = one per tab via an atomic claim (`TabTerminals.claudeAutoId`,
+released when its terminal dies, so the next new terminal regains a session);
+blank tabs are always exempt (also dodges the launch-vs-prefs-hydrate race —
+project terminals only exist post-hydration). The decision is
+`store.claudeAutoDecision(terminalId)` (unit-tested); `TerminalPane` injects
+`CLAUDE_AUTO_COMMAND` (`"claude\n"`, same bytes as the "Start Claude here"
+notice) at pty adoption. Spec:
+`docs/superpowers/specs/2026-06-09-claude-auto-start-design.md`.

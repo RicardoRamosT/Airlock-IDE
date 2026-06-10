@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { ClaudeAutoStart } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { AgentSection } from "./AgentSection";
@@ -26,6 +27,8 @@ export function SettingsTab() {
   );
   const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
+  const claudeAutoStart = useApp((s) => s.claudeAutoStart);
+  const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
   // Per-project bits are scoped to the pane's tab; the app-global controls above
   // (theme, sidebar, clipboard, openProjectsAsTabs, showRunningProcessNotice)
   // stay app-global and are deliberately NOT tied to a tab.
@@ -261,6 +264,30 @@ export function SettingsTab() {
             status line that AirLock reads; if you already have a custom status
             line, AirLock chains it so your footer is unchanged. Turning this
             off removes it completely.
+          </p>
+          <div className="settings-row">
+            <label htmlFor="claude-auto-start">
+              Auto-start Claude in terminals
+            </label>
+            <select
+              id="claude-auto-start"
+              value={claudeAutoStart}
+              onChange={(e) => {
+                const v = e.target.value as ClaudeAutoStart;
+                useApp.getState().setLayoutHydrated(true);
+                setClaudeAutoStart(v);
+                void window.airlock.prefsSet({ claudeAutoStart: v });
+              }}
+            >
+              <option value="first">First terminal per tab</option>
+              <option value="every">Every terminal</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <p className="settings-note">
+            Runs `claude` automatically in new terminals of project tabs. "First
+            terminal per tab" starts one session per project; extra terminals
+            open as plain shells. Blank tabs are never auto-started.
           </p>
         </section>
 

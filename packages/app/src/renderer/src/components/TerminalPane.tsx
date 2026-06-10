@@ -3,7 +3,7 @@ import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { hasWorkingIndicator } from "../lib/workingIndicator";
-import { useApp } from "../store";
+import { CLAUDE_AUTO_COMMAND, useApp } from "../store";
 
 // xterm has no CSS-variable hook, so its palette must be supplied as a literal
 // object. Mirror the two app palettes (theme.css :root / [data-theme=light]):
@@ -145,6 +145,12 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         }
         pending.length = 0;
         setTerminalPty(terminalId, id);
+        // Auto-start claude when the store grants it (mode/blank-tab/claim
+        // logic lives there). Typed-ahead bytes sit in the pty buffer until
+        // zsh reads them, so shell startup timing cannot drop the command.
+        if (useApp.getState().claudeAutoDecision(terminalId)) {
+          window.airlock.ptyInput(id, CLAUDE_AUTO_COMMAND);
+        }
       })
       .catch((err) => {
         console.error(err);

@@ -190,6 +190,9 @@ export type Section =
   | "audit";
 export type SectionVisibility = Record<Section, boolean>;
 
+// Auto-run `claude` in new project terminals: never / once per tab / always.
+export type ClaudeAutoStart = "off" | "first" | "every";
+
 /**
  * A File-menu command dispatched main -> renderer over the menu:action channel.
  * The renderer's dispatcher maps each variant to the matching AirlockApi call.
@@ -292,6 +295,10 @@ export interface AppPrefs {
   // Code statusLine that AirLock reads (set enabled:false to turn it off and
   // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
+  // Auto-run `claude` in newly created PROJECT terminals. "first" = only when
+  // no other terminal in the tab holds the auto-Claude claim; blank tabs are
+  // always exempt. App-global.
+  claudeAutoStart: ClaudeAutoStart;
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to

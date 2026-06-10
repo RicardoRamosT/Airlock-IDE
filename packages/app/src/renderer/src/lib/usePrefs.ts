@@ -13,6 +13,7 @@ export function usePrefs(): void {
   );
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const setActiveView = useApp((s) => s.setActiveView);
+  const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const theme = useApp((s) => s.theme);
 
@@ -36,6 +37,7 @@ export function usePrefs(): void {
         setShowRunningProcessNotice(p.showRunningProcessNotice);
         setSectionVisibility(p.sectionVisibility);
         setActiveView(p.activeView);
+        setClaudeAutoStart(p.claudeAutoStart);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
         useApp.getState().setLayoutHydrated(true);
       })
@@ -52,6 +54,7 @@ export function usePrefs(): void {
     setShowRunningProcessNotice,
     setSectionVisibility,
     setActiveView,
+    setClaudeAutoStart,
     setQuotaMeterEnabled,
   ]);
 
