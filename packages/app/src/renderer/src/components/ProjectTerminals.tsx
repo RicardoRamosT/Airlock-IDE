@@ -153,7 +153,11 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
         {terminals.map((t) => (
           <div
             key={t.id}
-            className={`terminal-pane-slot${visible(t.id) ? "" : " hidden"}`}
+            // `active` marks the tab's active terminal so the focused-pane
+            // glow can persist on it while the keyboard is in the sidebar.
+            className={`terminal-pane-slot${visible(t.id) ? "" : " hidden"}${
+              t.id === activeTerminalId ? " active" : ""
+            }`}
           >
             <TerminalPane terminalId={t.id} />
           </div>

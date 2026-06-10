@@ -7,7 +7,7 @@
   --accent: #58a6ff;
   --hover: rgba(177, 186, 196, 0.08);
   --selected: rgba(56, 139, 253, 0.15);
-  --accent-glow: rgba(88, 166, 255, 0.35);
+  --accent-glow: rgba(88, 166, 255, 0.22);
   --row-h: 22px;
   /* Shared height of the two bottom "docks" (the rail's accounts/settings
      block and the sidebar's quota meter) so their top borders form ONE
@@ -31,7 +31,7 @@
   --accent: #0969da;
   --hover: rgba(31, 35, 40, 0.06);
   --selected: rgba(9, 105, 218, 0.12);
-  --accent-glow: rgba(9, 105, 218, 0.28);
+  --accent-glow: rgba(9, 105, 218, 0.18);
 }
 
 /* VS Code-style overlay scrollbars (WebKit) */
@@ -1853,20 +1853,25 @@ textarea:focus-visible {
    split, file|terminal split, or the project split), the terminal that owns
    the keyboard gets a rounded accent ring + soft glow. :focus-within tracks
    xterm's hidden textarea, so the glow always marks exactly where typing
-   goes. Drawn by a pointer-events:none overlay ABOVE the canvas -- no
-   padding/layout change, no xterm refit, nothing to clip. */
+   goes. In the PROJECT split the glow also PERSISTS on the focused pane's
+   active terminal while the keyboard is elsewhere (e.g. the sidebar) -- the
+   one shared sidebar reflects the focused pane, so the lingering glow says
+   "this is the terminal that sidebar belongs to". Drawn by a
+   pointer-events:none overlay ABOVE the canvas -- no padding/layout change,
+   no xterm refit, nothing to clip. */
 .terminal-panes.split .terminal-pane-slot:focus-within::after,
 .main-panes.split .terminal-pane-slot:focus-within::after,
-.project-split .terminal-pane-slot:focus-within::after {
+.project-split .terminal-pane-slot:focus-within::after,
+.project-split .project-pane.focused .terminal-pane-slot.active::after {
   content: "";
   position: absolute;
   inset: 2px;
   border-radius: 6px;
   pointer-events: none;
   box-shadow:
-    0 0 0 1px var(--accent),
-    0 0 10px 1px var(--accent-glow),
-    inset 0 0 8px var(--accent-glow);
+    0 0 0 1px color-mix(in srgb, var(--accent) 75%, transparent),
+    0 0 8px 1px var(--accent-glow),
+    inset 0 0 6px var(--accent-glow);
 }
 
 .terminal-tabs {
