@@ -64,7 +64,7 @@ it("shows the reset countdown when only the 7d window is present", () => {
   expect(screen.getByText("7d")).toBeTruthy();
   const reset = container.querySelector(".quota-reset");
   expect(reset).toBeTruthy();
-  expect(reset?.textContent).toContain("resets");
+  expect(reset?.textContent).toContain("7d");
 });
 
 it("renders 5h and 7d rows with percentages when fresh and available", () => {
@@ -74,4 +74,15 @@ it("renders 5h and 7d rows with percentages when fresh and available", () => {
   expect(screen.getByText("7d")).toBeTruthy();
   expect(screen.getByText("39%")).toBeTruthy();
   expect(screen.getByText("22%")).toBeTruthy();
+});
+
+it("shows both 5h and 7d reset countdowns on one line when both are present", () => {
+  useApp.setState({ quotaMeterEnabled: true, quota: liveQuota() });
+  const { container } = render(<QuotaMeter />);
+  const reset = container.querySelector(".quota-reset");
+  expect(reset).toBeTruthy();
+  // Both windows' labeled countdowns share the single reset line, joined by "·".
+  expect(reset?.textContent).toContain("5h");
+  expect(reset?.textContent).toContain("7d");
+  expect(reset?.textContent).toContain("·");
 });

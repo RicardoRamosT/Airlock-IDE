@@ -78,10 +78,14 @@ export function QuotaMeter() {
     );
   }
 
-  // The countdown follows the 5h window when present (the one that turns over
-  // while you work); a 7d-only status still gets its reset line (with the 7d
-  // countdown) rather than a bar with no reset time.
-  const resetWindow = quota.fiveHour ?? quota.sevenDay;
+  // Each present window gets a labeled reset countdown ("5h 1h57m"); the 5h
+  // (session) and 7d (weekly) windows share one line — joined by " · " — so both
+  // the session and weekly turnover are visible at a glance. A 7d-only status
+  // still gets its line rather than a bar with no reset time.
+  const resets = [
+    quota.fiveHour && `5h ${formatCountdown(quota.fiveHour.resetsAt - now)}`,
+    quota.sevenDay && `7d ${formatCountdown(quota.sevenDay.resetsAt - now)}`,
+  ].filter(Boolean);
 
   return (
     <button
@@ -97,17 +101,9 @@ export function QuotaMeter() {
       <div className="quota-title">Plan usage</div>
       {quota.fiveHour && <Row label="5h" pct={quota.fiveHour.usedPercentage} />}
       {quota.sevenDay && <Row label="7d" pct={quota.sevenDay.usedPercentage} />}
-      {resetWindow && (
-        <div
-          className="quota-reset"
-          title={
-            quota.fiveHour && quota.sevenDay
-              ? `7-day resets in ${formatCountdown(quota.sevenDay.resetsAt - now)}`
-              : undefined
-          }
-        >
-          <i className="codicon codicon-history" /> resets{" "}
-          {formatCountdown(resetWindow.resetsAt - now)}
+      {resets.length > 0 && (
+        <div className="quota-reset">
+          <i className="codicon codicon-history" /> {resets.join(" · ")}
         </div>
       )}
     </button>
