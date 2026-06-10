@@ -449,6 +449,10 @@ const setView = (
       selectedFile: d.selectedFile,
       ...extra,
     }),
+    // A scene change in the FOCUSED pane (tab click, file open, new terminal)
+    // dismisses the Usage page, exactly like the per-tab overlays. Background
+    // tabs' scene churn (e.g. a pty exit) must not close it.
+    ...(tabId === s.activeTabId ? { usageOpen: false } : {}),
     ...(tt
       ? {
           tabTerminals: {
@@ -1281,21 +1285,23 @@ export const useApp = create<AppState>((set) => ({
   // but NOT the editor (selectedFile/editorTabs), so closing it restores the
   // editor/terminal underneath. Closing leaves the rest untouched.
   setSettingsOpen: (v, tabId) =>
-    set((s) =>
-      patchTab(s, tabId ?? s.activeTabId, {
+    set((s) => ({
+      ...patchTab(s, tabId ?? s.activeTabId, {
         settingsOpen: v,
         ...(v ? { diff: null, dbView: null } : {}),
       }),
-    ),
+      ...(v ? { usageOpen: false } : {}),
+    })),
   // Browsing a DB table is an overlay too: clears diff/settings (one overlay at
   // a time) but keeps the editor underneath. Passing null closes the data grid.
   setDbView: (v, tabId) =>
-    set((s) =>
-      patchTab(s, tabId ?? s.activeTabId, {
+    set((s) => ({
+      ...patchTab(s, tabId ?? s.activeTabId, {
         dbView: v,
         ...(v ? { diff: null, settingsOpen: false } : {}),
       }),
-    ),
+      ...(v ? { usageOpen: false } : {}),
+    })),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
   fsVersion: {},
   newFileRequest: null,
@@ -1310,7 +1316,21 @@ export const useApp = create<AppState>((set) => ({
   closePalette: () => set({ palette: null }),
   searchOpen: false,
   usageOpen: false,
-  setUsageOpen: (usageOpen) => set({ usageOpen }),
+  // Opening Usage clears the focused tab's page overlays (one page at a time,
+  // mirroring how Settings/DB exclude each other).
+  setUsageOpen: (usageOpen) =>
+    set((s) =>
+      usageOpen
+        ? {
+            ...patchTab(s, s.activeTabId, {
+              settingsOpen: false,
+              dbView: null,
+              diff: null,
+            }),
+            usageOpen,
+          }
+        : { usageOpen },
+    ),
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),
   setSearchResults: (query, results) => set({ search: { query, results } }),

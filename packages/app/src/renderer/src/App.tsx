@@ -10,7 +10,6 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
-import { UsageTab } from "./components/UsageTab";
 import { TerminalSlotsProvider } from "./lib/terminalSlots";
 import { useAgentCommands } from "./lib/useAgentCommands";
 import { useFsWatch } from "./lib/useFsWatch";
@@ -81,7 +80,6 @@ export function App() {
         {modal === "connect-neon" && <NeonConnectModal />}
         {modal === "connect-render" && <RenderConnectModal />}
         <Palette />
-        <UsageTab />
         {searchOpen && <SearchPanel />}
       </div>
     </TerminalSlotsProvider>
