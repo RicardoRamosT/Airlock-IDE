@@ -122,6 +122,7 @@ const api: AirlockApi = {
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
+  usageGet: () => ipcRenderer.invoke("usage:get"),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
   setSectionVisibility: (id, visible) =>
     ipcRenderer.invoke("sections:set", id, visible),
