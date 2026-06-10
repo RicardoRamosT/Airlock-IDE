@@ -484,7 +484,9 @@ export interface AirlockApi {
   // Activity panel. NOT root-gated; CI is skipped when no folder is open.
   // activityDismiss hides an entry by id (app-global, in-memory) and broadcasts
   // activity:changed to all windows; a new run/deploy (new id) reappears.
-  activityStatus(): Promise<ActivityItem[]>;
+  // Per-project feed for the PANE's root (CI is repo-gated; docker/render are
+  // global). null = blank pane -> global items only.
+  activityStatus(root: string | null): Promise<ActivityItem[]>;
   activityDismiss(id: string): Promise<void>;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl

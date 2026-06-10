@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityItem, ActivityStep } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
+import { useApp } from "../store";
 
 function dotClass(state: ActivityItem["state"]): string {
   if (state === "done") return "status-dot on";
@@ -21,11 +23,21 @@ function stepIcon(s: ActivityStep): string {
 }
 
 export function ActivitySection() {
+  // The feed is per-project: bind to the PANE's root (the one shared sidebar
+  // follows the focused pane) and pass it to the IPC explicitly -- relying on
+  // main's implicit window root both races the focus sync and never triggers
+  // a refetch when the user focuses another project's pane.
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const mounted = useRef(true);
+  // The root the CURRENT render is bound to: an in-flight fetch for the
+  // previous project must not land its items under the new project's header.
+  const rootRef = useRef(root);
+  rootRef.current = root;
 
   useEffect(() => {
     mounted.current = true;
@@ -37,8 +49,8 @@ export function ActivitySection() {
   const refresh = useCallback(async () => {
     setBusy(true);
     try {
-      const list = await window.airlock.activityStatus();
-      if (mounted.current) {
+      const list = await window.airlock.activityStatus(root);
+      if (mounted.current && root === rootRef.current) {
         setItems(list);
         setLoaded(true);
       }
@@ -47,10 +59,14 @@ export function ActivitySection() {
     } finally {
       if (mounted.current) setBusy(false);
     }
-  }, []);
+  }, [root]);
 
-  // Mount fetch (the section just expanded) + refresh on window focus.
+  // Mount fetch + RE-BIND on pane/project change (drop the old project's feed
+  // immediately so no stale CI shows under the new header) + refresh on
+  // window focus.
   useEffect(() => {
+    setItems([]);
+    setLoaded(false);
     void refresh();
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);

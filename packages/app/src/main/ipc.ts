@@ -1001,8 +1001,15 @@ export function registerIpc(
   ipcMain.handle("docker:list", () => dockerStatus());
 
   // activity:status -> ActivityItem[]; NOT requireRoot-gated (render/docker work
-  // with no folder; activityStatus skips CI itself when the window has no root).
-  ipcMain.handle("activity:status", (e) => activityStatus(rootForEvent(e)));
+  // with no folder; activityStatus skips CI itself when there is no root). The
+  // renderer passes the PANE's root explicitly (the one shared sidebar follows
+  // the focused pane, and an implicit window root would race the focus sync);
+  // validate it like resolveRoot does, degrading to global-only items.
+  ipcMain.handle("activity:status", (e, root?: unknown) =>
+    activityStatus(
+      typeof root === "string" && root && isOpenRoot(e, root) ? root : null,
+    ),
+  );
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
   // so every window's ActivitySection refetches the filtered feed live. The same
