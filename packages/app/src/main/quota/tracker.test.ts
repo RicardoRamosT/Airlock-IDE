@@ -50,6 +50,67 @@ it("returns null when no sessions are tracked", () => {
   expect(new QuotaTracker(120, 20).current(0)).toBeNull();
 });
 
+it("rejects a whole emit that carries any expired window (stale resumed-session snapshot)", () => {
+  const t = new QuotaTracker(120, 20);
+  t.record(
+    "fresh",
+    {
+      fiveHour: { usedPercentage: 87, resetsAt: 2000 },
+      sevenDay: { usedPercentage: 16, resetsAt: 9000 },
+      model: "m",
+      updatedAt: 1000,
+      available: true,
+    },
+    1000,
+  );
+  // Seen live (2026-06-10): a resumed/forked Claude session re-emits a
+  // transcript-vintage rate_limits snapshot until its first own turn
+  // completes. Its 5h window is already EXPIRED at emit time -- proof the
+  // whole payload is old -- but its 7d shares the live week's resetsAt, so
+  // folding it (max within window) would latch the stale 49 until the week
+  // ends. Trust nothing from an emit with any expired window.
+  const out = t.record(
+    "stale-fork",
+    {
+      fiveHour: { usedPercentage: 5, resetsAt: 500 },
+      sevenDay: { usedPercentage: 49, resetsAt: 9000 },
+      model: "m",
+      updatedAt: 1005,
+      available: true,
+    },
+    1005,
+  );
+  expect(out?.fiveHour?.usedPercentage).toBe(87);
+  expect(out?.sevenDay?.usedPercentage).toBe(16); // NOT poisoned to 49
+});
+
+it("still counts a stale-snapshot emitter for liveness (waiting, not blank, when alone)", () => {
+  const t = new QuotaTracker(120, 20);
+  const out = t.record(
+    "stale-fork",
+    {
+      fiveHour: { usedPercentage: 5, resetsAt: 500 }, // expired at emit 1000
+      sevenDay: { usedPercentage: 49, resetsAt: 9000 },
+      model: "m",
+      updatedAt: 1000,
+      available: true,
+    },
+    1000,
+  );
+  expect(out).not.toBeNull(); // a session IS emitting...
+  expect(out?.available).toBe(false); // ...but no trustworthy windows yet
+});
+
+it("hides a folded window once its reset passes (no finished bar / negative countdown)", () => {
+  const t = new QuotaTracker(120, 20);
+  t.record("s", mk(80, 1000, 1015), 1000); // resets 15s after the emit
+  const out = t.current(1018); // session still live; the boundary has passed
+  expect(out).not.toBeNull();
+  expect(out?.fiveHour).toBeNull();
+  expect(out?.sevenDay).toBeNull();
+  expect(out?.available).toBe(false);
+});
+
 it("carries known windows across a rate-limit-less emit (fresh session)", () => {
   const t = new QuotaTracker(120, 20);
   t.record("s", mk(62, 1000), 1000);

@@ -34,8 +34,21 @@ export class QuotaTracker {
     emitAt: number,
   ): QuotaStatus | null {
     this.bySession.set(sessionId, { emitAt, model: status.model });
-    this.best5h = foldWindow(this.best5h, status.fiveHour);
-    this.best7d = foldWindow(this.best7d, status.sevenDay);
+    // An emit carrying ANY already-expired window is a provably stale snapshot.
+    // Seen live (2026-06-10): a resumed/forked Claude session re-emits
+    // transcript-vintage rate_limits until its first own turn completes -- its
+    // 5h window had expired ~20h earlier, but its 7d shared the live week's
+    // resets_at, so the monotone fold latched the old (higher) percentage with
+    // no recovery until the week ended. The sibling windows of an expired one
+    // share its vintage: trust nothing from such an emit. (The session still
+    // counts for LIVENESS above -- it is alive, just feeding old numbers.)
+    if (
+      !isExpired(status.fiveHour, emitAt) &&
+      !isExpired(status.sevenDay, emitAt)
+    ) {
+      this.best5h = foldWindow(this.best5h, status.fiveHour);
+      this.best7d = foldWindow(this.best7d, status.sevenDay);
+    }
     return this.current(emitAt);
   }
 
@@ -55,14 +68,25 @@ export class QuotaTracker {
       }
     }
     if (liveAt < 0) return null;
+    // A folded window whose reset has passed is FINISHED -- hide it until a
+    // fresh fold brings the new window, rather than showing a done bar with a
+    // negative countdown.
+    const fiveHour = isExpired(this.best5h, now) ? null : this.best5h;
+    const sevenDay = isExpired(this.best7d, now) ? null : this.best7d;
     return {
-      fiveHour: this.best5h,
-      sevenDay: this.best7d,
+      fiveHour,
+      sevenDay,
       model,
       updatedAt: liveAt,
-      available: this.best5h !== null || this.best7d !== null,
+      available: fiveHour !== null || sevenDay !== null,
     };
   }
+}
+
+// Whether a window's reset boundary has already passed at `at` -- i.e. the
+// reading describes a finished window and says nothing about the current one.
+function isExpired(w: QuotaWindow | null, at: number): boolean {
+  return w !== null && w.resetsAt <= at;
 }
 
 // Monotone fold for one window: a later resets_at means a NEW window (take the
