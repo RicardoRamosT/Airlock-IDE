@@ -6,6 +6,7 @@ import {
   samePaneItem,
   useApp,
 } from "../store";
+import { FileIcon } from "./FileIcon";
 
 const EMPTY_FILES: string[] = [];
 const EMPTY_ORDER: PaneItem[] = [];
@@ -207,7 +208,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
         }}
         title={p}
       >
-        <i className="codicon codicon-file" />
+        <FileIcon name={fileName(p)} />
         <span className="main-tab-title">{fileName(p)}</span>
       </button>
       <button
