@@ -1055,7 +1055,10 @@ button.quota-meter {
   border-right: none;
   border-bottom: none;
   cursor: pointer;
-  font: inherit;
+  /* Only neutralize the button UA font FAMILY: the `font` shorthand would
+     out-specific .quota-meter's 11px sizing and blow the card up. */
+  font-family: inherit;
+  font-size: 11px;
 }
 
 button.quota-meter:hover {
