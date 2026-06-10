@@ -43,14 +43,22 @@ export function QuotaMeter() {
   // numbers would be a stale snapshot, so prompt the user instead.
   const fresh = quota !== null && now - quota.updatedAt <= STALE_AFTER_SECONDS;
 
+  // Every state of the card is a click-through to the full Usage page.
+  const openUsage = () => useApp.getState().setUsageOpen(true);
+
   if (!fresh) {
     return (
-      <div className="quota-meter">
+      <button
+        type="button"
+        className="quota-meter"
+        title="Open usage details"
+        onClick={openUsage}
+      >
         <div className="quota-title">Plan usage</div>
         <div className="quota-waiting">
           Start a Claude session to see your usage limits
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -58,15 +66,29 @@ export function QuotaMeter() {
     // A session is active but rate limits haven't arrived yet (first response
     // pending, or an account that doesn't report them).
     return (
-      <div className="quota-meter">
+      <button
+        type="button"
+        className="quota-meter"
+        title="Open usage details"
+        onClick={openUsage}
+      >
         <div className="quota-title">Plan usage</div>
         <div className="quota-waiting">Waiting for usage data…</div>
-      </div>
+      </button>
     );
   }
 
   return (
-    <div className="quota-meter" title={quota.model ?? undefined}>
+    <button
+      type="button"
+      className="quota-meter"
+      title={
+        quota.model
+          ? `${quota.model} — open usage details`
+          : "Open usage details"
+      }
+      onClick={openUsage}
+    >
       <div className="quota-title">Plan usage</div>
       {quota.fiveHour && <Row label="5h" pct={quota.fiveHour.usedPercentage} />}
       {quota.sevenDay && <Row label="7d" pct={quota.sevenDay.usedPercentage} />}
@@ -83,6 +105,6 @@ export function QuotaMeter() {
           {formatCountdown(quota.fiveHour.resetsAt - now)}
         </div>
       )}
-    </div>
+    </button>
   );
 }

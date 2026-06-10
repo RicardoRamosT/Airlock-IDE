@@ -1,4 +1,4 @@
-import type { SessionUsage } from "../../shared/ipc";
+import type { SessionUsage } from "../../../shared/ipc";
 
 export interface ModelAggregate {
   model: string;
