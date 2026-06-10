@@ -12,22 +12,29 @@ moment it opens. A Settings option controls the behavior; the owner chose
 
 A three-mode app-global preference, `claudeAutoStart`:
 
-- **`"first"` (default):** a newly created terminal auto-runs `claude` only if
-  no *other* terminal in its tab is currently flagged as the auto-started one.
+- **`"first"` (default):** a terminal auto-runs `claude` only if no *other*
+  terminal in its tab currently holds the tab's auto-Claude claim.
   Consequences:
   - Opening a project → its first terminal runs Claude.
   - `+` / split / agent-created terminals → plain shells.
   - Killing the auto-Claude terminal → the *next* new terminal in that tab
-    auto-starts Claude again (the tab regains its session).
-  - Opening a folder into a blank tab: `openPickedFolder` adds a fresh
-    folder-rooted terminal; the blank tab's scratch shell was never flagged, so
-    the new terminal qualifies → the project starts with Claude. (If the
-    scratch shell was busy and kept, it keeps running untouched.)
-  - Blank tabs count too: their first terminal runs Claude in `$HOME`.
-  - Only AUTO-started sessions are tracked. A manually-typed `claude` does not
-    set the flag, so an auto one may coexist with a manual one — accepted.
-- **`"every"`:** every newly created terminal auto-runs `claude`.
+    auto-starts Claude again (the claim is released; the tab regains its
+    session).
+  - Opening a folder into a blank tab: the blank tab's scratch shell never
+    held a claim (blank tabs are exempt, below), so the fresh folder-rooted
+    terminal claims it → the project starts with Claude. A busy kept scratch
+    shell keeps running untouched.
+  - Only AUTO-started sessions are tracked. A manually-typed `claude` takes no
+    claim, so an auto one may coexist with a manual one — accepted.
+- **`"every"`:** every newly created project terminal auto-runs `claude`.
 - **`"off"`:** terminals never auto-run anything.
+
+**Project tabs only (all modes):** auto-start applies only when the terminal's
+tab has a folder open (root non-null) — "in that project", literally. Blank
+tabs' terminals always open as plain shells (run `claude` by hand in `$HOME`
+if wanted). This also removes the launch race entirely: the only terminal that
+can spawn before prefs hydrate is the launch blank tab's, and it is exempt;
+project terminals are created by user interaction, long after hydration.
 
 Mode changes apply to terminals created afterwards; nothing is sent to
 already-running shells. The injected command is exactly `claude\n` — the same
@@ -42,12 +49,16 @@ Decide in the store (it owns tabs + terminal lifecycle), execute in the pane
 no tab/“first terminal” concept — that is renderer state) and spawning the pty
 with `claude` as the command (terminal would die when Claude exits).
 
+The decision happens at **pty-adoption time** (when the shell actually exists),
+not at terminal-creation time: prefs hydrate asynchronously at launch, so a
+creation-time flag could be stamped under the wrong mode. By adoption, project
+terminals are always post-hydration (they require user interaction to exist).
+
 | Unit | Responsibility |
 | --- | --- |
-| `lib/autoClaude.ts` (**new**) | `CLAUDE_AUTO_COMMAND = "claude\n"` + pure `shouldAutoStartClaude(mode, existingTerminals): boolean`. `off`→false; `every`→true; `first`→ `!existingTerminals.some(t => t.claudeAuto)`. |
-| `store.ts` | `TerminalEntry` gains `claudeAuto: boolean`. `addTerminal(tabId?)` stamps it via the helper using the TAB's current terminals + the `claudeAutoStart` mode. New app-global mirror `claudeAutoStart` + `setClaudeAutoStart`. |
-| `TerminalPane.tsx` | In the `ptyCreate().then` adopt callback (after `setTerminalPty`), if this entry is flagged `claudeAuto`, write `CLAUDE_AUTO_COMMAND` via `window.airlock.ptyInput`. The callback runs once per terminal (panes stay mounted via the keep-alive portal), so no extra "sent" state is needed. |
-| `shared/ipc.ts` + `main/prefs.ts` | `AppPrefs.claudeAutoStart: "off" \| "first" \| "every"`; default `"first"`; sanitize: unknown value → default. |
+| `store.ts` | `TabTerminals` gains `claudeAutoId: string \| null` — which terminal holds the tab's auto-Claude claim. New action `claudeAutoDecision(terminalId): boolean` does the whole decision atomically: resolve the owning tab; `off` or blank tab → false; `every` → true; `first` → claim `claudeAutoId` if free (or already ours) and return whether claimed. `removeTerminal` releases the claim when the holder dies. New app-global mirror `claudeAutoStart` + `setClaudeAutoStart`. Exports `CLAUDE_AUTO_COMMAND = "claude\n"`. |
+| `TerminalPane.tsx` | In the `ptyCreate().then` adopt callback (after `setTerminalPty`): `if (claudeAutoDecision(terminalId)) ptyInput(id, CLAUDE_AUTO_COMMAND)`. One line of untested wiring (repo convention: thin electron wiring untested); all logic lives in the store action. The callback runs once per terminal (panes stay mounted via the keep-alive portal). |
+| `shared/ipc.ts` + `main/prefs.ts` | `ClaudeAutoStart = "off" \| "first" \| "every"`; `AppPrefs.claudeAutoStart`; default `"first"`; sanitize: unknown value → default. |
 | `lib/usePrefs.ts` | Hydrate `claudeAutoStart` alongside the other layout prefs. |
 | `SettingsTab.tsx` | In the existing "Claude" section: a `<select>` with the three modes + a one-line description. Persists via `prefsSet({ claudeAutoStart })` and mirrors to the store. |
 
@@ -63,16 +74,16 @@ with `claude` as the command (terminal would die when Claude exits).
 
 ## Testing
 
-- `lib/autoClaude`: all three modes; `first` with no/flagged/unflagged
-  existing terminals.
-- Store: `addTerminal` stamps `claudeAuto` per mode; kill-flagged-then-add
-  re-flags; the `openPickedFolder` blank-tab flow flags the folder terminal
-  (scratch unflagged); a second terminal stays unflagged.
+- Store (`claudeAutoDecision`): `off` always false; blank tab always false;
+  `every` true for project terminals; `first` claims once, denies the second
+  terminal, re-grants after the holder is removed; claims are per-tab
+  (two tabs each get one); the `openPickedFolder` blank-tab flow grants the
+  fresh folder-rooted terminal.
 - Prefs: defaults include `claudeAutoStart: "first"`; garbage sanitizes to
   `"first"`; valid values round-trip.
-- `App.smoke.test.tsx`: stub prefs pin `claudeAutoStart: "off"` so the
-  existing pty assertions stay deterministic (mirrors `quotaMeter.enabled:
-  false` there); full-object prefs `toEqual`s gain the new field.
+- `App.smoke.test.tsx`: only blank tabs exist there, which are exempt — the
+  existing pty assertions stay deterministic by design; the typed
+  DEFAULT_PREFS object gains the new field.
 
 ## Out of scope
 
