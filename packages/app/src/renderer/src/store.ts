@@ -364,6 +364,9 @@ export interface AppState {
   searchOpen: boolean;
   search: { query: string; results: SearchResults } | null;
   setSearchOpen: (v: boolean) => void;
+  // The full-page Usage dashboard (window-level: its data is account-wide).
+  usageOpen: boolean;
+  setUsageOpen: (v: boolean) => void;
   setSearchResults: (query: string, results: SearchResults) => void;
   // A one-shot "scroll the editor to this line" signal, keyed by tabId+path and
   // consumed by EditorPane. nonce makes repeated clicks on the same line retrigger.
@@ -1306,6 +1309,8 @@ export const useApp = create<AppState>((set) => ({
   openPalette: (mode) => set({ palette: { mode } }),
   closePalette: () => set({ palette: null }),
   searchOpen: false,
+  usageOpen: false,
+  setUsageOpen: (usageOpen) => set({ usageOpen }),
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),
   setSearchResults: (query, results) => set({ search: { query, results } }),

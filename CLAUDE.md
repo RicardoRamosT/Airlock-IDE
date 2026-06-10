@@ -62,6 +62,12 @@ watches.
   (dev). It runs via `ELECTRON_RUN_AS_NODE` on the app's own Electron binary
   (no `node`/`jq` on PATH assumed); shell paths are single-quoted.
 
+Clicking the meter opens the window-level **Usage dashboard** (full-page
+overlay): per-session/per-model tokens+cost from a capped ledger the watcher
+folds on every emit (`parseSessionUsage`/`recordUsage` in `parse.ts`,
+`usage:get` IPC). Tokens lead the comparison — subscription sessions report
+`total_cost_usd: 0`.
+
 Spec: `docs/superpowers/specs/2026-06-09-claude-quota-meter-design.md` ·
 Plan: `docs/superpowers/plans/2026-06-09-claude-quota-meter.md`.
 

@@ -91,7 +91,7 @@ import {
   sanitizeAgentPolicy,
   savePrefs,
 } from "./prefs";
-import { getQuota } from "./quota/watch";
+import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
 import {
@@ -582,6 +582,10 @@ export function registerIpc(
   ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
 
   ipcMain.handle("quota:get", () => getQuota());
+
+  // usage:get -> SessionUsage[] for the Usage dashboard (sorted by output
+  // tokens, the cost proxy on subscription plans).
+  ipcMain.handle("usage:get", () => getUsageLedger());
 
   ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");

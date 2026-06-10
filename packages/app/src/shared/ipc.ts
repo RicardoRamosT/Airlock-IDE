@@ -306,6 +306,25 @@ export interface AppPrefs {
   mcp?: { port: number; token: string };
 }
 
+// One Claude session's cumulative usage, parsed from its latest statusLine
+// emit (the side-channel the quota meter already taps). Account-wide truth
+// lives in QuotaStatus; this is the per-session/per-model breakdown the
+// Usage dashboard shows.
+export interface SessionUsage {
+  sessionId: string;
+  cwd: string | null;
+  model: string | null;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+  costUsd: number;
+  apiMs: number;
+  linesAdded: number;
+  linesRemoved: number;
+  lastEmitAt: number; // epoch s of the emit (file mtime)
+}
+
 export interface FsChangedEvent {
   root: string;
 }
@@ -508,6 +527,8 @@ export interface AirlockApi {
   // Claude quota meter: last-known account usage (null before the first emit),
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;
+  // Per-session usage ledger (since launch) for the Usage dashboard.
+  usageGet(): Promise<SessionUsage[]>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   setSectionVisibility(
     id: Section,

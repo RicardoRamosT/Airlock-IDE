@@ -1,8 +1,13 @@
 import { readFile, stat } from "node:fs/promises";
 import { type FSWatcher, watch } from "chokidar";
 import { BrowserWindow } from "electron";
-import type { QuotaStatus } from "../../shared/ipc";
-import { parseQuota, parseSessionMeta } from "./parse";
+import type { QuotaStatus, SessionUsage } from "../../shared/ipc";
+import {
+  parseQuota,
+  parseSessionMeta,
+  parseSessionUsage,
+  recordUsage,
+} from "./parse";
 import { QuotaTracker } from "./tracker";
 
 let watcher: FSWatcher | null = null;
@@ -12,6 +17,17 @@ let latest: QuotaStatus | null = null;
 // session, so we track each session's reading and surface the most-recently-
 // active one (an idle session re-emitting a stale snapshot must not win).
 let tracker = new QuotaTracker();
+
+// Per-session usage ledger for the Usage dashboard: latest snapshot per
+// session since launch (capped; oldest-emit evicted). Unlike the tracker it
+// is NOT pruned on idle -- history is the point.
+let usageLedger = new Map<string, SessionUsage>();
+
+export function getUsageLedger(): SessionUsage[] {
+  return [...usageLedger.values()].sort(
+    (a, b) => b.totalOutputTokens - a.totalOutputTokens,
+  );
+}
 
 // Last-known status for a newly-opened window to fetch synchronously (quota:get).
 export function getQuota(): QuotaStatus | null {
@@ -35,6 +51,8 @@ async function readAndBroadcast(outPath: string): Promise<void> {
   }
   const meta = parseSessionMeta(text);
   const status = parseQuota(text, emitAt);
+  const usage = parseSessionUsage(text, emitAt);
+  if (usage) recordUsage(usageLedger, usage);
   // "Active" = the session's transcript mtime (real API activity), NOT the emit
   // time -- an idle session keeps emitting (refreshInterval) but its transcript
   // stops advancing, so it loses to the active session and can't clobber it.
@@ -81,4 +99,5 @@ export async function stopQuotaWatch(): Promise<void> {
   watchedPath = null;
   latest = null;
   tracker = new QuotaTracker();
+  usageLedger = new Map();
 }
