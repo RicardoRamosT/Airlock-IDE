@@ -9,6 +9,9 @@ import {
 } from "./parse";
 
 describe("parseSessionUsage", () => {
+  // Claude Code >= 2.1.132: context_window.total_* is the CURRENT context
+  // (occupancy from the most recent API response), NOT cumulative session
+  // totals. The cumulative session metrics live under `cost`.
   const PAYLOAD = JSON.stringify({
     session_id: "abc",
     cwd: "/Users/r/Projects/lendlogic",
@@ -23,6 +26,7 @@ describe("parseSessionUsage", () => {
     context_window: {
       total_input_tokens: 50_000,
       total_output_tokens: 2_000,
+      context_window_size: 200_000,
       current_usage: {
         cache_read_input_tokens: 40_000,
         cache_creation_input_tokens: 5_000,
@@ -30,15 +34,13 @@ describe("parseSessionUsage", () => {
     },
   });
 
-  it("extracts a full snapshot", () => {
+  it("extracts a full snapshot (context as occupancy, cost as cumulative)", () => {
     expect(parseSessionUsage(PAYLOAD, 123)).toEqual({
       sessionId: "abc",
       cwd: "/Users/r/Projects/lendlogic",
       model: "Fable 5",
-      totalInputTokens: 50_000,
-      totalOutputTokens: 2_000,
-      cacheReadTokens: 40_000,
-      cacheCreateTokens: 5_000,
+      contextTokens: 50_000,
+      contextWindowSize: 200_000,
       costUsd: 1.25,
       apiMs: 30_000,
       linesAdded: 10,
@@ -51,7 +53,8 @@ describe("parseSessionUsage", () => {
     const u = parseSessionUsage(JSON.stringify({ session_id: "x" }), 5);
     expect(u).toMatchObject({
       sessionId: "x",
-      totalInputTokens: 0,
+      contextTokens: 0,
+      contextWindowSize: 0,
       costUsd: 0,
       model: null,
       cwd: null,

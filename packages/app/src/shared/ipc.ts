@@ -306,18 +306,20 @@ export interface AppPrefs {
   mcp?: { port: number; token: string };
 }
 
-// One Claude session's cumulative usage, parsed from its latest statusLine
-// emit (the side-channel the quota meter already taps). Account-wide truth
-// lives in QuotaStatus; this is the per-session/per-model breakdown the
-// Usage dashboard shows.
+// One Claude session's usage, parsed from its latest statusLine emit (the
+// side-channel the quota meter already taps). Account-wide truth lives in
+// QuotaStatus; this is the per-session/per-model breakdown the Usage
+// dashboard shows.
 export interface SessionUsage {
   sessionId: string;
   cwd: string | null;
   model: string | null;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  cacheReadTokens: number;
-  cacheCreateTokens: number;
+  // POINT-IN-TIME, not cumulative: since Claude Code 2.1.132 the statusLine's
+  // context_window.total_* reports the CURRENT context (occupancy as of the
+  // most recent API response). Never sum these across sessions.
+  contextTokens: number;
+  contextWindowSize: number; // 0 when the payload doesn't report it
+  // Cumulative for the session (from the payload's `cost` block):
   costUsd: number;
   apiMs: number;
   linesAdded: number;

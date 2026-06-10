@@ -65,10 +65,18 @@ watches.
 Clicking the meter opens the **Usage dashboard** — an IDE-level page-tab in
 the PROJECT strip (like Settings; both can be open at once, `appPage` selects
 the shown one, rendered in the workspace panes slot): per-session/per-model
-tokens+cost from a capped ledger the watcher folds on every emit
-(`parseSessionUsage`/`recordUsage` in `parse.ts`, `usage:get` IPC). Tokens
-lead the comparison — subscription sessions report `total_cost_usd: 0`.
-Selecting a project tab hides the page but keeps its tab open.
+usage from a capped ledger the watcher folds on every emit
+(`parseSessionUsage`/`recordUsage` in `parse.ts`, `usage:get` IPC). **Payload
+semantics (Claude Code ≥ 2.1.132):** `context_window.total_*` is the CURRENT
+context (occupancy from the most recent API response), NOT cumulative — never
+sum it across sessions; the cumulative session metrics are the `cost` block
+(`total_cost_usd`, `total_api_duration_ms`, lines). So API time leads the
+comparison (subscription sessions report `total_cost_usd: 0`), and the
+per-session Context column is a labeled snapshot. Also upstream: the payload
+only refreshes on main-conversation activity — background subagent/workflow
+usage lands when its result message arrives, so a "frozen" dashboard during a
+background task is expected, not a pipeline bug. Selecting a project tab
+hides the page but keeps its tab open.
 
 Spec: `docs/superpowers/specs/2026-06-09-claude-quota-meter-design.md` ·
 Plan: `docs/superpowers/plans/2026-06-09-claude-quota-meter.md`.

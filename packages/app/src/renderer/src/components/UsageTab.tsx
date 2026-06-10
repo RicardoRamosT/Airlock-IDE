@@ -52,12 +52,13 @@ export function UsageTab() {
   // emits before its first API response, all zeros) -- they would read as
   // confusing duplicates of the project's previous session.
   const visible = sessions.filter(
-    (s) => s.totalInputTokens > 0 || s.totalOutputTokens > 0 || s.costUsd > 0,
+    (s) => s.apiMs > 0 || s.costUsd > 0 || s.contextTokens > 0,
   );
   const models = aggregateByModel(visible);
   const totalCost = visible.reduce((a, s) => a + s.costUsd, 0);
-  const totalIn = visible.reduce((a, s) => a + s.totalInputTokens, 0);
-  const totalOut = visible.reduce((a, s) => a + s.totalOutputTokens, 0);
+  const totalApiMs = visible.reduce((a, s) => a + s.apiMs, 0);
+  const totalAdded = visible.reduce((a, s) => a + s.linesAdded, 0);
+  const totalRemoved = visible.reduce((a, s) => a + s.linesRemoved, 0);
   const liveCount = visible.filter(
     (s) => now - s.lastEmitAt <= LIVE_WITHIN_S,
   ).length;
@@ -98,12 +99,14 @@ export function UsageTab() {
             <span className="usage-kpi-label">total cost</span>
           </div>
           <div className="usage-kpi">
-            <span className="usage-kpi-value">{formatTokens(totalOut)}</span>
-            <span className="usage-kpi-label">output tokens</span>
+            <span className="usage-kpi-value">{formatApiTime(totalApiMs)}</span>
+            <span className="usage-kpi-label">API time</span>
           </div>
           <div className="usage-kpi">
-            <span className="usage-kpi-value">{formatTokens(totalIn)}</span>
-            <span className="usage-kpi-label">input tokens</span>
+            <span className="usage-kpi-value">
+              +{totalAdded} −{totalRemoved}
+            </span>
+            <span className="usage-kpi-label">lines changed</span>
           </div>
           <div className="usage-kpi">
             <span className="usage-kpi-value">
@@ -146,10 +149,6 @@ export function UsageTab() {
                 <tr>
                   <th>Model</th>
                   <th className="num">Sessions</th>
-                  <th className="num">Input</th>
-                  <th className="num">Output</th>
-                  <th className="num">Cache read</th>
-                  <th className="num">Cache write</th>
                   <th className="num">API time</th>
                   <th className="num">Cost</th>
                 </tr>
@@ -159,10 +158,6 @@ export function UsageTab() {
                   <tr key={m.model}>
                     <td>{m.model}</td>
                     <td className="num">{m.sessions}</td>
-                    <td className="num">{formatTokens(m.inputTokens)}</td>
-                    <td className="num">{formatTokens(m.outputTokens)}</td>
-                    <td className="num">{formatTokens(m.cacheReadTokens)}</td>
-                    <td className="num">{formatTokens(m.cacheCreateTokens)}</td>
                     <td className="num">{formatApiTime(m.apiMs)}</td>
                     <td className="num">{formatUsd(m.costUsd)}</td>
                   </tr>
@@ -180,8 +175,7 @@ export function UsageTab() {
                 <tr>
                   <th>Project</th>
                   <th>Model</th>
-                  <th className="num">Input</th>
-                  <th className="num">Output</th>
+                  <th className="num">Context</th>
                   <th className="num">API time</th>
                   <th className="num">± lines</th>
                   <th className="num">Cost</th>
@@ -193,8 +187,16 @@ export function UsageTab() {
                   <tr key={s.sessionId}>
                     <td title={s.cwd ?? undefined}>{basename(s.cwd)}</td>
                     <td>{s.model ?? "unknown"}</td>
-                    <td className="num">{formatTokens(s.totalInputTokens)}</td>
-                    <td className="num">{formatTokens(s.totalOutputTokens)}</td>
+                    <td
+                      className="num"
+                      title={
+                        s.contextWindowSize > 0
+                          ? `${Math.round((s.contextTokens / s.contextWindowSize) * 100)}% of the ${formatTokens(s.contextWindowSize)} window`
+                          : undefined
+                      }
+                    >
+                      {formatTokens(s.contextTokens)}
+                    </td>
                     <td className="num">{formatApiTime(s.apiMs)}</td>
                     <td className="num">
                       +{s.linesAdded} −{s.linesRemoved}
@@ -216,9 +218,12 @@ export function UsageTab() {
         </section>
 
         <p className="settings-note">
-          Token counts and costs come from each Claude Code session's own
-          reporting. — under Cost means the session reports $0 (covered by your
-          subscription plan).
+          API time, lines, and costs are each Claude Code session's own
+          cumulative reporting; Context is the session's current context-window
+          occupancy (a snapshot, not usage). Sessions update on conversation
+          activity — work done by background subagents shows up when its result
+          lands in the conversation. — under Cost means the session reports $0
+          (covered by your subscription plan).
         </p>
       </div>
     </div>

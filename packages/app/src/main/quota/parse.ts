@@ -91,9 +91,12 @@ export interface SessionMeta {
 const num = (v: unknown): number =>
   typeof v === "number" && Number.isFinite(v) ? v : 0;
 
-// Extract one session's cumulative usage from a raw statusLine payload.
-// Defensive like parseQuota: absent cost/context_window become zeros; only a
-// missing session_id (or non-JSON) yields null.
+// Extract one session's usage from a raw statusLine payload. Since Claude Code
+// 2.1.132, context_window.total_* is the CURRENT context (occupancy from the
+// most recent API response), NOT cumulative session totals -- the cumulative
+// metrics are the `cost` block. Defensive like parseQuota: absent
+// cost/context_window become zeros; only a missing session_id (or non-JSON)
+// yields null.
 export function parseSessionUsage(
   text: string,
   emitAt: number,
@@ -107,16 +110,13 @@ export function parseSessionUsage(
   if (!r || typeof r !== "object" || typeof r.session_id !== "string")
     return null;
   const cw = (r.context_window ?? {}) as Record<string, unknown>;
-  const cu = (cw.current_usage ?? {}) as Record<string, unknown>;
   const cost = (r.cost ?? {}) as Record<string, unknown>;
   return {
     sessionId: r.session_id,
     cwd: typeof r.cwd === "string" ? r.cwd : null,
     model: parseModel(r.model),
-    totalInputTokens: num(cw.total_input_tokens),
-    totalOutputTokens: num(cw.total_output_tokens),
-    cacheReadTokens: num(cu.cache_read_input_tokens),
-    cacheCreateTokens: num(cu.cache_creation_input_tokens),
+    contextTokens: num(cw.total_input_tokens),
+    contextWindowSize: num(cw.context_window_size),
     costUsd: num(cost.total_cost_usd),
     apiMs: num(cost.total_api_duration_ms),
     linesAdded: num(cost.total_lines_added),

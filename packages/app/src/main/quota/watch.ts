@@ -24,9 +24,10 @@ let tracker = new QuotaTracker();
 let usageLedger = new Map<string, SessionUsage>();
 
 export function getUsageLedger(): SessionUsage[] {
-  return [...usageLedger.values()].sort(
-    (a, b) => b.totalOutputTokens - a.totalOutputTokens,
-  );
+  // Busiest sessions first, by cumulative API time (context occupancy is
+  // point-in-time and would rank an idle fat-context session above a working
+  // one).
+  return [...usageLedger.values()].sort((a, b) => b.apiMs - a.apiMs);
 }
 
 // Last-known status for a newly-opened window to fetch synchronously (quota:get).

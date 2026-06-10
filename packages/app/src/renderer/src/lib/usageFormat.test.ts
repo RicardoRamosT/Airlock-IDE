@@ -11,10 +11,8 @@ const mk = (over: Partial<SessionUsage>): SessionUsage => ({
   sessionId: "s",
   cwd: null,
   model: null,
-  totalInputTokens: 0,
-  totalOutputTokens: 0,
-  cacheReadTokens: 0,
-  cacheCreateTokens: 0,
+  contextTokens: 0,
+  contextWindowSize: 0,
   costUsd: 0,
   apiMs: 0,
   linesAdded: 0,
@@ -24,22 +22,16 @@ const mk = (over: Partial<SessionUsage>): SessionUsage => ({
 });
 
 describe("aggregateByModel", () => {
-  it("groups, sums, and sorts by output tokens", () => {
+  // Only the CUMULATIVE session metrics aggregate (cost / API time / sessions);
+  // context occupancy is point-in-time and summing it is meaningless. Sorted by
+  // API time -- the "which model worked more" ordering that still ranks on
+  // subscription plans where reported USD is zero.
+  it("groups, sums cumulative metrics, and sorts by API time", () => {
     const rows = aggregateByModel([
-      mk({
-        sessionId: "a",
-        model: "Fable 5",
-        totalOutputTokens: 10,
-        costUsd: 1,
-      }),
-      mk({
-        sessionId: "b",
-        model: "Fable 5",
-        totalOutputTokens: 5,
-        costUsd: 0.5,
-      }),
-      mk({ sessionId: "c", model: "Opus 4.8", totalOutputTokens: 100 }),
-      mk({ sessionId: "d", model: null, totalOutputTokens: 1 }),
+      mk({ sessionId: "a", model: "Fable 5", apiMs: 10_000, costUsd: 1 }),
+      mk({ sessionId: "b", model: "Fable 5", apiMs: 5_000, costUsd: 0.5 }),
+      mk({ sessionId: "c", model: "Opus 4.8", apiMs: 100_000 }),
+      mk({ sessionId: "d", model: null, apiMs: 1_000 }),
     ]);
     expect(rows.map((r) => r.model)).toEqual([
       "Opus 4.8",
@@ -48,7 +40,7 @@ describe("aggregateByModel", () => {
     ]);
     expect(rows[1]).toMatchObject({
       sessions: 2,
-      outputTokens: 15,
+      apiMs: 15_000,
       costUsd: 1.5,
     });
   });
