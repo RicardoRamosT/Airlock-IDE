@@ -70,6 +70,7 @@ const EMPTY: TabTerminals = {
   terminals: [],
   activeTerminalId: null,
   splitTerminalId: null,
+  claudeAutoId: null,
 };
 
 describe("initial state", () => {

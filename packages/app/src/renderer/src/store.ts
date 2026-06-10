@@ -47,12 +47,17 @@ export interface TabTerminals {
   terminals: TerminalEntry[];
   activeTerminalId: string | null;
   splitTerminalId: string | null; // second visible pane; null = no split
+  // Terminal currently holding this tab's auto-Claude claim ("first" mode):
+  // set by claudeAutoDecision at pty adoption, released when that terminal is
+  // removed. null = free.
+  claudeAutoId: string | null;
 }
 
 const emptyTabTerminals = (): TabTerminals => ({
   terminals: [],
   activeTerminalId: null,
   splitTerminalId: null,
+  claudeAutoId: null,
 });
 
 // A single stable empty TabTerminals for selector fallbacks when a tab id is
@@ -64,7 +69,12 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
   terminals: [],
   activeTerminalId: null,
   splitTerminalId: null,
+  claudeAutoId: null,
 };
+
+// The exact bytes the "Start Claude here" notice writes: run claude INSIDE the
+// shell so exiting it returns to the prompt.
+export const CLAUDE_AUTO_COMMAND = "claude\n";
 
 // The full non-terminal per-project state for ONE tab. `tabState` keeps one of
 // these for EVERY tab (the source of truth); the top-level per-project fields
@@ -329,6 +339,10 @@ export interface AppState {
   setTerminalPty: (id: string, ptyId: string) => void;
   setTerminalTitle: (id: string, title: string, fromUser: boolean) => void;
   setSplit: (id: string | null, tabId?: string) => void;
+  // Should the terminal that just adopted its pty auto-run claude? Atomic:
+  // in "first" mode a true return ALSO takes the tab's claim. False for
+  // blank tabs, unknown ids, and mode "off".
+  claudeAutoDecision: (terminalId: string) => boolean;
 
   // --- App-global setters ---
   setSidebarVisible: (v: boolean) => void;
@@ -534,7 +548,14 @@ const removeFromTab = (tt: TabTerminals, id: string): TabTerminals => {
   if (splitTerminalId !== null && splitTerminalId === activeTerminalId) {
     splitTerminalId = null;
   }
-  return { terminals, splitTerminalId, activeTerminalId };
+  return {
+    terminals,
+    splitTerminalId,
+    activeTerminalId,
+    // The auto-Claude claim dies with its holder so the tab's next new
+    // terminal can claim it again ("first" mode regains a session).
+    claudeAutoId: tt.claudeAutoId === id ? null : tt.claudeAutoId,
+  };
 };
 
 export const useApp = create<AppState>((set) => ({
@@ -1211,6 +1232,34 @@ export const useApp = create<AppState>((set) => ({
         },
       };
     }),
+
+  claudeAutoDecision: (terminalId) => {
+    let granted = false;
+    set((s) => {
+      const mode = s.claudeAutoStart;
+      if (mode === "off") return {};
+      const tabId = findOwningTabId(s.tabTerminals, terminalId);
+      if (tabId === null) return {};
+      if ((s.tabState[tabId]?.root ?? null) === null) return {}; // blank tab
+      if (mode === "every") {
+        granted = true;
+        return {};
+      }
+      const tt = s.tabTerminals[tabId];
+      if (!tt) return {};
+      if (tt.claudeAutoId !== null && tt.claudeAutoId !== terminalId)
+        return {}; // another terminal already holds the claim
+      granted = true;
+      if (tt.claudeAutoId === terminalId) return {}; // already ours
+      return {
+        tabTerminals: {
+          ...s.tabTerminals,
+          [tabId]: { ...tt, claudeAutoId: terminalId },
+        },
+      };
+    });
+    return granted;
+  },
 
   // --- App-global setters ---
   setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
