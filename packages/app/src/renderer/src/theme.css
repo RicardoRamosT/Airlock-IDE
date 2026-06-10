@@ -998,11 +998,11 @@ body,
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Full width (no max-width cap); the side padding is the only inset. */
   padding: 16px 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 900px;
 }
 
 /* KPI summary cards across the top of the dashboard. */
