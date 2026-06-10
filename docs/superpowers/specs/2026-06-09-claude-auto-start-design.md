@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-09
 **Status:** Design approved by owner (default mode + design confirmed via Q&A).
-Built on main, branch feat/auto-claude.
+Built on main, branch feat/auto-claude. Implemented on feat/auto-claude.
 
 New terminals can automatically run `claude` so a project is agent-ready the
 moment it opens. A Settings option controls the behavior; the owner chose
