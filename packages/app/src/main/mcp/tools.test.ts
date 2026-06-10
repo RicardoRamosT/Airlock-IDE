@@ -109,6 +109,28 @@ describe("registerTools allowlist guard", () => {
   });
 });
 
+describe("mcp-docs / allowlist parity", () => {
+  // The docs are MCP resources the agent reads to learn its capabilities; a
+  // tool missing from the manual (or a stale count) is an agent-facing contract
+  // drift. Locks tools.md to the allowlist the same way the guard above locks
+  // the registration.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const toolsDoc = readFileSync(
+    path.join(here, "../../../resources/mcp-docs/tools.md"),
+    "utf8",
+  );
+
+  it("mentions every allowlisted tool in tools.md", () => {
+    for (const name of TOOL_NAMES) {
+      expect(toolsDoc).toContain(`\`${name}\``);
+    }
+  });
+
+  it("states the exact allowlist size as its tool count", () => {
+    expect(toolsDoc).toContain(`${TOOL_NAMES.length} tools`);
+  });
+});
+
 describe("tools.ts secret-value source guard", () => {
   // Source-level invariant: tools.ts must never reference a value-returning
   // function. This catches a future edit that imports/calls one even before it

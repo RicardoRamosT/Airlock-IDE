@@ -1,12 +1,13 @@
 # MCP tools
 
-airlock exposes 21 tools over this MCP server. Nine are **read-only status** tools; two
+airlock exposes 22 tools over this MCP server. Nine are **read-only status** tools; two
 curate the UI (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
-injected and the output returned with those values **redacted**; one (`request_secret`) asks
-the user to vault a secret you need (you get back only whether it was vaulted, never the
-value); one (`get_terminal_tail`) reads a terminal tab's recent output, with every vaulted
-secret value **redacted**; and seven **IDE-control** tools (`list_tabs`, `open_tab`,
+injected and the output returned with those values **redacted**; one (`git_commit`) commits
+the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
+asks the user to vault a secret you need (you get back only whether it was vaulted, never
+the value); one (`get_terminal_tail`) reads a terminal tab's recent output, with every
+vaulted secret value **redacted**; and seven **IDE-control** tools (`list_tabs`, `open_tab`,
 `close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`) drive the focused
 window's tabs / split / terminals, returning layout metadata only. **None returns a secret
 value.**
@@ -71,6 +72,17 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   and you get a clean error naming the missing secret (the name is safe; a value never is).
   **Every run is audited** (`command.run` — the command and the secret *names*, never the
   values). Workspace-rooted (needs an open folder). See `security-model.md`.
+
+## Acting — commit the staged changes
+
+- **`git_commit`** — commit what is currently staged in the open folder. Args: `message`
+  (the commit message) and an optional `confirm`. Before committing, airlock **scans the
+  staged content for suspected secret values/patterns**: if any are found the commit is
+  **BLOCKED** and you get back the leak locations (secret name/type + `path:line`, **never
+  the value**) — tell the user what was found, and only re-call with `confirm: true` if
+  they decide to commit anyway. The commit is authored as the project's configured GitHub
+  account. Stage files first via `run_command` (`git add …`) if needed; use `git_status` to
+  see what is staged. Workspace-rooted (needs an open folder). See `security-model.md`.
 
 ## Acting — ask the user to vault a secret you need
 
@@ -165,6 +177,9 @@ a terminal's output use `get_terminal_tail` (both redact). See `security-model.m
 - "Run something that needs a credential" → `run_command` with the secret **names** in
   `injectSecrets` (from `list_secret_names`). airlock injects the values, you get redacted
   output.
+- "Commit the staged changes" → `git_commit` with a message (`git_status` first to see what
+  is staged). A suspected secret in the staged content blocks the commit and reports the
+  leak locations — surface them to the user before even considering `confirm: true`.
 - "The secret I need isn't vaulted yet" → `request_secret` with the name (a secure prompt
   opens for the user to vault it); when it reports vaulted, retry the action that needed it.
 - "What is the user running in another tab / what does that error say?" → `get_terminal_tail`
