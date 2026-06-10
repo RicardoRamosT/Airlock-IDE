@@ -1203,22 +1203,23 @@ describe("editor tabs (unified main pane)", () => {
     expect(ib).toBe(ia + 1); // both healed into the order, adjacent
   });
 
-  it("an overlay (settings) sits ON TOP of the editor tabs, not replacing them", () => {
+  it("the Settings page-tab sits ON TOP of the editor tabs, not replacing them", () => {
     const id = tabIdAt(0);
     get().openFile("a.ts", FILE);
+    // Settings is an IDE-level page-tab now (project strip), not per-tab state.
     get().setSettingsOpen(true);
-    expect(get().tabState[id]?.settingsOpen).toBe(true);
+    expect(get().appPage).toBe("settings");
     expect(get().tabState[id]?.editorTabs).toEqual(["a.ts"]); // preserved
     expect(get().tabState[id]?.selectedFile).toBe("a.ts");
-    get().setSettingsOpen(false); // closing the overlay returns to the editor
+    get().setSettingsOpen(false); // closing the page returns to the editor
+    expect(get().appPage).toBeNull();
     expect(get().tabState[id]?.selectedFile).toBe("a.ts");
   });
 
-  it("openFile dismisses an open overlay so the editor shows", () => {
+  it("openFile keeps the editor scene consistent under a page", () => {
     const id = tabIdAt(0);
     get().setSettingsOpen(true);
     get().openFile("a.ts", FILE);
-    expect(get().tabState[id]?.settingsOpen).toBe(false);
     expect(get().tabState[id]?.mainPrimary).toBe("editor");
   });
 

@@ -364,9 +364,17 @@ export interface AppState {
   searchOpen: boolean;
   search: { query: string; results: SearchResults } | null;
   setSearchOpen: (v: boolean) => void;
-  // The full-page Usage dashboard (window-level: its data is account-wide).
-  usageOpen: boolean;
-  setUsageOpen: (v: boolean) => void;
+  // --- IDE-level pages (Settings / Usage): tabs in the PROJECT strip. They
+  // are app chrome, not project content, so they live beside the project
+  // tabs; BOTH can be open at once, `appPage` selects which one is SHOWN
+  // (replacing the panes area; selecting a project tab hides the page but
+  // keeps its tab open). ---
+  appPage: "settings" | "usage" | null;
+  settingsTabOpen: boolean;
+  usageTabOpen: boolean;
+  openAppPage: (p: "settings" | "usage") => void; // open the tab + show it
+  showAppPage: (p: "settings" | "usage") => void; // click an already-open tab
+  closeAppPage: (p: "settings" | "usage") => void; // the tab's X
   setSearchResults: (query: string, results: SearchResults) => void;
   // A one-shot "scroll the editor to this line" signal, keyed by tabId+path and
   // consumed by EditorPane. nonce makes repeated clicks on the same line retrigger.
@@ -449,10 +457,6 @@ const setView = (
       selectedFile: d.selectedFile,
       ...extra,
     }),
-    // A scene change in the FOCUSED pane (tab click, file open, new terminal)
-    // dismisses the Usage page, exactly like the per-tab overlays. Background
-    // tabs' scene churn (e.g. a pty exit) must not close it.
-    ...(tabId === s.activeTabId ? { usageOpen: false } : {}),
     ...(tt
       ? {
           tabTerminals: {
@@ -641,6 +645,8 @@ export const useApp = create<AppState>((set) => ({
         ...mirrorOf(state),
         // a freshly opened project starts with no modal carried over
         modal: null,
+        // surfacing a project hides any shown IDE page (its tab stays open)
+        appPage: null,
       };
     });
     // The set of open roots grew -> tell main (for resolveRoot validation).
@@ -659,6 +665,7 @@ export const useApp = create<AppState>((set) => ({
         tabTerminals: { ...s.tabTerminals, [id]: emptyTabTerminals() },
         ...mirrorOf(state),
         modal: null,
+        appPage: null,
       };
     });
     // A blank tab adds no root, but reporting keeps main's set authoritative.
@@ -735,7 +742,9 @@ export const useApp = create<AppState>((set) => ({
   // the split (it stays in the strip) and focusing a pair member shows it again.
   switchTab: (id) => {
     set((s) => {
-      if (id === s.activeTabId) return {};
+      // Re-clicking the active tab still surfaces it from under an IDE page.
+      if (id === s.activeTabId)
+        return s.appPage === null ? {} : { appPage: null };
       if (!s.tabs.some((t) => t.id === id)) return {}; // unknown id -> no-op
       // Activating a tab dismisses its finished-glow (the user is now looking).
       // If the switch SHOWS a split (id is a pair member), BOTH members become
@@ -750,6 +759,7 @@ export const useApp = create<AppState>((set) => ({
       return {
         activeTabId: id,
         tabGlow,
+        appPage: null, // selecting a project hides any shown IDE page
         ...mirrorOf(s.tabState[id] ?? freshProjectState(null)),
       };
     });
@@ -1284,13 +1294,13 @@ export const useApp = create<AppState>((set) => ({
   // Settings is an OVERLAY: opening it clears the other overlays (diff/dbView)
   // but NOT the editor (selectedFile/editorTabs), so closing it restores the
   // editor/terminal underneath. Closing leaves the rest untouched.
-  setSettingsOpen: (v, tabId) =>
+  // Compat shim: callers (gear menu, Cmd-comma, close-editor, agent) now
+  // drive the IDE-level Settings page-tab; the per-tab ProjectState
+  // settingsOpen field is retired (stays false everywhere).
+  setSettingsOpen: (v, _tabId) =>
     set((s) => ({
-      ...patchTab(s, tabId ?? s.activeTabId, {
-        settingsOpen: v,
-        ...(v ? { diff: null, dbView: null } : {}),
-      }),
-      ...(v ? { usageOpen: false } : {}),
+      appPage: v ? "settings" : s.appPage === "settings" ? null : s.appPage,
+      settingsTabOpen: v,
     })),
   // Browsing a DB table is an overlay too: clears diff/settings (one overlay at
   // a time) but keeps the editor underneath. Passing null closes the data grid.
@@ -1300,7 +1310,8 @@ export const useApp = create<AppState>((set) => ({
         dbView: v,
         ...(v ? { diff: null, settingsOpen: false } : {}),
       }),
-      ...(v ? { usageOpen: false } : {}),
+      // Browsing data surfaces the project: hide any shown IDE page.
+      ...(v ? { appPage: null } : {}),
     })),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
   fsVersion: {},
@@ -1315,22 +1326,22 @@ export const useApp = create<AppState>((set) => ({
   openPalette: (mode) => set({ palette: { mode } }),
   closePalette: () => set({ palette: null }),
   searchOpen: false,
-  usageOpen: false,
-  // Opening Usage clears the focused tab's page overlays (one page at a time,
-  // mirroring how Settings/DB exclude each other).
-  setUsageOpen: (usageOpen) =>
-    set((s) =>
-      usageOpen
-        ? {
-            ...patchTab(s, s.activeTabId, {
-              settingsOpen: false,
-              dbView: null,
-              diff: null,
-            }),
-            usageOpen,
-          }
-        : { usageOpen },
-    ),
+  appPage: null,
+  settingsTabOpen: false,
+  usageTabOpen: false,
+  openAppPage: (p) =>
+    set((s) => ({
+      appPage: p,
+      settingsTabOpen: p === "settings" ? true : s.settingsTabOpen,
+      usageTabOpen: p === "usage" ? true : s.usageTabOpen,
+    })),
+  showAppPage: (p) => set({ appPage: p }),
+  closeAppPage: (p) =>
+    set((s) => ({
+      appPage: s.appPage === p ? null : s.appPage,
+      settingsTabOpen: p === "settings" ? false : s.settingsTabOpen,
+      usageTabOpen: p === "usage" ? false : s.usageTabOpen,
+    })),
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),
   setSearchResults: (query, results) => set({ search: { query, results } }),

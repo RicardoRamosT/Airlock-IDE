@@ -39,14 +39,6 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const addTerminal = useApp((s) => s.addTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
-  // Page-tabs: Settings (per-tab) and Usage (window-level, focused pane only)
-  // appear as closable tabs while their page is open.
-  const settingsOpen = useApp((s) => s.tabState[tabId]?.settingsOpen ?? false);
-  const isFocusedPane = useApp((s) => s.activeTabId === tabId);
-  const usageOpenHere = useApp((s) => s.usageOpen) && isFocusedPane;
-  const setSettingsOpen = useApp((s) => s.setSettingsOpen);
-  const setUsageOpen = useApp((s) => s.setUsageOpen);
-  const pageOpen = settingsOpen || usageOpenHere;
   const viewItem = useApp((s) => s.viewItem);
   const splitItems = useApp((s) => s.splitItems);
   const unsplitCurrent = useApp((s) => s.unsplitCurrent);
@@ -71,16 +63,13 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const showingSplit = mainSecondary !== null;
 
   // A tab is "active" (highlighted) when it is in the SHOWN scene: the primary
-  // pane (the active terminal / selected file) or the secondary pane. While a
-  // PAGE covers the pane, the page-tab is the active one instead.
+  // pane (the active terminal / selected file) or the secondary pane.
   const termActive = (id: string) =>
-    !pageOpen &&
-    ((mainPrimary === "terminal" && id === activeTerminalId) ||
-      (mainSecondary?.kind === "terminal" && mainSecondary.id === id));
+    (mainPrimary === "terminal" && id === activeTerminalId) ||
+    (mainSecondary?.kind === "terminal" && mainSecondary.id === id);
   const fileActive = (p: string) =>
-    !pageOpen &&
-    ((mainPrimary === "editor" && p === selectedFile) ||
-      (mainSecondary?.kind === "file" && mainSecondary.path === p));
+    (mainPrimary === "editor" && p === selectedFile) ||
+    (mainSecondary?.kind === "file" && mainSecondary.path === p);
 
   const killTerminal = (id: string) => {
     const entry = terminals.find((t) => t.id === id);
@@ -245,38 +234,6 @@ export function MainTabs({ tabId }: { tabId: string }) {
     <div className="main-tabs">
       <div className="main-tabs-list">
         {orderedTabs.map(renderTab)}
-        {settingsOpen && (
-          <div className="main-tab page-tab active">
-            <span className="main-tab-label page-tab-label">
-              <i className="codicon codicon-gear" />
-              <span className="main-tab-title">Settings</span>
-            </span>
-            <button
-              type="button"
-              className="main-tab-close"
-              title="Close settings"
-              onClick={() => setSettingsOpen(false, tabId)}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        )}
-        {usageOpenHere && (
-          <div className="main-tab page-tab active">
-            <span className="main-tab-label page-tab-label">
-              <i className="codicon codicon-graph" />
-              <span className="main-tab-title">Usage</span>
-            </span>
-            <button
-              type="button"
-              className="main-tab-close"
-              title="Close usage"
-              onClick={() => setUsageOpen(false)}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        )}
         <button
           type="button"
           className="main-tab-action"

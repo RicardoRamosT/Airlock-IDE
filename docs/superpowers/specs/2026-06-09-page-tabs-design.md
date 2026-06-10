@@ -1,7 +1,16 @@
-# Page-tabs: Settings and Usage as tabs in the main tab bar
+# Page-tabs: Settings and Usage as tabs (v2: in the PROJECT strip)
 
 **Date:** 2026-06-09
-**Status:** Approved by owner via Q&A. Branch feat/page-tabs. Implemented.
+**Status:** v1 (main tab bar, mutually exclusive) superseded same-day by
+owner feedback: the pages are IDE chrome, not project content, and must
+COEXIST. v2 (branch feat/ide-page-tabs): app-level `appPage` ("settings" |
+"usage" | null = shown page, rendered in the workspace panes slot with the
+sidebar intact) + independent `settingsTabOpen`/`usageTabOpen` flags drive
+two closable pseudo-tabs in the PROJECT strip. Selecting a project tab (or
+opening/creating one, or opening a DB view) hides the page but keeps its tab;
+✕ / Esc / Close Editor close it. `setSettingsOpen` remains as a compat shim
+for existing callers (gear menu, Cmd-comma, agent); the per-tab
+`ProjectState.settingsOpen` field is retired (always false). Implemented.
 
 Settings and the Usage dashboard previously appeared with no tab presence
 (Settings as an invisible in-pane overlay; Usage as a window-fixed sheet).

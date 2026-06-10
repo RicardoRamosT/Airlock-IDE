@@ -6,10 +6,12 @@ import { ProjectTabs } from "./components/ProjectTabs";
 import { RenderConnectModal } from "./components/RenderConnectModal";
 import { SearchPanel } from "./components/SearchPanel";
 import { SecretModal } from "./components/SecretModal";
+import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
+import { UsageTab } from "./components/UsageTab";
 import { TerminalSlotsProvider } from "./lib/terminalSlots";
 import { useAgentCommands } from "./lib/useAgentCommands";
 import { useFsWatch } from "./lib/useFsWatch";
@@ -32,6 +34,7 @@ export function App() {
   const split = useApp((s) => s.split);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const sidebarPosition = useApp((s) => s.sidebarPosition);
+  const appPage = useApp((s) => s.appPage);
   // Show the split ONLY when the focused tab is a member of the pair: switching
   // to a non-pair tab hides the split (the pair persists in `split`), switching
   // back to a member shows it again. Left = a (primary), right = b (secondary);
@@ -51,7 +54,18 @@ export function App() {
               provider wraps it, so useProjectTab() inside falls back to
               activeTabId. */}
           <Sidebar />
-          {showSplit && split ? (
+          {/* An IDE-level page (Settings/Usage, tabs in the project strip)
+              replaces the panes area while shown; terminals relocate to the
+              keep-alive (ptys survive, as with any layout change). */}
+          {appPage === "settings" ? (
+            <div className="app-page">
+              <SettingsTab />
+            </div>
+          ) : appPage === "usage" ? (
+            <div className="app-page">
+              <UsageTab />
+            </div>
+          ) : showSplit && split ? (
             <div className="project-split">
               <ProjectPane tabId={split.a} focused={activeTabId === split.a} />
               <ProjectPane tabId={split.b} focused={activeTabId === split.b} />

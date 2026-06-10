@@ -19,6 +19,11 @@ export function ProjectTabs() {
   const activeTabId = useApp((s) => s.activeTabId);
   const split = useApp((s) => s.split);
   const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
+  // IDE-level page-tabs (Settings/Usage) live in this strip: they are app
+  // chrome, not project content. Both may be open; appPage = the shown one.
+  const appPage = useApp((s) => s.appPage);
+  const settingsTabOpen = useApp((s) => s.settingsTabOpen);
+  const usageTabOpen = useApp((s) => s.usageTabOpen);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
   // terminals' ptyIds working in sessionWorking); the glow is the stored flag.
   const sessionWorking = useApp((s) => s.sessionWorking);
@@ -51,12 +56,23 @@ export function ProjectTabs() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
 
-  // Render gate: show the strip in tabs mode, or while >1 tab exists. When
-  // hidden, returning null collapses App.tsx's auto-sized grid row.
-  if (!openProjectsAsTabs && tabs.length <= 1) return null;
+  // Render gate: show the strip in tabs mode, while >1 tab exists, or while an
+  // IDE page-tab is open (it has nowhere else to live). When hidden, returning
+  // null collapses App.tsx's auto-sized grid row.
+  if (
+    !openProjectsAsTabs &&
+    tabs.length <= 1 &&
+    !settingsTabOpen &&
+    !usageTabOpen
+  )
+    return null;
 
   const splitShowing =
     split !== null && (activeTabId === split.a || activeTabId === split.b);
+  // While an IDE page is shown, IT is the selected tab -- project tabs drop
+  // their active highlight (their state is untouched underneath).
+  const projectActive = (tabId: string) =>
+    appPage === null && tabId === activeTabId;
   const isWorking = (tabId: string): boolean =>
     (tabTerminals[tabId]?.terminals ?? []).some(
       (t) => t.ptyId !== null && sessionWorking[t.ptyId] === true,
@@ -83,7 +99,7 @@ export function ProjectTabs() {
             return (
               <div
                 key="__split__"
-                className={`project-tab project-tab-pair${splitShowing ? " active" : ""}${glow ? " glow" : ""}`}
+                className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}`}
               >
                 <button
                   type="button"
@@ -125,7 +141,7 @@ export function ProjectTabs() {
             );
           }
           // A normal single tab.
-          const active = tab.id === activeTabId;
+          const active = projectActive(tab.id);
           const working = isWorking(tab.id);
           const glow = !working && tabGlow[tab.id] === true;
           return (
@@ -168,6 +184,58 @@ export function ProjectTabs() {
             </div>
           );
         })}
+        {settingsTabOpen && (
+          <div
+            className={`project-tab page-tab${appPage === "settings" ? " active" : ""}`}
+          >
+            <button
+              type="button"
+              className="project-tab-label"
+              title="Settings"
+              onClick={() => useApp.getState().showAppPage("settings")}
+            >
+              <i className="codicon codicon-gear" />
+              <span className="project-tab-title">Settings</span>
+            </button>
+            <button
+              type="button"
+              className="project-tab-close"
+              title="Close settings"
+              onClick={(e) => {
+                e.stopPropagation();
+                useApp.getState().closeAppPage("settings");
+              }}
+            >
+              <i className="codicon codicon-close" />
+            </button>
+          </div>
+        )}
+        {usageTabOpen && (
+          <div
+            className={`project-tab page-tab${appPage === "usage" ? " active" : ""}`}
+          >
+            <button
+              type="button"
+              className="project-tab-label"
+              title="Usage"
+              onClick={() => useApp.getState().showAppPage("usage")}
+            >
+              <i className="codicon codicon-graph" />
+              <span className="project-tab-title">Usage</span>
+            </button>
+            <button
+              type="button"
+              className="project-tab-close"
+              title="Close usage"
+              onClick={(e) => {
+                e.stopPropagation();
+                useApp.getState().closeAppPage("usage");
+              }}
+            >
+              <i className="codicon codicon-close" />
+            </button>
+          </div>
+        )}
       </div>
       <button
         type="button"
