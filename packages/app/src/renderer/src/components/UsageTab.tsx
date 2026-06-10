@@ -48,11 +48,17 @@ export function UsageTab() {
   }, [closeAppPage]);
 
   const now = Math.floor(Date.now() / 1000);
-  const models = aggregateByModel(sessions);
-  const totalCost = sessions.reduce((a, s) => a + s.costUsd, 0);
-  const totalIn = sessions.reduce((a, s) => a + s.totalInputTokens, 0);
-  const totalOut = sessions.reduce((a, s) => a + s.totalOutputTokens, 0);
-  const liveCount = sessions.filter(
+  // Hide sessions that have not done anything yet (a freshly started claude
+  // emits before its first API response, all zeros) -- they would read as
+  // confusing duplicates of the project's previous session.
+  const visible = sessions.filter(
+    (s) => s.totalInputTokens > 0 || s.totalOutputTokens > 0 || s.costUsd > 0,
+  );
+  const models = aggregateByModel(visible);
+  const totalCost = visible.reduce((a, s) => a + s.costUsd, 0);
+  const totalIn = visible.reduce((a, s) => a + s.totalInputTokens, 0);
+  const totalOut = visible.reduce((a, s) => a + s.totalOutputTokens, 0);
+  const liveCount = visible.filter(
     (s) => now - s.lastEmitAt <= LIVE_WITHIN_S,
   ).length;
 
@@ -102,7 +108,7 @@ export function UsageTab() {
           <div className="usage-kpi">
             <span className="usage-kpi-value">
               {liveCount}
-              <span className="usage-kpi-sub">/{sessions.length}</span>
+              <span className="usage-kpi-sub">/{visible.length}</span>
             </span>
             <span className="usage-kpi-label">live sessions</span>
           </div>
@@ -168,7 +174,7 @@ export function UsageTab() {
 
         <section className="usage-section">
           <h3>Sessions (since AirLock launched)</h3>
-          {sessions.length > 0 && (
+          {visible.length > 0 && (
             <table className="usage-table">
               <thead>
                 <tr>
@@ -183,7 +189,7 @@ export function UsageTab() {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((s) => (
+                {visible.map((s) => (
                   <tr key={s.sessionId}>
                     <td title={s.cwd ?? undefined}>{basename(s.cwd)}</td>
                     <td>{s.model ?? "unknown"}</td>

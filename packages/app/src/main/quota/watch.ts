@@ -53,23 +53,10 @@ async function readAndBroadcast(outPath: string): Promise<void> {
   const status = parseQuota(text, emitAt);
   const usage = parseSessionUsage(text, emitAt);
   if (usage) recordUsage(usageLedger, usage);
-  // "Active" = the session's transcript mtime (real API activity), NOT the emit
-  // time -- an idle session keeps emitting (refreshInterval) but its transcript
-  // stops advancing, so it loses to the active session and can't clobber it.
-  let activeAt = emitAt;
-  if (meta.transcriptPath) {
-    try {
-      activeAt = Math.floor((await stat(meta.transcriptPath)).mtimeMs / 1000);
-    } catch {
-      // transcript gone/unreadable: fall back to emit time
-    }
-  }
-  const best = tracker.record(
-    meta.sessionId ?? outPath,
-    status,
-    activeAt,
-    emitAt,
-  );
+  // The tracker folds window values monotonically (account usage only climbs
+  // within a window), so per-session activity ranking -- and the transcript
+  // mtime stat it needed -- is gone.
+  const best = tracker.record(meta.sessionId ?? outPath, status, emitAt);
   if (best) {
     latest = best;
     broadcast(best);
