@@ -1402,11 +1402,19 @@ button.quota-meter:hover {
 .settings-body {
   min-height: 0;
   overflow: auto;
-  padding: 16px 20px;
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
+/* Each section is a card (same family as the Usage dashboard). */
 .settings-section {
-  margin-bottom: 24px;
+  margin: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
 }
 
 .settings-section h3 {
@@ -1421,16 +1429,16 @@ button.quota-meter:hover {
 .settings-sublabel {
   font-size: 12px;
   color: var(--fg-dim);
-  margin: 4px 0 6px;
+  margin: 10px 0 4px;
 }
 
 .settings-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 13px;
   color: var(--fg);
-  padding: 4px 0;
+  padding: 5px 0;
   cursor: pointer;
 }
 
@@ -1438,9 +1446,103 @@ button.quota-meter:hover {
   cursor: pointer;
 }
 
+/* Checkboxes render as the same pill-track switch the Secrets toggle uses. */
+.settings-row input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--hover);
+  position: relative;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.settings-row input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+
+.settings-row input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-row input[type="checkbox"]:checked::after {
+  transform: translateX(12px);
+  background: var(--bg);
+}
+
+/* Radios: flat ring with an accent dot when selected. */
+.settings-row input[type="radio"] {
+  appearance: none;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: 50%;
+  border: 1px solid var(--fg-dim);
+  position: relative;
+  transition: border-color 0.15s;
+}
+
+.settings-row input[type="radio"]:checked {
+  border-color: var(--accent);
+}
+
+.settings-row input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Inputs/selects in rows match the flat control family (24px, 4px radius). */
+.settings-row select,
+.settings-row input[type="number"],
+.settings-row input[type="text"] {
+  height: 24px;
+  background: var(--hover);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color 0.1s;
+}
+
+.settings-row select:hover,
+.settings-row input[type="number"]:hover,
+.settings-row input[type="text"]:hover {
+  border-color: var(--fg-dim);
+}
+
+.settings-row input[type="number"] {
+  width: 72px;
+}
+
 .settings-note {
   font-size: 12px;
   color: var(--fg-dim);
+  /* Cap prose lines at a readable measure even on wide windows. */
+  max-width: 860px;
+  line-height: 1.5;
+  margin: 2px 0 6px;
 }
 
 .settings-footer-note {
