@@ -6,7 +6,7 @@ Two groups inside one section:
 - **Databases** — the project's vaulted Postgres connection-string secrets, shown as
   redacted info (host, database, user — never the password) with a reachability status dot
   from a short-lived ping. Expanding a database lists its tables; clicking a table opens
-  the rows in the data grid (viewer pane).
+  the rows in a data grid in the main area.
 - **Neon** — if a Neon account is connected, a lazy tree of projects → branches →
   databases → tables, each database self-pinging for its status dot. Tables open in the
   data grid too.

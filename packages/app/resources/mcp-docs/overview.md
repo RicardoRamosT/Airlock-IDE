@@ -18,14 +18,19 @@ server, and an audit log — and it exposes all of that to you over this MCP ser
 airlock's window has three regions:
 
 - **Sidebar** (left, can be moved to the right or hidden) — a stack of collapsible
-  sections: Files, Secrets, Git, Databases, Docker, Host, Audit, Activity. This is the
+  sections: Files, Secrets, Git, Activity, Databases, Docker, Host, Audit. This is the
   project's status at a glance. You can read every section's live status and you can show/hide
-  sections to curate what the human sees (see `tools.md`).
-- **The terminal owns the right-hand side.** By default the main area is just the
-  terminal — that is where you live. It is the primary surface, not an afterthought.
-- **An on-demand viewer split.** When the human opens a file, a git diff, the settings
-  tab, or a database table, a viewer pane splits in beside the terminal. When nothing is
-  selected, the terminal takes the whole area again.
+  sections to curate what the human sees (see `tools.md`). Pinned at its bottom-left is an
+  account-wide **Claude usage meter** (the 5-hour and 7-day plan windows); clicking it opens
+  the Usage dashboard.
+- **The main area is terminal-first.** By default it is just the terminal — that is where you
+  live, the primary surface. The human can also open files, git diffs, and database tables
+  here as tabs alongside the terminal, and can **split the area into a multi-pane scene**
+  (terminals and/or files side by side). When nothing else is open, the terminal fills it.
+- **IDE page-tabs.** Settings and the Usage dashboard open as their own top-level page-tabs in
+  the tab strip (both can be open at once), separate from the project/folder tabs. They are
+  the human's to drive — your IDE-control tools (`ide-control.md`) manage the project tabs,
+  the split, and terminals, not these page-tabs.
 
 ## The one crucial fact
 
