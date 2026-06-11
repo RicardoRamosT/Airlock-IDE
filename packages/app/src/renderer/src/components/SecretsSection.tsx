@@ -17,6 +17,14 @@ export function SecretsSection() {
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<string | null>(null);
+  // The open row-actions menu (one at a time), anchored under its "..."
+  // button: fixed position from the button's rect, right-aligned via CSS
+  // transform at render. null = closed.
+  const [menu, setMenu] = useState<{
+    name: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!root) return;
@@ -54,6 +62,16 @@ export function SecretsSection() {
       setNeedsRestart(true);
     });
   }, [root, refresh]);
+
+  // Escape closes the open row menu (same shape as FileTree's menu effect).
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
 
   if (!root) return <div className="section-note">open a folder first</div>;
 
@@ -136,31 +154,19 @@ export function SecretsSection() {
             {!s.valid && <span className="badge">check</span>}
             <button
               type="button"
-              className="secret-action"
-              title={
-                revealed[s.name] !== undefined ? "Hide value" : "Reveal value"
-              }
-              onClick={() => void toggleReveal(s.name)}
+              className="secret-more"
+              title="Secret actions"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                // Re-clicking the same row's "..." toggles the menu closed.
+                setMenu(
+                  menu?.name === s.name
+                    ? null
+                    : { name: s.name, x: r.right, y: r.bottom + 4 },
+                );
+              }}
             >
-              <i
-                className={`codicon codicon-${revealed[s.name] !== undefined ? "eye-closed" : "eye"}`}
-              />
-            </button>
-            <button
-              type="button"
-              className="secret-action"
-              title="Copy value to clipboard"
-              onClick={() => void copyValue(s.name)}
-            >
-              <i className="codicon codicon-copy" />
-            </button>
-            <button
-              type="button"
-              className="secret-delete"
-              title="Delete from Keychain"
-              onClick={() => removeSecret(s.name)}
-            >
-              <i className="codicon codicon-trash" />
+              <i className="codicon codicon-ellipsis" />
             </button>
           </div>
           {revealed[s.name] !== undefined && (
@@ -176,6 +182,69 @@ export function SecretsSection() {
           )}
         </div>
       ))}
+      {menu && (
+        <>
+          <button
+            type="button"
+            className="popover-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenu(null)}
+          />
+          <div
+            className="context-menu"
+            style={{
+              left: menu.x,
+              top: menu.y,
+              transform: "translateX(-100%)",
+            }}
+          >
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                void toggleReveal(menu.name);
+                setMenu(null);
+              }}
+            >
+              <span>
+                {revealed[menu.name] !== undefined
+                  ? "Hide value"
+                  : "Reveal value"}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                void copyValue(menu.name);
+                setMenu(null);
+              }}
+            >
+              <span>Copy value</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                setModal({ update: menu.name });
+                setMenu(null);
+              }}
+            >
+              <span>Update value…</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item danger"
+              onClick={() => {
+                void removeSecret(menu.name);
+                setMenu(null);
+              }}
+            >
+              <span>Delete</span>
+            </button>
+          </div>
+        </>
+      )}
       <div className="secret-actions">
         <button
           type="button"

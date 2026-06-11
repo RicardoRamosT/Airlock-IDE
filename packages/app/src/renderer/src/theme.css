@@ -1275,7 +1275,7 @@ button.quota-meter:hover {
 }
 
 /* Failed ping. The red is the same literal used by .modal-error /
-   .secret-delete:hover -- semantic error colors stay literal by convention
+   .menu-item.danger:hover -- semantic error colors stay literal by convention
    (see the light-palette note) since #f85149 reads on both backgrounds. */
 .status-dot.fail {
   background: #f85149;
@@ -1687,39 +1687,27 @@ button.quota-meter:hover {
   background: var(--hover);
 }
 
-.secret-delete {
+/* Per-row "..." opening the secret actions menu. Always visible (it replaced
+   the old hover-revealed eye/copy/trash cluster); takes the auto margin so it
+   sits flush right. */
+.secret-more {
   background: none;
   border: none;
   color: var(--fg-dim);
   cursor: pointer;
   font-size: 11px;
-  opacity: 0;
-  transition: opacity 80ms linear;
-}
-
-.secret-delete:hover {
-  color: #f85149;
-}
-
-/* Per-row reveal (eye) + copy buttons. Hidden until the row is hovered/focused
-   (same reveal group as .secret-delete below). The first trailing action takes
-   the auto margin so the eye/copy/delete cluster sits flush to the right. */
-.secret-action {
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  font-size: 11px;
-  opacity: 0;
-  transition: opacity 80ms linear;
-}
-
-.secret-action:first-of-type {
   margin-left: auto;
 }
 
-.secret-action:hover {
+.secret-more:hover {
   color: var(--accent);
+}
+
+/* Destructive row in a context menu (the secret Delete item): literal
+   semantic color, same convention as .modal-error (see the light-palette
+   note). */
+.menu-item.danger:hover {
+  color: #f85149;
 }
 
 /* Inline plaintext shown under a row after the eye is clicked. Monospace,
@@ -2200,10 +2188,6 @@ button.quota-meter:hover {
   color: var(--accent);
 }
 
-.secret-row:hover .secret-delete,
-.secret-row:focus-within .secret-delete,
-.secret-row:hover .secret-action,
-.secret-row:focus-within .secret-action,
 .git-row:hover .git-action,
 .git-row:focus-within .git-action {
   opacity: 1;
