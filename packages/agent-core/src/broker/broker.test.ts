@@ -280,4 +280,18 @@ describe("broker", () => {
     // First entry in a fresh chain links to genesis (all zeros).
     expect(entry.prevHash).toBe("0".repeat(64));
   });
+
+  it("attributes audit entries to the agent when actor is set", async () => {
+    await writeFile(path.join(root, ".env"), "A=1\n");
+    await importDotEnv(root, ".env", { keychain: fake, actor: "agent" });
+    const entries = await readAudit(root);
+    // secret.set (from the inner setSecret) + secret.import, both as agent.
+    expect(entries.map((e) => e.op)).toEqual(["secret.set", "secret.import"]);
+    expect(entries.map((e) => e.actor)).toEqual(["agent", "agent"]);
+  });
+
+  it("defaults audit attribution to the user", async () => {
+    await setSecret(root, "A", "1", { keychain: fake });
+    expect((await readAudit(root))[0]?.actor).toBe("user");
+  });
 });

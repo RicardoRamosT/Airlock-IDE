@@ -12,6 +12,9 @@ const SERVICE = "airlock";
 
 export interface BrokerOptions {
   keychain?: KeychainStore;
+  // Audit attribution for the operation. The IPC/button paths keep the
+  // default; the MCP import_env tool passes "agent" so the chain is honest.
+  actor?: "user" | "agent";
 }
 
 async function accountFor(root: string, name: string): Promise<string> {
@@ -55,7 +58,7 @@ export async function setSecret(
   // the meta is already persisted - an acceptable degrade for the same reason.
   await upsertMeta(root, meta);
   keychain.set(SERVICE, await accountFor(root, name), value);
-  await appendAudit(root, "user", "secret.set", {
+  await appendAudit(root, opts.actor ?? "user", "secret.set", {
     name,
     provider: validation.provider,
     valid: validation.valid,
@@ -76,7 +79,7 @@ export async function deleteSecret(
   // honest instead of always claiming a clean delete.
   const deleted = keychain.delete(SERVICE, await accountFor(root, name));
   await removeMeta(root, name);
-  await appendAudit(root, "user", "secret.delete", {
+  await appendAudit(root, opts.actor ?? "user", "secret.delete", {
     name,
     keychainDeleted: deleted,
   });
@@ -175,7 +178,7 @@ export async function setGlobalSecret(
   if (value.trim().length === 0) throw new Error("Empty secret value");
   keychain.set(SERVICE, globalAccountFor(name), value);
   if (opts.auditLog) {
-    await appendAuditAt(opts.auditLog, "user", "secret.global.set", { name });
+    await appendAuditAt(opts.auditLog, opts.actor ?? "user", "secret.global.set", { name });
   }
 }
 
@@ -203,7 +206,7 @@ export async function injectInto(
     env[meta.name] = value;
     injected.push(meta.name);
   }
-  await appendAudit(root, "user", "secret.inject", {
+  await appendAudit(root, opts.actor ?? "user", "secret.inject", {
     names: injected,
     missing,
     count: injected.length,
@@ -256,7 +259,7 @@ export async function importDotEnv(
     await unlink(abs);
     deleted = true;
   }
-  await appendAudit(root, "user", "secret.import", {
+  await appendAudit(root, opts.actor ?? "user", "secret.import", {
     file: relPath,
     imported: imported.map((m) => m.name),
     skipped,
