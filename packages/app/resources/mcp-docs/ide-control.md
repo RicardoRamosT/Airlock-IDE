@@ -1,19 +1,21 @@
 # IDE control - drive the focused window's layout
 
-Seven tools let you drive the **layout** of the focused airlock window: its tabs, the
-split view, and its terminals. They are how you arrange the workbench around yourself -
-open the project you are about to work on as a tab, split it beside another, spin up a
-terminal to run something, tidy up when done.
+Nine tools let you drive the **layout** of the focused airlock window: its tabs, the
+split view, its terminals, and the IDE page-tabs (Settings / Usage). They are how you
+arrange the workbench around yourself - open the project you are about to work on as a
+tab, split it beside another, spin up a terminal to run something, surface the Usage
+dashboard for the human, tidy up when done.
 
 > **Layout metadata only - no secret values.** These tools carry only tab ids,
-> terminal ids, and a folder path going in, and they return only **layout metadata** -
-> each tab's id, name (the folder basename, or "New Tab"), root, whether it is focused
-> or in the split, and its terminals as `{ id, title }`, plus the split pair. They
-> return **no** secret value, no environment value, and no terminal output. `open_terminal`
-> spawns a shell with the project's secrets injected (the same as a terminal the human
-> opens), but you never see those values - no tool here returns them, and reading a
-> terminal's output still goes through `get_terminal_tail`, which redacts. So these tools
-> do not widen the no-secrets surface at all (see `security-model.md`).
+> terminal ids, a folder path, or a page name going in, and they return only **layout
+> metadata** - each tab's id, name (the folder basename, or "New Tab"), root, whether it
+> is focused or in the split, and its terminals as `{ id, title }`, plus the split pair
+> and the page-tab state. They return **no** secret value, no environment value, and no
+> terminal output. `open_terminal` spawns a shell with the project's secrets injected
+> (the same as a terminal the human opens), but you never see those values - no tool here
+> returns them, and reading a terminal's output still goes through `get_terminal_tail`,
+> which redacts. So these tools do not widen the no-secrets surface at all (see
+> `security-model.md`).
 
 > **They act on the FOCUSED window.** Like the rest of your tools, these resolve to the
 > last-focused window - the window the human is actually using (see `overview.md`). If no
@@ -35,12 +37,17 @@ terminal to run something, tidy up when done.
       "terminals": [ { "id": "term-1", "title": "zsh" } ]
     }
   ],
-  "split": null                  // or { "a": "<tabId>", "b": "<tabId>" } when split
+  "split": null,                 // or { "a": "<tabId>", "b": "<tabId>" } when split
+  "appPages": {                  // the IDE page-tabs (app chrome, NOT in `tabs`)
+    "open": ["usage"],           // which of "settings" / "usage" have a tab open
+    "shown": null                // the page currently shown, or null (a project tab is)
+  }
 }
 ```
 
-> **Project tabs only.** Settings and the Usage dashboard are separate IDE page-tabs (in the
-> same strip) — they are NOT in `tabs`, and these tools do not open, close, or switch them.
+> **Page-tabs are separate from project tabs.** Settings and the Usage dashboard are IDE
+> page-tabs in the same strip — they are NOT in `tabs` and have no tabId. Drive them with
+> `open_app_page` / `close_app_page` (below); their state is reported in `appPages`.
 
 ## The tools
 
@@ -68,6 +75,12 @@ terminal to run something, tidy up when done.
   see no values.
 - **`close_terminal`** - close a terminal by `terminalId` (from `list_tabs` or the
   `open_terminal` reply). Returns the new layout.
+- **`open_app_page`** - open an IDE page-tab and show it. Arg `page`: `"settings"` or
+  `"usage"`. Both pages can be open at once; at most one is shown (opening one shows it,
+  and opening an already-open page just brings it back into view - the human may have a
+  project tab selected over it). Returns the new layout (`appPages` reflects it).
+- **`close_app_page`** - close an IDE page-tab by `page` (`"settings"` or `"usage"`).
+  Closing a page that is not open is a no-op. Returns the new layout.
 
 ## Picking a tool
 
@@ -77,6 +90,8 @@ terminal to run something, tidy up when done.
   so the pair is exactly those two regardless of focus.
 - "Give me a terminal to run X in" -> `open_terminal`, then `run_command` (or read it
   later with `get_terminal_tail`).
-- "Tidy up" -> `close_tab` / `close_terminal`.
+- "Show me my usage / open Settings" -> `open_app_page` with `"usage"` / `"settings"`
+  (to READ the usage data yourself, use `plan_usage` - no page needs to be open).
+- "Tidy up" -> `close_tab` / `close_terminal` / `close_app_page`.
 - These change LAYOUT; they never read a secret. To run something with a credential use
   `run_command`; to read a terminal's output use `get_terminal_tail` (both redact).

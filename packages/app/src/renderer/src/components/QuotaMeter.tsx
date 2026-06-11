@@ -87,7 +87,8 @@ export function QuotaMeter() {
   const resets = [
     quota.fiveHour &&
       `session ${formatCountdown(quota.fiveHour.resetsAt - now)}`,
-    quota.sevenDay && `weekly ${formatCountdown(quota.sevenDay.resetsAt - now)}`,
+    quota.sevenDay &&
+      `weekly ${formatCountdown(quota.sevenDay.resetsAt - now)}`,
   ].filter(Boolean);
 
   return (

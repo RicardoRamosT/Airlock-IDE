@@ -22,6 +22,7 @@ import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs } from "./prefs";
+import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { createWindow, lastFocusedRoot } from "./window";
 
@@ -136,9 +137,14 @@ function bootstrap(): void {
         addDismissedActivity(entryId);
         broadcastActivityChanged();
       },
-      // The IDE-control tools (tabs/split/terminals) drive the focused window via
-      // this command round-trip. Layout/terminal control only -- ids/paths in,
-      // layout metadata out; it never returns a secret value.
+      // plan_usage reads the account's Claude plan usage off the quota watcher:
+      // the cached QuotaStatus + the per-session ledger. Usage metadata only --
+      // no secret values.
+      getQuota,
+      getUsageLedger,
+      // The IDE-control tools (tabs/split/terminals/page-tabs) drive the focused
+      // window via this command round-trip. Layout control only -- ids/paths/page
+      // names in, layout metadata out; it never returns a secret value.
       runAgentCommand,
       token,
     }).catch((e) => {

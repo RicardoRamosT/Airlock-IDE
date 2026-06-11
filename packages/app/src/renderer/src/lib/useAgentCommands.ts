@@ -18,7 +18,8 @@ const tabName = (root: string | null): string =>
 
 // Build the current layout metadata from the store. One entry per open tab (its
 // id, name, root, focused/in-split flags, and terminals as {id,title}) plus the
-// split pair. Read off useApp.getState() so it reflects the just-applied action.
+// split pair and the IDE page-tab state (Settings/Usage: which are open, which
+// is shown). Read off useApp.getState() so it reflects the just-applied action.
 function buildSnapshot(): TabsSnapshot {
   const s = useApp.getState();
   const { tabs, activeTabId, split, tabTerminals } = s;
@@ -35,6 +36,13 @@ function buildSnapshot(): TabsSnapshot {
       })),
     })),
     split,
+    appPages: {
+      open: [
+        ...(s.settingsTabOpen ? (["settings"] as const) : []),
+        ...(s.usageTabOpen ? (["usage"] as const) : []),
+      ],
+      shown: s.appPage,
+    },
   };
 }
 
@@ -84,6 +92,15 @@ async function applyCommand(cmd: AgentCommand): Promise<void> {
       break;
     case "close_terminal":
       s.removeTerminal(cmd.terminalId);
+      break;
+    case "open_app_page":
+      // Opens the page-tab AND shows it (store semantics); on an already-open
+      // page this just brings it back into view.
+      s.openAppPage(cmd.page);
+      break;
+    case "close_app_page":
+      // Closing a not-open page is a clean no-op in the store.
+      s.closeAppPage(cmd.page);
       break;
   }
 }

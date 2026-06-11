@@ -26,12 +26,14 @@ async function startOnEphemeralPort(): Promise<number> {
     listTerminals: async () => [],
     getActivity: async () => [],
     dismissActivity: () => {},
+    getQuota: () => null,
+    getUsageLedger: () => [],
     // Stub the IDE-control round-trip so the McpDeps literal type-checks; the
     // server-level tests assert the tool SURFACE (count/names), not the layout
     // behavior (that is covered in tools.test.ts + the renderer hook).
     runAgentCommand: async () => ({
       ok: true,
-      data: { tabs: [], split: null },
+      data: { tabs: [], split: null, appPages: { open: [], shown: null } },
     }),
     token: TOKEN,
   });
@@ -131,7 +133,7 @@ describe("MCP server handshake", () => {
     expect(result?.capabilities).toBeDefined();
   });
 
-  it("tools/list (after initialize) returns EXACTLY the twenty-two allowlisted tools", async () => {
+  it("tools/list (after initialize) returns EXACTLY the twenty-five allowlisted tools", async () => {
     const port = await startOnEphemeralPort();
     // A real client initializes first; with a fresh per-request transport this
     // second request must also succeed (the reused-transport bug 500'd here).
@@ -150,7 +152,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(22);
+    expect(names).toHaveLength(25);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {
