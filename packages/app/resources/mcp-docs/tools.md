@@ -1,13 +1,14 @@
 # MCP tools
 
-airlock exposes 25 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 26 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
 injected and the output returned with those values **redacted**; one (`git_commit`) commits
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
 asks the user to vault a secret you need (you get back only whether it was vaulted, never
-the value); one (`get_terminal_tail`) reads a terminal tab's recent output, with every
+the value); one (`import_env`) batch-imports the project's .env files into the vault (per-file summaries, names only);
+one (`get_terminal_tail`) reads a terminal tab's recent output, with every
 vaulted secret value **redacted**; and nine **IDE-control** tools (`list_tabs`, `open_tab`,
 `close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`,
 `open_app_page`, `close_app_page`) drive the focused window's tabs / split / terminals /
@@ -63,6 +64,22 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 - **`list_secret_names`** — the project's secret **names** with provider and validity — no
   values, ever. Use it to learn what credentials exist (and thus what the project needs),
   e.g. to decide which sidebar sections to surface. See `security-model.md`.
+
+## Acting — import the project's .env files into the vault
+
+- **`import_env`** — batch-import env files into the project's secret vault. With **no
+  args** it discovers and imports every importable env file in the project root (`.env`
+  and `.env.*`, excluding template/encrypted conventions: `*.example`, `*.sample`,
+  `*.template`, `*.dist`, `*.vault`), in precedence order (`.env` first, `*.local` last —
+  last write wins on duplicate keys). Pass `files` (relative paths) to import exactly
+  those instead, **in the order given** (later files override earlier ones on duplicate
+  keys). Returns one summary per file: the imported secret **names** (+ provider/validity),
+  skipped/failed names, whether the file was deleted, or the per-file error — **never a
+  value**. `deleteAfter` defaults to **false** for you: only pass `true` when the user has
+  explicitly confirmed deleting the source files after vaulting (a file is deleted only if
+  every entry in it vaulted cleanly). Every import is **audited as the agent**. The
+  SECRETS sidebar refreshes live. Workspace-rooted (needs an open folder). See
+  `security-model.md`.
 
 ## Acting — run a command that needs a secret
 

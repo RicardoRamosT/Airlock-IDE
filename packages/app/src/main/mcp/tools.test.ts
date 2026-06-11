@@ -7,8 +7,10 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  EnvFileImport,
   QuotaStatus,
   Section,
+  SecretMeta,
   SectionVisibility,
   SessionUsage,
   TabsSnapshot,
@@ -67,6 +69,11 @@ const baseDeps = {
   listTerminals: vi.fn(async () => [] as { id: string; preview: string }[]),
   getActivity: vi.fn(async () => [] as ActivityItem[]),
   dismissActivity: vi.fn((_entryId: string) => {}),
+  // The injected batch env importer for import_env (the real one is agent-core's
+  // importAllDotEnv, wired in server.ts) + the secrets:changed broadcast. Both
+  // injected so these tests never touch the keychain/fs or Electron windows.
+  importEnvFiles: vi.fn(async () => [] as EnvFileImport[]),
+  notifySecretsChanged: vi.fn((_root: string) => {}),
   // The quota/usage reads for plan_usage: main's cached account status and the
   // per-session ledger. Metadata only -- usage numbers, never a secret value.
   getQuota: vi.fn(() => null as QuotaStatus | null),
@@ -85,19 +92,20 @@ const baseDeps = {
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-five allowlisted tools (sixteen read/curate/run/commit + the nine
+  // twenty-six allowlisted tools (seventeen read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the twenty-five allowlisted tools and nothing else", () => {
+  it("registers exactly the twenty-six allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(25);
+    expect(registered).toHaveLength(26);
     expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
+    expect(registered).toContain("import_env");
     expect(registered).toContain("activity_status");
     expect(registered).toContain("dismiss_activity");
     expect(registered).toContain("plan_usage");
@@ -682,6 +690,101 @@ describe("IDE-control tools (tabs / split / terminals / page-tabs)", () => {
     // The page-tab tools take the page enum ("settings" | "usage").
     expect(byName("open_app_page")?.config.inputSchema?.page).toBeDefined();
     expect(byName("close_app_page")?.config.inputSchema?.page).toBeDefined();
+  });
+});
+
+describe("import_env tool", () => {
+  function getTool(overrides: Partial<typeof baseDeps> = {}) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, { ...baseDeps, ...overrides });
+    const tool = tools.find((t) => t.name === "import_env");
+    if (!tool) throw new Error("import_env tool not registered");
+    return tool;
+  }
+
+  const importedResult = (file: string, names: string[]): EnvFileImport => ({
+    file,
+    result: {
+      imported: names.map((name) => ({ name }) as SecretMeta),
+      skipped: [],
+      failed: [],
+      deleted: false,
+    },
+  });
+
+  it("errors cleanly with no workspace and never calls the importer", async () => {
+    const importEnvFiles = vi.fn(async () => [] as EnvFileImport[]);
+    const tool = getTool({ importEnvFiles });
+    const res = (await tool.handler({})) as {
+      isError?: boolean;
+      content: { text: string }[];
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toBe("No workspace open");
+    expect(importEnvFiles).not.toHaveBeenCalled();
+  });
+
+  it("forwards files + deleteAfter and stamps the agent actor", async () => {
+    const importEnvFiles = vi.fn(async () => [] as EnvFileImport[]);
+    const tool = getTool({
+      getWorkspaceRoot: () => "/ws",
+      importEnvFiles,
+    });
+    await tool.handler({ files: [".env.example"], deleteAfter: true });
+    expect(importEnvFiles).toHaveBeenCalledWith("/ws", {
+      files: [".env.example"],
+      deleteAfter: true,
+      actor: "agent",
+    });
+  });
+
+  it("defaults deleteAfter to false (autonomous actor must opt in)", async () => {
+    const importEnvFiles = vi.fn(async () => [] as EnvFileImport[]);
+    const tool = getTool({
+      getWorkspaceRoot: () => "/ws",
+      importEnvFiles,
+    });
+    await tool.handler({});
+    expect(importEnvFiles).toHaveBeenCalledWith("/ws", {
+      files: undefined,
+      deleteAfter: false,
+      actor: "agent",
+    });
+  });
+
+  it("broadcasts secrets:changed only when something was imported", async () => {
+    const notifySecretsChanged = vi.fn((_root: string) => {});
+    const tool = getTool({
+      getWorkspaceRoot: () => "/ws",
+      importEnvFiles: vi.fn(async () => [importedResult(".env", ["A"])]),
+      notifySecretsChanged,
+    });
+    await tool.handler({});
+    expect(notifySecretsChanged).toHaveBeenCalledWith("/ws");
+
+    const quietNotify = vi.fn((_root: string) => {});
+    const quietTool = getTool({
+      getWorkspaceRoot: () => "/ws",
+      importEnvFiles: vi.fn(async () => [] as EnvFileImport[]),
+      notifySecretsChanged: quietNotify,
+    });
+    await quietTool.handler({});
+    expect(quietNotify).not.toHaveBeenCalled();
+  });
+
+  it("returns the per-file summary (names only)", async () => {
+    const tool = getTool({
+      getWorkspaceRoot: () => "/ws",
+      importEnvFiles: vi.fn(async () => [
+        importedResult(".env", ["A", "B"]),
+        { file: ".env.local", error: "EACCES" } as EnvFileImport,
+      ]),
+    });
+    const res = (await tool.handler({})) as { content: { text: string }[] };
+    const parsed = JSON.parse(res.content[0]?.text ?? "") as EnvFileImport[];
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.result?.imported.map((m) => m.name)).toEqual(["A", "B"]);
+    expect(parsed[1]?.error).toBe("EACCES");
   });
 });
 

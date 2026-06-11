@@ -26,6 +26,7 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  EnvFileImport,
   QuotaStatus,
   Section,
   SectionVisibility,
@@ -58,6 +59,7 @@ export const TOOL_NAMES: string[] = [
   "list_secret_names",
   "run_command",
   "request_secret",
+  "import_env",
   "get_terminal_tail",
   "activity_status",
   "dismiss_activity",
@@ -84,6 +86,21 @@ export interface ToolDeps {
     name: string,
     providerHint?: string,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
+  // Batch-import env files into the vault for import_env (production wires
+  // agent-core's importAllDotEnv in server.ts; tests inject a fake). Returns
+  // per-file summaries carrying secret NAMES only -- never a value -- so the
+  // source-guard stays green. actor:"agent" keeps the audit chain honest.
+  importEnvFiles: (
+    root: string,
+    opts: {
+      deleteAfter?: boolean;
+      files?: string[];
+      actor?: "user" | "agent";
+    },
+  ) => Promise<EnvFileImport[]>;
+  // Broadcast that a project's secrets changed (main-side import), so every
+  // window's SECRETS section refetches live. Carries only the root path.
+  notifySecretsChanged: (root: string) => void;
   getTerminalTail: (
     termId: string,
     lines: number,
@@ -372,6 +389,42 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
             baseEnv: deps.getBaseEnv(),
           }),
         );
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  // Batch-import the project's .env files into the vault. Discovery, parsing,
+  // vaulting, per-file deletion, and auditing all live in agent-core behind
+  // deps.importEnvFiles; the result carries secret NAMES only (never values),
+  // so the source-guard invariant holds. deleteAfter defaults to FALSE here:
+  // a button click is explicit user consent, an autonomous actor is not.
+  // actor is hardcoded to "agent" (never caller-supplied) so audit
+  // attribution is a property of the call path, not of tool input.
+  mcp.registerTool(
+    "import_env",
+    {
+      description:
+        "Import the project's .env files into the secret vault (batch). With no args it discovers and imports every importable env file in the project root (.env and .env.*, excluding templates: *.example, *.sample, *.template, *.dist, *.vault) in precedence order (.env first, *.local last -- on duplicate keys the LAST write wins). Pass files (relative paths) to import exactly those instead, in the order given (later files override earlier ones on duplicate keys). Returns per-file summaries with secret NAMES only -- you never see a value. deleteAfter defaults to false: only pass true when the user explicitly confirmed deleting the source files after vaulting (a file is deleted only if every entry in it vaulted cleanly).",
+      inputSchema: {
+        files: z.array(z.string()).optional(),
+        deleteAfter: z.boolean().optional(),
+      },
+    },
+    async ({ files, deleteAfter }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      try {
+        const results = await deps.importEnvFiles(root, {
+          files,
+          deleteAfter: deleteAfter === true,
+          actor: "agent",
+        });
+        if (results.some((r) => (r.result?.imported.length ?? 0) > 0)) {
+          deps.notifySecretsChanged(root);
+        }
+        return ok(results);
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
       }
