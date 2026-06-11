@@ -64,7 +64,8 @@ it("shows the reset countdown when only the 7d window is present", () => {
   expect(screen.getByText("7d")).toBeTruthy();
   const reset = container.querySelector(".quota-reset");
   expect(reset).toBeTruthy();
-  expect(reset?.textContent).toContain("resets");
+  // The 7d bar row keeps its "7d" label; the reset line names it "weekly".
+  expect(reset?.textContent).toContain("weekly");
 });
 
 it("renders 5h and 7d rows with percentages when fresh and available", () => {
@@ -74,4 +75,17 @@ it("renders 5h and 7d rows with percentages when fresh and available", () => {
   expect(screen.getByText("7d")).toBeTruthy();
   expect(screen.getByText("39%")).toBeTruthy();
   expect(screen.getByText("22%")).toBeTruthy();
+});
+
+it("shows both session and weekly reset countdowns on one line when both are present", () => {
+  useApp.setState({ quotaMeterEnabled: true, quota: liveQuota() });
+  const { container } = render(<QuotaMeter />);
+  const reset = container.querySelector(".quota-reset");
+  expect(reset).toBeTruthy();
+  // Both windows' labeled countdowns share the single reset line, joined by "·".
+  // The labels are words ("session"/"weekly") so they don't blend with the h/d
+  // countdown the way "5h"/"7d" would.
+  expect(reset?.textContent).toContain("session");
+  expect(reset?.textContent).toContain("weekly");
+  expect(reset?.textContent).toContain("·");
 });

@@ -35,9 +35,12 @@ watches.
 - `wire.ts` — path resolution + `reconcileQuotaMeter()`; **serializes** all
   reconciles (PB-H13-class write race) and skips disk writes for opt-out users
   who never installed.
-- `watch.ts` — chokidar-watches the side-channel file, parses (stamps
-  `updatedAt` from file **mtime** = last emit time), broadcasts `quota:changed`
-  to all windows, caches latest for the `quota:get` IPC.
+- `watch.ts` — chokidar-watches the side-channel file (**polling mode**, not
+  native fs.watch: a native handle goes silent across macOS sleep/wake +
+  long App-Nap and never re-arms — emitter kept writing but the meter froze for
+  hours until relaunch; diagnosed 2026-06-11), parses (stamps `updatedAt` from
+  file **mtime** = last emit time), broadcasts `quota:changed` to all windows,
+  caches latest for the `quota:get` IPC.
 - `parse.ts` — pure `parseQuota` + `mergeQuota` (folds each emit onto the last
   known status so a pre-first-response emit doesn't blank the meter).
 - Renderer: `lib/quotaFormat.ts` (countdown/clamp), `lib/useQuota.ts`

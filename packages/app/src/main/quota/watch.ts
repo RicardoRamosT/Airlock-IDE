@@ -67,12 +67,25 @@ async function readAndBroadcast(outPath: string): Promise<void> {
 // Watch the side-channel file. Idempotent: re-pointing to the same path is a
 // no-op; a different path closes the old watcher. Safe before the file exists
 // (chokidar fires `add` when the emitter first writes it).
+//
+// usePolling (NOT native fs.watch). A native watch holds a kernel handle
+// (kqueue/FSEvents) that, on macOS, goes SILENT across a system sleep/wake or a
+// long App-Nap background: no `error` is emitted and the FSWatcher stays "open",
+// but `change` events simply stop arriving and NEVER resume -- so after the Mac
+// slept (e.g. overnight) the meter froze on its last reading until the app was
+// relaunched. Diagnosed 2026-06-11: 8391 events then dead silence for ~9.5h
+// while the emitter kept rewriting the file every few seconds. Polling re-stats
+// the file on an interval and holds no handle to invalidate, so it self-heals
+// on wake (the next poll reads the live file). The file is tiny and a 2s cadence
+// is well within the meter's staleness horizon, so the cost is negligible.
 export function startQuotaWatch(outPath: string): void {
   if (watchedPath === outPath && watcher) return;
   void stopQuotaWatch();
   watchedPath = outPath;
   watcher = watch(outPath, {
     ignoreInitial: false,
+    usePolling: true,
+    interval: 2000,
     awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 30 },
   });
   const fire = () => void readAndBroadcast(outPath);
