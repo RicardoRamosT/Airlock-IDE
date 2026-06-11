@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🔒 AirLock
+# AirLock
 
 ### The multi-project, Claude-first IDE that can't leak your secrets.
 
@@ -24,7 +24,7 @@ look do not exist.**
 
 ## Why AirLock
 
-**🗂 Multi-project, for real.** Open every project you're working on at once —
+**Multi-project, for real.** Open every project you're working on at once —
 as browser-style tabs in one window, side-by-side splits, or separate OS
 windows. Each project keeps its own terminals, file tree, git view, secrets,
 and databases alive in the background; switching tabs loses nothing. Within a
@@ -32,7 +32,7 @@ project, terminals, files, diffs, and database tables open as tabs in the main
 area and any two can be split side by side (coexisting splits — a "scene" per
 tab).
 
-**🤖 Claude-first, not Claude-bolted-on.** New project terminals auto-start
+**Claude-first, not Claude-bolted-on.** New project terminals auto-start
 `claude` (configurable). Each project tab carries a live Claude status dot —
 and glows when Claude finishes in a tab you aren't watching. A plan-usage meter
 sits in the sidebar (your 5-hour and 7-day windows, with session/weekly reset
@@ -40,7 +40,7 @@ countdowns) and clicks through to a full per-session usage dashboard. And
 through a local MCP bridge, the Claude in your terminal can **see and drive
 the IDE itself** — 25 tools and a built-in manual (see below).
 
-**🔐 Your secrets stay yours.** Credentials are vaulted in the macOS Keychain
+**Your secrets stay yours.** Credentials are vaulted in the macOS Keychain
 and injected into terminals at spawn — no `.env` on disk. The agent can *use* a
 secret (run a migration against your `DATABASE_URL`) but never *see* it: values
 are injected main-process-side and redacted out of every output that reaches
@@ -48,7 +48,7 @@ the agent. Commits are scanned for leaked secret values before they land. Every
 broker operation is hash-chain audited. By design there are **no third-party
 extensions** — the attack surface stays closed.
 
-## 📦 Install
+## Install
 
 **[Download the latest DMG from Releases](../../releases)** (macOS, Apple
 Silicon), open it, and drag **AirLock** into **Applications**.
@@ -149,7 +149,7 @@ Each section shows only when you want it (right-click → Hide, or
 **View ▸ Sidebar**) — and Claude can curate this for you. Dark and light
 themes; sidebar left or right.
 
-## 🛠 Building from source
+## Building from source
 
 ```bash
 npm install
