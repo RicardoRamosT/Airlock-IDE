@@ -348,6 +348,43 @@ body,
   gap: 4px;
 }
 
+/* Clickable Anthropic status item (button reset to match the static items). */
+.statusbar-status {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.statusbar-status:hover {
+  color: var(--fg);
+}
+
+/* Amber dot for degraded/maintenance (the tone used by .badge / .identity-warning). */
+.status-dot.warn {
+  background: #d29922;
+  border-color: #d29922;
+}
+
+/* The far-right Update call-to-action (accent), only shown when available. */
+.statusbar-update {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.statusbar-update:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 /* Window-level workspace row: icon rail | ONE shared sidebar | panes. The rail
    is always visible; sidebar-hidden collapses only the sidebar column; the
    sidebar-right variant flips the reading order via `order`. */
