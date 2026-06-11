@@ -61,8 +61,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("secrets:set", root, name, value),
   secretsDelete: (root, name) =>
     ipcRenderer.invoke("secrets:delete", root, name),
-  secretsImportEnv: (root, relPath, deleteAfter) =>
-    ipcRenderer.invoke("secrets:importEnv", root, relPath, deleteAfter),
+  secretsImportEnv: (root, deleteAfter) =>
+    ipcRenderer.invoke("secrets:importEnv", root, deleteAfter),
   secretsReveal: (root, name) =>
     ipcRenderer.invoke("secrets:reveal", root, name),
   clipboardCopySecret: (root, name) =>

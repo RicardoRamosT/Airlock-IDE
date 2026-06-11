@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { formatEnvImportSummary } from "../lib/envImportSummary";
 import { useProjectTab } from "../lib/projectPane";
 import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
@@ -87,12 +88,14 @@ export function SecretsSection() {
   const importEnv = async () => {
     if (!root) return;
     try {
-      const r = await window.airlock.secretsImportEnv(root, ".env", true);
+      const results = await window.airlock.secretsImportEnv(root, true);
       await refresh();
-      setNeedsRestart(true);
-      setImportMsg(
-        `Imported ${r.imported.length}${r.deleted ? ", .env deleted" : ""}${r.skipped.length ? `, skipped: ${r.skipped.join(", ")}` : ""}${r.failed.length ? `, failed: ${r.failed.join(", ")}` : ""}`,
+      const imported = results.reduce(
+        (n, r) => n + (r.result?.imported.length ?? 0),
+        0,
       );
+      if (imported > 0) setNeedsRestart(true);
+      setImportMsg(formatEnvImportSummary(results));
     } catch (err) {
       setImportMsg(
         `Import failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -172,7 +175,7 @@ export function SecretsSection() {
           type="button"
           className="btn"
           onClick={importEnv}
-          title="Vault .env, then delete it"
+          title="Vault all .env files (except templates), then delete them"
         >
           Import .env
         </button>

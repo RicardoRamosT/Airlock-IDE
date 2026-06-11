@@ -426,9 +426,8 @@ export interface AirlockApi {
   secretsDelete(root: string, name: string): Promise<void>;
   secretsImportEnv(
     root: string,
-    relPath: string,
     deleteAfter: boolean,
-  ): Promise<ImportResult>;
+  ): Promise<EnvFileImport[]>;
   secretsReveal(root: string, name: string): Promise<string | null>;
   clipboardCopySecret(
     root: string,

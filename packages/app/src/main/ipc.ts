@@ -18,7 +18,7 @@ import {
   gitFileVersions,
   gitPull,
   gitPush,
-  importDotEnv,
+  importAllDotEnv,
   injectInto,
   isGitRepo,
   listBranches,
@@ -551,11 +551,13 @@ export function registerIpc(
 
   ipcMain.handle(
     "secrets:importEnv",
-    (e, root: unknown, relPath: unknown, deleteAfter: unknown) => {
-      if (typeof relPath !== "string") throw new Error("Invalid payload");
+    (e, root: unknown, deleteAfter: unknown) => {
       // Explicit PANE root so .env imports land in the project of the pane the
-      // button was clicked in, not the window's active pane.
-      return importDotEnv(resolveRoot(e, root), relPath, {
+      // button was clicked in, not the window's active pane. The renderer no
+      // longer supplies a path: main discovers the importable env files itself
+      // (.env + .env.*, templates excluded), so this surface cannot be aimed
+      // at an arbitrary file.
+      return importAllDotEnv(resolveRoot(e, root), {
         deleteAfter: deleteAfter === true,
       });
     },
