@@ -544,6 +544,7 @@ export interface AirlockApi {
   // Per-session usage ledger (since launch) for the Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
+  onSecretsChanged(cb: (root: string) => void): () => void;
   setSectionVisibility(
     id: Section,
     visible: boolean,

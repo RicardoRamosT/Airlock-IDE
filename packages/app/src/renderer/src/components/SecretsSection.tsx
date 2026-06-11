@@ -42,6 +42,19 @@ export function SecretsSection() {
     setRevealed((r) => (Object.keys(r).length === 0 ? r : {}));
   }, [secrets]);
 
+  // Refresh when secrets change MAIN-side (the agent's import_env MCP tool):
+  // main broadcasts secrets:changed with the project root it imported into.
+  // Same post-import behavior as the button: refetch + offer a restart so
+  // injected terminals can pick the new values up.
+  useEffect(() => {
+    if (!root) return;
+    return window.airlock.onSecretsChanged((changedRoot) => {
+      if (changedRoot !== root) return;
+      refresh().catch(console.error);
+      setNeedsRestart(true);
+    });
+  }, [root, refresh]);
+
   if (!root) return <div className="section-note">open a folder first</div>;
 
   const toggleInject = async () => {
