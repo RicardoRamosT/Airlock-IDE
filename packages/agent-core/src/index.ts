@@ -2,6 +2,13 @@
 // nothing imports agent-core internals.
 
 export {
+  type AnthropicIndicator,
+  type AnthropicStatusTransport,
+  anthropicStatusFetchTransport,
+  fetchAnthropicStatus,
+  type ParsedAnthropicStatus,
+} from "./anthropicStatus/client";
+export {
   type AuditEntry,
   appendAudit,
   appendAuditAt,
