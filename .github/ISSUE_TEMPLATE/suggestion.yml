@@ -1,0 +1,20 @@
+name: Suggestion
+description: Suggest an idea or improvement for AirLock
+title: "[Suggestion] "
+labels: ["suggestion"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's your suggestion?
+      description: The feature or change you'd like to see in AirLock.
+      placeholder: I'd love it if AirLock could...
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help?
+      description: The problem it solves, or what it would make better for you.
+    validations:
+      required: false

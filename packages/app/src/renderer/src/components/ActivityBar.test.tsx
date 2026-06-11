@@ -7,14 +7,17 @@ import { ActivityBar } from "./ActivityBar";
 const initialState = useApp.getState();
 let prefsSet: ReturnType<typeof vi.fn>;
 let setSectionVisibility: ReturnType<typeof vi.fn>;
+let hostOpenExternal: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   useApp.setState(initialState, true);
   prefsSet = vi.fn(() => Promise.resolve());
   setSectionVisibility = vi.fn(() => Promise.resolve());
-  // Minimal stub: ActivityBar itself only calls prefsSet/setSectionVisibility;
-  // "on*" subscriptions return an unsubscribe; everything else resolves
-  // undefined (the popovers' mount-time fetches land there harmlessly).
+  hostOpenExternal = vi.fn(() => Promise.resolve());
+  // Minimal stub: ActivityBar itself only calls prefsSet/setSectionVisibility/
+  // hostOpenExternal; "on*" subscriptions return an unsubscribe; everything
+  // else resolves undefined (the popovers' mount-time fetches land there
+  // harmlessly).
   window.airlock = new Proxy(
     {},
     {
@@ -23,9 +26,11 @@ beforeEach(() => {
           ? prefsSet
           : prop === "setSectionVisibility"
             ? setSectionVisibility
-            : prop.startsWith("on")
-              ? () => () => {}
-              : () => Promise.resolve(undefined),
+            : prop === "hostOpenExternal"
+              ? hostOpenExternal
+              : prop.startsWith("on")
+                ? () => () => {}
+                : () => Promise.resolve(undefined),
     },
   ) as unknown as typeof window.airlock;
 });
@@ -82,4 +87,21 @@ it("renders the global Accounts/Settings buttons; Settings opens its menu", () =
   expect(screen.getByTitle("Accounts")).toBeTruthy();
   fireEvent.click(screen.getByTitle("Settings"));
   expect(screen.getByText("Themes")).toBeTruthy();
+});
+
+it("suggestions button opens the GitHub new-issue page in the browser", () => {
+  render(<ActivityBar />);
+  fireEvent.click(screen.getByTitle("Send a suggestion"));
+  expect(hostOpenExternal).toHaveBeenCalledWith(
+    "https://github.com/RicardoRamosT/Airlock-IDE/issues/new?template=suggestion.yml",
+  );
+});
+
+it("suggestions button sits ABOVE Accounts in the bottom rail", () => {
+  const { container } = render(<ActivityBar />);
+  const bottom = container.querySelector(".activity-bar-bottom");
+  const titles = [...(bottom?.querySelectorAll("button.footer-btn") ?? [])].map(
+    (b) => b.getAttribute("title"),
+  );
+  expect(titles).toEqual(["Send a suggestion", "Accounts", "Settings"]);
 });
