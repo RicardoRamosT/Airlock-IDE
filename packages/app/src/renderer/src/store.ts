@@ -10,6 +10,8 @@ import type {
   SecretMeta,
   Section,
   SectionVisibility,
+  UpdateProgress,
+  UpdateStatus,
 } from "../../shared/ipc";
 
 export interface TerminalEntry {
@@ -255,6 +257,10 @@ export interface AppState {
   setQuotaMeterEnabled: (v: boolean) => void;
   anthropicStatus: AnthropicStatus | null;
   setAnthropicStatus: (s: AnthropicStatus) => void;
+  update: UpdateStatus | null;
+  setUpdate: (s: UpdateStatus) => void;
+  updateProgress: UpdateProgress;
+  setUpdateProgress: (p: UpdateProgress) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
   claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
@@ -620,6 +626,10 @@ export const useApp = create<AppState>((set) => ({
   setQuotaMeterEnabled: (v) => set({ quotaMeterEnabled: v }),
   anthropicStatus: null,
   setAnthropicStatus: (s) => set({ anthropicStatus: s }),
+  update: null,
+  setUpdate: (s) => set({ update: s }),
+  updateProgress: { phase: "idle" },
+  setUpdateProgress: (p) => set({ updateProgress: p }),
   sectionVisibility: {
     files: true,
     secrets: true,

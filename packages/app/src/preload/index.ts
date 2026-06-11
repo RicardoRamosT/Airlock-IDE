@@ -11,6 +11,8 @@ import type {
   PtyExitEvent,
   QuotaStatus,
   SectionVisibility,
+  UpdateProgress,
+  UpdateStatus,
 } from "../shared/ipc";
 
 function subscribe<T>(channel: string, cb: (e: T) => void): () => void {
@@ -128,6 +130,10 @@ const api: AirlockApi = {
   anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
   onAnthropicStatusChanged: (cb) =>
     subscribe<AnthropicStatus>("anthropicStatus:changed", cb),
+  updateGet: () => ipcRenderer.invoke("update:get"),
+  onUpdateChanged: (cb) => subscribe<UpdateStatus>("update:changed", cb),
+  updateApply: () => ipcRenderer.invoke("update:apply"),
+  onUpdateProgress: (cb) => subscribe<UpdateProgress>("update:progress", cb),
   onSecretsChanged: (cb) => subscribe<string>("secrets:changed", cb),
   setSectionVisibility: (id, visible) =>
     ipcRenderer.invoke("sections:set", id, visible),

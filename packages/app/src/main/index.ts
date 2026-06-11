@@ -29,6 +29,7 @@ import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs } from "./prefs";
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
+import { startUpdateCheck, stopUpdateCheck } from "./update/check";
 import { createWindow, lastFocusedRoot } from "./window";
 
 app.setName("AirLock");
@@ -173,6 +174,9 @@ function bootstrap(): void {
     // Bottom-bar Claude status: poll the Anthropic status page on a timer and
     // broadcast to the bar. Best-effort -- never blocks startup.
     startAnthropicStatusWatch();
+    // Bottom-bar updater: check GitHub releases for a newer version. No-op in
+    // dev (gated on app.isPackaged inside).
+    startUpdateCheck(app.getVersion());
 
     // Make airlock's tools native to every terminal `claude` in this app:
     // register the MCP server in the user's global claude config so any claude
@@ -219,6 +223,7 @@ function bootstrap(): void {
   });
   app.on("before-quit", () => {
     stopAnthropicStatusWatch();
+    stopUpdateCheck();
   });
 
   // macOS lifecycle (#12): on darwin the app stays alive when all windows close

@@ -275,6 +275,23 @@ export interface AnthropicStatus {
   updatedAt: number; // unix seconds when main last fetched it
 }
 
+export interface UpdateStatus {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string | null;
+  htmlUrl: string | null;
+  dmgUrl: string | null;
+}
+
+export type UpdateProgress =
+  | { phase: "idle" }
+  | { phase: "downloading"; percent: number }
+  | { phase: "mounting" }
+  | { phase: "swapping" }
+  | { phase: "relaunching" }
+  | { phase: "revealed" }
+  | { phase: "error"; message: string };
+
 /** One Claude subscription usage window (5-hour or 7-day). */
 export interface QuotaWindow {
   usedPercentage: number; // 0-100
@@ -554,6 +571,10 @@ export interface AirlockApi {
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   anthropicStatusGet(): Promise<AnthropicStatus | null>;
   onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;
+  updateGet(): Promise<UpdateStatus | null>;
+  onUpdateChanged(cb: (s: UpdateStatus) => void): () => void;
+  updateApply(): Promise<void>;
+  onUpdateProgress(cb: (p: UpdateProgress) => void): () => void;
   onSecretsChanged(cb: (root: string) => void): () => void;
   setSectionVisibility(
     id: Section,

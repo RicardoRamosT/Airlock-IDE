@@ -95,6 +95,8 @@ import {
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
+import { applyUpdate } from "./update/apply";
+import { getUpdate } from "./update/check";
 import {
   allOpenRoots,
   clearRootForEvent,
@@ -586,6 +588,8 @@ export function registerIpc(
 
   ipcMain.handle("quota:get", () => getQuota());
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
+  ipcMain.handle("update:get", () => getUpdate());
+  ipcMain.handle("update:apply", () => applyUpdate());
 
   // usage:get -> SessionUsage[] for the Usage dashboard (sorted by output
   // tokens, the cost proxy on subscription plans).
