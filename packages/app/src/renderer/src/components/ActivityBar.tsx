@@ -5,6 +5,13 @@ import { useApp } from "../store";
 import { AccountsPopover } from "./AccountsPopover";
 import { SettingsMenu } from "./SettingsMenu";
 
+// Where the suggestions button sends people: the repo's new-issue page with the
+// suggestion template preselected. A fixed https URL through the validated
+// host:openExternal channel (http(s)-only, main-side shell.openExternal), so
+// this adds no new IPC and no new security surface.
+const SUGGESTIONS_URL =
+  "https://github.com/RicardoRamosT/Airlock-IDE/issues/new?template=suggestion.yml";
+
 // The vertical icon rail at the window edge: one icon per VISIBLE sidebar
 // section. Click = show that view (re-opening the sidebar if collapsed); click
 // the active icon = collapse the sidebar (same sidebarVisible flag the layout
@@ -77,6 +84,14 @@ export function ActivityBar() {
             onClick={() => setOpen(null)}
           />
         )}
+        <button
+          type="button"
+          className="footer-btn"
+          title="Send a suggestion"
+          onClick={() => void window.airlock.hostOpenExternal(SUGGESTIONS_URL)}
+        >
+          <i className="codicon codicon-feedback" />
+        </button>
         <button
           type="button"
           className={`footer-btn${open === "accounts" ? " active" : ""}`}
