@@ -1,8 +1,9 @@
-import { readFile, unlink } from "node:fs/promises";
+import { readdir, readFile, unlink } from "node:fs/promises";
 import { appendAudit, appendAuditAt } from "../audit/audit";
 import { projectIdFor } from "../project/id";
 import { resolveWithin } from "../workspace/tree";
 import { isDangerousEnvName } from "./dangerous";
+import { isImportableEnvFile, sortEnvFiles } from "./envFiles";
 import { parseDotEnv } from "./dotenv";
 import { type KeychainStore, systemKeychain } from "./keychain";
 import { readMeta, removeMeta, type SecretMeta, upsertMeta } from "./meta";
@@ -267,4 +268,47 @@ export async function importDotEnv(
     deleted,
   });
   return { imported, skipped, failed, deleted };
+}
+
+// One batch-import entry: either a per-file ImportResult or the error that
+// file hit (unreadable, EISDIR, resolveWithin rejection). Carries secret
+// NAMES only — safe to cross IPC/MCP.
+export interface EnvFileImport {
+  file: string;
+  result?: ImportResult;
+  error?: string;
+}
+
+// Import EVERY importable env file in the project root (non-recursive).
+// Default mode discovers with isImportableEnvFile + sortEnvFiles (last write
+// wins, so .local files override shared ones on duplicate keys). opts.files
+// (the MCP tool's explicit mode) skips discovery AND the exclusion predicate:
+// exactly the given relative paths, in the given order — each still confined
+// to the root by importDotEnv's resolveWithin. One bad file becomes an
+// `error` entry and the loop continues; per-file auditing and the
+// delete-only-if-fully-imported rule stay inside importDotEnv.
+export async function importAllDotEnv(
+  root: string,
+  opts: BrokerOptions & { deleteAfter?: boolean; files?: string[] } = {},
+): Promise<EnvFileImport[]> {
+  let files: string[];
+  if (opts.files) {
+    files = opts.files;
+  } else {
+    const entries = await readdir(root, { withFileTypes: true });
+    files = sortEnvFiles(
+      entries
+        .filter((e) => e.isFile() && isImportableEnvFile(e.name))
+        .map((e) => e.name),
+    );
+  }
+  const out: EnvFileImport[] = [];
+  for (const file of files) {
+    try {
+      out.push({ file, result: await importDotEnv(root, file, opts) });
+    } catch (e) {
+      out.push({ file, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return out;
 }

@@ -11,10 +11,12 @@ export {
 export {
   type BrokerOptions,
   deleteSecret,
+  type EnvFileImport,
   getGlobalSecret,
   getSecretValue,
   type ImportResult,
   type InjectResult,
+  importAllDotEnv,
   importDotEnv,
   injectInto,
   listSecrets,

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import {
   deleteSecret,
   getGlobalSecret,
   getSecretValue,
+  importAllDotEnv,
   importDotEnv,
   injectInto,
   listSecrets,
@@ -293,5 +294,88 @@ describe("broker", () => {
   it("defaults audit attribution to the user", async () => {
     await setSecret(root, "A", "1", { keychain: fake });
     expect((await readAudit(root))[0]?.actor).toBe("user");
+  });
+});
+
+describe("importAllDotEnv", () => {
+  it("discovers and imports every importable env file, skipping templates", async () => {
+    await writeFile(path.join(root, ".env"), "A=1\n");
+    await writeFile(path.join(root, ".env.local"), "B=2\n");
+    await writeFile(path.join(root, ".env.example"), "TEMPLATE=placeholder\n");
+    const results = await importAllDotEnv(root, { keychain: fake });
+    expect(results.map((r) => r.file)).toEqual([".env", ".env.local"]);
+    expect(results[0]?.result?.imported.map((m) => m.name)).toEqual(["A"]);
+    expect(results[1]?.result?.imported.map((m) => m.name)).toEqual(["B"]);
+    // The template never entered the vault and survived on disk.
+    expect((await listSecrets(root)).map((m) => m.name).sort()).toEqual([
+      "A",
+      "B",
+    ]);
+    await expect(stat(path.join(root, ".env.example"))).resolves.toBeDefined();
+  });
+
+  it("imports in precedence order so a .local value wins duplicate keys", async () => {
+    await writeFile(path.join(root, ".env"), "DUP=base\n");
+    await writeFile(path.join(root, ".env.local"), "DUP=local\n");
+    await importAllDotEnv(root, { keychain: fake });
+    expect(await getSecretValue(root, "DUP", { keychain: fake })).toBe("local");
+  });
+
+  it("deletes only cleanly imported files when deleteAfter is set", async () => {
+    await writeFile(path.join(root, ".env"), "GOOD=1\n");
+    await writeFile(path.join(root, ".env.local"), "OK=1\nEMPTY=\n");
+    const results = await importAllDotEnv(root, {
+      keychain: fake,
+      deleteAfter: true,
+    });
+    expect(results[0]?.result?.deleted).toBe(true);
+    expect(results[1]?.result?.deleted).toBe(false);
+    await expect(stat(path.join(root, ".env"))).rejects.toThrow();
+    await expect(stat(path.join(root, ".env.local"))).resolves.toBeDefined();
+  });
+
+  it("ignores directories whose names look like env files", async () => {
+    await mkdir(path.join(root, ".env.local"));
+    await writeFile(path.join(root, ".env"), "A=1\n");
+    const results = await importAllDotEnv(root, { keychain: fake });
+    expect(results.map((r) => r.file)).toEqual([".env"]);
+  });
+
+  it("returns [] when no env files exist", async () => {
+    expect(await importAllDotEnv(root, { keychain: fake })).toEqual([]);
+  });
+
+  it("records a per-file error and continues when an explicit file is missing", async () => {
+    await writeFile(path.join(root, ".env"), "A=1\n");
+    const results = await importAllDotEnv(root, {
+      keychain: fake,
+      files: [".env.gone", ".env"],
+    });
+    expect(results[0]?.file).toBe(".env.gone");
+    expect(results[0]?.error).toBeTruthy();
+    expect(results[0]?.result).toBeUndefined();
+    expect(results[1]?.result?.imported.map((m) => m.name)).toEqual(["A"]);
+  });
+
+  it("imports exactly the explicit files, bypassing the exclusion predicate", async () => {
+    await writeFile(path.join(root, ".env.example"), "FROM_TEMPLATE=v\n");
+    await writeFile(path.join(root, ".env"), "IGNORED=v\n");
+    const results = await importAllDotEnv(root, {
+      keychain: fake,
+      files: [".env.example"],
+    });
+    expect(results.map((r) => r.file)).toEqual([".env.example"]);
+    expect((await listSecrets(root)).map((m) => m.name)).toEqual([
+      "FROM_TEMPLATE",
+    ]);
+  });
+
+  it("confines explicit files to the root", async () => {
+    const results = await importAllDotEnv(root, {
+      keychain: fake,
+      files: ["../outside.env"],
+    });
+    expect(results[0]?.error).toBeTruthy();
+    expect(results[0]?.result).toBeUndefined();
   });
 });
