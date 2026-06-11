@@ -33,6 +33,16 @@ export function ActivitySection() {
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // The open row-actions menu (one at a time), anchored under its "..."
+  // button. href is CAPTURED at open: the 3s poll may replace `items` while
+  // the menu is up, but an id's href never changes and dismiss-by-id is
+  // idempotent, so a stale menu degrades to safe no-ops.
+  const [menu, setMenu] = useState<{
+    id: string;
+    href: string | null;
+    x: number;
+    y: number;
+  } | null>(null);
   const mounted = useRef(true);
   // The root the CURRENT render is bound to: an in-flight fetch for the
   // previous project must not land its items under the new project's header.
@@ -88,6 +98,16 @@ export function ActivitySection() {
     const id = setInterval(() => void refresh(), 3000);
     return () => clearInterval(id);
   }, [anyRunning, refresh]);
+
+  // Escape closes the open row menu (same shape as the other row menus).
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
 
   // Dismiss every currently-shown finished entry (done/failed). Reuses the
   // per-entry dismiss path -- no new IPC; the broadcast refetches the list.
@@ -161,30 +181,27 @@ export function ActivitySection() {
               <span className={dotClass(item.state)} />
               <span className="activity-title">{item.title}</span>
               <span className="activity-sub">{item.subtitle}</span>
-              {item.href && (
-                <button
-                  type="button"
-                  className="activity-link"
-                  title="Open on GitHub"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (item.href)
-                      void window.airlock.hostOpenExternal(item.href);
-                  }}
-                >
-                  <i className="codicon codicon-link-external" />
-                </button>
-              )}
               <button
                 type="button"
-                className="activity-dismiss"
-                title="Dismiss"
+                className="activity-more"
+                title="Activity actions"
                 onClick={(e) => {
+                  // Never toggle the steps expander under the menu click.
                   e.stopPropagation();
-                  void window.airlock.activityDismiss(item.id);
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setMenu(
+                    menu?.id === item.id
+                      ? null
+                      : {
+                          id: item.id,
+                          href: item.href ?? null,
+                          x: r.right,
+                          y: r.bottom + 4,
+                        },
+                  );
                 }}
               >
-                <i className="codicon codicon-close" />
+                <i className="codicon codicon-ellipsis" />
               </button>
             </div>
             {item.progress && (
@@ -226,6 +243,48 @@ export function ActivitySection() {
           </div>
         );
       })}
+      {menu && (
+        <>
+          <button
+            type="button"
+            className="popover-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenu(null)}
+          />
+          <div
+            className="context-menu"
+            style={{
+              left: menu.x,
+              top: menu.y,
+              transform: "translateX(-100%)",
+            }}
+          >
+            {menu.href !== null && (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  if (menu.href)
+                    void window.airlock.hostOpenExternal(menu.href);
+                  setMenu(null);
+                }}
+              >
+                <span>Open on GitHub</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                void window.airlock.activityDismiss(menu.id);
+                setMenu(null);
+              }}
+            >
+              <span>Dismiss</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
