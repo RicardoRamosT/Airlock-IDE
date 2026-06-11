@@ -3,6 +3,7 @@ import type {
   AgentCommand,
   AgentCommandResult,
   AirlockApi,
+  AnthropicStatus,
   FsChangedEvent,
   LspDiagnostic,
   MenuAction,
@@ -124,6 +125,9 @@ const api: AirlockApi = {
   quotaGet: () => ipcRenderer.invoke("quota:get"),
   usageGet: () => ipcRenderer.invoke("usage:get"),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
+  anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
+  onAnthropicStatusChanged: (cb) =>
+    subscribe<AnthropicStatus>("anthropicStatus:changed", cb),
   onSecretsChanged: (cb) => subscribe<string>("secrets:changed", cb),
   setSectionVisibility: (id, visible) =>
     ipcRenderer.invoke("sections:set", id, visible),

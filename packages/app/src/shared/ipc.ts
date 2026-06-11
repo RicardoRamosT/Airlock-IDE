@@ -1,5 +1,6 @@
 import type {
   AgentCommandPolicy,
+  AnthropicIndicator,
   AuditEntry,
   Container,
   DbTable,
@@ -27,6 +28,7 @@ import type {
 
 export type {
   AgentCommandPolicy,
+  AnthropicIndicator,
   AuditEntry,
   Container,
   DbTable,
@@ -266,6 +268,12 @@ export interface TabsSnapshot {
 export type AgentCommandResult =
   | { ok: true; data: TabsSnapshot }
   | { ok: false; error: string };
+
+export interface AnthropicStatus {
+  indicator: AnthropicIndicator;
+  description: string;
+  updatedAt: number; // unix seconds when main last fetched it
+}
 
 /** One Claude subscription usage window (5-hour or 7-day). */
 export interface QuotaWindow {
@@ -544,6 +552,8 @@ export interface AirlockApi {
   // Per-session usage ledger (since launch) for the Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
+  anthropicStatusGet(): Promise<AnthropicStatus | null>;
+  onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;
   onSecretsChanged(cb: (root: string) => void): () => void;
   setSectionVisibility(
     id: Section,

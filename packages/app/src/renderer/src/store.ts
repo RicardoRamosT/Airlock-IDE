@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  AnthropicStatus,
   ClaudeAutoStart,
   FileContent,
   GitStatus,
@@ -252,6 +253,8 @@ export interface AppState {
   setQuota: (q: QuotaStatus) => void;
   quotaMeterEnabled: boolean;
   setQuotaMeterEnabled: (v: boolean) => void;
+  anthropicStatus: AnthropicStatus | null;
+  setAnthropicStatus: (s: AnthropicStatus) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
   claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
@@ -615,6 +618,8 @@ export const useApp = create<AppState>((set) => ({
   setQuota: (q) => set({ quota: q }),
   quotaMeterEnabled: false,
   setQuotaMeterEnabled: (v) => set({ quotaMeterEnabled: v }),
+  anthropicStatus: null,
+  setAnthropicStatus: (s) => set({ anthropicStatus: s }),
   sectionVisibility: {
     files: true,
     secrets: true,

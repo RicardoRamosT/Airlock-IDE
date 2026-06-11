@@ -14,6 +14,7 @@ import { TitleBar } from "./components/TitleBar";
 import { UsageTab } from "./components/UsageTab";
 import { TerminalSlotsProvider } from "./lib/terminalSlots";
 import { useAgentCommands } from "./lib/useAgentCommands";
+import { useAnthropicStatus } from "./lib/useAnthropicStatus";
 import { useFsWatch } from "./lib/useFsWatch";
 import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
@@ -28,6 +29,7 @@ export function App() {
   useAgentCommands();
   useFsWatch();
   useQuota();
+  useAnthropicStatus();
   const modal = useApp((s) => s.modal);
   const activeTabId = useApp((s) => s.activeTabId);
   const searchOpen = useApp((s) => s.searchOpen);

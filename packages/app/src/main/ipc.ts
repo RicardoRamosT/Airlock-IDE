@@ -61,6 +61,7 @@ import {
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
+import { getAnthropicStatus } from "./anthropicStatus/watch";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -584,6 +585,7 @@ export function registerIpc(
   ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
 
   ipcMain.handle("quota:get", () => getQuota());
+  ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
 
   // usage:get -> SessionUsage[] for the Usage dashboard (sorted by output
   // tokens, the cost proxy on subscription plans).

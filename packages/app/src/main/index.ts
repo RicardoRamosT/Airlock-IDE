@@ -13,6 +13,10 @@ import {
   requestSecretFromUser,
 } from "./agent-requests";
 import {
+  startAnthropicStatusWatch,
+  stopAnthropicStatusWatch,
+} from "./anthropicStatus/watch";
+import {
   broadcastActivityChanged,
   getTerminalTail,
   killAllSessions,
@@ -166,6 +170,10 @@ function bootstrap(): void {
       );
     });
 
+    // Bottom-bar Claude status: poll the Anthropic status page on a timer and
+    // broadcast to the bar. Best-effort -- never blocks startup.
+    startAnthropicStatusWatch();
+
     // Make airlock's tools native to every terminal `claude` in this app:
     // register the MCP server in the user's global claude config so any claude
     // session here loads it on startup -- no per-project setup, no restart, no
@@ -208,6 +216,9 @@ function bootstrap(): void {
   // idempotent (nothing-to-remove is fine).
   app.on("before-quit", () => {
     void unregisterMcpServer({ scope: "user" });
+  });
+  app.on("before-quit", () => {
+    stopAnthropicStatusWatch();
   });
 
   // macOS lifecycle (#12): on darwin the app stays alive when all windows close
