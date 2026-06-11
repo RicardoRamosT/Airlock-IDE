@@ -21,7 +21,9 @@ export function parseLatestRelease(json: unknown): LatestRelease | null {
     .map((a) => ({
       name: typeof a.name === "string" ? a.name : "",
       url:
-        typeof a.browser_download_url === "string" ? a.browser_download_url : "",
+        typeof a.browser_download_url === "string"
+          ? a.browser_download_url
+          : "",
     }))
     .filter((a) => a.url !== "");
   const dmgUrl =

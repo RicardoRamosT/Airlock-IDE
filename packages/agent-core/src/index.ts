@@ -174,6 +174,15 @@ export {
 export { normalizeRepoUrl } from "./render/parse";
 export { redactedPreview, redactedTail } from "./terminal/tail";
 export {
+  AIRLOCK_REPO,
+  fetchLatestRelease,
+  type LatestRelease,
+  type UpdateTransport,
+  updateFetchTransport,
+} from "./update/client";
+export { chooseUpdateAction } from "./update/decide";
+export { compareVersions, isNewer } from "./update/version";
+export {
   createDir,
   createFile,
   duplicate,
@@ -205,12 +214,3 @@ export {
   targetsVault,
 } from "./workspace/tree";
 export { writeWorkspaceFile } from "./workspace/write";
-export {
-  AIRLOCK_REPO,
-  fetchLatestRelease,
-  type LatestRelease,
-  type UpdateTransport,
-  updateFetchTransport,
-} from "./update/client";
-export { chooseUpdateAction } from "./update/decide";
-export { compareVersions, isNewer } from "./update/version";

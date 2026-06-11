@@ -2,7 +2,10 @@
 // missing/non-numeric segments treated as 0. Enough for our 0.x.y tags.
 export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   const seg = (v: string) =>
-    v.replace(/^v/, "").split(".").map((n) => Number.parseInt(n, 10) || 0);
+    v
+      .replace(/^v/, "")
+      .split(".")
+      .map((n) => Number.parseInt(n, 10) || 0);
   const pa = seg(a);
   const pb = seg(b);
   const len = Math.max(pa.length, pb.length);

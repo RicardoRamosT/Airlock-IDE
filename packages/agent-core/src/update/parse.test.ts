@@ -11,20 +11,26 @@ describe("parseLatestRelease", () => {
   it("picks the -arm64.dmg asset and strips the v from version", () => {
     const r = parseLatestRelease(
       release([
-        { name: "AirLock-0.2.0-arm64.dmg", browser_download_url: "https://x/arm.dmg" },
+        {
+          name: "AirLock-0.2.0-arm64.dmg",
+          browser_download_url: "https://x/arm.dmg",
+        },
       ]),
     );
     expect(r).toEqual({
       tag: "v0.2.0",
       version: "0.2.0",
-      htmlUrl: "https://github.com/RicardoRamosT/Airlock-IDE/releases/tag/v0.2.0",
+      htmlUrl:
+        "https://github.com/RicardoRamosT/Airlock-IDE/releases/tag/v0.2.0",
       dmgUrl: "https://x/arm.dmg",
     });
   });
   it("falls back to any .dmg, else null dmgUrl", () => {
     expect(
       parseLatestRelease(
-        release([{ name: "AirLock.dmg", browser_download_url: "https://x/any.dmg" }]),
+        release([
+          { name: "AirLock.dmg", browser_download_url: "https://x/any.dmg" },
+        ]),
       )?.dmgUrl,
     ).toBe("https://x/any.dmg");
     expect(parseLatestRelease(release([]))?.dmgUrl).toBeNull();

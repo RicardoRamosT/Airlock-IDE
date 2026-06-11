@@ -7,7 +7,10 @@ describe("fetchLatestRelease", () => {
       tag_name: "v0.3.0",
       html_url: "https://h",
       assets: [
-        { name: "AirLock-0.3.0-arm64.dmg", browser_download_url: "https://d.dmg" },
+        {
+          name: "AirLock-0.3.0-arm64.dmg",
+          browser_download_url: "https://d.dmg",
+        },
       ],
     }));
     const r = await fetchLatestRelease(AIRLOCK_REPO, { transport: { get } });
