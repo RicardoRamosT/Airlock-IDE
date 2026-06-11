@@ -103,15 +103,25 @@ export async function applyUpdate(): Promise<void> {
     emit({ phase: "swapping" });
     // Detached relaunch script: wait for THIS process to exit, replace the
     // bundle, strip quarantine, detach, relaunch. Runs after app.quit().
+    //
+    // Copy the new bundle to a temp SIBLING first, then swap it in with `mv`
+    // (an atomic rename within the same volume). This avoids the data-loss
+    // window of an `rm` of the live bundle followed by a multi-second `cp`: if
+    // the copy fails (disk full, mount lost, sleep/power-loss), the old bundle
+    // is still intact and we exit non-zero rather than leaving NO app
+    // installed. The remaining rm->mv gap is a sub-millisecond rename.
     const script = path.join(tmpdir(), "airlock-update.sh");
     await writeFile(
       script,
       [
         "#!/bin/bash",
         `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.3; done`,
+        `staged="${appBundle}.new.$$"`,
+        `rm -rf "$staged"`,
+        `cp -R "${srcApp}" "$staged" || { hdiutil detach "${mountPoint}" 2>/dev/null; exit 1; }`,
+        `xattr -dr com.apple.quarantine "$staged" 2>/dev/null`,
         `rm -rf "${appBundle}"`,
-        `cp -R "${srcApp}" "${appBundle}"`,
-        `xattr -dr com.apple.quarantine "${appBundle}" 2>/dev/null`,
+        `mv "$staged" "${appBundle}"`,
         `hdiutil detach "${mountPoint}" 2>/dev/null`,
         `open "${appBundle}"`,
       ].join("\n"),
