@@ -257,6 +257,19 @@ body,
   white-space: nowrap;
 }
 
+/* Inline tab-rename input (swapped in for the label via Rename tab/dblclick).
+   Enter/blur commit, Escape cancels; empty commit resets to the basename. */
+.tab-rename-input {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 1px 4px;
+  width: 110px;
+}
+
 .project-tab-close {
   background: none;
   border: none;

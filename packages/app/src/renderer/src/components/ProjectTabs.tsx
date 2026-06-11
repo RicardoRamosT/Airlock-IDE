@@ -1,9 +1,60 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../store";
 
 // Label for a tab: its folder basename, or "New Tab" for a blank tab.
 const tabLabel = (root: string | null): string =>
   root ? (root.split("/").pop() ?? root) : "New Tab";
+
+// Inline tab-rename input (swapped in for the label). Mirrors FileTree's
+// inline-edit shape, EXCEPT blur COMMITS here (FileTree cancels on blur
+// because its commit is an async fs IPC; this one is instant, display-only,
+// and an empty commit just resets). The `done` ref makes commit fire exactly
+// once: Enter also blurs on unmount, and Escape must beat the unmount blur.
+function TabRenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  const commit = () => {
+    if (done.current) return;
+    done.current = true;
+    onCommit(value);
+  };
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        commit();
+      }}
+    >
+      <input
+        ref={ref}
+        className="tab-rename-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            done.current = true;
+            onCancel();
+          }
+        }}
+        spellCheck={false}
+      />
+    </form>
+  );
+}
 
 // The project-tab strip (Chrome-style). One tab per project (or blank tab).
 // A SPLIT pair renders as ONE combined tab (both names) -- you switch to it as a
@@ -29,6 +80,12 @@ export function ProjectTabs() {
   const sessionWorking = useApp((s) => s.sessionWorking);
   const tabTerminals = useApp((s) => s.tabTerminals);
   const tabGlow = useApp((s) => s.tabGlow);
+  const tabRenames = useApp((s) => s.tabRenames);
+  // The tab currently being renamed inline (null = none).
+  const [renaming, setRenaming] = useState<string | null>(null);
+  // Display label: the custom rename when set, else the folder basename.
+  const displayLabel = (tab: { id: string; root: string | null }): string =>
+    tabRenames[tab.id] ?? tabLabel(tab.root);
   // Right-click "Split" context menu (a renderer popup, mirroring Sidebar's).
   // Right-click context menu. A "tab" menu (single tab) offers Split; a "pair"
   // menu (the unified split tab) offers Unsplit + Close both.
@@ -93,8 +150,8 @@ export function ProjectTabs() {
             const glow =
               !working &&
               (tabGlow[split.a] === true || tabGlow[split.b] === true);
-            const labelA = tabLabel(tab.root);
-            const labelB = tabLabel(tabB?.root ?? null);
+            const labelA = displayLabel(tab);
+            const labelB = tabB ? displayLabel(tabB) : tabLabel(null);
             const pair = split; // narrow for the click handler closure
             return (
               <div
@@ -149,27 +206,45 @@ export function ProjectTabs() {
               key={tab.id}
               className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}`}
             >
-              <button
-                type="button"
-                className="project-tab-label"
-                onClick={() => useApp.getState().switchTab(tab.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    kind: "tab",
-                    tabId: tab.id,
-                  });
-                }}
-                title={tab.root ?? "New Tab"}
-              >
-                <span
-                  className={`project-tab-status${working ? " working" : ""}`}
-                />
-                <i className="codicon codicon-folder" />
-                <span className="project-tab-title">{tabLabel(tab.root)}</span>
-              </button>
+              {renaming === tab.id ? (
+                <span className="project-tab-label">
+                  <span
+                    className={`project-tab-status${working ? " working" : ""}`}
+                  />
+                  <i className="codicon codicon-folder" />
+                  <TabRenameInput
+                    initial={displayLabel(tab)}
+                    onCommit={(name) => {
+                      useApp.getState().renameTab(tab.id, name);
+                      setRenaming(null);
+                    }}
+                    onCancel={() => setRenaming(null)}
+                  />
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="project-tab-label"
+                  onClick={() => useApp.getState().switchTab(tab.id)}
+                  onDoubleClick={() => setRenaming(tab.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      kind: "tab",
+                      tabId: tab.id,
+                    });
+                  }}
+                  title={tab.root ?? "New Tab"}
+                >
+                  <span
+                    className={`project-tab-status${working ? " working" : ""}`}
+                  />
+                  <i className="codicon codicon-folder" />
+                  <span className="project-tab-title">{displayLabel(tab)}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="project-tab-close"
@@ -267,16 +342,28 @@ export function ProjectTabs() {
           />
           <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
             {menu.kind === "tab" ? (
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => {
-                  useApp.getState().splitActiveWith(menu.tabId);
-                  setMenu(null);
-                }}
-              >
-                <span>Split with active project</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    setRenaming(menu.tabId);
+                    setMenu(null);
+                  }}
+                >
+                  <span>Rename tab…</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    useApp.getState().splitActiveWith(menu.tabId);
+                    setMenu(null);
+                  }}
+                >
+                  <span>Split with active project</span>
+                </button>
+              </>
             ) : (
               <>
                 <button

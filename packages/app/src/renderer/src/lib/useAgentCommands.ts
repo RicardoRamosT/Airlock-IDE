@@ -11,8 +11,8 @@ import { useApp } from "../store";
 // + roots + the split pair. NO secret value, env value, or terminal output ever
 // goes into the snapshot, so these tools never widen the no-secret-value surface.
 
-// Tab display name: the folder basename, or "New Tab" for a blank tab (mirrors
-// ProjectTabs' tabLabel).
+// Tab display name: the user's custom rename when set, else the folder
+// basename, or "New Tab" for a blank tab (mirrors ProjectTabs' display label).
 const tabName = (root: string | null): string =>
   root ? (root.split("/").pop() ?? root) : "New Tab";
 
@@ -22,11 +22,11 @@ const tabName = (root: string | null): string =>
 // is shown). Read off useApp.getState() so it reflects the just-applied action.
 function buildSnapshot(): TabsSnapshot {
   const s = useApp.getState();
-  const { tabs, activeTabId, split, tabTerminals } = s;
+  const { tabs, activeTabId, split, tabTerminals, tabRenames } = s;
   return {
     tabs: tabs.map((t) => ({
       id: t.id,
-      name: tabName(t.root),
+      name: tabRenames[t.id] ?? tabName(t.root),
       root: t.root,
       focused: t.id === activeTabId,
       inSplit: !!split && (split.a === t.id || split.b === t.id),
