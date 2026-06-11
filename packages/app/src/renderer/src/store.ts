@@ -239,6 +239,7 @@ export interface AppState {
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
   tabGlow: Record<string, boolean>; // tabId -> finished-in-background, awaiting a look
+  tabRenames: Record<string, string>; // tabId -> custom display label (display-only; never touches the folder on disk; session-scoped)
   openProjectsAsTabs: boolean; // app-global (persisted); used by later tasks
   showRunningProcessNotice: boolean; // app-global (persisted); gates the kept-busy-terminal notice
 
@@ -281,6 +282,7 @@ export interface AppState {
   replaceActiveProject: (root: string) => void;
   switchTab: (id: string) => void; // focus tab id (clicking a tab OR a pane)
   closeTab: (id: string) => void;
+  renameTab: (tabId: string, name: string) => void; // set/clear (empty name) a tab's display label
   applyPtyStatus: (ptyId: string, working: boolean) => void;
   setOpenProjectsAsTabs: (v: boolean) => void;
   setShowRunningProcessNotice: (v: boolean) => void;
@@ -599,6 +601,7 @@ export const useApp = create<AppState>((set) => ({
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   sessionWorking: {},
   tabGlow: {},
+  tabRenames: {},
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
 
@@ -795,6 +798,8 @@ export const useApp = create<AppState>((set) => ({
       // Drop the closed tab's glow flag (cosmetic cleanup; no tab references it).
       const tabGlow = { ...s.tabGlow };
       delete tabGlow[id];
+      const tabRenames = { ...s.tabRenames };
+      delete tabRenames[id];
       // Closing either member dissolves the split; the OTHER member stays a
       // normal tab. otherId is the survivor, promoted when the closed tab was
       // the focused one (so the survivor becomes the single view).
@@ -805,7 +810,7 @@ export const useApp = create<AppState>((set) => ({
 
       if (id !== s.activeTabId) {
         // Closing a background tab: active stays put, mirror unchanged.
-        return { tabs, tabState, tabTerminals, tabGlow, split };
+        return { tabs, tabState, tabTerminals, tabGlow, tabRenames, split };
       }
 
       // Closing the active (focused) tab: promote the surviving split member if
@@ -822,6 +827,7 @@ export const useApp = create<AppState>((set) => ({
           tabState,
           tabTerminals,
           tabGlow,
+          tabRenames,
           split,
           activeTabId: promote.id,
           ...mirrorOf(tabState[promote.id] ?? freshProjectState(null)),
@@ -837,6 +843,7 @@ export const useApp = create<AppState>((set) => ({
         tabState: { [blankId]: blankState },
         tabTerminals: { [blankId]: emptyTabTerminals() },
         tabGlow: {},
+        tabRenames: {},
         activeTabId: blankId,
         split: null,
         ...mirrorOf(blankState),
@@ -853,6 +860,19 @@ export const useApp = create<AppState>((set) => ({
     // A tab was removed (or the last close replaced it with a blank) -> the
     // open-roots set changed; re-report so main's resolveRoot stays in sync.
     reportOpenRoots(useApp.getState().tabs);
+  },
+  // Display-only tab label; the folder on disk is never touched (no IPC).
+  // Empty/whitespace name clears the entry, reverting to the basename label.
+  // Unknown id (tab closed mid-edit) -> no-op.
+  renameTab: (tabId, name) => {
+    set((s) => {
+      if (!s.tabs.some((t) => t.id === tabId)) return {};
+      const trimmed = name.trim();
+      const tabRenames = { ...s.tabRenames };
+      if (trimmed === "") delete tabRenames[tabId];
+      else tabRenames[tabId] = trimmed;
+      return { tabRenames };
+    });
   },
   // Per-session working update (from TerminalPane's indicator scan) -> per-tab
   // state. Record the session's working bit, then drive the OWNING tab's glow
