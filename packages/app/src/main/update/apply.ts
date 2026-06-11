@@ -69,6 +69,13 @@ async function detach(mountPoint: string): Promise<void> {
   await execFile("hdiutil", ["detach", mountPoint]).catch(() => {});
 }
 
+// Re-entrancy guard: only one apply may be in flight. The renderer disables the
+// button while busy, but a second window or an automation caller could fire
+// update:apply again -- two concurrent downloads + relaunch scripts racing on
+// the same bundle is the one path that could corrupt the install. Reset on the
+// reveal/error exits so a retry works; the swap path ends in app.quit().
+let applying = false;
+
 export async function applyUpdate(): Promise<void> {
   const u = getUpdate();
   if (!app.isPackaged) {
@@ -79,6 +86,8 @@ export async function applyUpdate(): Promise<void> {
     emit({ phase: "error", message: "No update available" });
     return;
   }
+  if (applying) return;
+  applying = true;
   let mountPoint: string | null = null;
   try {
     const dmg = await downloadDmg(u.dmgUrl);
@@ -97,6 +106,7 @@ export async function applyUpdate(): Promise<void> {
       await detach(mountPoint);
       shell.showItemInFolder(dmg);
       emit({ phase: "revealed" });
+      applying = false;
       return;
     }
 
@@ -140,5 +150,6 @@ export async function applyUpdate(): Promise<void> {
       phase: "error",
       message: e instanceof Error ? e.message : String(e),
     });
+    applying = false;
   }
 }
