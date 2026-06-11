@@ -40,6 +40,10 @@ export function SecretModal() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // UPDATE mode pre-fill: fetch the CURRENT value so the user can see and
+  // tweak it instead of overwriting blind. true only while that fetch is in
+  // flight (update mode starts loading; add/requested modes never load).
+  const [loading, setLoading] = useState(updating !== null);
   // Resolve the awaiting agent exactly once: a save OR a cancel/backdrop/Escape
   // flips this, and every dismissal path checks it first so a request can never
   // be resolved twice (the second resolve would be a no-op main-side, but
@@ -66,6 +70,35 @@ export function SecretModal() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [requested, cancelRequested]);
+
+  // secretsReveal is the same owner-triggered, audited (secret.reveal) IPC the
+  // row's Reveal uses -- the value enters the renderer through the existing
+  // door with the same audit trail. A missing keychain entry (null) leaves the
+  // field empty, which is the pre-existing lost-value behavior.
+  useEffect(() => {
+    if (!updating || !root) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    window.airlock
+      .secretsReveal(root, updating)
+      .then((v) => {
+        if (!cancelled) setValue(v ?? "");
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setError(
+            `Could not load current value: ${err instanceof Error ? err.message : String(err)}`,
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [updating, root]);
 
   if (modal === null) return null;
 
@@ -168,11 +201,14 @@ export function SecretModal() {
         )}
         <textarea
           className={`modal-input modal-value${show ? "" : " masked"}`}
-          placeholder="Secret value (paste here)"
+          placeholder={
+            loading ? "Loading current value…" : "Secret value (paste here)"
+          }
           value={value}
           onChange={(e) => setValue(e.target.value)}
           rows={3}
           spellCheck={false}
+          disabled={loading}
         />
         <label className="modal-show">
           <input
