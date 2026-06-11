@@ -12,3 +12,8 @@ icon.iconset/
 
 # Claude Code session dir (workflows, local settings) -- not source
 .claude/
+
+# Internal docs: kept locally, not published (specs/plans, roadmap, audits)
+docs/superpowers/
+docs/ROADMAP.md
+docs/security-audit-2026-06-09.md

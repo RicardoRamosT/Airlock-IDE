@@ -161,8 +161,7 @@ npm run package    # unpacked .app for local daily use
 npm run dist:mac   # shareable DMG -> packages/app/release/
 ```
 
-macOS only, by design. Specs and implementation plans for every major feature
-live under `docs/superpowers/`.
+macOS only, by design.
 
 ## Status
 
