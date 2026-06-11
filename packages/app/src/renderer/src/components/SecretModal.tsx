@@ -43,6 +43,9 @@ export function SecretModal() {
   // UPDATE mode pre-fill: fetch the CURRENT value so the user can see and
   // tweak it instead of overwriting blind. true only while that fetch is in
   // flight (update mode starts loading; add/requested modes never load).
+  // The initializer is correct because App.tsx keys <SecretModal/> per open
+  // (and unmounts it on close), so every open is a fresh mount -- if that
+  // remount-per-open contract ever changes, this must become an effect.
   const [loading, setLoading] = useState(updating !== null);
   // Resolve the awaiting agent exactly once: a save OR a cancel/backdrop/Escape
   // flips this, and every dismissal path checks it first so a request can never
