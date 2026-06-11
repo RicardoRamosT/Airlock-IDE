@@ -6,7 +6,9 @@ main + preload + React renderer).
 
 **Commands** (repo root): `npm test` (vitest), `npm run typecheck`, `npm run lint`
 (biome), `npm run dev` (electron-vite dev window), `npm run package`
-(electron-builder → `packages/app/release/mac-arm64/AirLock.app`).
+(electron-builder → `packages/app/release/mac-arm64/AirLock.app`), `npm run
+dist:mac` (shareable DMG → `packages/app/release/AirLock-<version>-arm64.dmg`,
+ad-hoc signed — recipients use the Gatekeeper "Open Anyway" bypass).
 
 **Testing convention:** unit-test pure modules; keep electron/chokidar wiring
 thin and untested (e.g. `fsWatch.ts` only tests its pure helper).
