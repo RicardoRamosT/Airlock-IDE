@@ -3,8 +3,8 @@ import { appendAudit, appendAuditAt } from "../audit/audit";
 import { projectIdFor } from "../project/id";
 import { resolveWithin } from "../workspace/tree";
 import { isDangerousEnvName } from "./dangerous";
-import { isImportableEnvFile, sortEnvFiles } from "./envFiles";
 import { parseDotEnv } from "./dotenv";
+import { isImportableEnvFile, sortEnvFiles } from "./envFiles";
 import { type KeychainStore, systemKeychain } from "./keychain";
 import { readMeta, removeMeta, type SecretMeta, upsertMeta } from "./meta";
 import { validateSecret, validateSecretName } from "./validators";
@@ -179,7 +179,12 @@ export async function setGlobalSecret(
   if (value.trim().length === 0) throw new Error("Empty secret value");
   keychain.set(SERVICE, globalAccountFor(name), value);
   if (opts.auditLog) {
-    await appendAuditAt(opts.auditLog, opts.actor ?? "user", "secret.global.set", { name });
+    await appendAuditAt(
+      opts.auditLog,
+      opts.actor ?? "user",
+      "secret.global.set",
+      { name },
+    );
   }
 }
 
