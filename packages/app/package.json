@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "package": "electron-vite build && electron-builder --dir"
+    "package": "electron-vite build && electron-builder --dir",
+    "dist:mac": "electron-vite build && electron-builder --mac"
   },
   "build": {
     "appId": "com.ricardoramos.airlock",
@@ -44,7 +45,16 @@
     ],
     "mac": {
       "icon": "build/icon.icns",
-      "identity": null
+      "identity": "-",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "AirLock-${version}-${arch}.${ext}"
     }
   },
   "dependencies": {
