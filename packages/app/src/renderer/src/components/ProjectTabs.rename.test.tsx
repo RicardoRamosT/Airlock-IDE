@@ -165,3 +165,61 @@ it("the split-pair label resolves member renames", () => {
   expect(getByText(/Custom/)).toBeTruthy();
   expect(getByText(/other/)).toBeTruthy();
 });
+
+it("realistic double-click on a background tab switches to it, then opens rename", () => {
+  seedTabs();
+  const { getByText, container } = renderStrip();
+
+  // Real browsers fire click, click, dblclick -- replay that order on the
+  // BACKGROUND tab (t2): the clicks switch focus, the dblclick opens rename.
+  const label = getByText("other");
+  fireEvent.click(label);
+  fireEvent.click(label);
+  fireEvent.doubleClick(label);
+
+  expect(useApp.getState().activeTabId).toBe("t2");
+  const input = container.querySelector(
+    "input.tab-rename-input",
+  ) as HTMLInputElement;
+  expect(input).toBeTruthy();
+  expect(input.value).toBe("other");
+});
+
+it("a blur right after Escape does not commit (the done-ref guard)", () => {
+  seedTabs();
+  const { getByText, container } = renderStrip();
+
+  fireEvent.doubleClick(getByText("airlock"));
+  const input = container.querySelector(
+    "input.tab-rename-input",
+  ) as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "Nope" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  fireEvent.blur(input);
+
+  expect(getByText("airlock")).toBeTruthy();
+  expect(useApp.getState().tabRenames).toEqual({});
+});
+
+it("a blank tab pre-fills New Tab and is renameable", () => {
+  useApp.setState({
+    openProjectsAsTabs: true,
+    tabs: [
+      { id: "t1", root: "/Users/x/airlock" },
+      { id: "blank", root: null },
+    ],
+    activeTabId: "t1",
+  });
+  const { getByText, container } = renderStrip();
+
+  fireEvent.doubleClick(getByText("New Tab"));
+  const input = container.querySelector(
+    "input.tab-rename-input",
+  ) as HTMLInputElement;
+  expect(input.value).toBe("New Tab");
+  fireEvent.change(input, { target: { value: "Scratch" } });
+  fireEvent.submit(input.closest("form") as HTMLFormElement);
+
+  expect(getByText("Scratch")).toBeTruthy();
+  expect(useApp.getState().tabRenames.blank).toBe("Scratch");
+});
