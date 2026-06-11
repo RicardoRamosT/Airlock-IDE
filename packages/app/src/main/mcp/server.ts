@@ -32,6 +32,7 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  EnvFileImport,
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
@@ -47,6 +48,18 @@ export interface McpDeps {
     name: string,
     providerHint?: string,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
+  // Batch env import for the import_env tool (agent-core's importAllDotEnv,
+  // injected by main) + the secrets:changed broadcast that keeps every
+  // window's SECRETS section live after a main-side import.
+  importEnvFiles: (
+    root: string,
+    opts: {
+      deleteAfter?: boolean;
+      files?: string[];
+      actor?: "user" | "agent";
+    },
+  ) => Promise<EnvFileImport[]>;
+  notifySecretsChanged: (root: string) => void;
   getTerminalTail: (
     termId: string,
     lines: number,
@@ -83,8 +96,8 @@ const MAX_BODY_BYTES = 4 * 1024 * 1024;
 // Build a fresh McpServer with the v1 tools + the cached doc resources registered.
 // Called PER REQUEST: the stateless SDK transport cannot be reused, so each request
 // gets its own server connected to its own transport. registerTools is the SAME
-// allowlist-locked registration used everywhere (tools.test.ts asserts it stays at
-// exactly the fourteen allowlisted tools and that none returns a secret value), so the
+// allowlist-locked registration used everywhere (tools.test.ts asserts it stays locked to
+// exactly the allowlisted tools and that none returns a secret value), so the
 // security invariant holds identically on every per-request server.
 function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
   const mcp = new McpServer({ name: "airlock", version: "1.0.0" });
@@ -97,6 +110,8 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     getWorkspaceRoot: deps.getWorkspaceRoot,
     getBaseEnv: deps.getBaseEnv,
     requestSecretFromUser: deps.requestSecretFromUser,
+    importEnvFiles: deps.importEnvFiles,
+    notifySecretsChanged: deps.notifySecretsChanged,
     getTerminalTail: deps.getTerminalTail,
     listTerminals: deps.listTerminals,
     getActivity: deps.getActivity,

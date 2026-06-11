@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   captureLoginEnv,
+  importAllDotEnv,
   registerMcpServer,
   unregisterMcpServer,
 } from "@airlock/agent-core";
@@ -146,6 +147,17 @@ function bootstrap(): void {
       // window via this command round-trip. Layout control only -- ids/paths/page
       // names in, layout metadata out; it never returns a secret value.
       runAgentCommand,
+      // import_env: agent-core's batch importer (discovery/vault/audit live
+      // there; the tool sees names only), plus the live-refresh broadcast --
+      // tell every window which project root changed so its SECRETS section
+      // refetches (same all-windows pattern as quota:changed).
+      importEnvFiles: (root, opts) => importAllDotEnv(root, opts),
+      notifySecretsChanged: (root) => {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.webContents.isDestroyed())
+            w.webContents.send("secrets:changed", root);
+        }
+      },
       token,
     }).catch((e) => {
       console.error(
