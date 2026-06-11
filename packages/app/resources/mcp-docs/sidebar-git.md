@@ -3,7 +3,7 @@
 ## What it shows
 The working-tree status for the open folder when it is a git repo: changed/staged/unstaged
 files, the current branch, a branch switcher and "new branch" control, a commit message
-box, and per-file diffs (clicking a file opens its diff in the viewer). If the folder is
+box, and per-file diffs (clicking a file opens its diff in the main area). If the folder is
 not a git repo, the section says so.
 
 The MCP tool `git_status` returns the same working-tree status (branch, staged/unstaged

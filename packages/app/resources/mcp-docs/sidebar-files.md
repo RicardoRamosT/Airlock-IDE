@@ -2,9 +2,9 @@
 
 ## What it shows
 A file tree of the open workspace folder. The human expands directories and clicks a file
-to open it in the viewer pane (which splits in beside the terminal). It is a read/navigate
-tree, scoped to the open folder — there is no MCP tool for it; you already navigate the
-filesystem directly from the terminal.
+to open it in the main area (as a tab beside the terminal; the area can be split into a
+multi-pane scene). It is a read/navigate tree, scoped to the open folder — there is no MCP
+tool for it; you already navigate the filesystem directly from the terminal.
 
 ## When it's useful
 Essentially always. Every project has files, and the human relies on this tree to open and

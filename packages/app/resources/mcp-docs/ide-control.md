@@ -39,6 +39,9 @@ terminal to run something, tidy up when done.
 }
 ```
 
+> **Project tabs only.** Settings and the Usage dashboard are separate IDE page-tabs (in the
+> same strip) — they are NOT in `tabs`, and these tools do not open, close, or switch them.
+
 ## The tools
 
 - **`list_tabs`** - return the layout above for the focused window. No args. Call it
