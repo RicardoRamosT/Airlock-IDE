@@ -2,7 +2,8 @@
   "name": "@airlock/app",
   "version": "0.1.0",
   "description": "Terminal-first AI IDE where the agent can't read your secrets",
-  "author": "Ricardo Ramos",
+  "author": "Ricardo Ramos Treviño",
+  "license": "SEE LICENSE IN LICENSE.md",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
