@@ -297,3 +297,15 @@ so no file is written into your repo.)
 ## Credits
 
 Icons: [@vscode/codicons](https://github.com/microsoft/vscode-codicons) (CC-BY-4.0).
+
+## License
+
+airlock is **source-available, not open source**. Copyright © 2026 Ricardo
+Ramos Treviño. Licensed under the
+[PolyForm Strict License 1.0.0](LICENSE.md): you may read the source and use
+the software for noncommercial purposes, but **modification, redistribution,
+and commercial use are not permitted**. For a commercial or other license,
+contact the author ([@RicardoRamosT](https://github.com/RicardoRamosT)).
+
+Third-party dependencies are used under their own permissive licenses
+(MIT/BSD/ISC/Apache and similar); their notices ship with the packaged app.
