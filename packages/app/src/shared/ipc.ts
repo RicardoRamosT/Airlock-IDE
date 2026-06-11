@@ -209,12 +209,19 @@ export type MenuAction =
   | { type: "find-in-files" };
 
 /**
+ * The IDE-level page-tabs (Settings / Usage) in the project strip. App chrome,
+ * not project content: both can be open at once, at most one is SHOWN.
+ */
+export type AppPage = "settings" | "usage";
+
+/**
  * An IDE-control command dispatched main -> renderer over the agent:command
  * channel (the agent-commands round-trip, mirroring request_secret). The
  * terminal Claude (via the IDE-control MCP tools) drives the FOCUSED window's
- * tab/split/terminal layout; the renderer's useAgentCommands hook runs the
- * matching store action and replies with a fresh TabsSnapshot. Every variant
- * carries only tab/terminal ids and a folder path -- NO secret value crosses.
+ * tab/split/terminal/page-tab layout; the renderer's useAgentCommands hook runs
+ * the matching store action and replies with a fresh TabsSnapshot. Every variant
+ * carries only tab/terminal ids, a folder path, or a page name -- NO secret
+ * value crosses.
  */
 export type AgentCommand =
   | { type: "list_tabs" }
@@ -223,14 +230,17 @@ export type AgentCommand =
   | { type: "switch_tab"; tabId: string }
   | { type: "split_view"; tabId?: string; anchorTabId?: string }
   | { type: "open_terminal"; tabId?: string }
-  | { type: "close_terminal"; terminalId: string };
+  | { type: "close_terminal"; terminalId: string }
+  | { type: "open_app_page"; page: AppPage }
+  | { type: "close_app_page"; page: AppPage };
 
 /**
  * The layout metadata an IDE-control command returns: one entry per open tab
  * (its id, display name, root, whether it is focused / in the split, and its
- * terminals as {id,title}) plus the split pair. Names/titles only -- there is
- * deliberately NO secret value, env value, or terminal output here, so these
- * tools never widen the no-secret-value surface.
+ * terminals as {id,title}) plus the split pair and the IDE page-tab state
+ * (which of Settings/Usage are open, and which is shown). Names/titles only --
+ * there is deliberately NO secret value, env value, or terminal output here,
+ * so these tools never widen the no-secret-value surface.
  */
 export interface TabsSnapshot {
   tabs: {
@@ -242,6 +252,7 @@ export interface TabsSnapshot {
     terminals: { id: string; title: string }[];
   }[];
   split: { a: string; b: string } | null;
+  appPages: { open: AppPage[]; shown: AppPage | null };
 }
 
 /**

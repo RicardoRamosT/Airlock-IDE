@@ -32,6 +32,8 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  QuotaStatus,
+  SessionUsage,
 } from "../../shared/ipc";
 import { savePrefs } from "../prefs";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
@@ -52,8 +54,13 @@ export interface McpDeps {
   listTerminals: () => Promise<{ id: string; preview: string }[]>;
   getActivity: (root: string | null) => Promise<ActivityItem[]>;
   dismissActivity: (entryId: string) => void;
-  // Drive the focused window's tab/split/terminal layout for the IDE-control
-  // tools. Resolves layout metadata (or an error result) -- never a secret value.
+  // The account's Claude plan usage for plan_usage: cached QuotaStatus + the
+  // per-session ledger. Usage metadata only -- never a secret value.
+  getQuota: () => QuotaStatus | null;
+  getUsageLedger: () => SessionUsage[];
+  // Drive the focused window's tab/split/terminal/page-tab layout for the
+  // IDE-control tools. Resolves layout metadata (or an error result) -- never a
+  // secret value.
   runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>;
   token: string;
 }
@@ -94,6 +101,8 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     listTerminals: deps.listTerminals,
     getActivity: deps.getActivity,
     dismissActivity: deps.dismissActivity,
+    getQuota: deps.getQuota,
+    getUsageLedger: deps.getUsageLedger,
     runAgentCommand: deps.runAgentCommand,
   });
 

@@ -7,8 +7,10 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  QuotaStatus,
   Section,
   SectionVisibility,
+  SessionUsage,
   TabsSnapshot,
 } from "../../shared/ipc";
 import { SECTIONS } from "../prefs";
@@ -65,33 +67,41 @@ const baseDeps = {
   listTerminals: vi.fn(async () => [] as { id: string; preview: string }[]),
   getActivity: vi.fn(async () => [] as ActivityItem[]),
   dismissActivity: vi.fn((_entryId: string) => {}),
+  // The quota/usage reads for plan_usage: main's cached account status and the
+  // per-session ledger. Metadata only -- usage numbers, never a secret value.
+  getQuota: vi.fn(() => null as QuotaStatus | null),
+  getUsageLedger: vi.fn(() => [] as SessionUsage[]),
   // The IDE-control round-trip stub: resolves an ok result with an empty layout
   // by default. Tests that assert the forwarded AgentCommand or the !ok mapping
   // override this with their own spy.
   runAgentCommand: vi.fn(
     async () =>
-      ({ ok: true, data: { tabs: [], split: null } }) as AgentCommandResult,
+      ({
+        ok: true,
+        data: { tabs: [], split: null, appPages: { open: [], shown: null } },
+      }) as AgentCommandResult,
   ),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-two allowlisted tools (fifteen read/curate/run/commit + the seven
+  // twenty-five allowlisted tools (sixteen read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the twenty-two allowlisted tools and nothing else", () => {
+  it("registers exactly the twenty-five allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(22);
+    expect(registered).toHaveLength(25);
     expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
     expect(registered).toContain("activity_status");
     expect(registered).toContain("dismiss_activity");
-    // The seven IDE-control tools (tabs / split / terminals).
+    expect(registered).toContain("plan_usage");
+    // The nine IDE-control tools (tabs / split / terminals / page-tabs).
     expect(registered).toContain("list_tabs");
     expect(registered).toContain("open_tab");
     expect(registered).toContain("close_tab");
@@ -99,6 +109,8 @@ describe("registerTools allowlist guard", () => {
     expect(registered).toContain("split_view");
     expect(registered).toContain("open_terminal");
     expect(registered).toContain("close_terminal");
+    expect(registered).toContain("open_app_page");
+    expect(registered).toContain("close_app_page");
   });
 
   it("registers no duplicate tool names", () => {
@@ -461,7 +473,7 @@ describe("dismiss_activity tool", () => {
   });
 });
 
-describe("IDE-control tools (tabs / split / terminals)", () => {
+describe("IDE-control tools (tabs / split / terminals / page-tabs)", () => {
   // A sample layout the round-trip resolves on the ok path; the handler must
   // forward it verbatim as JSON (it is layout metadata -- names/titles only).
   const SNAPSHOT: TabsSnapshot = {
@@ -476,6 +488,7 @@ describe("IDE-control tools (tabs / split / terminals)", () => {
       },
     ],
     split: null,
+    appPages: { open: ["usage"], shown: null },
   };
 
   // Build one IDE-control tool against a runAgentCommand spy so each test can
@@ -540,6 +553,21 @@ describe("IDE-control tools (tabs / split / terminals)", () => {
       name: "close_terminal",
       args: { terminalId: "term-9" },
       cmd: { type: "close_terminal", terminalId: "term-9" },
+    },
+    {
+      name: "open_app_page",
+      args: { page: "usage" },
+      cmd: { type: "open_app_page", page: "usage" },
+    },
+    {
+      name: "open_app_page",
+      args: { page: "settings" },
+      cmd: { type: "open_app_page", page: "settings" },
+    },
+    {
+      name: "close_app_page",
+      args: { page: "settings" },
+      cmd: { type: "close_app_page", page: "settings" },
     },
   ];
 
@@ -651,5 +679,88 @@ describe("IDE-control tools (tabs / split / terminals)", () => {
     expect(
       byName("close_terminal")?.config.inputSchema?.terminalId,
     ).toBeDefined();
+    // The page-tab tools take the page enum ("settings" | "usage").
+    expect(byName("open_app_page")?.config.inputSchema?.page).toBeDefined();
+    expect(byName("close_app_page")?.config.inputSchema?.page).toBeDefined();
+  });
+});
+
+describe("plan_usage tool", () => {
+  // Build the tool against getQuota/getUsageLedger spies so each test can
+  // assert the read is forwarded verbatim (account usage metadata only).
+  function getPlanUsageTool(deps: typeof baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const tool = tools.find((t) => t.name === "plan_usage");
+    if (!tool) throw new Error("plan_usage tool not registered");
+    return tool;
+  }
+
+  const QUOTA: QuotaStatus = {
+    fiveHour: { usedPercentage: 91, resetsAt: 1_781_080_800 },
+    sevenDay: { usedPercentage: 16, resetsAt: 1_781_370_000 },
+    model: "Opus 4.8 (1M context)",
+    updatedAt: 1_781_129_748,
+    available: true,
+  };
+  const SESSIONS: SessionUsage[] = [
+    {
+      sessionId: "s-1",
+      cwd: "/repo",
+      model: "Opus 4.8 (1M context)",
+      contextTokens: 118_300,
+      contextWindowSize: 1_000_000,
+      costUsd: 4.6,
+      apiMs: 669_000,
+      linesAdded: 39,
+      linesRemoved: 26,
+      lastEmitAt: 1_781_129_748,
+    },
+  ];
+
+  it("declares an empty input schema (no args)", () => {
+    const tool = getPlanUsageTool(baseDeps);
+    expect(tool.config.inputSchema).toEqual({});
+  });
+
+  it("returns meterEnabled + the quota and sessions from the deps, with NO workspace gate", async () => {
+    const getQuota = vi.fn(() => QUOTA);
+    const getUsageLedger = vi.fn(() => SESSIONS);
+    const tool = getPlanUsageTool({
+      ...baseDeps,
+      // Account-wide read: getWorkspaceRoot() is null in baseDeps and the tool
+      // must still answer (quota is not project state).
+      prefsFile: "/tmp/airlock-test-prefs-plan-usage-absent.json",
+      getQuota,
+      getUsageLedger,
+    });
+    const res = (await tool.handler({})) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(getQuota).toHaveBeenCalledTimes(1);
+    expect(getUsageLedger).toHaveBeenCalledTimes(1);
+    expect(res.isError).toBeUndefined();
+    const body = JSON.parse(res.content[0].text);
+    // The prefs file does not exist, so loadPrefs falls back to DEFAULTS
+    // (quotaMeter on by default).
+    expect(body.meterEnabled).toBe(true);
+    expect(body.quota).toEqual(QUOTA);
+    expect(body.sessions).toEqual(SESSIONS);
+  });
+
+  it("returns quota: null and sessions: [] before any session has emitted", async () => {
+    const tool = getPlanUsageTool({
+      ...baseDeps,
+      prefsFile: "/tmp/airlock-test-prefs-plan-usage-absent.json",
+    });
+    const res = (await tool.handler({})) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBeUndefined();
+    const body = JSON.parse(res.content[0].text);
+    expect(body.quota).toBeNull();
+    expect(body.sessions).toEqual([]);
   });
 });

@@ -1,16 +1,17 @@
 # MCP tools
 
-airlock exposes 22 tools over this MCP server. Nine are **read-only status** tools; two
-curate the UI (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
+airlock exposes 25 tools over this MCP server. Ten are **read-only status** tools
+(including `plan_usage`, your own Claude plan usage); two curate the UI
+(`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
 injected and the output returned with those values **redacted**; one (`git_commit`) commits
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
 asks the user to vault a secret you need (you get back only whether it was vaulted, never
 the value); one (`get_terminal_tail`) reads a terminal tab's recent output, with every
-vaulted secret value **redacted**; and seven **IDE-control** tools (`list_tabs`, `open_tab`,
-`close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`) drive the focused
-window's tabs / split / terminals, returning layout metadata only. **None returns a secret
-value.**
+vaulted secret value **redacted**; and nine **IDE-control** tools (`list_tabs`, `open_tab`,
+`close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`,
+`open_app_page`, `close_app_page`) drive the focused window's tabs / split / terminals /
+page-tabs, returning layout metadata only. **None returns a secret value.**
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
 yet; the app-global tools (and the IDE-control tools) work regardless.
@@ -39,6 +40,16 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   only (titles, states, branches, urls), never a secret value. App-global: CI is skipped when
   no folder is open; Render/Docker still report. Use it to watch live build/deploy/container
   progress, and to get the entry ids you pass to `dismiss_activity`.
+- **`plan_usage`** — the account's **Claude plan usage** (the data behind the sidebar quota
+  meter and the Usage dashboard): the 5-hour and 7-day rate-limit windows (percent used +
+  reset time, plus the active model), and a per-session breakdown for this app run (project
+  cwd, model, current context size, cumulative API time / cost / lines — busiest first). Use
+  it to answer "how much quota is left" or "what's eating the quota" — including pacing your
+  own work when a window is near its limit. Notes: `quota` is `null` until a Claude session
+  has emitted usage (it only flows after a session's first API response); `quota.updatedAt`
+  is the freshness signal (an old stamp means no live session is feeding it); `meterEnabled`
+  false means the human turned the quota meter off in Settings, so the data may be absent or
+  stale. Account-wide — no folder needed. Usage metadata only, never a secret value.
 
 ## Status reads — workspace-rooted (need an open folder)
 
@@ -141,12 +152,13 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   reappears, and the set is **not persisted** across an app restart. Call `activity_status`
   first to get the id; the id is opaque and carries no secret value.
 
-## Driving the IDE - tabs, split, terminals (focused window)
+## Driving the IDE - tabs, split, terminals, page-tabs (focused window)
 
-Seven tools let you arrange the **layout** of the focused window. They carry only tab ids,
-terminal ids, and a folder path in, and return **layout metadata** out (each tab's id, name,
-root, focused/in-split flags, and its terminals as `{ id, title }`, plus the split pair) -
-**never a secret value**. Full reference + the layout shape: `ide-control.md`.
+Nine tools let you arrange the **layout** of the focused window. They carry only tab ids,
+terminal ids, a folder path, or a page name in, and return **layout metadata** out (each
+tab's id, name, root, focused/in-split flags, and its terminals as `{ id, title }`, plus the
+split pair and the IDE page-tab state) - **never a secret value**. Full reference + the
+layout shape: `ide-control.md`.
 
 - **`list_tabs`** - the focused window's layout (tabs + their terminals + the split pair).
   No args. Call it first to learn the tab/terminal ids you pass to the others.
@@ -161,6 +173,10 @@ root, focused/in-split flags, and its terminals as `{ id, title }`, plus the spl
   tab is focused first). The reply's tab `terminals` include the new one. The shell gets the
   project's secrets injected - you see no values.
 - **`close_terminal`** - close a terminal by `terminalId`.
+- **`open_app_page`** - open an IDE page-tab (`page`: `"settings"` or `"usage"`) and show it.
+  Opening an already-open page brings it back into view.
+- **`close_app_page`** - close an IDE page-tab (`page`: `"settings"` or `"usage"`). Closing a
+  page that is not open is a no-op.
 
 These change LAYOUT only. To run something that needs a credential use `run_command`; to read
 a terminal's output use `get_terminal_tail` (both redact). See `security-model.md`.
@@ -188,5 +204,8 @@ a terminal's output use `get_terminal_tail` (both redact). See `security-model.m
 - "Open / arrange the IDE for me" → the IDE-control tools (`list_tabs` first, then
   `open_tab` / `switch_tab` / `split_view` / `open_terminal` / `close_tab` / `close_terminal`).
   They drive the focused window's layout and return metadata only (see `ide-control.md`).
+- "How much Claude quota is left / what's using it?" → `plan_usage` (the 5h/7d windows + the
+  per-session breakdown). To show the human, `open_app_page` with `"usage"` opens the Usage
+  dashboard; `open_app_page` with `"settings"` opens Settings (e.g. to point at a preference).
 - You will **never** find a tool that hands you a secret value — that is by design.
   `run_command` *uses* a secret on your behalf but redacts it out of what you get back.

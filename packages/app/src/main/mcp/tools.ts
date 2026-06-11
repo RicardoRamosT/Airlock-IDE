@@ -26,8 +26,10 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  QuotaStatus,
   Section,
   SectionVisibility,
+  SessionUsage,
 } from "../../shared/ipc";
 import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
@@ -38,9 +40,11 @@ import { scanWorkingSet } from "../secrets/scan";
 
 // The exact, locked tool set. tools.test.ts asserts the registered names equal
 // this list, so an extra tool or a missing one fails the allowlist guard. The
-// last seven are the IDE-control tools: they drive the focused window's tab/
-// split/terminal layout and carry only ids/paths in + layout metadata out -- NO
-// secret value, so the source-guard / redactor are untouched by them.
+// last nine are the IDE-control tools: they drive the focused window's tab/
+// split/terminal/page-tab layout and carry only ids/paths/page names in +
+// layout metadata out -- NO secret value, so the source-guard / redactor are
+// untouched by them. plan_usage reads the account's Claude plan usage (the
+// quota meter / Usage dashboard data) -- usage metadata only, same invariant.
 export const TOOL_NAMES: string[] = [
   "list_sidebar_sections",
   "set_sidebar_section_visibility",
@@ -57,6 +61,7 @@ export const TOOL_NAMES: string[] = [
   "get_terminal_tail",
   "activity_status",
   "dismiss_activity",
+  "plan_usage",
   "list_tabs",
   "open_tab",
   "close_tab",
@@ -64,6 +69,8 @@ export const TOOL_NAMES: string[] = [
   "split_view",
   "open_terminal",
   "close_terminal",
+  "open_app_page",
+  "close_app_page",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -90,6 +97,12 @@ export interface ToolDeps {
   // broadcast so the UI refetches the filtered feed live. Carries an opaque id,
   // never a secret value. Sync (it mutates the in-memory set + fans out).
   dismissActivity: (entryId: string) => void;
+  // The account's Claude plan usage for plan_usage: main's cached QuotaStatus
+  // (null until a session emits) and the per-session ledger the Usage dashboard
+  // shows (busiest-first). Usage metadata only -- percentages, costs, paths --
+  // never a secret value, so these deps keep the source-guard green.
+  getQuota: () => QuotaStatus | null;
+  getUsageLedger: () => SessionUsage[];
   // Drive the focused window's tab/split/terminal layout for the IDE-control
   // tools. Sends an AgentCommand to the focused window and resolves the resulting
   // layout metadata (or an error result). Carries ids/paths in + names/titles out
@@ -172,6 +185,30 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       inputSchema: {},
     },
     async () => ok(await deps.getActivity(deps.getWorkspaceRoot())),
+  );
+
+  // The account's Claude plan usage: the 5h/7d rate-limit windows the quota
+  // meter shows plus the per-session ledger behind the Usage dashboard. App-
+  // global (the data is account-wide, fed by ANY Claude session on the machine,
+  // not project state). meterEnabled lets the agent tell "feature off" from
+  // "no session emitting yet"; quota.updatedAt is the freshness signal (an old
+  // stamp means no live session is feeding the meter). Usage metadata only --
+  // percentages, reset times, costs, cwds -- never a secret value.
+  mcp.registerTool(
+    "plan_usage",
+    {
+      description:
+        "Read the account's Claude plan usage: the 5-hour and 7-day rate-limit windows (percent used + reset time) and a per-session usage breakdown (project cwd, model, current context size, cumulative API time / cost / lines, busiest first). quota is null until a Claude session emits usage; sessions cover this app run. Usage metadata only -- no secret values.",
+      inputSchema: {},
+    },
+    async () => {
+      const prefs = await loadPrefs(deps.prefsFile);
+      return ok({
+        meterEnabled: prefs.quotaMeter.enabled,
+        quota: deps.getQuota(),
+        sessions: deps.getUsageLedger(),
+      });
+    },
   );
 
   // --- The UI-control / curate tools -------------------------------------
@@ -499,5 +536,29 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       inputSchema: { terminalId: z.string() },
     },
     async ({ terminalId }) => drive({ type: "close_terminal", terminalId }),
+  );
+
+  // The IDE page-tabs (Settings / Usage): app chrome beside the project tabs.
+  // Both can be open at once and at most one is SHOWN; the snapshot's appPages
+  // reports {open, shown}. Open also un-hides an already-open page; closing a
+  // page that is not open is a clean no-op. Page names only -- no value surface.
+  mcp.registerTool(
+    "open_app_page",
+    {
+      description:
+        'Open an IDE page-tab ("settings" or "usage") in the focused airlock window and show it. The page-tabs sit beside the project tabs (see list_tabs\' appPages); opening an already-open page brings it back into view. Returns the resulting layout. Acts on the FOCUSED window.',
+      inputSchema: { page: z.enum(["settings", "usage"]) },
+    },
+    async ({ page }) => drive({ type: "open_app_page", page }),
+  );
+
+  mcp.registerTool(
+    "close_app_page",
+    {
+      description:
+        'Close an IDE page-tab ("settings" or "usage") in the focused airlock window. Closing a page that is not open is a no-op. Returns the resulting layout. Acts on the FOCUSED window.',
+      inputSchema: { page: z.enum(["settings", "usage"]) },
+    },
+    async ({ page }) => drive({ type: "close_app_page", page }),
   );
 }

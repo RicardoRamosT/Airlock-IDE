@@ -22,22 +22,23 @@ airlock's window has three regions:
   project's status at a glance. You can read every section's live status and you can show/hide
   sections to curate what the human sees (see `tools.md`). Pinned at its bottom-left is an
   account-wide **Claude usage meter** (the 5-hour and 7-day plan windows); clicking it opens
-  the Usage dashboard.
+  the Usage dashboard. You can read the same data yourself with `plan_usage`.
 - **The main area is terminal-first.** By default it is just the terminal — that is where you
   live, the primary surface. The human can also open files, git diffs, and database tables
   here as tabs alongside the terminal, and can **split the area into a multi-pane scene**
   (terminals and/or files side by side). When nothing else is open, the terminal fills it.
 - **IDE page-tabs.** Settings and the Usage dashboard open as their own top-level page-tabs in
-  the tab strip (both can be open at once), separate from the project/folder tabs. They are
-  the human's to drive — your IDE-control tools (`ide-control.md`) manage the project tabs,
-  the split, and terminals, not these page-tabs.
+  the tab strip (both can be open at once), separate from the project/folder tabs. You can
+  open/close them too — `open_app_page` / `close_app_page` (`ide-control.md`), e.g. surface
+  the Usage dashboard when the human asks about their plan usage.
 
 ## The one crucial fact
 
 You can **read every status** airlock tracks (git, databases, Docker, Neon, Render, the
-host dev server, secret *names*), you can **drive the sidebar** (list sections, show or
-hide them), and you can **drive the focused window's layout** (open/close/switch tabs,
-split, open/close terminals - see `ide-control.md`). 
+host dev server, secret *names*, your own Claude plan usage), you can **drive the sidebar**
+(list sections, show or hide them), and you can **drive the focused window's layout**
+(open/close/switch tabs, split, open/close terminals, open/close the Settings/Usage
+page-tabs - see `ide-control.md`). 
 
 But you can **never read a secret value.** That is airlock's entire reason to exist: the
 human's API keys, database passwords, and tokens live in the OS keychain and are only ever
@@ -51,8 +52,8 @@ try to read them from disk, and don't treat their absence as a problem to solve.
 ## How to use this manual
 
 - `tools.md` — the MCP tools and when to reach for each.
-- `ide-control.md` — the seven tools that drive the focused window's tabs / split /
-  terminals (layout metadata only, no secret values).
+- `ide-control.md` — the nine tools that drive the focused window's tabs / split /
+  terminals / page-tabs (layout metadata only, no secret values).
 - `security-model.md` — the no-secrets invariant in plain terms.
 - `sidebar-*.md` — one file per sidebar section: what it shows and **when it is useful**
   for a given project, so you can curate the sidebar to match the project in front of you.
