@@ -205,3 +205,12 @@ export {
   targetsVault,
 } from "./workspace/tree";
 export { writeWorkspaceFile } from "./workspace/write";
+export {
+  AIRLOCK_REPO,
+  fetchLatestRelease,
+  type LatestRelease,
+  type UpdateTransport,
+  updateFetchTransport,
+} from "./update/client";
+export { chooseUpdateAction } from "./update/decide";
+export { compareVersions, isNewer } from "./update/version";
