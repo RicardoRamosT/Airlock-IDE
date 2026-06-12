@@ -21,6 +21,11 @@ const openA =
     args: ["-a", app, dir],
   });
 
+// NOTE: the open-folder launch commands below are best-known and NOT all
+// verified against the real apps. `open -a <App> <dir>` is reliable for
+// Terminal/iTerm/Ghostty/Warp; the Alacritty/kitty/WezTerm --working-directory/
+// --directory/start --cwd forms should be verified against the installed app
+// (a wrong flag opens at $HOME). Update the entry AND its test assertion together.
 export const KNOWN_TERMINALS: ExternalTerminal[] = [
   {
     id: "terminal",
@@ -114,6 +119,7 @@ export async function detectInstalledTerminals(
   const results: Record<string, string> = {};
   await Promise.all(
     KNOWN_TERMINALS.map(async (t) => {
+      if (t.id === "terminal") return; // always included by parseInstalled's floor; no mdfind needed
       try {
         results[t.id] = await run([
           `kMDItemCFBundleIdentifier == '${t.bundleId}'`,
