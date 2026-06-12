@@ -6,7 +6,10 @@ import {
   isCommandMissing,
   type PollCache,
   pollIntegrations,
+  pollSteady,
   runManifest,
+  type SteadyCache,
+  type SteadyIntegration,
   steadyView,
 } from "./engine";
 import type { IntegrationManifest } from "./manifest";
@@ -175,5 +178,82 @@ describe("pollIntegrations", () => {
     // 25s after the first run: past everyMs -> re-runs.
     await pollIntegrations([VERCEL], "/repo", 26000, cache, run);
     expect(polls()).toBe(2);
+  });
+});
+
+describe("pollSteady", () => {
+  // A steady manifest whose probe returns a 2-element JSON array.
+  const PROBE = JSON.stringify([
+    { name: "W1", state: "STARTED", size: "X-Small" },
+    { name: "W2", state: "SUSPENDED", size: "Small" },
+  ]);
+  const steadyM: IntegrationManifest = {
+    id: "wh",
+    name: "Warehouses",
+    surface: { view: "databases" },
+    detect: { authCheck: { cmd: "wh", args: ["test"] } },
+    poll: { everyMs: 30000, cli: { cmd: "wh", args: ["ls", "--json"] } },
+    map: {
+      items: "$",
+      key: "$.name",
+      title: "$.name",
+      subtitle: "$.size",
+      state: {
+        from: "$.state",
+        running: ["STARTED", "RESUMING"],
+        default: "idle",
+      },
+      show: ["running", "idle", "done", "failed"],
+    },
+  };
+
+  it("returns a ready integration with one resource per item", async () => {
+    const run: CliRunner = async (_c, args) =>
+      args[0] === "test" ? "" : PROBE;
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toEqual({
+      id: "wh",
+      name: "Warehouses",
+      view: "databases",
+      status: "ready",
+      resources: [
+        { id: "int:wh:W1", title: "W1", subtitle: "X-Small", state: "running" },
+        { id: "int:wh:W2", title: "W2", subtitle: "Small", state: "idle" },
+      ],
+    });
+  });
+
+  it("returns absent (no resources) when the binary is missing", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("nope"), { code: "ENOENT" });
+    };
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toMatchObject({ status: "absent", resources: [] });
+  });
+
+  it("stays ready with no rows when authed but the probe fails", async () => {
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] === "test") return ""; // authed
+      throw new Error("query failed");
+    };
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toMatchObject({ status: "ready", resources: [] });
+  });
+
+  it("honors everyMs: serves cache within the window", async () => {
+    let polls = 0;
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] !== "test") polls++;
+      return args[0] === "test" ? "" : PROBE;
+    };
+    const cache: SteadyCache = {};
+    await pollSteady([steadyM], null, 1000, cache, run);
+    await pollSteady([steadyM], null, 1000 + 5000, cache, run); // within 30000
+    expect(polls).toBe(1);
+  });
+
+  it("ignores transient (Activity) manifests", async () => {
+    const run: CliRunner = async () => "";
+    expect(await pollSteady([VERCEL], null, 1000, {}, run)).toEqual([]);
   });
 });

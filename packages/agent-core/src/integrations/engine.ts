@@ -131,3 +131,62 @@ export async function pollIntegrations(
   );
   return results.flat();
 }
+
+// One steady-state integration's standing status for a sidebar view.
+export interface SteadyIntegration {
+  id: string;
+  name: string;
+  view: string; // target sidebar view, e.g. "databases"
+  status: DetectStatus; // absent | unauthed | ready
+  resources: IntegrationItem[]; // [] unless ready
+}
+
+// Steady analogue of PollCache: caches the whole SteadyIntegration per id.
+export interface SteadyCache {
+  [id: string]: { at: number; value: SteadyIntegration };
+}
+
+// Steady analogue of pollIntegrations: for each VIEW-targeted manifest, detect
+// (absent|unauthed|ready), and when ready poll + mapToItems for its resources.
+// Per-manifest everyMs throttle via SteadyCache; each degrades independently
+// (a failed probe on an authed tool -> ready with no rows, not "not connected").
+export async function pollSteady(
+  manifests: IntegrationManifest[],
+  root: string | null,
+  now: number,
+  cache: SteadyCache,
+  run: CliRunner = realRunner,
+): Promise<SteadyIntegration[]> {
+  const steady = manifests.filter((m) => steadyView(m) !== null);
+  return Promise.all(
+    steady.map(async (m) => {
+      const cached = cache[m.id];
+      if (cached && now - cached.at < m.poll.everyMs) return cached.value;
+      const view = steadyView(m) as string;
+      const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
+      const timeoutMs = m.poll.timeoutMs ?? 8000;
+      const status = await detectStatus(m, cwd, timeoutMs, run);
+      let resources: IntegrationItem[] = [];
+      if (status === "ready") {
+        try {
+          const out = await run(m.poll.cli.cmd, m.poll.cli.args, {
+            cwd,
+            timeoutMs,
+          });
+          resources = mapToItems(m, JSON.parse(out));
+        } catch {
+          resources = []; // authed, but this probe failed/garbage: show header, no rows
+        }
+      }
+      const value: SteadyIntegration = {
+        id: m.id,
+        name: m.name,
+        view,
+        status,
+        resources,
+      };
+      cache[m.id] = { at: now, value };
+      return value;
+    }),
+  );
+}
