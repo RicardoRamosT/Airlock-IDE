@@ -52,6 +52,7 @@ vi.mock("@xterm/xterm", () => {
     onTitleChange() {
       return { dispose() {} };
     }
+    attachCustomKeyEventHandler() {}
     dispose() {}
   }
   return { Terminal };

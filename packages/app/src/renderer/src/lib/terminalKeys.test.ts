@@ -65,6 +65,8 @@ describe("terminalKeyBytes", () => {
       terminalKeyBytes(ev({ key: "Enter", shiftKey: true, metaKey: true })),
     ).toBeNull();
     // Ctrl chords pass through natively (the user types Ctrl-A/E/U/K directly).
-    expect(terminalKeyBytes(ev({ key: "ArrowLeft", ctrlKey: true }))).toBeNull();
+    expect(
+      terminalKeyBytes(ev({ key: "ArrowLeft", ctrlKey: true })),
+    ).toBeNull();
   });
 });

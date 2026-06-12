@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
+import { terminalKeyBytes } from "../lib/terminalKeys";
 import { hasWorkingIndicator } from "../lib/workingIndicator";
 import { CLAUDE_AUTO_COMMAND, useApp } from "../store";
 
@@ -59,6 +60,20 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     term.loadAddon(fit);
     term.open(host);
     fit.fit();
+
+    // macOS line-editing chords -> readline control bytes (see lib/terminalKeys).
+    // Matched chords are sent straight to the pty and suppressed in xterm (and
+    // the browser); everything else (typing, Cmd+C/V, plain arrows/Enter, IME)
+    // returns true and behaves exactly as before. Fires only for THIS focused
+    // terminal, so the CodeMirror editor's native keys are untouched.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      const bytes = terminalKeyBytes(e);
+      if (bytes === null) return true;
+      if (idRef.current) window.airlock.ptyInput(idRef.current, bytes);
+      e.preventDefault();
+      return false;
+    });
 
     // Hold the resolved pty id in a ref so the data/exit listeners (attached
     // synchronously below, before ptyCreate even resolves) can filter on it
