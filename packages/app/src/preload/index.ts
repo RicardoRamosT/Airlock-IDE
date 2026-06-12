@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   AgentCommand,
   AgentCommandResult,
@@ -45,6 +45,9 @@ const api: AirlockApi = {
     ipcRenderer.invoke("fs:move", root, fromRel, toRel),
   duplicateFile: (root, relPath) =>
     ipcRenderer.invoke("fs:duplicate", root, relPath),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
+  importExternal: (root, destRel, srcPaths) =>
+    ipcRenderer.invoke("fs:importExternal", root, destRel, srcPaths),
   trashFile: (root, relPath) => ipcRenderer.invoke("fs:trash", root, relPath),
   listAllFiles: (root) => ipcRenderer.invoke("fs:listAll", root),
   searchProject: (root, query) => ipcRenderer.invoke("fs:search", root, query),

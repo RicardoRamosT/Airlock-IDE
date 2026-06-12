@@ -19,6 +19,7 @@ import {
   gitPull,
   gitPush,
   importAllDotEnv,
+  importExternal,
   injectInto,
   isGitRepo,
   listBranches,
@@ -383,6 +384,19 @@ export function registerIpc(
     assertNotVault(relPath);
     return duplicate(resolveRoot(e, root), relPath);
   });
+  ipcMain.handle(
+    "fs:importExternal",
+    (e, root: unknown, destRel: unknown, srcPaths: unknown) => {
+      if (
+        typeof destRel !== "string" ||
+        !Array.isArray(srcPaths) ||
+        !srcPaths.every((p) => typeof p === "string")
+      )
+        throw new Error("Invalid payload");
+      assertNotVault(destRel);
+      return importExternal(resolveRoot(e, root), destRel, srcPaths);
+    },
+  );
   ipcMain.handle("fs:trash", async (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);

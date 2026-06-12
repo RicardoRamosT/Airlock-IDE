@@ -12,6 +12,7 @@ import type {
   GhAccount,
   GhStatus,
   GitStatus,
+  ImportExternalResult,
   ImportResult,
   NeonBranch,
   NeonDatabase,
@@ -40,6 +41,7 @@ export type {
   GhAccount,
   GhStatus,
   GitStatus,
+  ImportExternalResult,
   ImportResult,
   NeonBranch,
   NeonDatabase,
@@ -421,6 +423,12 @@ export interface AirlockApi {
   createDir(root: string, relPath: string): Promise<void>;
   moveFile(root: string, fromRel: string, toRel: string): Promise<void>;
   duplicateFile(root: string, relPath: string): Promise<string>;
+  getPathForFile(file: File): string;
+  importExternal(
+    root: string,
+    destRel: string,
+    srcPaths: string[],
+  ): Promise<ImportExternalResult>;
   trashFile(root: string, relPath: string): Promise<void>;
   // Flat list of every file relpath in the project (palette quick-open). Honors
   // the same IGNORED set as the tree; capped, with `truncated` set when hit.
