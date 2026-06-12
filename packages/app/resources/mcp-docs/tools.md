@@ -134,6 +134,9 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   - **With a `terminalId` → that terminal's redacted tail.** Returns the last `lines`
     of its cleaned, **redacted** output (default `40`). Use it to see what the user is
     running in another tab: a dev server's errors, a build/test run, log output.
+  - **Which id?** `terminalId` is the **pty session id** — the `ptyId` field on
+    `list_tabs`' terminals, or the `id` from this tool's own no-arg listing. It is NOT
+    `list_tabs`' layout `id` (`term-1`…), which belongs to `open_terminal`/`close_terminal`.
   - **Secret values are redacted.** Every vaulted secret value is matched and replaced
     with `***` before the text reaches you — its literal form *and* its common single-shot
     encodings (base64/base64url/hex/base32/percent-encoding) — same redactor as `run_command`.
@@ -178,7 +181,9 @@ split pair and the IDE page-tab state) - **never a secret value**. Full referenc
 layout shape: `ide-control.md`.
 
 - **`list_tabs`** - the focused window's layout (tabs + their terminals + the split pair).
-  No args. Call it first to learn the tab/terminal ids you pass to the others.
+  No args. Call it first to learn the ids you pass to the others. Each terminal carries
+  TWO ids: `id` (layout id — for `open_terminal`/`close_terminal`) and `ptyId` (pty
+  session id — for `get_terminal_tail`).
 - **`open_tab`** - open a project folder as a NEW tab (arg: `path`) or a blank tab (no arg)
   in the focused window. Opening a path sets the window root, recents, and the MCP
   registration, exactly like the human opening it.

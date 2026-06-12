@@ -440,7 +440,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "get_terminal_tail",
     {
       description:
-        "Read the recent output (tail) of a terminal tab so you can see what the user is running (dev server, build, tests, logs). Call with no terminalId to list terminals (each with a short preview); call with a terminalId to get that terminal's recent output. Secret values are redacted -- you never see them.",
+        "Read the recent output (tail) of a terminal tab so you can see what the user is running (dev server, build, tests, logs). Call with no terminalId to list terminals (each with a short preview); call with a terminalId to get that terminal's recent output. terminalId is the PTY session id -- the `ptyId` field from list_tabs, or the `id` this tool returns when called with no terminalId (NOT list_tabs' layout `id`). Secret values are redacted -- you never see them.",
       inputSchema: {
         terminalId: z.string().optional(),
         lines: z.number().optional(),
@@ -495,7 +495,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "list_tabs",
     {
       description:
-        "List the open tabs in the focused airlock window: each tab's id, name, root, whether it is focused / in the split, and its terminals (id + title), plus the split pair. Layout metadata only -- no secret values. Use it to see the current layout before driving it.",
+        "List the open tabs in the focused airlock window: each tab's id, name, root, whether it is focused / in the split, and its terminals (id + ptyId + title), plus the split pair. A terminal's `id` is the layout id (use with open_terminal/close_terminal); its `ptyId` is the pty session id (use with get_terminal_tail). Layout metadata only -- no secret values. Use it to see the current layout before driving it.",
       inputSchema: {},
     },
     async () => drive({ type: "list_tabs" }),

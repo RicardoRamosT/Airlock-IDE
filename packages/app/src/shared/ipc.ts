@@ -255,7 +255,10 @@ export interface TabsSnapshot {
     root: string | null;
     focused: boolean;
     inSplit: boolean;
-    terminals: { id: string; title: string }[];
+    // id = the renderer/layout id (what open_terminal/close_terminal take);
+    // ptyId = the pty session id (what get_terminal_tail takes; null until
+    // the shell has spawned). Two id spaces exist on purpose -- expose both.
+    terminals: { id: string; ptyId: string | null; title: string }[];
   }[];
   split: { a: string; b: string } | null;
   appPages: { open: AppPage[]; shown: AppPage | null };

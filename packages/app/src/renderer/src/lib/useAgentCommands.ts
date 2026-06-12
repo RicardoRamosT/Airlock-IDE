@@ -32,6 +32,9 @@ function buildSnapshot(): TabsSnapshot {
       inSplit: !!split && (split.a === t.id || split.b === t.id),
       terminals: (tabTerminals[t.id]?.terminals ?? []).map((term) => ({
         id: term.id,
+        // The pty session id (QA 2026-06-11): get_terminal_tail keys on THIS,
+        // not the layout id above -- expose both so agents need no translation.
+        ptyId: term.ptyId,
         title: term.title,
       })),
     })),
