@@ -265,6 +265,7 @@ export interface AppState {
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
   claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
+  defaultTerminal: string; // app-global (persisted): "airlock" or a terminal id
   layoutHydrated: boolean; // default false
   modal:
     | "add-secret"
@@ -366,6 +367,8 @@ export interface AppState {
   setSectionVisibility: (v: SectionVisibility) => void;
   setActiveView: (v: Section) => void;
   setClaudeAutoStart: (v: ClaudeAutoStart) => void;
+  setDefaultTerminal: (v: string) => void;
+  openExternalTerminal: (tabId: string) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
   // The command/quick-open palette overlay (window-level, one per window).
   palette: { mode: "files" | "commands" } | null;
@@ -648,6 +651,7 @@ export const useApp = create<AppState>((set) => ({
   },
   activeView: "files",
   claudeAutoStart: "first",
+  defaultTerminal: "airlock",
   layoutHydrated: false,
   runningNotice: null,
 
@@ -1332,6 +1336,12 @@ export const useApp = create<AppState>((set) => ({
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   setActiveView: (activeView) => set({ activeView }),
   setClaudeAutoStart: (claudeAutoStart) => set({ claudeAutoStart }),
+  setDefaultTerminal: (defaultTerminal) => set({ defaultTerminal }),
+  // Launch the external terminal for tabId's project root (no-op if no root).
+  openExternalTerminal: (tabId) => {
+    const root = useApp.getState().tabState[tabId]?.root ?? null;
+    if (root) void window.airlock.openExternalTerminal(root);
+  },
   // Settings is an OVERLAY: opening it clears the other overlays (diff/dbView)
   // but NOT the editor (selectedFile/editorTabs), so closing it restores the
   // editor/terminal underneath. Closing leaves the rest untouched.
