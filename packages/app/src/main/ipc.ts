@@ -625,14 +625,15 @@ export function registerIpc(
 
   ipcMain.handle("terminal:listExternal", () => detectInstalledTerminals());
 
-  ipcMain.handle("terminal:openExternal", async (_e, root: unknown) => {
+  ipcMain.handle("terminal:openExternal", async (e, root: unknown) => {
     if (typeof root !== "string" || !root) throw new Error("Invalid payload");
+    if (!isOpenRoot(e, root)) return; // only open workspaces; never an arbitrary path
     const prefs = await loadPrefs(prefsFile);
     const id = prefs.defaultTerminal;
     const spec = launchArgs(id, root);
     if (!spec) return; // "airlock" or unknown -> nothing to launch externally
     try {
-      await execFileP(spec.cmd, spec.args, { timeout: 8000 });
+      await execFileP(spec.cmd, spec.args, { timeout: 8000 }); // 8s safety bound; `open` returns immediately, this only guards a hang
     } catch (err) {
       console.error("[terminal] open external failed", err);
     }

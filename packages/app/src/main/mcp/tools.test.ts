@@ -36,6 +36,10 @@ vi.mock("@airlock/agent-core", () => ({
   // ide-state's listSecretNames calls agent-core's listSecrets; the
   // list_secret_names handler test below needs it to resolve (empty vault).
   listSecrets: async () => [],
+  // prefs.ts reads KNOWN_TERMINALS at module-init time to build TERMINAL_IDS;
+  // the mock must export it or any test that imports prefs (directly or
+  // transitively through tools.ts) will throw at import time.
+  KNOWN_TERMINALS: [],
 }));
 
 // A minimal McpServer stand-in that records every registerTool call. registerTools

@@ -310,6 +310,7 @@ export type UpdateProgress =
   | { phase: "revealed" }
   | { phase: "error"; message: string };
 
+// IPC-safe projection of agent-core's ExternalTerminal (which carries a non-serializable launch fn).
 export interface ExternalTerminalInfo {
   id: string;
   name: string;
