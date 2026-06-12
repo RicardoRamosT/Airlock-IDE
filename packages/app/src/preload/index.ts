@@ -54,7 +54,8 @@ const api: AirlockApi = {
   getFileOrder: (root) => ipcRenderer.invoke("fileOrder:get", root),
   setFileOrder: (root, folderRel, names) =>
     ipcRenderer.invoke("fileOrder:set", root, folderRel, names),
-  ptyCreate: (cols, rows) => ipcRenderer.invoke("pty:create", cols, rows),
+  ptyCreate: (cols, rows, root) =>
+    ipcRenderer.invoke("pty:create", cols, rows, root),
   ptyInput: (id, data) => ipcRenderer.send("pty:input", { id, data }),
   ptyResize: (id, cols, rows) =>
     ipcRenderer.send("pty:resize", { id, cols, rows }),

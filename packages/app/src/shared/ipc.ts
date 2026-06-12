@@ -443,7 +443,10 @@ export interface AirlockApi {
   // file contents cross, only names the tree already shows.
   getFileOrder(root: string): Promise<Record<string, string[]>>;
   setFileOrder(root: string, folderRel: string, names: string[]): Promise<void>;
-  ptyCreate(cols: number, rows: number): Promise<string>;
+  // root = the PANE's project root (null for a blank tab -> spawn in $HOME,
+  // no secret injection). Passed explicitly so main never falls back to the
+  // window root, which can lag behind tab switches at spawn time.
+  ptyCreate(cols: number, rows: number, root: string | null): Promise<string>;
   ptyInput(id: string, data: string): void;
   ptyResize(id: string, cols: number, rows: number): void;
   ptyKill(id: string): void;

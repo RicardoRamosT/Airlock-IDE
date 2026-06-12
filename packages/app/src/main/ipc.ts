@@ -121,7 +121,8 @@ const sessionWindows = new Map<string, number>();
 // the agent must see ONLY the active tab's terminals. switchTab fires
 // workspace:setActive, so lastFocusedRoot() == the active tab's root; a terminal
 // is the agent's iff sessionRoots.get(id) === lastFocusedRoot(). Recorded in
-// pty:create (from rootForEvent at spawn), deleted on exit / killAllSessions.
+// pty:create (from the PANE root the renderer passes at spawn; blank tabs have
+// none and are never agent-visible), deleted on exit / killAllSessions.
 const sessionRoots = new Map<string, string>();
 
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
@@ -1057,77 +1058,89 @@ export function registerIpc(
     return dockerStop(id);
   });
 
-  ipcMain.handle("pty:create", async (e, cols: number, rows: number) => {
-    const root = rootForEvent(e);
-    let secretEnv: Record<string, string> | undefined;
-    if (root) {
-      const cfg = await readProjectConfig(root);
-      if (cfg.injectSecretsIntoTerminal) {
-        try {
-          const r = await injectInto(root, {});
-          const { safe, blocked } = filterDangerousEnv(r.env);
-          secretEnv = safe;
-          if (blocked.length > 0) {
-            await appendAudit(root, "user", "secret.inject.blocked", {
-              names: blocked,
-              reason: "dangerous env name at spawn site",
-            });
+  ipcMain.handle(
+    "pty:create",
+    async (e, cols: number, rows: number, paneRoot: unknown) => {
+      // The PANE's root, passed explicitly by TerminalPane (null = blank tab).
+      // Deliberately NO window-root fallback: a blank tab must spawn a fresh
+      // shell in $HOME and must NOT inherit the previously focused project's
+      // cwd or injected secrets (QA 2026-06-11). isOpenRoot is the same
+      // defense-in-depth gate resolveRoot uses; an unknown root degrades to
+      // the blank-tab behavior, the safe direction.
+      const root =
+        typeof paneRoot === "string" && paneRoot && isOpenRoot(e, paneRoot)
+          ? paneRoot
+          : null;
+      let secretEnv: Record<string, string> | undefined;
+      if (root) {
+        const cfg = await readProjectConfig(root);
+        if (cfg.injectSecretsIntoTerminal) {
+          try {
+            const r = await injectInto(root, {});
+            const { safe, blocked } = filterDangerousEnv(r.env);
+            secretEnv = safe;
+            if (blocked.length > 0) {
+              await appendAudit(root, "user", "secret.inject.blocked", {
+                names: blocked,
+                reason: "dangerous env name at spawn site",
+              });
+            }
+          } catch (err) {
+            // Fail-closed is for agent actions (spec section 10); a human's
+            // terminal must still open - just without secrets, which is the
+            // safe direction.
+            console.error(
+              "[pty:create] injection/audit failed, spawning without secrets:",
+              err instanceof Error ? err.message : String(err),
+            );
+            secretEnv = undefined;
           }
-        } catch (err) {
-          // Fail-closed is for agent actions (spec section 10); a human's
-          // terminal must still open - just without secrets, which is the
-          // safe direction.
-          console.error(
-            "[pty:create] injection/audit failed, spawning without secrets:",
-            err instanceof Error ? err.message : String(err),
-          );
-          secretEnv = undefined;
         }
       }
-    }
-    const s = createPtySession({
-      cwd: root ?? undefined,
-      cols,
-      rows,
-      // Captured login-shell env (legitimate PATH/locale) is the base; it is
-      // NOT run through filterDangerousEnv. Injected secrets (already filtered
-      // above) are the per-call env and still win over baseEnv.
-      baseEnv: getBaseEnv(),
-      env: secretEnv,
-    });
-    sessions.set(s.id, s);
-    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
-    if (ownerId !== undefined) sessionWindows.set(s.id, ownerId);
-    // Tag the terminal with the project it was spawned under -- the SAME captured
-    // `root` used for the spawn cwd above, NOT a re-read of rootForEvent(e). A
-    // workspace:setActive can run during the awaits above and change what
-    // rootForEvent(e) returns, so re-reading here would tag the session with a
-    // different project than it actually spawned in. (audit PB-C2)
-    if (root) sessionRoots.set(s.id, root);
-    const wc = e.sender;
-    const dataSub = s.onData((data) => {
-      const prev = ptyBuffers.get(s.id) ?? "";
-      const next = prev + data;
-      ptyBuffers.set(
-        s.id,
-        next.length > TAIL_CAP ? next.slice(-TAIL_CAP) : next,
-      );
-      if (!wc.isDestroyed()) wc.send("pty:data", { id: s.id, data });
-    });
-    const exitSub = s.onExit((exitCode) => {
-      sessions.delete(s.id);
-      ptyBuffers.delete(s.id);
-      sessionWindows.delete(s.id);
-      sessionRoots.delete(s.id);
-      if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
-      // Release the listeners explicitly. node-pty has no destroy(); kill()
-      // is teardown, but the onData/onExit subscriptions are IDisposables
-      // that should be disposed once the session has exited.
-      dataSub.dispose();
-      exitSub.dispose();
-    });
-    return s.id;
-  });
+      const s = createPtySession({
+        cwd: root ?? undefined,
+        cols,
+        rows,
+        // Captured login-shell env (legitimate PATH/locale) is the base; it is
+        // NOT run through filterDangerousEnv. Injected secrets (already filtered
+        // above) are the per-call env and still win over baseEnv.
+        baseEnv: getBaseEnv(),
+        env: secretEnv,
+      });
+      sessions.set(s.id, s);
+      const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
+      if (ownerId !== undefined) sessionWindows.set(s.id, ownerId);
+      // Tag the terminal with the project it was spawned under -- the SAME captured
+      // `root` used for the spawn cwd above, NOT a re-read of rootForEvent(e). A
+      // workspace:setActive can run during the awaits above and change what
+      // rootForEvent(e) returns, so re-reading here would tag the session with a
+      // different project than it actually spawned in. (audit PB-C2)
+      if (root) sessionRoots.set(s.id, root);
+      const wc = e.sender;
+      const dataSub = s.onData((data) => {
+        const prev = ptyBuffers.get(s.id) ?? "";
+        const next = prev + data;
+        ptyBuffers.set(
+          s.id,
+          next.length > TAIL_CAP ? next.slice(-TAIL_CAP) : next,
+        );
+        if (!wc.isDestroyed()) wc.send("pty:data", { id: s.id, data });
+      });
+      const exitSub = s.onExit((exitCode) => {
+        sessions.delete(s.id);
+        ptyBuffers.delete(s.id);
+        sessionWindows.delete(s.id);
+        sessionRoots.delete(s.id);
+        if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
+        // Release the listeners explicitly. node-pty has no destroy(); kill()
+        // is teardown, but the onData/onExit subscriptions are IDisposables
+        // that should be disposed once the session has exited.
+        dataSub.dispose();
+        exitSub.dispose();
+      });
+      return s.id;
+    },
+  );
 
   // Whether a terminal's shell has a running child (e.g. a live `claude`).
   // Renderer->main UI ONLY (the open-folder helper consults it so a busy

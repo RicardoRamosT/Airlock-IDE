@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
+import { useProjectTab } from "../lib/projectPane";
 import { terminalKeyBytes } from "../lib/terminalKeys";
 import { hasWorkingIndicator } from "../lib/workingIndicator";
 import { CLAUDE_AUTO_COMMAND, useApp } from "../store";
@@ -26,6 +27,10 @@ const XTERM_THEMES: Record<"dark" | "light", ITheme> = {
 };
 
 export function TerminalPane({ terminalId }: { terminalId: string }) {
+  // The PANE's tab (ProjectPane provides it), so the spawn below can pass THIS
+  // pane's root instead of letting main fall back to the window root -- which
+  // can still point at the previously focused project when a blank tab opens.
+  const tabId = useProjectTab();
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   // The resolved pty id, shared between the main PTY-lifecycle effect (which sets
@@ -140,8 +145,12 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       }
     });
 
+    // Spawn in THIS pane's project (null = blank tab -> $HOME, no secrets).
+    // Read via getState at spawn time: cwd is a spawn-time property, and a
+    // root change kills/remounts the pane anyway, so it must not be a dep.
+    const paneRoot = useApp.getState().tabState[tabId]?.root ?? null;
     window.airlock
-      .ptyCreate(term.cols, term.rows)
+      .ptyCreate(term.cols, term.rows, paneRoot)
       .then((id) => {
         if (disposed) {
           // Late resolve after unmount: the session would orphan; kill it.
@@ -210,7 +219,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       termRef.current = null;
       idRef.current = null;
     };
-  }, [terminalId, setTerminalPty, setTerminalTitle, removeTerminal]);
+  }, [terminalId, tabId, setTerminalPty, setTerminalTitle, removeTerminal]);
 
   // Live theme change: update the existing terminal's palette in place. xterm
   // applies options.theme immediately, so the PTY + buffer + flow-control
