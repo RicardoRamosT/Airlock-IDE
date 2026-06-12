@@ -3,6 +3,7 @@ import {
   cp,
   link,
   mkdir,
+  readdir,
   rename,
   unlink,
   writeFile,
@@ -97,4 +98,62 @@ export async function duplicate(
     errorOnExist: true,
   });
   return outRel;
+}
+
+export interface ImportExternalResult {
+  imported: string[];
+  failed: { name: string; error: string }[];
+}
+
+// Pick a name not in `taken`, appending " 2", " 3", ... before the extension
+// (Finder's keep-both scheme). path.extname treats a dotfile (".env") and an
+// extensionless folder as having no extension, so they get " 2" appended whole.
+export function uniqueName(desired: string, taken: Set<string>): string {
+  if (!taken.has(desired)) return desired;
+  const ext = path.extname(desired);
+  const base = path.basename(desired, ext);
+  let n = 2;
+  for (;;) {
+    const candidate = `${base} ${n}${ext}`;
+    if (!taken.has(candidate)) return candidate;
+    n += 1;
+  }
+}
+
+// Copy external (absolute) paths INTO destRel within root. Each source keeps its
+// basename unless it clashes with an existing dest entry or a name already taken
+// earlier in this batch, in which case uniqueName renames it (keep-both, never
+// overwrite). Folders copy recursively. A source that throws (missing/unreadable)
+// is recorded in `failed` and the loop continues. destRel is confined by
+// resolveWithin; the caller (main IPC) additionally blocks the vault dir.
+export async function importExternal(
+  root: string,
+  destRel: string,
+  srcPaths: string[],
+): Promise<ImportExternalResult> {
+  const destAbs = await resolveWithin(root, destRel);
+  const taken = new Set<string>(await readdir(destAbs).catch(() => []));
+  const imported: string[] = [];
+  const failed: { name: string; error: string }[] = [];
+  for (const src of srcPaths) {
+    const base = path.basename(src);
+    const name = uniqueName(base, taken);
+    try {
+      // errorOnExist + force:false: uniqueName already guarantees a free name,
+      // so this only fires on a race -- in which case THROW rather than clobber.
+      await cp(src, path.join(destAbs, name), {
+        recursive: true,
+        errorOnExist: true,
+        force: false,
+      });
+      taken.add(name);
+      imported.push(name);
+    } catch (e) {
+      failed.push({
+        name: base,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+  return { imported, failed };
 }

@@ -186,7 +186,10 @@ export {
   createDir,
   createFile,
   duplicate,
+  type ImportExternalResult,
+  importExternal,
   move,
+  uniqueName,
 } from "./workspace/fileOps";
 export {
   type OrderMap,
