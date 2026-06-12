@@ -43,6 +43,7 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const runningNotice = useApp((s) => s.runningNotice);
   const showRunningProcessNotice = useApp((s) => s.showRunningProcessNotice);
   const root = useApp((s) => s.root);
+  const tabRoot = useApp((s) => s.tabState[tabId]?.root ?? null);
 
   // Always keep at least one terminal alive in THIS tab. The ref guards against
   // React 19 StrictMode replaying this mount effect with a stale (length === 0)
@@ -119,18 +120,21 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
       className="terminal-manager"
       onMouseDownCapture={() => switchTab(tabId)}
     >
-      {defaultTerminal !== "airlock" && terminals.length === 0 && isVisible && (
-        <div className="terminal-external-placeholder">
-          <p>Terminals open in {terminalDisplayName(defaultTerminal)}.</p>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => openExternalTerminal(tabId)}
-          >
-            Open in {terminalDisplayName(defaultTerminal)}
-          </button>
-        </div>
-      )}
+      {defaultTerminal !== "airlock" &&
+        terminals.length === 0 &&
+        isVisible &&
+        tabRoot !== null && (
+          <div className="terminal-external-placeholder">
+            <p>Terminals open in {terminalDisplayName(defaultTerminal)}.</p>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => openExternalTerminal(tabId)}
+            >
+              Open in {terminalDisplayName(defaultTerminal)}
+            </button>
+          </div>
+        )}
       {noticeTerminal && (
         <div className="terminal-notice" role="status">
           <span className="terminal-notice-text">
