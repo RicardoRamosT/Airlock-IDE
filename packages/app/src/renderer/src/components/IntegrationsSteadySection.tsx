@@ -38,23 +38,29 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
   if (shown.length === 0) return null;
 
   return (
-    <>
-      {shown.map((s) => (
-        <div key={s.id} className="db-block">
-          <div className="db-subhead">{s.name}</div>
-          {s.status === "unauthed" ? (
+    <div className="databases">
+      {shown.map((s) =>
+        s.status === "unauthed" ? (
+          <div key={s.id} className="db-entry">
             <div className="section-note">{s.name} — not connected</div>
-          ) : (
-            s.resources.map((r) => (
-              <div key={r.id} className="db-row">
-                <span className={dotClass(r.state)} />
-                <span className="db-name">{r.title}</span>
-                {r.subtitle && <span className="db-sub">{r.subtitle}</span>}
-              </div>
-            ))
-          )}
-        </div>
-      ))}
-    </>
+          </div>
+        ) : (
+          <div key={s.id} className="db-entry">
+            <div className="db-row">
+              <span className="db-name">{s.name}</span>
+            </div>
+            <div className="neon-children">
+              {s.resources.map((r) => (
+                <div key={r.id} className="db-row">
+                  <span className={dotClass(r.state)} />
+                  <span className="db-name">{r.title}</span>
+                  {r.subtitle && <span className="db-host">{r.subtitle}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        ),
+      )}
+    </div>
   );
 }
