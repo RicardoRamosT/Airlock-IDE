@@ -301,6 +301,11 @@ export type UpdateProgress =
 export interface QuotaWindow {
   usedPercentage: number; // 0-100
   resetsAt: number; // Unix epoch seconds
+  // Synthesized by the tracker when the prior window expired with no fresh
+  // emit yet: usedPercentage is 0 and resetsAt is the OLD window's end (the
+  // next window starts on the user's next message, so its reset time is
+  // unknowable). Consumers must show "starts on next use", not a countdown.
+  awaitingNextWindow?: true;
 }
 
 /**

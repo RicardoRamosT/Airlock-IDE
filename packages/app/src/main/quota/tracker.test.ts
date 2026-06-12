@@ -101,14 +101,26 @@ it("still counts a stale-snapshot emitter for liveness (waiting, not blank, when
   expect(out?.available).toBe(false); // ...but no trustworthy windows yet
 });
 
-it("hides a folded window once its reset passes (no finished bar / negative countdown)", () => {
+it("shows an expired window as a zeroed awaiting row instead of hiding it", () => {
+  // QA 2026-06-11: hiding the row across a window reset read as "no limit".
+  // The next window starts on the user's next message (its reset time is
+  // unknowable here), so the tracker synthesizes 0% + awaitingNextWindow and
+  // keeps the OLD boundary as a factual ended-at stamp.
   const t = new QuotaTracker(120, 20);
   t.record("s", mk(80, 1000, 1015), 1000); // resets 15s after the emit
   const out = t.current(1018); // session still live; the boundary has passed
   expect(out).not.toBeNull();
-  expect(out?.fiveHour).toBeNull();
-  expect(out?.sevenDay).toBeNull();
-  expect(out?.available).toBe(false);
+  expect(out?.fiveHour).toEqual({
+    usedPercentage: 0,
+    resetsAt: 1015,
+    awaitingNextWindow: true,
+  });
+  expect(out?.sevenDay).toEqual({
+    usedPercentage: 0,
+    resetsAt: 1015,
+    awaitingNextWindow: true,
+  });
+  expect(out?.available).toBe(true);
 });
 
 it("carries known windows across a rate-limit-less emit (fresh session)", () => {

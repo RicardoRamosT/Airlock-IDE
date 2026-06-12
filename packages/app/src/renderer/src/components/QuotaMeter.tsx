@@ -84,11 +84,18 @@ export function QuotaMeter() {
   // bars' "5h" / "7d": a bare "5h"/"7d" label sits right against an h/d
   // countdown ("5h 1h57m") and reads as one nonsensical duration. A weekly-only
   // status still gets its line rather than a bar with no reset time.
+  // An awaiting window (the prior one expired; the next starts on the user's
+  // next message) gets "starts on next use" instead of a countdown — its
+  // resetsAt is the OLD boundary and would render as a nonsense "now".
   const resets = [
     quota.fiveHour &&
-      `session ${formatCountdown(quota.fiveHour.resetsAt - now)}`,
+      (quota.fiveHour.awaitingNextWindow
+        ? "session starts on next use"
+        : `session ${formatCountdown(quota.fiveHour.resetsAt - now)}`),
     quota.sevenDay &&
-      `weekly ${formatCountdown(quota.sevenDay.resetsAt - now)}`,
+      (quota.sevenDay.awaitingNextWindow
+        ? "weekly starts on next use"
+        : `weekly ${formatCountdown(quota.sevenDay.resetsAt - now)}`),
   ].filter(Boolean);
 
   return (

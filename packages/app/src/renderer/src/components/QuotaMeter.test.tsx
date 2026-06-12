@@ -89,3 +89,16 @@ it("shows both session and weekly reset countdowns on one line when both are pre
   expect(reset?.textContent).toContain("weekly");
   expect(reset?.textContent).toContain("·");
 });
+
+it("renders an awaiting window as 0% with 'starts on next use' (no countdown)", () => {
+  useApp.setState({
+    quotaMeterEnabled: true,
+    quota: liveQuota({
+      fiveHour: { usedPercentage: 0, resetsAt: 1, awaitingNextWindow: true },
+    }),
+  });
+  render(<QuotaMeter />);
+  expect(screen.getByText("5h")).toBeTruthy(); // the row still renders
+  expect(screen.getByText(/session starts on next use/)).toBeTruthy();
+  expect(screen.queryByText(/session now/)).toBeNull(); // no "resets now" countdown
+});

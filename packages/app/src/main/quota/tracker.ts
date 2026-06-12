@@ -68,11 +68,14 @@ export class QuotaTracker {
       }
     }
     if (liveAt < 0) return null;
-    // A folded window whose reset has passed is FINISHED -- hide it until a
-    // fresh fold brings the new window, rather than showing a done bar with a
-    // negative countdown.
-    const fiveHour = isExpired(this.best5h, now) ? null : this.best5h;
-    const sevenDay = isExpired(this.best7d, now) ? null : this.best7d;
+    // A folded window whose reset has passed is FINISHED. Hiding it read as
+    // "no limit" (QA 2026-06-11), so synthesize a zeroed awaiting row instead:
+    // the next window starts on the user's next message, so its reset time is
+    // unknowable here; resetsAt keeps the OLD boundary as an ended-at stamp
+    // and the flag tells consumers to show "starts on next use", never a
+    // countdown. A null fold (nothing known) stays null.
+    const fiveHour = expireToAwaiting(this.best5h, now);
+    const sevenDay = expireToAwaiting(this.best7d, now);
     return {
       fiveHour,
       sevenDay,
@@ -81,6 +84,14 @@ export class QuotaTracker {
       available: fiveHour !== null || sevenDay !== null,
     };
   }
+}
+
+function expireToAwaiting(
+  w: QuotaWindow | null,
+  now: number,
+): QuotaWindow | null {
+  if (w === null || !isExpired(w, now)) return w;
+  return { usedPercentage: 0, resetsAt: w.resetsAt, awaitingNextWindow: true };
 }
 
 // Whether a window's reset boundary has already passed at `at` -- i.e. the
