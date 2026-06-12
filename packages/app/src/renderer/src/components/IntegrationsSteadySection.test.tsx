@@ -42,7 +42,7 @@ it("shows a 'not connected' hint when unauthed", async () => {
     },
   ]);
   render(<IntegrationsSteadySection view="databases" />);
-  expect(await screen.findByText(/Snowflake . not connected/)).toBeTruthy();
+  expect(await screen.findByText(/Snowflake — not connected/)).toBeTruthy();
 });
 
 it("renders a header and a row per resource when ready", async () => {
@@ -71,6 +71,21 @@ it("renders a header and a row per resource when ready", async () => {
   render(<IntegrationsSteadySection view="databases" />);
   expect(await screen.findByText("COMPUTE_WH")).toBeTruthy();
   expect(screen.getByText("ETL_WH")).toBeTruthy();
+});
+
+it("renders just the header (no rows, no hint) when ready but resources are empty", async () => {
+  mockSteady([
+    {
+      id: "snowflake",
+      name: "Snowflake",
+      view: "databases",
+      status: "ready",
+      resources: [],
+    },
+  ]);
+  render(<IntegrationsSteadySection view="databases" />);
+  expect(await screen.findByText("Snowflake")).toBeTruthy(); // header still shows
+  expect(screen.queryByText(/not connected/)).toBeNull(); // ready != unauthed
 });
 
 it("ignores integrations targeting other views", async () => {
