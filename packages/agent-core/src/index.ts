@@ -203,6 +203,15 @@ export {
   renderFetchTransport,
 } from "./render/client";
 export { normalizeRepoUrl } from "./render/parse";
+export {
+  detectInstalledTerminals,
+  type ExternalTerminal,
+  KNOWN_TERMINALS,
+  launchArgs,
+  type MdfindRunner,
+  parseInstalled,
+  terminalDisplayName,
+} from "./terminal/externalTerminals";
 export { redactedPreview, redactedTail } from "./terminal/tail";
 export {
   AIRLOCK_REPO,

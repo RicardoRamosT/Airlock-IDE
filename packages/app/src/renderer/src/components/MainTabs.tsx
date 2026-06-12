@@ -37,6 +37,8 @@ export function MainTabs({ tabId }: { tabId: string }) {
     (s) => s.tabState[tabId]?.mainTabOrder ?? EMPTY_ORDER,
   );
   const addTerminal = useApp((s) => s.addTerminal);
+  const defaultTerminal = useApp((s) => s.defaultTerminal);
+  const openExternalTerminal = useApp((s) => s.openExternalTerminal);
   const removeTerminal = useApp((s) => s.removeTerminal);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
   const viewItem = useApp((s) => s.viewItem);
@@ -82,7 +84,10 @@ export function MainTabs({ tabId }: { tabId: string }) {
     viewItem({ kind: "terminal", id }, tabId);
   const viewFile = (p: string) => viewItem({ kind: "file", path: p }, tabId);
   // "+" -> a new terminal, shown alone; every existing split stays intact.
-  const newTerminal = () => addTerminal(tabId);
+  const newTerminal = () => {
+    if (defaultTerminal === "airlock") addTerminal(tabId);
+    else openExternalTerminal(tabId);
+  };
   // Toolbar "split": pair the FOCUSED tab with a new terminal (only reachable
   // when a single pane is showing). With nothing focused, just add a terminal.
   const splitWithNewTerminal = () => {

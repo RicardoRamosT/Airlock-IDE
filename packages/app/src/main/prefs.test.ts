@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SectionVisibility } from "../shared/ipc";
-import { loadPrefs, savePrefs } from "./prefs";
+import { loadPrefs, sanitizeDefaultTerminal, savePrefs } from "./prefs";
 
 describe("app prefs", () => {
   it("returns defaults when the file is absent", async () => {
@@ -35,6 +35,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      defaultTerminal: "airlock",
     });
   });
 
@@ -91,6 +92,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      defaultTerminal: "airlock",
     });
   });
 
@@ -153,6 +155,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      defaultTerminal: "airlock",
     });
   });
 
@@ -187,6 +190,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      defaultTerminal: "airlock",
     });
   });
 
@@ -357,5 +361,17 @@ describe("quotaMeter", () => {
       quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean },
     });
     expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
+  });
+});
+
+describe("sanitizeDefaultTerminal", () => {
+  it("keeps 'airlock' and known terminal ids", () => {
+    expect(sanitizeDefaultTerminal("airlock")).toBe("airlock");
+    expect(sanitizeDefaultTerminal("ghostty")).toBe("ghostty");
+  });
+  it("coerces unknown/garbage to 'airlock' (never strands the user)", () => {
+    expect(sanitizeDefaultTerminal("deleted-app")).toBe("airlock");
+    expect(sanitizeDefaultTerminal(42)).toBe("airlock");
+    expect(sanitizeDefaultTerminal(undefined)).toBe("airlock");
   });
 });

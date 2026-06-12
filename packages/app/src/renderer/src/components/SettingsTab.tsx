@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ClaudeAutoStart } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
@@ -29,6 +29,8 @@ export function SettingsTab() {
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
+  const defaultTerminal = useApp((s) => s.defaultTerminal);
+  const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   // Per-project bits are scoped to the pane's tab; the app-global controls above
   // (theme, sidebar, clipboard, openProjectsAsTabs, showRunningProcessNotice)
   // stay app-global and are deliberately NOT tied to a tab.
@@ -47,6 +49,16 @@ export function SettingsTab() {
         .catch(console.error);
     }
   }, [root, config, setConfig, tabId]);
+
+  const [externalTerminals, setExternalTerminals] = useState<
+    { id: string; name: string }[]
+  >([]);
+  useEffect(() => {
+    void window.airlock
+      .listExternalTerminals()
+      .then(setExternalTerminals)
+      .catch(console.error);
+  }, []);
 
   // Each persisted change marks layoutHydrated so a still-in-flight startup
   // prefsGet cannot clobber a fast user choice (same race the layout buttons
@@ -288,6 +300,31 @@ export function SettingsTab() {
             Runs `claude` automatically in new terminals of project tabs. "First
             terminal per tab" starts one session per project; extra terminals
             open as plain shells. Blank tabs are never auto-started.
+          </p>
+          <div className="settings-row">
+            <label htmlFor="default-terminal">Default terminal</label>
+            <select
+              id="default-terminal"
+              value={defaultTerminal}
+              onChange={(e) => {
+                const v = e.target.value;
+                useApp.getState().setLayoutHydrated(true);
+                setDefaultTerminal(v);
+                void window.airlock.prefsSet({ defaultTerminal: v });
+              }}
+            >
+              <option value="airlock">AirLock integrated terminal</option>
+              {externalTerminals.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="settings-note">
+            Choose where new terminals open. An external app launches at the
+            project folder; note that Claude auto-start, in-app tabs/splits, and
+            terminal-tail tools only apply to the integrated terminal.
           </p>
         </section>
 

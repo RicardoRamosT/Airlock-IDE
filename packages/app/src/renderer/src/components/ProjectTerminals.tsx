@@ -1,3 +1,4 @@
+import { terminalDisplayName } from "@airlock/agent-core";
 import { useEffect, useRef } from "react";
 import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
@@ -27,6 +28,8 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   );
   const mainSecondary = useApp((s) => s.tabState[tabId]?.mainSecondary ?? null);
   const addTerminal = useApp((s) => s.addTerminal);
+  const defaultTerminal = useApp((s) => s.defaultTerminal);
+  const openExternalTerminal = useApp((s) => s.openExternalTerminal);
   const activeTabId = useApp((s) => s.activeTabId);
   const switchTab = useApp((s) => s.switchTab);
   // Visible = actually rendered on screen (active tab, or either pane of a
@@ -40,6 +43,7 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const runningNotice = useApp((s) => s.runningNotice);
   const showRunningProcessNotice = useApp((s) => s.showRunningProcessNotice);
   const root = useApp((s) => s.root);
+  const tabRoot = useApp((s) => s.tabState[tabId]?.root ?? null);
 
   // Always keep at least one terminal alive in THIS tab. The ref guards against
   // React 19 StrictMode replaying this mount effect with a stale (length === 0)
@@ -61,9 +65,10 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     }
     if (!isVisible) return;
     if (spawningDefault.current) return;
+    if (defaultTerminal !== "airlock") return; // external: never auto-open
     spawningDefault.current = true;
     addTerminal(tabId);
-  }, [terminals.length, addTerminal, isVisible, tabId]);
+  }, [terminals.length, addTerminal, isVisible, tabId, defaultTerminal]);
 
   // On screen = the shown scene's pane(s): the primary terminal (active) and/or
   // the secondary when it is a terminal. (The derived mainPrimary/mainSecondary
@@ -115,6 +120,21 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
       className="terminal-manager"
       onMouseDownCapture={() => switchTab(tabId)}
     >
+      {defaultTerminal !== "airlock" &&
+        terminals.length === 0 &&
+        isVisible &&
+        tabRoot !== null && (
+          <div className="terminal-external-placeholder">
+            <p>Terminals open in {terminalDisplayName(defaultTerminal)}.</p>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => openExternalTerminal(tabId)}
+            >
+              Open in {terminalDisplayName(defaultTerminal)}
+            </button>
+          </div>
+        )}
       {noticeTerminal && (
         <div className="terminal-notice" role="status">
           <span className="terminal-notice-text">

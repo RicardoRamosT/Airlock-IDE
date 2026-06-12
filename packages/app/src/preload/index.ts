@@ -129,6 +129,9 @@ const api: AirlockApi = {
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
+  listExternalTerminals: () => ipcRenderer.invoke("terminal:listExternal"),
+  openExternalTerminal: (root) =>
+    ipcRenderer.invoke("terminal:openExternal", root),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
   usageGet: () => ipcRenderer.invoke("usage:get"),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
