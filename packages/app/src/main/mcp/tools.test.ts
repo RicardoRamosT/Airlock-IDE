@@ -819,6 +819,7 @@ describe("plan_usage tool", () => {
       sessionId: "s-1",
       cwd: "/repo",
       model: "Opus 4.8 (1M context)",
+      modelsSeen: ["Opus 4.8 (1M context)"],
       contextTokens: 118_300,
       contextWindowSize: 1_000_000,
       costUsd: 4.6,
@@ -826,6 +827,7 @@ describe("plan_usage tool", () => {
       linesAdded: 39,
       linesRemoved: 26,
       lastEmitAt: 1_781_129_748,
+      lastProgressAt: 1_781_129_748,
     },
   ];
 

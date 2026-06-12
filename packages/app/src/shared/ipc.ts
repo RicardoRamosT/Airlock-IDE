@@ -360,8 +360,17 @@ export interface AppPrefs {
 // dashboard shows.
 export interface SessionUsage {
   sessionId: string;
-  cwd: string | null;
+  // The session's CURRENT model (its latest emit). Cumulative cost/apiMs is
+  // booked to this one in the by-model breakdown -- see modelsSeen.
   model: string | null;
+  cwd: string | null;
+  // Every distinct model display-name observed across this session's emits, in
+  // first-seen order. A single session can switch models (/model, fast mode),
+  // but the statusLine reports only ONE cumulative cost -- it can't be split
+  // per model -- so by-model COUNTS a session under each model here while its
+  // cost stays on `model` (the latest). Incomplete by nature: only models we
+  // captured an emit for appear (we can't recover a session's past models).
+  modelsSeen: string[];
   // POINT-IN-TIME, not cumulative: since Claude Code 2.1.132 the statusLine's
   // context_window.total_* reports the CURRENT context (occupancy as of the
   // most recent API response). Never sum these across sessions.
@@ -373,6 +382,13 @@ export interface SessionUsage {
   linesAdded: number;
   linesRemoved: number;
   lastEmitAt: number; // epoch s of the emit (file mtime)
+  // Epoch s of the most recent emit at which a cumulative WORK metric
+  // (cost/apiMs/lines) actually INCREASED -- i.e. the session did something,
+  // not just re-emit a stale snapshot on its refresh timer. "Active" in the UI
+  // means this is recent; an open-but-idle (or forked/background) session that
+  // keeps emitting unchanged numbers correctly reads as idle. Seeded to the
+  // first sighting's emit time.
+  lastProgressAt: number;
 }
 
 export interface FsChangedEvent {

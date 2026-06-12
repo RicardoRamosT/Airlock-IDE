@@ -102,3 +102,18 @@ it("renders an awaiting window as 0% with 'starts on next use' (no countdown)", 
   expect(screen.getByText(/session starts on next use/)).toBeTruthy();
   expect(screen.queryByText(/session now/)).toBeNull(); // no "resets now" countdown
 });
+
+it("shows 'starts on next use' the instant the reset passes, never 'session now'", () => {
+  // The tracker flags awaitingNextWindow at EMIT time; between the boundary and
+  // the next 5s emit the flag is still absent but the countdown is already <=0.
+  // The UI must not render the stale "session now" glitch in that gap.
+  useApp.setState({
+    quotaMeterEnabled: true,
+    quota: liveQuota({
+      fiveHour: { usedPercentage: 100, resetsAt: nowSec() - 1 }, // just passed, no flag
+    }),
+  });
+  render(<QuotaMeter />);
+  expect(screen.queryByText(/session now/)).toBeNull();
+  expect(screen.getByText(/session starts on next use/)).toBeTruthy();
+});

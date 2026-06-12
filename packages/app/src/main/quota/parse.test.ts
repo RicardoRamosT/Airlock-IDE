@@ -39,6 +39,7 @@ describe("parseSessionUsage", () => {
       sessionId: "abc",
       cwd: "/Users/r/Projects/lendlogic",
       model: "Fable 5",
+      modelsSeen: ["Fable 5"], // seeds with the emit's model
       contextTokens: 50_000,
       contextWindowSize: 200_000,
       costUsd: 1.25,
@@ -46,6 +47,7 @@ describe("parseSessionUsage", () => {
       linesAdded: 10,
       linesRemoved: 3,
       lastEmitAt: 123,
+      lastProgressAt: 123, // a fresh sighting counts as progress
     });
   });
 
@@ -57,7 +59,9 @@ describe("parseSessionUsage", () => {
       contextWindowSize: 0,
       costUsd: 0,
       model: null,
+      modelsSeen: [], // no model in the payload -> empty
       cwd: null,
+      lastProgressAt: 5,
     });
     expect(parseSessionUsage("not json", 5)).toBeNull();
     expect(parseSessionUsage(JSON.stringify({ no_session: 1 }), 5)).toBeNull();
@@ -67,6 +71,60 @@ describe("parseSessionUsage", () => {
 describe("recordUsage", () => {
   const mkU = (id: string, emitAt: number) =>
     parseSessionUsage(JSON.stringify({ session_id: id }), emitAt);
+  // A payload carrying a model + cumulative work, for progress/model tests.
+  const mkWork = (
+    id: string,
+    emitAt: number,
+    model: string,
+    costUsd: number,
+    apiMs: number,
+  ) =>
+    parseSessionUsage(
+      JSON.stringify({
+        session_id: id,
+        model: { id: model, display_name: model },
+        cost: { total_cost_usd: costUsd, total_api_duration_ms: apiMs },
+      }),
+      emitAt,
+    );
+
+  it("unions the models a session has used and keeps the latest as primary", () => {
+    const m = new Map<string, SessionUsage>();
+    const e1 = mkWork("a", 1, "Fable 5", 0.5, 1000);
+    const e2 = mkWork("a", 2, "Opus 4.8", 1.0, 2000);
+    if (!e1 || !e2) throw new Error("fixture");
+    recordUsage(m, e1);
+    recordUsage(m, e2);
+    expect(m.get("a")?.model).toBe("Opus 4.8"); // latest emit is primary
+    expect(m.get("a")?.modelsSeen).toEqual(["Fable 5", "Opus 4.8"]); // both kept
+  });
+
+  it("carries the last KNOWN model forward when a later emit lacks one", () => {
+    const m = new Map<string, SessionUsage>();
+    const withModel = mkWork("a", 1, "Fable 5", 0.5, 1000);
+    const noModel = mkU("a", 2); // model-less emit
+    if (!withModel || !noModel) throw new Error("fixture");
+    recordUsage(m, withModel);
+    recordUsage(m, noModel);
+    expect(m.get("a")?.model).toBe("Fable 5"); // not clobbered to null
+    expect(m.get("a")?.modelsSeen).toEqual(["Fable 5"]);
+  });
+
+  it("advances lastProgressAt only when a cumulative work metric increases", () => {
+    const m = new Map<string, SessionUsage>();
+    const first = mkWork("a", 10, "Opus 4.8", 1.0, 1000);
+    const idle = mkWork("a", 15, "Opus 4.8", 1.0, 1000); // identical re-emit
+    const worked = mkWork("a", 20, "Opus 4.8", 1.5, 2000); // cost+api climbed
+    if (!first || !idle || !worked) throw new Error("fixture");
+    recordUsage(m, first);
+    expect(m.get("a")?.lastProgressAt).toBe(10);
+    recordUsage(m, idle);
+    expect(m.get("a")?.lastProgressAt).toBe(10); // stale re-emit is NOT progress
+    recordUsage(m, worked);
+    expect(m.get("a")?.lastProgressAt).toBe(20); // real work advances it
+    expect(m.get("a")?.lastEmitAt).toBe(20); // liveness still tracks every emit
+  });
+
   it("keeps the latest snapshot per session and evicts the oldest at cap", () => {
     const m = new Map<string, SessionUsage>();
     const a1 = mkU("a", 1);
