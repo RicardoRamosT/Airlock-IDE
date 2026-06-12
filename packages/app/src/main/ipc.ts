@@ -1,5 +1,6 @@
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
   appendAudit,
   createBranch,
@@ -7,6 +8,7 @@ import {
   createFile,
   createPtySession,
   deleteSecret,
+  detectInstalledTerminals,
   dockerStart,
   dockerStop,
   duplicate,
@@ -23,6 +25,7 @@ import {
   importExternal,
   injectInto,
   isGitRepo,
+  launchArgs,
   listBranches,
   listDirectory,
   listFilesRecursive,
@@ -112,6 +115,8 @@ import {
   setRootForEvent,
   setWindowRoots,
 } from "./window";
+
+const execFileP = promisify(execFile);
 
 const sessions = new Map<string, PtySession>();
 
@@ -616,6 +621,21 @@ export function registerIpc(
       clean.injectSecretsIntoTerminal = p.injectSecretsIntoTerminal;
     if (typeof p.devUrl === "string") clean.devUrl = p.devUrl;
     return writeProjectConfig(resolveRoot(e, root), clean);
+  });
+
+  ipcMain.handle("terminal:listExternal", () => detectInstalledTerminals());
+
+  ipcMain.handle("terminal:openExternal", async (_e, root: unknown) => {
+    if (typeof root !== "string" || !root) throw new Error("Invalid payload");
+    const prefs = await loadPrefs(prefsFile);
+    const id = prefs.defaultTerminal;
+    const spec = launchArgs(id, root);
+    if (!spec) return; // "airlock" or unknown -> nothing to launch externally
+    try {
+      await execFileP(spec.cmd, spec.args, { timeout: 8000 });
+    } catch (err) {
+      console.error("[terminal] open external failed", err);
+    }
   });
 
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
