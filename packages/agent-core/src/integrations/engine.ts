@@ -1,0 +1,96 @@
+// packages/agent-core/src/integrations/engine.ts
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import type { IntegrationItem, IntegrationManifest } from "./manifest";
+import { mapToItems } from "./map";
+
+const exec = promisify(execFile);
+
+// DI-able runner (mirrors docker.ts / github/ci.ts). The real one shells out
+// via execFile -- NO shell, so args are passed safely -- with a timeout so a
+// slow tool never stalls the Activity feed.
+export type CliRunner = (
+  cmd: string,
+  args: string[],
+  opts: { cwd?: string; timeoutMs: number },
+) => Promise<string>;
+
+const realRunner: CliRunner = async (cmd, args, { cwd, timeoutMs }) => {
+  const { stdout } = await exec(cmd, args, {
+    cwd,
+    timeout: timeoutMs,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+  return stdout;
+};
+
+// Run ONE manifest: detect (authCheck exit 0) -> poll -> JSON.parse -> map.
+// Any failure (tool missing, not authed, timeout, non-JSON) yields [] so the
+// feed degrades silently, exactly like the gh/render/docker blocks.
+export async function runManifest(
+  m: IntegrationManifest,
+  root: string | null,
+  run: CliRunner = realRunner,
+): Promise<IntegrationItem[]> {
+  // detect and poll share one cwd: an auth check (e.g. `vercel whoami`) is
+  // global, so running it in the project root is harmless. If a future tool
+  // ever needs a cwd-agnostic detect with a cwd-scoped poll, split this then.
+  const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
+  const timeoutMs = m.poll.timeoutMs ?? 8000;
+  try {
+    await run(m.detect.authCheck.cmd, m.detect.authCheck.args, {
+      cwd,
+      timeoutMs,
+    });
+  } catch {
+    return []; // not installed or not authenticated
+  }
+  let out: string;
+  try {
+    out = await run(m.poll.cli.cmd, m.poll.cli.args, { cwd, timeoutMs });
+  } catch {
+    return [];
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(out);
+  } catch {
+    return [];
+  }
+  return mapToItems(m, json);
+}
+
+// Per-manifest poll cache (mutated in place by the caller, held across calls)
+// so the Activity feed's frequent polling does not re-spawn each CLI on every
+// tick. Keyed by manifest id.
+export interface PollCache {
+  [id: string]: { at: number; items: IntegrationItem[] };
+}
+
+// Run every manifest, honoring each one's poll.everyMs: if a manifest ran
+// within everyMs of `now` (epoch ms), reuse its cached items instead of
+// re-spawning. Manifests run concurrently; each degrades to [] on failure so
+// one cannot break the others. `now` and `run` are injected for testability.
+export async function pollIntegrations(
+  manifests: IntegrationManifest[],
+  root: string | null,
+  now: number,
+  cache: PollCache,
+  run: CliRunner = realRunner,
+): Promise<IntegrationItem[]> {
+  const results = await Promise.all(
+    manifests.map(async (m) => {
+      const cached = cache[m.id];
+      if (cached && now - cached.at < m.poll.everyMs) return cached.items;
+      let items: IntegrationItem[];
+      try {
+        items = await runManifest(m, root, run);
+      } catch {
+        items = [];
+      }
+      cache[m.id] = { at: now, items };
+      return items;
+    }),
+  );
+  return results.flat();
+}

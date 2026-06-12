@@ -121,6 +121,23 @@ export {
 export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
 export { type PortProber, probePort } from "./host/probe";
 export {
+  type CliRunner,
+  type PollCache,
+  pollIntegrations,
+  runManifest,
+} from "./integrations/engine";
+export { evalExpr } from "./integrations/expr";
+export type {
+  Command,
+  IntegrationItem,
+  IntegrationManifest,
+  IntegrationState,
+  MapSpec,
+  StateSpec,
+} from "./integrations/manifest";
+export { applyState, mapToItems } from "./integrations/map";
+export { INTEGRATIONS, VERCEL } from "./integrations/registry";
+export {
   type ClaudeRunner,
   type McpRegisterInput,
   type McpRegisterResult,

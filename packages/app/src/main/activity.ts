@@ -2,7 +2,14 @@
 // a single ActivityItem[] for the Activity panel. The pure mappers are TDD'd;
 // activityStatus does the I/O (gh + Render + docker) and delegates to them.
 // ASCII-only comments: CJS-bundled into the Electron main process.
-import { type CiRun, latestCiRun } from "@airlock/agent-core";
+import {
+  type CiRun,
+  INTEGRATIONS,
+  type IntegrationItem,
+  latestCiRun,
+  type PollCache,
+  pollIntegrations,
+} from "@airlock/agent-core";
 import type { ActivityItem } from "../shared/ipc";
 import { dockerStatus, gitStatusFor, renderServicesStatus } from "./ide-state";
 
@@ -13,6 +20,10 @@ import { dockerStatus, gitStatusFor, renderServicesStatus } from "./ide-state";
 // feed automatically. addDismissedActivity is reused by the dismiss IPC and the
 // later MCP dismiss tool.
 const dismissed = new Set<string>();
+
+// Per-manifest poll cache so the frequent Activity poll honors each manifest's
+// everyMs instead of re-spawning every CLI on every tick.
+const integrationCache: PollCache = {};
 
 export function addDismissedActivity(id: string): void {
   dismissed.add(id);
@@ -122,6 +133,20 @@ export function dockerContainerToItem(c: {
   };
 }
 
+// Map a neutral IntegrationItem (agent-core, engine-produced) to the renderer's
+// ActivityItem -- the integration counterpart of ciRunToItem / dockerContainerToItem.
+export function integrationItemToItem(i: IntegrationItem): ActivityItem {
+  return {
+    id: i.id,
+    kind: "integration",
+    title: i.title,
+    subtitle: i.subtitle,
+    state: i.state,
+    progress: i.state === "running" ? { kind: "indeterminate" } : null,
+    ...(i.href ? { href: i.href } : {}),
+  };
+}
+
 export async function activityStatus(
   root: string | null,
 ): Promise<ActivityItem[]> {
@@ -160,6 +185,18 @@ export async function activityStatus(
     }
   } catch {
     // docker not installed -> no docker items
+  }
+
+  // Manifest-driven integrations, throttled per-manifest by everyMs (the
+  // Activity feed polls every few seconds; pollIntegrations serves cache within
+  // each manifest's window and degrades each one to []).
+  for (const it of await pollIntegrations(
+    INTEGRATIONS,
+    root,
+    Date.now(),
+    integrationCache,
+  )) {
+    items.push(integrationItemToItem(it));
   }
 
   // Hide anything the user (or the agent) dismissed; a NEW state has a new id and
