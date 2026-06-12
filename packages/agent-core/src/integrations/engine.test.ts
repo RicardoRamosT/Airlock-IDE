@@ -255,4 +255,14 @@ describe("pollSteady", () => {
     const run: CliRunner = async () => "";
     expect(await pollSteady([VERCEL], null, 1000, {}, run)).toEqual([]);
   });
+
+  it("surfaces unauthed (no resources) when authed check fails but binary exists", async () => {
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] === "test")
+        throw Object.assign(new Error("not logged in"), { code: 1 });
+      return PROBE; // unreachable: detect fails first
+    };
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toMatchObject({ status: "unauthed", resources: [] });
+  });
 });
