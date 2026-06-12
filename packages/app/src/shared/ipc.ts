@@ -84,6 +84,17 @@ export interface LspDefinition {
   line: number; // 1-indexed, ready for revealLine
 }
 
+export interface ReferenceHit {
+  line: number; // 1-indexed, ready for openEditorFile / revealLine
+  character: number; // 0-indexed column
+  snippet: string; // trimmed source line (may be empty)
+}
+export interface ReferenceFile {
+  relPath: string;
+  hits: ReferenceHit[];
+}
+export type ReferenceResults = ReferenceFile[];
+
 export interface SecretLeak {
   path: string;
   line: number;
@@ -686,4 +697,10 @@ export interface AirlockApi {
     line: number,
     character: number,
   ): Promise<LspDefinition | null>;
+  lspReferences(
+    root: string,
+    relPath: string,
+    line: number,
+    character: number,
+  ): Promise<ReferenceResults>;
 }

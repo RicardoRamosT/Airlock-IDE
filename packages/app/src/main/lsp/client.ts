@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolveWithin } from "@airlock/agent-core";
@@ -13,8 +14,11 @@ import type {
   LspCompletionItem,
   LspDefinition,
   LspDiagnostic,
+  ReferenceFile,
+  ReferenceResults,
 } from "../../shared/ipc";
 import { firstDefinitionLocation } from "./definition";
+import { extractLines, parseReferences, type RawRef } from "./references";
 import { bundledLanguageServerCli } from "./serverPath";
 
 // One typescript-language-server child per workspace root (it needs the project
@@ -305,6 +309,58 @@ export async function lspDefinition(
   } catch (err) {
     console.error("[lsp] definition failed", err);
     return null;
+  }
+}
+
+export async function lspReferences(
+  root: string,
+  relPath: string,
+  line: number,
+  character: number,
+): Promise<ReferenceResults> {
+  const s = ensure(root);
+  await s.ready;
+  try {
+    const r = (await s.conn.sendRequest("textDocument/references", {
+      textDocument: { uri: await uriOf(root, relPath) },
+      position: { line, character },
+      context: { includeDeclaration: true },
+    })) as unknown;
+    // Group by workspace-relative path, dropping out-of-workspace hits.
+    const byFile = new Map<string, RawRef[]>();
+    for (const ref of parseReferences(r)) {
+      const rel = uriToRel(root, ref.uri);
+      if (rel === null) continue;
+      const list = byFile.get(rel);
+      if (list) list.push(ref);
+      else byFile.set(rel, [ref]);
+    }
+    // Read each file once for snippets; build the grouped result.
+    const out: ReferenceFile[] = [];
+    for (const [rel, group] of byFile) {
+      let snippets = new Map<number, string>();
+      try {
+        const content = await readFile(await resolveWithin(root, rel), "utf8");
+        snippets = extractLines(
+          content,
+          group.map((g) => g.line),
+        );
+      } catch {
+        // file unreadable -> empty snippets, still list the hits
+      }
+      out.push({
+        relPath: rel,
+        hits: group.map((g) => ({
+          line: g.line + 1, // 0-indexed LSP -> 1-indexed
+          character: g.character,
+          snippet: snippets.get(g.line) ?? "",
+        })),
+      });
+    }
+    return out;
+  } catch (err) {
+    console.error("[lsp] references failed", err);
+    return [];
   }
 }
 

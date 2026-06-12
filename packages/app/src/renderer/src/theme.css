@@ -3032,6 +3032,13 @@ textarea:focus-visible {
   min-width: 36px;
   text-align: right;
 }
+.search-preview {
+  font-family: "SF Mono", Menlo, monospace;
+  opacity: 0.85;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .search-preview b {
   color: var(--accent);
 }
@@ -3040,6 +3047,32 @@ textarea:focus-visible {
   padding: 8px 12px;
   font-size: 12px;
   color: var(--fg-dim);
+}
+
+/* Editor right-click context menu (EditorContextMenu.tsx). Positioned via
+   inline style (fixed, at click coords). Uses palette-backdrop for click-away. */
+.editor-context-menu {
+  background: var(--bg-panel);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 180px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 51;
+}
+.editor-context-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 10px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.editor-context-item:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.08));
 }
 
 /* Git sync buttons (Fetch / Pull / Push|Publish) under the branch row. */

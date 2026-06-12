@@ -3,6 +3,7 @@ import { NeonConnectModal } from "./components/NeonConnectModal";
 import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
 import { ProjectTabs } from "./components/ProjectTabs";
+import { ReferencesPanel } from "./components/ReferencesPanel";
 import { RenderConnectModal } from "./components/RenderConnectModal";
 import { SearchPanel } from "./components/SearchPanel";
 import { SecretModal } from "./components/SecretModal";
@@ -99,6 +100,7 @@ export function App() {
         {modal === "connect-render" && <RenderConnectModal />}
         <Palette />
         {searchOpen && <SearchPanel />}
+        <ReferencesPanel />
       </div>
     </TerminalSlotsProvider>
   );
