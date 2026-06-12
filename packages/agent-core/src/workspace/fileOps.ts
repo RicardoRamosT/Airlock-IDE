@@ -141,10 +141,14 @@ export async function importExternal(
     try {
       // errorOnExist + force:false: uniqueName already guarantees a free name,
       // so this only fires on a race -- in which case THROW rather than clobber.
+      // dereference:true so a dragged symlink (or one inside a dragged folder)
+      // is copied as the REAL file -- an import yields a self-contained copy
+      // that lives in the project, not a pointer back out to the source.
       await cp(src, path.join(destAbs, name), {
         recursive: true,
         errorOnExist: true,
         force: false,
+        dereference: true,
       });
       taken.add(name);
       imported.push(name);
