@@ -24,6 +24,35 @@ const realRunner: CliRunner = async (cmd, args, { cwd, timeoutMs }) => {
   return stdout;
 };
 
+export type DetectStatus = "absent" | "unauthed" | "ready";
+
+// execFile rejects with code "ENOENT" when the binary is not on PATH, vs a
+// numeric exit code when it ran and failed. So ENOENT == not installed.
+export function isCommandMissing(e: unknown): boolean {
+  return (
+    !!e && typeof e === "object" && (e as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+// Run a manifest's auth check: exit 0 -> ready; ENOENT -> absent (not
+// installed); any other failure (incl. timeout) -> unauthed (a mild hint).
+export async function detectStatus(
+  m: IntegrationManifest,
+  cwd: string | undefined,
+  timeoutMs: number,
+  run: CliRunner,
+): Promise<DetectStatus> {
+  try {
+    await run(m.detect.authCheck.cmd, m.detect.authCheck.args, {
+      cwd,
+      timeoutMs,
+    });
+    return "ready";
+  } catch (e) {
+    return isCommandMissing(e) ? "absent" : "unauthed";
+  }
+}
+
 // Classify a manifest's surface: the target sidebar view for a steady-state
 // manifest, or null for a transient (Activity feed) one.
 export function steadyView(m: IntegrationManifest): string | null {

@@ -2,6 +2,8 @@
 import { describe, expect, it } from "vitest";
 import type { CliRunner } from "./engine";
 import {
+  detectStatus,
+  isCommandMissing,
   type PollCache,
   pollIntegrations,
   runManifest,
@@ -119,6 +121,32 @@ describe("steadyView + transient/steady split", () => {
       run,
     );
     expect(out).toEqual([]);
+  });
+});
+
+describe("detectStatus", () => {
+  const m = VERCEL; // any manifest; we only exercise its detect.authCheck
+  it("ready when the auth check exits 0", async () => {
+    const run: CliRunner = async () => "";
+    expect(await detectStatus(m, undefined, 8000, run)).toBe("ready");
+  });
+  it("absent when the binary is missing (ENOENT)", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("not found"), { code: "ENOENT" });
+    };
+    expect(await detectStatus(m, undefined, 8000, run)).toBe("absent");
+  });
+  it("unauthed when the auth check runs but fails (non-ENOENT)", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("not logged in"), { code: 1 });
+    };
+    expect(await detectStatus(m, undefined, 8000, run)).toBe("unauthed");
+  });
+  it("isCommandMissing only matches ENOENT", () => {
+    expect(isCommandMissing({ code: "ENOENT" })).toBe(true);
+    expect(isCommandMissing({ code: 1 })).toBe(false);
+    expect(isCommandMissing(null)).toBe(false);
+    expect(isCommandMissing(new Error("x"))).toBe(false);
   });
 });
 
