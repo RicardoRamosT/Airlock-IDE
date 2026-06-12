@@ -32,6 +32,9 @@ export async function runManifest(
   root: string | null,
   run: CliRunner = realRunner,
 ): Promise<IntegrationItem[]> {
+  // detect and poll share one cwd: an auth check (e.g. `vercel whoami`) is
+  // global, so running it in the project root is harmless. If a future tool
+  // ever needs a cwd-agnostic detect with a cwd-scoped poll, split this then.
   const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
   const timeoutMs = m.poll.timeoutMs ?? 8000;
   try {

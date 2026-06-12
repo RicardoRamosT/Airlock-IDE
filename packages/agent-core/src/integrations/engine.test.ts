@@ -53,4 +53,17 @@ describe("runManifest", () => {
     await runManifest(VERCEL, "/repo", spy);
     expect(seen.every((s) => s.cwd === "/repo")).toBe(true);
   });
+
+  it("treats a null root as no cwd for a cwdScoped manifest", async () => {
+    const seen: Array<string | undefined> = [];
+    const spy: CliRunner = async (_cmd, args, opts) => {
+      seen.push(opts.cwd);
+      return args[0] === "whoami" ? "" : LS_OUT;
+    };
+    const items = await runManifest(VERCEL, null, spy);
+    expect(seen.every((c) => c === undefined)).toBe(true); // null root -> no cwd
+    expect(items).toEqual([
+      { id: "int:vercel:dpl_1", title: "web", subtitle: "main", state: "running", href: "u1" },
+    ]);
+  });
 });

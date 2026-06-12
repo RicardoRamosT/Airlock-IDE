@@ -64,4 +64,20 @@ describe("mapToItems", () => {
   it("returns [] when the items selector is not an array", () => {
     expect(mapToItems(M, { deployments: null })).toEqual([]);
   });
+
+  it("treats the whole doc as one item when `items` is omitted", () => {
+    const single: IntegrationManifest = {
+      id: "solo",
+      name: "Solo",
+      detect: { authCheck: { cmd: "solo", args: ["whoami"] } },
+      poll: { everyMs: 1000, cli: { cmd: "solo", args: ["status", "--json"] } },
+      map: {
+        title: "$.name",
+        state: { from: "$.status", running: ["DEPLOYING"], default: "idle" },
+      },
+    };
+    expect(mapToItems(single, { name: "svc", status: "DEPLOYING" })).toEqual([
+      { id: "int:solo:svc", title: "svc", subtitle: "", state: "running" },
+    ]);
+  });
 });
