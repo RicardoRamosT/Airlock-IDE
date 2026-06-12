@@ -16,6 +16,7 @@ import { toCmDiagnostics } from "../lib/lspDiagnostics";
 import { lspLanguageId } from "../lib/lspLanguage";
 import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
+import { EditorContextMenu } from "./EditorContextMenu";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
 // flushes immediately (the effect cleanup), so nothing is lost on navigation.
@@ -144,6 +145,18 @@ export function EditorPane({
   const viewRef = useRef<EditorView | null>(null);
   const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const setReferences = useApp((s) => s.setReferences);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    line: number;
+    character: number;
+    pos: number;
+    symbol: string;
+  } | null>(null);
+  // The effect rebuilds the EditorView; this ref lets the React-rendered menu
+  // call the same doc-flush the in-editor handlers use.
+  const syncRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const editable = !file.truncated;
   const lspLang = lspLanguageId(relPath);
   // Theme lives in a CodeMirror Compartment so a theme toggle RECONFIGURES it in
@@ -205,6 +218,7 @@ export function EditorPane({
         view.state.doc.toString(),
       );
     };
+    syncRef.current = syncLspNow;
 
     const view = new EditorView({
       state: EditorState.create({
@@ -241,7 +255,51 @@ export function EditorPane({
                     );
                     return true;
                   },
+                  contextmenu(event, view) {
+                    const p = view.posAtCoords({
+                      x: event.clientX,
+                      y: event.clientY,
+                    });
+                    if (p == null) return false;
+                    event.preventDefault();
+                    const { line, character } = positionAt(
+                      view.state.doc.toString(),
+                      p,
+                    );
+                    const w = view.state.wordAt(p);
+                    setMenu({
+                      x: event.clientX,
+                      y: event.clientY,
+                      line,
+                      character,
+                      pos: p,
+                      symbol: w ? view.state.sliceDoc(w.from, w.to) : "",
+                    });
+                    return true;
+                  },
                 }),
+                keymap.of([
+                  {
+                    key: "Shift-F12",
+                    preventDefault: true,
+                    run: (v) => {
+                      const p = v.state.selection.main.head;
+                      const { line, character } = positionAt(
+                        v.state.doc.toString(),
+                        p,
+                      );
+                      const w = v.state.wordAt(p);
+                      const symbol = w ? v.state.sliceDoc(w.from, w.to) : "";
+                      void window.airlock
+                        .lspReferences(root, relPath, line, character)
+                        .then((refs) => setReferences(symbol, refs))
+                        .catch((err) =>
+                          console.error("[lsp] references failed", err),
+                        );
+                      return true;
+                    },
+                  },
+                ]),
               ]
             : []),
           ...languageExtensionForPath(relPath),
@@ -302,7 +360,16 @@ export function EditorPane({
     };
     // NOTE: `theme` is deliberately NOT a dependency -- it is applied via the
     // compartment in the effect below so a toggle never rebuilds the editor.
-  }, [root, relPath, file, editable, lspLang, tabId, themeCompartment]);
+  }, [
+    root,
+    relPath,
+    file,
+    editable,
+    lspLang,
+    tabId,
+    themeCompartment,
+    setReferences,
+  ]);
 
   // Apply the theme by reconfiguring the compartment IN PLACE, preserving the
   // live document. Runs on mount too (harmless: the compartment was initialized
@@ -358,6 +425,34 @@ export function EditorPane({
         ) : null}
       </div>
       <div ref={hostRef} className="viewer-host" />
+      {menu && (
+        <EditorContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onDefinition={() => {
+            const view = viewRef.current;
+            if (view)
+              void goToDefinition(
+                root,
+                relPath,
+                tabId,
+                syncRef.current,
+                view.state.doc.toString(),
+                menu.pos,
+              );
+            setMenu(null);
+          }}
+          onReferences={() => {
+            const m = menu;
+            setMenu(null);
+            void window.airlock
+              .lspReferences(root, relPath, m.line, m.character)
+              .then((refs) => setReferences(m.symbol, refs))
+              .catch((err) => console.error("[lsp] references failed", err));
+          }}
+        />
+      )}
     </div>
   );
 }

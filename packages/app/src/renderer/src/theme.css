@@ -3049,6 +3049,31 @@ textarea:focus-visible {
   color: var(--fg-dim);
 }
 
+/* Editor right-click context menu (EditorContextMenu.tsx). Positioned via
+   inline style (fixed, at click coords). Uses palette-backdrop for click-away. */
+.editor-context-menu {
+  background: var(--panel, #1e1e1e);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 180px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.editor-context-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 10px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.editor-context-item:hover {
+  background: var(--hover, rgba(255, 255, 255, 0.08));
+}
+
 /* Git sync buttons (Fetch / Pull / Push|Publish) under the branch row. */
 .git-sync-row {
   display: flex;
