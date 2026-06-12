@@ -29,5 +29,34 @@ export const VERCEL: IntegrationManifest = {
   },
 };
 
+// Snowflake: warehouse state via `snow sql -q "SHOW WAREHOUSES" --format=json`.
+// Steady-state under the databases view (a warehouse is a standing resource,
+// not a transient op). STARTED/RESUMING -> running dot; SUSPENDED -> idle.
+export const SNOWFLAKE: IntegrationManifest = {
+  id: "snowflake",
+  name: "Snowflake",
+  surface: { view: "databases" },
+  detect: { authCheck: { cmd: "snow", args: ["connection", "test"] } },
+  poll: {
+    everyMs: 30000,
+    cli: {
+      cmd: "snow",
+      args: ["sql", "-q", "SHOW WAREHOUSES", "--format", "json"],
+    },
+  },
+  map: {
+    items: "$",
+    key: "$.name",
+    title: "$.name",
+    subtitle: "$.size",
+    state: {
+      from: "$.state",
+      running: ["STARTED", "RESUMING"],
+      default: "idle",
+    },
+    show: ["running", "idle", "done", "failed"], // steady: show the full picture
+  },
+};
+
 // Every shipped first-party integration. Adding one = appending a manifest.
-export const INTEGRATIONS: IntegrationManifest[] = [VERCEL];
+export const INTEGRATIONS: IntegrationManifest[] = [VERCEL, SNOWFLAKE];
