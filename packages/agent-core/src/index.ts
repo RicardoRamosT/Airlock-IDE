@@ -217,3 +217,15 @@ export {
   targetsVault,
 } from "./workspace/tree";
 export { writeWorkspaceFile } from "./workspace/write";
+export type {
+  Command,
+  IntegrationItem,
+  IntegrationManifest,
+  IntegrationState,
+  MapSpec,
+  StateSpec,
+} from "./integrations/manifest";
+export { applyState, mapToItems } from "./integrations/map";
+export { evalExpr } from "./integrations/expr";
+export { INTEGRATIONS, VERCEL } from "./integrations/registry";
+export { type CliRunner, runManifest } from "./integrations/engine";

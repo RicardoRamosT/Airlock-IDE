@@ -55,8 +55,10 @@ describe("mapToItems", () => {
       { ...M, map: { ...M.map, href: "$.nope" } },
       { deployments: [{ uid: "d1", name: "web", readyState: "BUILDING" }] },
     );
-    expect(item).toEqual({ id: "int:demo:d1", title: "web", subtitle: "", state: "running" });
-    expect("href" in item).toBe(false);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const it2 = item!;
+    expect(it2).toEqual({ id: "int:demo:d1", title: "web", subtitle: "", state: "running" });
+    expect("href" in it2).toBe(false);
   });
 
   it("returns [] when the items selector is not an array", () => {
