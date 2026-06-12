@@ -1,5 +1,5 @@
-import { terminalDisplayName } from "@airlock/agent-core";
 import { useEffect, useRef } from "react";
+import { TERMINAL_DISPLAY_NAMES } from "../../../shared/ipc";
 import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
 
@@ -125,13 +125,17 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
         isVisible &&
         tabRoot !== null && (
           <div className="terminal-external-placeholder">
-            <p>Terminals open in {terminalDisplayName(defaultTerminal)}.</p>
+            <p>
+              Terminals open in{" "}
+              {TERMINAL_DISPLAY_NAMES[defaultTerminal] ?? defaultTerminal}.
+            </p>
             <button
               type="button"
               className="btn"
               onClick={() => openExternalTerminal(tabId)}
             >
-              Open in {terminalDisplayName(defaultTerminal)}
+              Open in{" "}
+              {TERMINAL_DISPLAY_NAMES[defaultTerminal] ?? defaultTerminal}
             </button>
           </div>
         )}

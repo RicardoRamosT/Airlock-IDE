@@ -316,6 +316,21 @@ export interface ExternalTerminalInfo {
   name: string;
 }
 
+// Renderer-safe terminal display names. The renderer must NOT import the
+// agent-core barrel for a value (it pulls native deps like @napi-rs/keyring
+// into the browser bundle and breaks the build), so this small map lives here
+// in the shared (no-native-deps) module. Keep in sync with KNOWN_TERMINALS in
+// agent-core/terminal/externalTerminals.ts (the source of truth).
+export const TERMINAL_DISPLAY_NAMES: Record<string, string> = {
+  terminal: "Terminal",
+  iterm2: "iTerm",
+  ghostty: "Ghostty",
+  warp: "Warp",
+  alacritty: "Alacritty",
+  kitty: "kitty",
+  wezterm: "WezTerm",
+};
+
 /** One Claude subscription usage window (5-hour or 7-day). */
 export interface QuotaWindow {
   usedPercentage: number; // 0-100
