@@ -105,6 +105,9 @@ function useRowDnd(
     setIndicator(null);
   };
   const onDragOver = (e: DragEvent<HTMLButtonElement>) => {
+    // `types ?? []`: a real browser DataTransfer always has `types`, but the
+    // jsdom DnD test mocks omit it -- keep the guard so an internal-move drag
+    // never throws on `undefined.includes`.
     if (isExternalFileDrag([...(e.dataTransfer.types ?? [])])) {
       e.preventDefault();
       e.stopPropagation();
