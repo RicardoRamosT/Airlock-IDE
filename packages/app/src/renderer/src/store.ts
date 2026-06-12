@@ -6,6 +6,7 @@ import type {
   GitStatus,
   ProjectConfig,
   QuotaStatus,
+  ReferenceResults,
   SearchResults,
   SecretMeta,
   Section,
@@ -375,6 +376,11 @@ export interface AppState {
   searchOpen: boolean;
   search: { query: string; results: SearchResults } | null;
   setSearchOpen: (v: boolean) => void;
+  // references = the last Find-All-References symbol + grouped results; null
+  // closes the overlay (presence gates it, like searchOpen gates SearchPanel).
+  references: { symbol: string; results: ReferenceResults } | null;
+  setReferences: (symbol: string, results: ReferenceResults) => void;
+  closeReferences: () => void;
   // --- IDE-level pages (Settings / Usage): tabs in the PROJECT strip. They
   // are app chrome, not project content, so they live beside the project
   // tabs; BOTH can be open at once, `appPage` selects which one is SHOWN
@@ -1380,6 +1386,9 @@ export const useApp = create<AppState>((set) => ({
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),
   setSearchResults: (query, results) => set({ search: { query, results } }),
+  references: null,
+  setReferences: (symbol, results) => set({ references: { symbol, results } }),
+  closeReferences: () => set({ references: null }),
   reveal: null,
   revealLine: (tabId, path, line) =>
     set((s) => ({

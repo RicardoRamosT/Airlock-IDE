@@ -3032,6 +3032,13 @@ textarea:focus-visible {
   min-width: 36px;
   text-align: right;
 }
+.search-preview {
+  font-family: var(--mono, monospace);
+  opacity: 0.85;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .search-preview b {
   color: var(--accent);
 }
