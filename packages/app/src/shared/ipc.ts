@@ -310,6 +310,11 @@ export type UpdateProgress =
   | { phase: "revealed" }
   | { phase: "error"; message: string };
 
+export interface ExternalTerminalInfo {
+  id: string;
+  name: string;
+}
+
 /** One Claude subscription usage window (5-hour or 7-day). */
 export interface QuotaWindow {
   usedPercentage: number; // 0-100
@@ -360,6 +365,10 @@ export interface AppPrefs {
   // no other terminal in the tab holds the auto-Claude claim; blank tabs are
   // always exempt. App-global.
   claudeAutoStart: ClaudeAutoStart;
+  // App-global: which terminal "open a terminal" uses. "airlock" = the
+  // integrated terminal (default); otherwise a KNOWN_TERMINALS id -> that
+  // external app is launched at the project folder instead of an embedded pane.
+  defaultTerminal: string;
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
@@ -612,6 +621,8 @@ export interface AirlockApi {
   dockerStop(id: string): Promise<void>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
+  listExternalTerminals(): Promise<ExternalTerminalInfo[]>;
+  openExternalTerminal(root: string): Promise<void>;
   // Claude quota meter: last-known account usage (null before the first emit),
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;

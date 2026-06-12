@@ -12,6 +12,7 @@ import path from "node:path";
 import {
   type AgentCommandPolicy,
   DEFAULT_AGENT_POLICY,
+  KNOWN_TERMINALS,
 } from "@airlock/agent-core";
 import type {
   AppPrefs,
@@ -55,6 +56,7 @@ const DEFAULTS: AppPrefs = {
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
   claudeAutoStart: "first",
+  defaultTerminal: "airlock",
 };
 
 const CLAUDE_AUTO_MODES: ClaudeAutoStart[] = ["off", "first", "every"];
@@ -136,6 +138,15 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
   return { enabled: true };
 }
 
+const TERMINAL_IDS = new Set(["airlock", ...KNOWN_TERMINALS.map((t) => t.id)]);
+
+// defaultTerminal must be "airlock" or a known terminal id; anything else
+// (a deleted app, garbage) coerces to "airlock" so the user is never left
+// with no way to open a terminal.
+export function sanitizeDefaultTerminal(raw: unknown): string {
+  return typeof raw === "string" && TERMINAL_IDS.has(raw) ? raw : "airlock";
+}
+
 function sanitize(raw: unknown): AppPrefs {
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
   const r = raw as Record<string, unknown>;
@@ -171,6 +182,7 @@ function sanitize(raw: unknown): AppPrefs {
     )
       ? (r.claudeAutoStart as ClaudeAutoStart)
       : "first",
+    defaultTerminal: sanitizeDefaultTerminal(r.defaultTerminal),
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.

@@ -96,6 +96,7 @@ const DEFAULT_PREFS: AppPrefs = {
     privilege: "block",
   },
   quotaMeter: { enabled: false },
+  defaultTerminal: "airlock",
 };
 
 // Only the methods whose RESOLVED SHAPE the mount destructures need an explicit
