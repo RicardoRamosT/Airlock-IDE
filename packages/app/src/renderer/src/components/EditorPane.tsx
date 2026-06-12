@@ -290,12 +290,20 @@ export function EditorPane({
                       );
                       const w = v.state.wordAt(p);
                       const symbol = w ? v.state.sliceDoc(w.from, w.to) : "";
-                      void window.airlock
-                        .lspReferences(root, relPath, line, character)
-                        .then((refs) => setReferences(symbol, refs))
-                        .catch((err) =>
-                          console.error("[lsp] references failed", err),
-                        );
+                      void (async () => {
+                        await syncLspNow();
+                        try {
+                          const refs = await window.airlock.lspReferences(
+                            root,
+                            relPath,
+                            line,
+                            character,
+                          );
+                          setReferences(symbol, refs);
+                        } catch (err) {
+                          console.error("[lsp] references failed", err);
+                        }
+                      })();
                       return true;
                     },
                   },
@@ -446,10 +454,20 @@ export function EditorPane({
           onReferences={() => {
             const m = menu;
             setMenu(null);
-            void window.airlock
-              .lspReferences(root, relPath, m.line, m.character)
-              .then((refs) => setReferences(m.symbol, refs))
-              .catch((err) => console.error("[lsp] references failed", err));
+            void (async () => {
+              await syncRef.current();
+              try {
+                const refs = await window.airlock.lspReferences(
+                  root,
+                  relPath,
+                  m.line,
+                  m.character,
+                );
+                setReferences(m.symbol, refs);
+              } catch (err) {
+                console.error("[lsp] references failed", err);
+              }
+            })();
           }}
         />
       )}

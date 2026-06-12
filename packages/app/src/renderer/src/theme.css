@@ -3058,6 +3058,7 @@ textarea:focus-visible {
   padding: 4px;
   min-width: 180px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 51;
 }
 .editor-context-item {
   display: block;

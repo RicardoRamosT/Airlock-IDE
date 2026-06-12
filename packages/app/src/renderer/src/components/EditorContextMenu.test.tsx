@@ -38,3 +38,18 @@ it("closes when the backdrop is clicked", () => {
   fireEvent.click(screen.getByLabelText("Close menu"));
   expect(onClose).toHaveBeenCalledTimes(1);
 });
+
+it("closes on Escape", () => {
+  const onClose = vi.fn();
+  render(
+    <EditorContextMenu
+      x={0}
+      y={0}
+      onDefinition={() => {}}
+      onReferences={() => {}}
+      onClose={onClose}
+    />,
+  );
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});

@@ -25,12 +25,20 @@ export function EditorContextMenu({
       <div
         className="editor-context-menu"
         role="menu"
-        style={{ position: "fixed", left: x, top: y, zIndex: 50 }}
+        style={{ position: "fixed", left: x, top: y, zIndex: 51 }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+          }
+        }}
       >
         <button
           type="button"
           role="menuitem"
           className="editor-context-item"
+          // biome-ignore lint/a11y/noAutofocus: menu takes focus on open to prevent stale-position typing
+          autoFocus
           onClick={onDefinition}
         >
           Go to Definition
