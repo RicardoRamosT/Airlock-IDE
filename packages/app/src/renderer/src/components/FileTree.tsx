@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { DirEntry } from "../../../shared/ipc";
 import { openEditorFile } from "../lib/editorFiles";
+import { isExternalFileDrag } from "../lib/externalDrop";
 import { applyOrder, dropZone, reorderNames } from "../lib/fileOrder";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
@@ -55,6 +56,8 @@ interface TreeCtl {
   setDragged: (relPath: string | null) => void;
   canDropInto: (targetDirRel: string) => boolean;
   doMove: (toDirRel: string) => Promise<void>;
+  // Copy external (Finder) files INTO a destination dir relpath.
+  doImport: (destDirRel: string, files: FileList) => Promise<void>;
   // Reorder `draggedRel` to before/after `targetName` within `folderRel`, using
   // the folder's currently displayed `siblings` names. Persists via the store.
   reorder: (
@@ -84,7 +87,8 @@ function useRowDnd(
   siblings: string[],
   isDir: boolean,
 ) {
-  const { dragged, setDragged, canDropInto, doMove, reorder } = useTreeCtl();
+  const { dragged, setDragged, canDropInto, doMove, reorder, doImport } =
+    useTreeCtl();
   const [indicator, setIndicator] = useState<RowIndicator>(null);
   const name = relPath.slice(relPath.lastIndexOf("/") + 1);
   const draggedName = dragged
@@ -101,6 +105,13 @@ function useRowDnd(
     setIndicator(null);
   };
   const onDragOver = (e: DragEvent<HTMLButtonElement>) => {
+    if (isExternalFileDrag([...(e.dataTransfer.types ?? [])])) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setIndicator("into");
+      return;
+    }
     if (!dragged) return;
     const sibling = parentOf(dragged) === parent;
     const z = dropZone(
@@ -130,6 +141,16 @@ function useRowDnd(
   };
   const onDragLeave = () => setIndicator(null);
   const onDrop = (e: DragEvent<HTMLButtonElement>) => {
+    if (
+      isExternalFileDrag([...(e.dataTransfer.types ?? [])]) &&
+      e.dataTransfer.files.length > 0
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIndicator(null);
+      void doImport(isDir ? relPath : parent, e.dataTransfer.files);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     const ind = indicator;
@@ -520,6 +541,20 @@ export function FileTree() {
     }
   };
 
+  const doImport = async (destDirRel: string, files: FileList) => {
+    if (!root) return;
+    const srcPaths = [...files]
+      .map((f) => window.airlock.getPathForFile(f))
+      .filter((p) => p.length > 0);
+    if (srcPaths.length === 0) return;
+    try {
+      const r = await window.airlock.importExternal(root, destDirRel, srcPaths);
+      if (r.failed.length > 0) console.error("import failed", r.failed);
+    } catch (err) {
+      console.error("import failed", err);
+    }
+  };
+
   // Reorder within one folder: move draggedRel before/after targetName among
   // the folder's currently displayed `siblings`, then persist. A no-op (same
   // resulting order) is skipped so an idle drop never marks a folder customized.
@@ -552,6 +587,7 @@ export function FileTree() {
     setDragged,
     canDropInto,
     doMove,
+    doImport,
     reorder,
   };
 
@@ -592,6 +628,12 @@ export function FileTree() {
         }}
         // Dropping on empty space (rows stopPropagation) moves to the root.
         onDragOver={(e) => {
+          if (isExternalFileDrag([...(e.dataTransfer.types ?? [])])) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            setRootOver(true);
+            return;
+          }
           if (!canDropInto(".")) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
@@ -604,6 +646,13 @@ export function FileTree() {
         onDrop={(e) => {
           e.preventDefault();
           setRootOver(false);
+          if (
+            isExternalFileDrag([...(e.dataTransfer.types ?? [])]) &&
+            e.dataTransfer.files.length > 0
+          ) {
+            void doImport(".", e.dataTransfer.files);
+            return;
+          }
           void doMove(".");
         }}
       >
