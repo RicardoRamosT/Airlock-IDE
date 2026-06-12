@@ -7,7 +7,8 @@ import {
   INTEGRATIONS,
   type IntegrationItem,
   latestCiRun,
-  runManifest,
+  type PollCache,
+  pollIntegrations,
 } from "@airlock/agent-core";
 import type { ActivityItem } from "../shared/ipc";
 import { dockerStatus, gitStatusFor, renderServicesStatus } from "./ide-state";
@@ -19,6 +20,10 @@ import { dockerStatus, gitStatusFor, renderServicesStatus } from "./ide-state";
 // feed automatically. addDismissedActivity is reused by the dismiss IPC and the
 // later MCP dismiss tool.
 const dismissed = new Set<string>();
+
+// Per-manifest poll cache so the frequent Activity poll honors each manifest's
+// everyMs instead of re-spawning every CLI on every tick.
+const integrationCache: PollCache = {};
 
 export function addDismissedActivity(id: string): void {
   dismissed.add(id);
@@ -182,17 +187,16 @@ export async function activityStatus(
     // docker not installed -> no docker items
   }
 
-  // Manifest-driven integrations (the engine). Each runManifest already
-  // degrades to [] on failure; the try/catch is belt-and-suspenders so one
-  // bad manifest can never break the whole feed.
-  for (const m of INTEGRATIONS) {
-    try {
-      for (const it of await runManifest(m, root)) {
-        items.push(integrationItemToItem(it));
-      }
-    } catch {
-      // ignore a misbehaving integration
-    }
+  // Manifest-driven integrations, throttled per-manifest by everyMs (the
+  // Activity feed polls every few seconds; pollIntegrations serves cache within
+  // each manifest's window and degrades each one to []).
+  for (const it of await pollIntegrations(
+    INTEGRATIONS,
+    root,
+    Date.now(),
+    integrationCache,
+  )) {
+    items.push(integrationItemToItem(it));
   }
 
   // Hide anything the user (or the agent) dismissed; a NEW state has a new id and

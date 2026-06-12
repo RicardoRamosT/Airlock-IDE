@@ -1,8 +1,8 @@
 // packages/agent-core/src/integrations/engine.ts
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mapToItems } from "./map";
 import type { IntegrationItem, IntegrationManifest } from "./manifest";
+import { mapToItems } from "./map";
 
 const exec = promisify(execFile);
 
@@ -38,7 +38,10 @@ export async function runManifest(
   const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
   const timeoutMs = m.poll.timeoutMs ?? 8000;
   try {
-    await run(m.detect.authCheck.cmd, m.detect.authCheck.args, { cwd, timeoutMs });
+    await run(m.detect.authCheck.cmd, m.detect.authCheck.args, {
+      cwd,
+      timeoutMs,
+    });
   } catch {
     return []; // not installed or not authenticated
   }
@@ -55,4 +58,39 @@ export async function runManifest(
     return [];
   }
   return mapToItems(m, json);
+}
+
+// Per-manifest poll cache (mutated in place by the caller, held across calls)
+// so the Activity feed's frequent polling does not re-spawn each CLI on every
+// tick. Keyed by manifest id.
+export interface PollCache {
+  [id: string]: { at: number; items: IntegrationItem[] };
+}
+
+// Run every manifest, honoring each one's poll.everyMs: if a manifest ran
+// within everyMs of `now` (epoch ms), reuse its cached items instead of
+// re-spawning. Manifests run concurrently; each degrades to [] on failure so
+// one cannot break the others. `now` and `run` are injected for testability.
+export async function pollIntegrations(
+  manifests: IntegrationManifest[],
+  root: string | null,
+  now: number,
+  cache: PollCache,
+  run: CliRunner = realRunner,
+): Promise<IntegrationItem[]> {
+  const results = await Promise.all(
+    manifests.map(async (m) => {
+      const cached = cache[m.id];
+      if (cached && now - cached.at < m.poll.everyMs) return cached.items;
+      let items: IntegrationItem[];
+      try {
+        items = await runManifest(m, root, run);
+      } catch {
+        items = [];
+      }
+      cache[m.id] = { at: now, items };
+      return items;
+    }),
+  );
+  return results.flat();
 }

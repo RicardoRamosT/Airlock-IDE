@@ -120,7 +120,12 @@ export {
 } from "./github/accounts";
 export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
 export { type PortProber, probePort } from "./host/probe";
-export { type CliRunner, runManifest } from "./integrations/engine";
+export {
+  type CliRunner,
+  type PollCache,
+  pollIntegrations,
+  runManifest,
+} from "./integrations/engine";
 export { evalExpr } from "./integrations/expr";
 export type {
   Command,

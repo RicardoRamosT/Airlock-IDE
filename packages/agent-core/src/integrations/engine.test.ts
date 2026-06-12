@@ -1,12 +1,18 @@
 // packages/agent-core/src/integrations/engine.test.ts
 import { describe, expect, it } from "vitest";
 import type { CliRunner } from "./engine";
-import { runManifest } from "./engine";
+import { type PollCache, pollIntegrations, runManifest } from "./engine";
 import { VERCEL } from "./registry";
 
 const LS_OUT = JSON.stringify({
   deployments: [
-    { uid: "dpl_1", name: "web", url: "u1", readyState: "BUILDING", meta: { githubCommitRef: "main" } },
+    {
+      uid: "dpl_1",
+      name: "web",
+      url: "u1",
+      readyState: "BUILDING",
+      meta: { githubCommitRef: "main" },
+    },
   ],
 });
 
@@ -18,7 +24,13 @@ describe("runManifest", () => {
   it("detects, polls, parses, and maps", async () => {
     const items = await runManifest(VERCEL, "/repo", okRunner);
     expect(items).toEqual([
-      { id: "int:vercel:dpl_1", title: "web", subtitle: "main", state: "running", href: "u1" },
+      {
+        id: "int:vercel:dpl_1",
+        title: "web",
+        subtitle: "main",
+        state: "running",
+        href: "u1",
+      },
     ]);
   });
 
@@ -63,7 +75,41 @@ describe("runManifest", () => {
     const items = await runManifest(VERCEL, null, spy);
     expect(seen.every((c) => c === undefined)).toBe(true); // null root -> no cwd
     expect(items).toEqual([
-      { id: "int:vercel:dpl_1", title: "web", subtitle: "main", state: "running", href: "u1" },
+      {
+        id: "int:vercel:dpl_1",
+        title: "web",
+        subtitle: "main",
+        state: "running",
+        href: "u1",
+      },
     ]);
+  });
+});
+
+describe("pollIntegrations", () => {
+  const counting = () => {
+    let polls = 0;
+    const run: CliRunner = async (_cmd, args) => {
+      if (args[0] !== "whoami") polls++;
+      return args[0] === "whoami" ? "" : LS_OUT;
+    };
+    return { run, polls: () => polls };
+  };
+
+  it("honors everyMs: serves cache within the window, re-runs after it", async () => {
+    const { run, polls } = counting();
+    const cache: PollCache = {};
+    const first = await pollIntegrations([VERCEL], "/repo", 1000, cache, run);
+    expect(first).toHaveLength(1);
+    expect(polls()).toBe(1);
+
+    // 5s later: within VERCEL's everyMs (20000) -> cached, no new spawn.
+    const second = await pollIntegrations([VERCEL], "/repo", 6000, cache, run);
+    expect(second).toEqual(first);
+    expect(polls()).toBe(1);
+
+    // 25s after the first run: past everyMs -> re-runs.
+    await pollIntegrations([VERCEL], "/repo", 26000, cache, run);
+    expect(polls()).toBe(2);
   });
 });
