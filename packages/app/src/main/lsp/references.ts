@@ -9,6 +9,9 @@ export interface RawRef {
   character: number;
 }
 
+// Note: textDocument/references is Location[]-only per LSP 3.17.5 (unlike
+// definition, which also allows LocationLink), so entries lacking `uri` are
+// correctly dropped -- do NOT add targetUri handling here.
 export function parseReferences(result: unknown): RawRef[] {
   if (!Array.isArray(result)) return [];
   const out: RawRef[] = [];

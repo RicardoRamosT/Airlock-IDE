@@ -45,4 +45,8 @@ describe("extractLines", () => {
   it("omits out-of-range lines and handles CRLF", () => {
     expect(extractLines("a\r\nb", [0, 5])).toEqual(new Map([[0, "a"]]));
   });
+
+  it("maps line 0 of empty content to an empty string", () => {
+    expect(extractLines("", [0])).toEqual(new Map([[0, ""]]));
+  });
 });
