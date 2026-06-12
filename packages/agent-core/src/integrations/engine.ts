@@ -24,6 +24,12 @@ const realRunner: CliRunner = async (cmd, args, { cwd, timeoutMs }) => {
   return stdout;
 };
 
+// Classify a manifest's surface: the target sidebar view for a steady-state
+// manifest, or null for a transient (Activity feed) one.
+export function steadyView(m: IntegrationManifest): string | null {
+  return typeof m.surface === "object" ? m.surface.view : null;
+}
+
 // Run ONE manifest: detect (authCheck exit 0) -> poll -> JSON.parse -> map.
 // Any failure (tool missing, not authed, timeout, non-JSON) yields [] so the
 // feed degrades silently, exactly like the gh/render/docker blocks.
@@ -79,18 +85,20 @@ export async function pollIntegrations(
   run: CliRunner = realRunner,
 ): Promise<IntegrationItem[]> {
   const results = await Promise.all(
-    manifests.map(async (m) => {
-      const cached = cache[m.id];
-      if (cached && now - cached.at < m.poll.everyMs) return cached.items;
-      let items: IntegrationItem[];
-      try {
-        items = await runManifest(m, root, run);
-      } catch {
-        items = [];
-      }
-      cache[m.id] = { at: now, items };
-      return items;
-    }),
+    manifests
+      .filter((m) => steadyView(m) === null)
+      .map(async (m) => {
+        const cached = cache[m.id];
+        if (cached && now - cached.at < m.poll.everyMs) return cached.items;
+        let items: IntegrationItem[];
+        try {
+          items = await runManifest(m, root, run);
+        } catch {
+          items = [];
+        }
+        cache[m.id] = { at: now, items };
+        return items;
+      }),
   );
   return results.flat();
 }

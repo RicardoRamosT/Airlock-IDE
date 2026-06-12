@@ -1,7 +1,13 @@
 // packages/agent-core/src/integrations/engine.test.ts
 import { describe, expect, it } from "vitest";
 import type { CliRunner } from "./engine";
-import { type PollCache, pollIntegrations, runManifest } from "./engine";
+import {
+  type PollCache,
+  pollIntegrations,
+  runManifest,
+  steadyView,
+} from "./engine";
+import type { IntegrationManifest } from "./manifest";
 import { VERCEL } from "./registry";
 
 const LS_OUT = JSON.stringify({
@@ -83,6 +89,36 @@ describe("runManifest", () => {
         href: "u1",
       },
     ]);
+  });
+});
+
+describe("steadyView + transient/steady split", () => {
+  const steadyManifest: IntegrationManifest = {
+    id: "steady-x",
+    name: "SteadyX",
+    surface: { view: "databases" },
+    detect: { authCheck: { cmd: "x", args: ["whoami"] } },
+    poll: { everyMs: 1000, cli: { cmd: "x", args: ["ls", "--json"] } },
+    map: { title: "$.name", state: { from: "$.s", default: "idle" } },
+  };
+
+  it("steadyView returns the target view for steady manifests, null for transient", () => {
+    expect(steadyView(steadyManifest)).toBe("databases");
+    expect(steadyView(VERCEL)).toBeNull(); // VERCEL has no surface -> transient
+  });
+
+  it("pollIntegrations ignores steady manifests (it only feeds the Activity feed)", async () => {
+    const run: CliRunner = async () => {
+      throw new Error("should not be polled");
+    };
+    const out = await pollIntegrations(
+      [steadyManifest],
+      "/repo",
+      1000,
+      {},
+      run,
+    );
+    expect(out).toEqual([]);
   });
 });
 
