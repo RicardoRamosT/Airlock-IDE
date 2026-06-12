@@ -7,6 +7,7 @@ import {
   ciRunToItem,
   dockerContainerToItem,
   filterDismissed,
+  integrationItemToItem,
   isActivityDismissed,
   renderDeployState,
   renderServiceToItem,
@@ -209,5 +210,43 @@ describe("addDismissedActivity / isActivityDismissed", () => {
       new Set(items.filter((i) => isActivityDismissed(i.id)).map((i) => i.id)),
     );
     expect(out.map((i) => i.id)).toEqual(["ci:keep-me"]);
+  });
+});
+
+it("integrationItemToItem maps a neutral IntegrationItem to an ActivityItem", () => {
+  expect(
+    integrationItemToItem({
+      id: "int:vercel:dpl_1",
+      title: "web",
+      subtitle: "main",
+      state: "running",
+      href: "u1",
+    }),
+  ).toEqual({
+    id: "int:vercel:dpl_1",
+    kind: "integration",
+    title: "web",
+    subtitle: "main",
+    state: "running",
+    progress: { kind: "indeterminate" },
+    href: "u1",
+  });
+});
+
+it("integrationItemToItem gives a failed item no progress and omits an empty href", () => {
+  expect(
+    integrationItemToItem({
+      id: "int:vercel:dpl_3",
+      title: "api",
+      subtitle: "fix",
+      state: "failed",
+    }),
+  ).toEqual({
+    id: "int:vercel:dpl_3",
+    kind: "integration",
+    title: "api",
+    subtitle: "fix",
+    state: "failed",
+    progress: null,
   });
 });

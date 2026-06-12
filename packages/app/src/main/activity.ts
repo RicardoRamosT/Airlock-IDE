@@ -2,7 +2,13 @@
 // a single ActivityItem[] for the Activity panel. The pure mappers are TDD'd;
 // activityStatus does the I/O (gh + Render + docker) and delegates to them.
 // ASCII-only comments: CJS-bundled into the Electron main process.
-import { type CiRun, latestCiRun } from "@airlock/agent-core";
+import {
+  type CiRun,
+  INTEGRATIONS,
+  type IntegrationItem,
+  latestCiRun,
+  runManifest,
+} from "@airlock/agent-core";
 import type { ActivityItem } from "../shared/ipc";
 import { dockerStatus, gitStatusFor, renderServicesStatus } from "./ide-state";
 
@@ -122,6 +128,20 @@ export function dockerContainerToItem(c: {
   };
 }
 
+// Map a neutral IntegrationItem (agent-core, engine-produced) to the renderer's
+// ActivityItem -- the integration counterpart of ciRunToItem / dockerContainerToItem.
+export function integrationItemToItem(i: IntegrationItem): ActivityItem {
+  return {
+    id: i.id,
+    kind: "integration",
+    title: i.title,
+    subtitle: i.subtitle,
+    state: i.state,
+    progress: i.state === "running" ? { kind: "indeterminate" } : null,
+    ...(i.href ? { href: i.href } : {}),
+  };
+}
+
 export async function activityStatus(
   root: string | null,
 ): Promise<ActivityItem[]> {
@@ -160,6 +180,19 @@ export async function activityStatus(
     }
   } catch {
     // docker not installed -> no docker items
+  }
+
+  // Manifest-driven integrations (the engine). Each runManifest already
+  // degrades to [] on failure; the try/catch is belt-and-suspenders so one
+  // bad manifest can never break the whole feed.
+  for (const m of INTEGRATIONS) {
+    try {
+      for (const it of await runManifest(m, root)) {
+        items.push(integrationItemToItem(it));
+      }
+    } catch {
+      // ignore a misbehaving integration
+    }
   }
 
   // Hide anything the user (or the agent) dismissed; a NEW state has a new id and

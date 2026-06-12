@@ -149,7 +149,7 @@ export interface ActivityStep {
  */
 export interface ActivityItem {
   id: string;
-  kind: "ci" | "render" | "docker";
+  kind: "ci" | "render" | "docker" | "integration";
   title: string;
   subtitle: string;
   state: "running" | "done" | "failed" | "idle";
