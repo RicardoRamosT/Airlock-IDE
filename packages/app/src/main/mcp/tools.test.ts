@@ -33,6 +33,9 @@ vi.mock("@airlock/agent-core", () => ({
     privilege: "block",
   },
   runCommand: (...args: unknown[]) => runCommandMock(...args),
+  // ide-state's listSecretNames calls agent-core's listSecrets; the
+  // list_secret_names handler test below needs it to resolve (empty vault).
+  listSecrets: async () => [],
 }));
 
 // A minimal McpServer stand-in that records every registerTool call. registerTools
@@ -437,7 +440,12 @@ describe("activity_status tool", () => {
     // forwards the root verbatim rather than short-circuiting on no workspace.
     expect(getActivity).toHaveBeenCalledWith("/repo");
     expect(res.isError).toBeUndefined();
-    expect(JSON.parse(res.content[0].text)).toEqual(items);
+    // The result echoes WHICH root it answered for (QA 2026-06-11: the tools
+    // follow GUI focus, so the agent must be able to detect a focus change).
+    expect(JSON.parse(res.content[0].text)).toEqual({
+      root: "/repo",
+      activity: items,
+    });
   });
 
   it("forwards a null root (no folder open) without erroring", async () => {
@@ -865,5 +873,23 @@ describe("plan_usage tool", () => {
     const body = JSON.parse(res.content[0].text);
     expect(body.quota).toBeNull();
     expect(body.sessions).toEqual([]);
+  });
+});
+
+describe("list_secret_names tool", () => {
+  it("echoes the root it answered for alongside the names", async () => {
+    // The agent-core mock's listSecrets resolves [] (empty vault), so this
+    // exercises the handler's shape without disk or keychain.
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, { ...baseDeps, getWorkspaceRoot: () => "/repo" });
+    const tool = tools.find((t) => t.name === "list_secret_names");
+    if (!tool) throw new Error("list_secret_names tool not registered");
+    const res = (await tool.handler({})) as { content: [{ text: string }] };
+    // The result names WHICH root it answered for (QA 2026-06-11: the tools
+    // follow GUI focus, so the agent must be able to detect a focus change).
+    expect(JSON.parse(res.content[0].text)).toEqual({
+      root: "/repo",
+      secrets: [],
+    });
   });
 });

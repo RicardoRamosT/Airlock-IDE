@@ -198,10 +198,14 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "activity_status",
     {
       description:
-        "List the Activity feed for the focused project: in-progress CI runs, Render deploys, and Docker containers, with their state and a stable entry id. Status metadata only -- no secret values.",
+        "List the Activity feed for the focused project: in-progress CI runs, Render deploys, and Docker containers, with their state and a stable entry id. Status metadata only -- no secret values. The result's `root` field names which project (null = none focused) it answered for, so check it when the user may have switched tabs.",
       inputSchema: {},
     },
-    async () => ok(await deps.getActivity(deps.getWorkspaceRoot())),
+    async () => {
+      // Echo WHICH root this answered for (QA 2026-06-11; see list_secret_names).
+      const root = deps.getWorkspaceRoot();
+      return ok({ root, activity: await deps.getActivity(root) });
+    },
   );
 
   // The account's Claude plan usage: the 5h/7d rate-limit windows the quota
@@ -337,12 +341,16 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
   mcp.registerTool(
     "list_secret_names",
     {
-      description: "List secret names with provider and validity (no values).",
+      description:
+        "List secret names with provider and validity (no values). Acts on the FOCUSED project; the result's `root` field names which project it answered for, so check it when the user may have switched tabs.",
     },
     async () => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
-      return ok(await ide.listSecretNames(root));
+      // Echo WHICH root this answered for (QA 2026-06-11): these reads follow
+      // GUI focus, so without the echo an agent asking about project A while
+      // the user focuses project B gets B's answer with no way to notice.
+      return ok({ root, secrets: await ide.listSecretNames(root) });
     },
   );
 

@@ -40,7 +40,9 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   This is the same list the Activity panel shows (`sidebar-activity.md`) — status metadata
   only (titles, states, branches, urls), never a secret value. App-global: CI is skipped when
   no folder is open; Render/Docker still report. Use it to watch live build/deploy/container
-  progress, and to get the entry ids you pass to `dismiss_activity`.
+  progress, and to get the entry ids you pass to `dismiss_activity`. The result's `root`
+  field names which project's feed you got (null = none focused) — check it if the user
+  may have switched tabs.
 - **`plan_usage`** — the account's **Claude plan usage** (the data behind the sidebar quota
   meter and the Usage dashboard): the 5-hour and 7-day rate-limit windows (percent used +
   reset time, plus the active model), and a per-session breakdown for this app run (project
@@ -63,7 +65,9 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   to check if the dev server is running.
 - **`list_secret_names`** — the project's secret **names** with provider and validity — no
   values, ever. Use it to learn what credentials exist (and thus what the project needs),
-  e.g. to decide which sidebar sections to surface. See `security-model.md`.
+  e.g. to decide which sidebar sections to surface. Acts on the **focused** project; the
+  result's `root` field names which project it answered for — check it if the user may
+  have switched tabs since you asked. See `security-model.md`.
 
 ## Acting — import the project's .env files into the vault
 
