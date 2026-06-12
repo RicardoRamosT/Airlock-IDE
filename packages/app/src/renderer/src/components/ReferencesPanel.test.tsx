@@ -38,7 +38,7 @@ it("renders a file group with hit rows and the symbol in the header", () => {
     },
   });
   render(<ReferencesPanel />);
-  expect(screen.getByText("foo")).toBeTruthy(); // header – exact match targets <strong>foo</strong> (regex /foo/ matches snippets too)
+  expect(screen.getByText("foo")).toBeTruthy(); // targets the <strong>foo</strong> text node in the header (exact match)
   expect(screen.getByText("src/a.ts")).toBeTruthy();
   expect(screen.getByText("const foo = 1")).toBeTruthy();
   expect(screen.getByText("return foo()")).toBeTruthy();
@@ -61,5 +61,12 @@ it("jumps to a hit (relPath, 1-indexed line) and closes on click", () => {
   render(<ReferencesPanel />);
   fireEvent.click(screen.getByText("x"));
   expect(openEditorFile).toHaveBeenCalledWith("tab1", "src/a.ts", 3);
+  expect(useApp.getState().references).toBeNull();
+});
+
+it("closes on Escape", () => {
+  useApp.setState({ references: { symbol: "foo", results: [] } });
+  render(<ReferencesPanel />);
+  fireEvent.keyDown(window, { key: "Escape" });
   expect(useApp.getState().references).toBeNull();
 });

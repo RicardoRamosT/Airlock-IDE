@@ -12,12 +12,13 @@ export function ReferencesPanel() {
   const closeReferences = useApp((s) => s.closeReferences);
 
   useEffect(() => {
+    if (!references) return; // only listen while the overlay is open
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeReferences();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeReferences]);
+  }, [references, closeReferences]);
 
   if (!references) return null;
   const { symbol, results } = references;

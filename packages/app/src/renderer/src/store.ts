@@ -376,8 +376,8 @@ export interface AppState {
   searchOpen: boolean;
   search: { query: string; results: SearchResults } | null;
   setSearchOpen: (v: boolean) => void;
-  // references = the last Find-All-References symbol + grouped results; null
-  // closes the overlay (presence gates it, like searchOpen gates SearchPanel).
+  // references = the last Find-All-References symbol + grouped results; null =
+  // closed. The overlay is always mounted and renders null when this is null.
   references: { symbol: string; results: ReferenceResults } | null;
   setReferences: (symbol: string, results: ReferenceResults) => void;
   closeReferences: () => void;
