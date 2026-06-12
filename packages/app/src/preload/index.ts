@@ -170,6 +170,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("lsp:completion", root, relPath, line, character),
   lspDefinition: (root, relPath, line, character) =>
     ipcRenderer.invoke("lsp:definition", root, relPath, line, character),
+  lspReferences: (root, relPath, line, character) =>
+    ipcRenderer.invoke("lsp:references", root, relPath, line, character),
   onLspDiagnostics: (cb) =>
     subscribe<{ root: string; relPath: string; diagnostics: LspDiagnostic[] }>(
       "lsp:diagnostics",

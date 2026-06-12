@@ -85,6 +85,7 @@ import {
   lspDidClose,
   lspDidOpen,
   lspHover,
+  lspReferences,
   onLspDiagnostics,
   syncLspServers,
 } from "./lsp/client";
@@ -509,6 +510,18 @@ export function registerIpc(
       )
         throw new Error("Invalid payload");
       return lspDefinition(resolveRoot(e, root), relPath, line, character);
+    },
+  );
+  ipcMain.handle(
+    "lsp:references",
+    (e, root: unknown, relPath: unknown, line: unknown, character: unknown) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof line !== "number" ||
+        typeof character !== "number"
+      )
+        throw new Error("Invalid payload");
+      return lspReferences(resolveRoot(e, root), relPath, line, character);
     },
   );
 
