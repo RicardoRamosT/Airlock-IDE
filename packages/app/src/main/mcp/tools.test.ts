@@ -492,7 +492,7 @@ describe("IDE-control tools (tabs / split / terminals / page-tabs)", () => {
         root: "/repo",
         focused: true,
         inSplit: false,
-        terminals: [{ id: "term-1", title: "zsh" }],
+        terminals: [{ id: "term-1", ptyId: "pty-uuid-1", title: "zsh" }],
       },
     ],
     split: null,
