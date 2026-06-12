@@ -613,6 +613,16 @@ body,
   padding: 2px 0;
 }
 
+/* Fill the section body: without this the tree's height collapses to its rows
+   and the visually empty space below the last row belongs to the scroll parent
+   (.sidebar-view-body), making the background affordances -- drop-to-root
+   (Finder import + internal move) and right-click New File/Folder in root --
+   unreachable there. min-height (not height) so a tall tree still grows and
+   scrolls normally. (QA 2026-06-11: the Finder-drop dead zone.) */
+.tree {
+  min-height: 100%;
+}
+
 .tree-item .codicon,
 .secret-row .codicon,
 .git-row .codicon {
