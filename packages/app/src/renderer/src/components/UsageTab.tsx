@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
-import type { SessionUsage } from "../../../shared/ipc";
-import { clampPct, formatCountdown } from "../lib/quotaFormat";
+import type { QuotaWindow, SessionUsage } from "../../../shared/ipc";
+import {
+  clampPct,
+  formatCountdown,
+  isWindowAwaiting,
+} from "../lib/quotaFormat";
 import {
   aggregateByModel,
   formatApiTime,
+  formatModels,
   formatTokens,
   formatUsd,
+  isSessionActive,
+  visibleSessions,
 } from "../lib/usageFormat";
 import { useApp } from "../store";
 
-const LIVE_WITHIN_S = 20;
 const basename = (p: string | null): string =>
   p ? (p.split("/").pop() ?? p) : "—";
 
@@ -48,36 +54,39 @@ export function UsageTab() {
   }, [closeAppPage]);
 
   const now = Math.floor(Date.now() / 1000);
-  // Hide sessions that have not done anything yet (a freshly started claude
-  // emits before its first API response, all zeros) -- they would read as
-  // confusing duplicates of the project's previous session.
-  const visible = sessions.filter(
-    (s) => s.apiMs > 0 || s.costUsd > 0 || s.contextTokens > 0,
-  );
+  // Only sessions that did real work (API time / cost / edits). Drops the
+  // all-zero pre-first-response blanks AND context-only ghosts -- e.g. a
+  // background/forked session that loaded context but never completed a turn.
+  const visible = visibleSessions(sessions);
   const models = aggregateByModel(visible);
   const totalCost = visible.reduce((a, s) => a + s.costUsd, 0);
   const totalApiMs = visible.reduce((a, s) => a + s.apiMs, 0);
   const totalAdded = visible.reduce((a, s) => a + s.linesAdded, 0);
   const totalRemoved = visible.reduce((a, s) => a + s.linesRemoved, 0);
-  const liveCount = visible.filter(
-    (s) => now - s.lastEmitAt <= LIVE_WITHIN_S,
-  ).length;
+  // "Live" = usage advanced recently, not merely re-emitted on the refresh
+  // timer (an open-but-idle session keeps emitting unchanged numbers).
+  const liveCount = visible.filter((s) => isSessionActive(s, now)).length;
 
-  const windowRow = (label: string, pct: number, resetsAt: number) => (
-    <div className="quota-row usage-scale">
-      <span className="quota-row-label">{label}</span>
-      <span className="quota-bar" aria-hidden>
-        <span
-          className="quota-bar-fill"
-          style={{ width: `${clampPct(pct)}%` }}
-        />
-      </span>
-      <span className="quota-pct">{Math.round(pct)}%</span>
-      <span className="usage-reset">
-        resets {formatCountdown(resetsAt - now)}
-      </span>
-    </div>
-  );
+  const windowRow = (label: string, w: QuotaWindow) => {
+    const awaiting = isWindowAwaiting(w, now);
+    return (
+      <div className="quota-row usage-scale">
+        <span className="quota-row-label">{label}</span>
+        <span className="quota-bar" aria-hidden>
+          <span
+            className="quota-bar-fill"
+            style={{ width: `${clampPct(w.usedPercentage)}%` }}
+          />
+        </span>
+        <span className="quota-pct">{Math.round(w.usedPercentage)}%</span>
+        <span className="usage-reset">
+          {awaiting
+            ? "starts on next use"
+            : `resets ${formatCountdown(w.resetsAt - now)}`}
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div className="usage-page">
@@ -118,18 +127,8 @@ export function UsageTab() {
         </div>
         <section className="usage-section">
           <h3>Plan windows</h3>
-          {quota?.fiveHour &&
-            windowRow(
-              "5h",
-              quota.fiveHour.usedPercentage,
-              quota.fiveHour.resetsAt,
-            )}
-          {quota?.sevenDay &&
-            windowRow(
-              "7d",
-              quota.sevenDay.usedPercentage,
-              quota.sevenDay.resetsAt,
-            )}
+          {quota?.fiveHour && windowRow("5h", quota.fiveHour)}
+          {quota?.sevenDay && windowRow("7d", quota.sevenDay)}
           {!quota?.available && (
             <p className="settings-note">
               No account data yet — send a message in any Claude session.
@@ -165,6 +164,15 @@ export function UsageTab() {
               </tbody>
             </table>
           )}
+          {models.length > 0 && (
+            <p className="settings-note">
+              Cost and API time are attributed to each session's most recent
+              model. A session that switched models books its whole total to its
+              final model — any other model it used is counted here but its cost
+              is approximate (often $0), because the statusLine reports one
+              cumulative cost per session and can't split it across models.
+            </p>
+          )}
         </section>
 
         <section className="usage-section">
@@ -186,7 +194,7 @@ export function UsageTab() {
                 {visible.map((s) => (
                   <tr key={s.sessionId}>
                     <td title={s.cwd ?? undefined}>{basename(s.cwd)}</td>
-                    <td>{s.model ?? "unknown"}</td>
+                    <td>{formatModels(s)}</td>
                     <td
                       className="num"
                       title={
@@ -204,10 +212,8 @@ export function UsageTab() {
                     <td className="num">{formatUsd(s.costUsd)}</td>
                     <td>
                       <span
-                        className={`status-dot${now - s.lastEmitAt <= LIVE_WITHIN_S ? " running" : ""}`}
-                        title={
-                          now - s.lastEmitAt <= LIVE_WITHIN_S ? "live" : "idle"
-                        }
+                        className={`status-dot${isSessionActive(s, now) ? " running" : ""}`}
+                        title={isSessionActive(s, now) ? "live" : "idle"}
                       />
                     </td>
                   </tr>
@@ -220,10 +226,12 @@ export function UsageTab() {
         <p className="settings-note">
           API time, lines, and costs are each Claude Code session's own
           cumulative reporting; Context is the session's current context-window
-          occupancy (a snapshot, not usage). Sessions update on conversation
-          activity — work done by background subagents shows up when its result
-          lands in the conversation. — under Cost means the session reports $0
-          (covered by your subscription plan).
+          occupancy (a snapshot, not usage). A session is shown as live only
+          while its usage is still advancing — an open but idle session (or a
+          background/forked one) reads as idle even though it keeps emitting.
+          Sessions update on conversation activity — work done by background
+          subagents shows up when its result lands in the conversation. — under
+          Cost means the session reports $0 (covered by your subscription plan).
         </p>
       </div>
     </div>

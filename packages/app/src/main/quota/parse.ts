@@ -111,10 +111,12 @@ export function parseSessionUsage(
     return null;
   const cw = (r.context_window ?? {}) as Record<string, unknown>;
   const cost = (r.cost ?? {}) as Record<string, unknown>;
+  const model = parseModel(r.model);
   return {
     sessionId: r.session_id,
+    model,
     cwd: typeof r.cwd === "string" ? r.cwd : null,
-    model: parseModel(r.model),
+    modelsSeen: model ? [model] : [],
     contextTokens: num(cw.total_input_tokens),
     contextWindowSize: num(cw.context_window_size),
     costUsd: num(cost.total_cost_usd),
@@ -122,16 +124,36 @@ export function parseSessionUsage(
     linesAdded: num(cost.total_lines_added),
     linesRemoved: num(cost.total_lines_removed),
     lastEmitAt: emitAt,
+    lastProgressAt: emitAt, // a fresh sighting counts as progress
   };
 }
 
 // Fold one snapshot into the ledger: latest emit per session wins; past the
 // cap the OLDEST-emitting session is evicted (history, not liveness, decides).
+// On each fold we also (a) UNION the model the emit reports onto the session's
+// models-seen list (a session can switch models, and the statusLine reports
+// only the current one per emit) and (b) advance lastProgressAt only when a
+// cumulative WORK metric actually climbed -- so an open-but-idle session that
+// merely re-emits its refresh-timer snapshot does not read as "active".
 export function recordUsage(
   ledger: Map<string, SessionUsage>,
   u: SessionUsage,
   cap = 50,
 ): void {
+  const prev = ledger.get(u.sessionId);
+  if (prev) {
+    // Keep the last KNOWN model when an emit happens to omit it.
+    if (u.model === null) u.model = prev.model;
+    const seen = [...prev.modelsSeen];
+    for (const m of u.modelsSeen) if (!seen.includes(m)) seen.push(m);
+    u.modelsSeen = seen;
+    const advanced =
+      u.costUsd > prev.costUsd ||
+      u.apiMs > prev.apiMs ||
+      u.linesAdded > prev.linesAdded ||
+      u.linesRemoved > prev.linesRemoved;
+    u.lastProgressAt = advanced ? u.lastEmitAt : prev.lastProgressAt;
+  }
   ledger.set(u.sessionId, u);
   if (ledger.size <= cap) return;
   let oldest: string | null = null;

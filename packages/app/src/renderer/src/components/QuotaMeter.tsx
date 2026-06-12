@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { clampPct, formatCountdown } from "../lib/quotaFormat";
+import {
+  clampPct,
+  formatCountdown,
+  isWindowAwaiting,
+} from "../lib/quotaFormat";
 import { useApp } from "../store";
 
 // Our installed statusLine re-runs every ~5s while a Claude session is open, so
@@ -87,13 +91,16 @@ export function QuotaMeter() {
   // An awaiting window (the prior one expired; the next starts on the user's
   // next message) gets "starts on next use" instead of a countdown — its
   // resetsAt is the OLD boundary and would render as a nonsense "now".
+  // isWindowAwaiting also covers the gap between the boundary passing and the
+  // next emit re-flagging it (the tracker decides at emit time; we tick every
+  // second), so the stale "session now" never shows.
   const resets = [
     quota.fiveHour &&
-      (quota.fiveHour.awaitingNextWindow
+      (isWindowAwaiting(quota.fiveHour, now)
         ? "session starts on next use"
         : `session ${formatCountdown(quota.fiveHour.resetsAt - now)}`),
     quota.sevenDay &&
-      (quota.sevenDay.awaitingNextWindow
+      (isWindowAwaiting(quota.sevenDay, now)
         ? "weekly starts on next use"
         : `weekly ${formatCountdown(quota.sevenDay.resetsAt - now)}`),
   ].filter(Boolean);

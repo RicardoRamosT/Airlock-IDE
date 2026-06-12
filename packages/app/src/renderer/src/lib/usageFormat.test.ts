@@ -3,14 +3,19 @@ import type { SessionUsage } from "../../../shared/ipc";
 import {
   aggregateByModel,
   formatApiTime,
+  formatModels,
   formatTokens,
   formatUsd,
+  isSessionActive,
+  sessionDidWork,
+  visibleSessions,
 } from "./usageFormat";
 
 const mk = (over: Partial<SessionUsage>): SessionUsage => ({
   sessionId: "s",
   cwd: null,
   model: null,
+  modelsSeen: [],
   contextTokens: 0,
   contextWindowSize: 0,
   costUsd: 0,
@@ -18,6 +23,7 @@ const mk = (over: Partial<SessionUsage>): SessionUsage => ({
   linesAdded: 0,
   linesRemoved: 0,
   lastEmitAt: 0,
+  lastProgressAt: 0,
   ...over,
 });
 
@@ -43,6 +49,65 @@ describe("aggregateByModel", () => {
       apiMs: 15_000,
       costUsd: 1.5,
     });
+  });
+
+  it("counts a multi-model session under EVERY model it used, cost on the primary", () => {
+    // One session that switched Fable -> Opus: the statusLine can't split its
+    // single cumulative cost, so cost/API book to the latest (primary) model
+    // while both models are counted. Surfaces Fable instead of hiding it.
+    const rows = aggregateByModel([
+      mk({
+        sessionId: "a",
+        model: "Opus 4.8",
+        modelsSeen: ["Fable 5", "Opus 4.8"],
+        apiMs: 100_000,
+        costUsd: 5,
+      }),
+    ]);
+    const opus = rows.find((r) => r.model === "Opus 4.8");
+    const fable = rows.find((r) => r.model === "Fable 5");
+    expect(opus).toMatchObject({ sessions: 1, apiMs: 100_000, costUsd: 5 });
+    // Fable is counted, but its cost is the unattributable remainder: 0 here.
+    expect(fable).toMatchObject({ sessions: 1, apiMs: 0, costUsd: 0 });
+  });
+});
+
+describe("session liveness + visibility", () => {
+  it("sessionDidWork is true only with real work, not context occupancy alone", () => {
+    expect(sessionDidWork(mk({ apiMs: 1 }))).toBe(true);
+    expect(sessionDidWork(mk({ costUsd: 0.5 }))).toBe(true);
+    expect(sessionDidWork(mk({ linesAdded: 2 }))).toBe(true);
+    // A forked/background session that only loaded context (170k) but never did
+    // a billable turn -- the "ricardoramos ghost" -- is NOT work.
+    expect(sessionDidWork(mk({ contextTokens: 170_000 }))).toBe(false);
+    expect(sessionDidWork(mk({}))).toBe(false);
+  });
+
+  it("visibleSessions drops context-only ghosts and idle blanks", () => {
+    const worker = mk({ sessionId: "w", apiMs: 5_000 });
+    const ghost = mk({ sessionId: "g", contextTokens: 170_000 });
+    const blank = mk({ sessionId: "b" });
+    expect(visibleSessions([worker, ghost, blank])).toEqual([worker]);
+  });
+
+  it("isSessionActive keys off lastProgressAt, not the refresh-timer emit", () => {
+    const now = 1000;
+    // Working now: advanced within the window.
+    expect(isSessionActive(mk({ lastProgressAt: now - 5 }), now)).toBe(true);
+    // Open but idle: still emitting (lastEmitAt fresh) yet no recent progress.
+    expect(
+      isSessionActive(mk({ lastEmitAt: now, lastProgressAt: now - 300 }), now),
+    ).toBe(false);
+  });
+});
+
+describe("formatModels", () => {
+  it("joins every model a session used; unknown when none", () => {
+    expect(formatModels(mk({ modelsSeen: ["Opus 4.8"] }))).toBe("Opus 4.8");
+    expect(formatModels(mk({ modelsSeen: ["Fable 5", "Opus 4.8"] }))).toBe(
+      "Fable 5, Opus 4.8",
+    );
+    expect(formatModels(mk({ modelsSeen: [], model: null }))).toBe("unknown");
   });
 });
 

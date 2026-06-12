@@ -15,3 +15,16 @@ export function clampPct(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.min(100, Math.max(0, n));
 }
+
+// Whether a window should read as "starts on next use" rather than a countdown.
+// Either the tracker already synthesized the awaiting row (its reset was seen
+// passed at emit time), OR the boundary has passed since the last emit by the
+// UI's own clock -- in the gap before the next 5s emit re-flags it, rendering
+// the countdown would show a nonsensical "now". The tracker decides at EMIT
+// time; the UI ticks every second, so it must guard the boundary itself.
+export function isWindowAwaiting(
+  w: { resetsAt: number; awaitingNextWindow?: true },
+  now: number,
+): boolean {
+  return w.awaitingNextWindow === true || w.resetsAt - now <= 0;
+}
