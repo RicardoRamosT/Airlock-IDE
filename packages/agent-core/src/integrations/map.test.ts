@@ -39,26 +39,57 @@ describe("mapToItems", () => {
   it("surfaces only running/failed by default, with prefixed ids", () => {
     const items = mapToItems(M, {
       deployments: [
-        { uid: "d1", name: "web", url: "u1", readyState: "BUILDING", meta: { branch: "main" } },
-        { uid: "d2", name: "web", url: "u2", readyState: "READY", meta: { branch: "main" } },
-        { uid: "d3", name: "api", url: "u3", readyState: "ERROR", meta: { branch: "fix" } },
+        {
+          uid: "d1",
+          name: "web",
+          url: "u1",
+          readyState: "BUILDING",
+          meta: { branch: "main" },
+        },
+        {
+          uid: "d2",
+          name: "web",
+          url: "u2",
+          readyState: "READY",
+          meta: { branch: "main" },
+        },
+        {
+          uid: "d3",
+          name: "api",
+          url: "u3",
+          readyState: "ERROR",
+          meta: { branch: "fix" },
+        },
       ],
     });
     expect(items).toEqual([
-      { id: "int:demo:d1", title: "web", subtitle: "main", state: "running", href: "u1" },
-      { id: "int:demo:d3", title: "api", subtitle: "fix", state: "failed", href: "u3" },
+      {
+        id: "int:demo:d1",
+        title: "web",
+        subtitle: "main",
+        state: "running",
+        href: "u1",
+      },
+      {
+        id: "int:demo:d3",
+        title: "api",
+        subtitle: "fix",
+        state: "failed",
+        href: "u3",
+      },
     ]);
   });
 
   it("omits href when the expr resolves to nothing", () => {
-    const [item] = mapToItems(
+    const items = mapToItems(
       { ...M, map: { ...M.map, href: "$.nope" } },
       { deployments: [{ uid: "d1", name: "web", readyState: "BUILDING" }] },
     );
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const it2 = item!;
-    expect(it2).toEqual({ id: "int:demo:d1", title: "web", subtitle: "", state: "running" });
-    expect("href" in it2).toBe(false);
+    expect(items).toEqual([
+      { id: "int:demo:d1", title: "web", subtitle: "", state: "running" },
+    ]);
+    // toEqual above already proves href is absent; this documents the intent.
+    expect("href" in (items[0] ?? {})).toBe(false);
   });
 
   it("returns [] when the items selector is not an array", () => {

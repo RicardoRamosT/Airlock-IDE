@@ -120,6 +120,18 @@ export {
 } from "./github/accounts";
 export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
 export { type PortProber, probePort } from "./host/probe";
+export { type CliRunner, runManifest } from "./integrations/engine";
+export { evalExpr } from "./integrations/expr";
+export type {
+  Command,
+  IntegrationItem,
+  IntegrationManifest,
+  IntegrationState,
+  MapSpec,
+  StateSpec,
+} from "./integrations/manifest";
+export { applyState, mapToItems } from "./integrations/map";
+export { INTEGRATIONS, VERCEL } from "./integrations/registry";
 export {
   type ClaudeRunner,
   type McpRegisterInput,
@@ -217,15 +229,3 @@ export {
   targetsVault,
 } from "./workspace/tree";
 export { writeWorkspaceFile } from "./workspace/write";
-export type {
-  Command,
-  IntegrationItem,
-  IntegrationManifest,
-  IntegrationState,
-  MapSpec,
-  StateSpec,
-} from "./integrations/manifest";
-export { applyState, mapToItems } from "./integrations/map";
-export { evalExpr } from "./integrations/expr";
-export { INTEGRATIONS, VERCEL } from "./integrations/registry";
-export { type CliRunner, runManifest } from "./integrations/engine";
