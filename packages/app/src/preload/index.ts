@@ -119,6 +119,7 @@ const api: AirlockApi = {
   renderServices: () => ipcRenderer.invoke("render:services"),
   activityStatus: (root) => ipcRenderer.invoke("activity:status", root),
   activityDismiss: (id) => ipcRenderer.invoke("activity:dismiss", id),
+  integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostProbe: (url) => ipcRenderer.invoke("host:probe", url),

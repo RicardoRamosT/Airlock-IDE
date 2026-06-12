@@ -25,8 +25,10 @@ import type {
   SearchMatch,
   SearchResults,
   SecretMeta,
+  SteadyIntegration,
 } from "@airlock/agent-core";
 
+export type { IntegrationItem, SteadyIntegration } from "@airlock/agent-core";
 export type {
   AgentCommandPolicy,
   AnthropicIndicator,
@@ -581,6 +583,7 @@ export interface AirlockApi {
   // global). null = blank pane -> global items only.
   activityStatus(root: string | null): Promise<ActivityItem[]>;
   activityDismiss(id: string): Promise<void>;
+  integrationsSteady(): Promise<SteadyIntegration[]>;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only

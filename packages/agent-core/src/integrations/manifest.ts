@@ -27,6 +27,11 @@ export interface MapSpec {
   show?: IntegrationState[]; // surface only these; default ["running","failed"]
 }
 
+// Where a manifest's items render. Absent or "activity" = the transient
+// Activity feed (default). { view } = a steady-state surface rendered under
+// that sidebar view (e.g. "databases").
+export type Surface = "activity" | { view: string };
+
 export interface IntegrationManifest {
   id: string; // stable; item ids are `int:<id>:<key>`
   name: string;
@@ -38,6 +43,7 @@ export interface IntegrationManifest {
     cli: Command; // stdout parsed as JSON
   };
   map: MapSpec;
+  surface?: Surface; // default "activity" (transient, Activity feed)
 }
 
 // Neutral, UI-agnostic result. app/main maps this to the renderer's

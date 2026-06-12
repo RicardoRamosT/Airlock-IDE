@@ -9,6 +9,7 @@ import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
+import { IntegrationsSteadySection } from "./IntegrationsSteadySection";
 import { LocalHostSection } from "./LocalHostSection";
 import { NeonSection } from "./NeonSection";
 import { QuotaMeter } from "./QuotaMeter";
@@ -65,6 +66,7 @@ export function Sidebar() {
     body = (
       <>
         <NeonSection />
+        <IntegrationsSteadySection view="databases" />
         <DatabasesSection />
       </>
     );

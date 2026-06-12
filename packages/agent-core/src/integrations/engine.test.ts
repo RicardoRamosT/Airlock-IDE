@@ -1,7 +1,17 @@
 // packages/agent-core/src/integrations/engine.test.ts
 import { describe, expect, it } from "vitest";
 import type { CliRunner } from "./engine";
-import { type PollCache, pollIntegrations, runManifest } from "./engine";
+import {
+  detectStatus,
+  isCommandMissing,
+  type PollCache,
+  pollIntegrations,
+  pollSteady,
+  runManifest,
+  type SteadyCache,
+  steadyView,
+} from "./engine";
+import type { IntegrationManifest } from "./manifest";
 import { VERCEL } from "./registry";
 
 const LS_OUT = JSON.stringify({
@@ -86,6 +96,62 @@ describe("runManifest", () => {
   });
 });
 
+describe("steadyView + transient/steady split", () => {
+  const steadyManifest: IntegrationManifest = {
+    id: "steady-x",
+    name: "SteadyX",
+    surface: { view: "databases" },
+    detect: { authCheck: { cmd: "x", args: ["whoami"] } },
+    poll: { everyMs: 1000, cli: { cmd: "x", args: ["ls", "--json"] } },
+    map: { title: "$.name", state: { from: "$.s", default: "idle" } },
+  };
+
+  it("steadyView returns the target view for steady manifests, null for transient", () => {
+    expect(steadyView(steadyManifest)).toBe("databases");
+    expect(steadyView(VERCEL)).toBeNull(); // VERCEL has no surface -> transient
+  });
+
+  it("pollIntegrations ignores steady manifests (it only feeds the Activity feed)", async () => {
+    const run: CliRunner = async () => {
+      throw new Error("should not be polled");
+    };
+    const out = await pollIntegrations(
+      [steadyManifest],
+      "/repo",
+      1000,
+      {},
+      run,
+    );
+    expect(out).toEqual([]);
+  });
+});
+
+describe("detectStatus", () => {
+  const m = VERCEL; // any manifest; we only exercise its detect.authCheck
+  it("ready when the auth check exits 0", async () => {
+    const run: CliRunner = async () => "";
+    expect(await detectStatus(m, undefined, 8000, run)).toBe("ready");
+  });
+  it("absent when the binary is missing (ENOENT)", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("not found"), { code: "ENOENT" });
+    };
+    expect(await detectStatus(m, undefined, 8000, run)).toBe("absent");
+  });
+  it("unauthed when the auth check runs but fails (non-ENOENT)", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("not logged in"), { code: 1 });
+    };
+    expect(await detectStatus(m, undefined, 8000, run)).toBe("unauthed");
+  });
+  it("isCommandMissing only matches ENOENT", () => {
+    expect(isCommandMissing({ code: "ENOENT" })).toBe(true);
+    expect(isCommandMissing({ code: 1 })).toBe(false);
+    expect(isCommandMissing(null)).toBe(false);
+    expect(isCommandMissing(new Error("x"))).toBe(false);
+  });
+});
+
 describe("pollIntegrations", () => {
   const counting = () => {
     let polls = 0;
@@ -111,5 +177,92 @@ describe("pollIntegrations", () => {
     // 25s after the first run: past everyMs -> re-runs.
     await pollIntegrations([VERCEL], "/repo", 26000, cache, run);
     expect(polls()).toBe(2);
+  });
+});
+
+describe("pollSteady", () => {
+  // A steady manifest whose probe returns a 2-element JSON array.
+  const PROBE = JSON.stringify([
+    { name: "W1", state: "STARTED", size: "X-Small" },
+    { name: "W2", state: "SUSPENDED", size: "Small" },
+  ]);
+  const steadyM: IntegrationManifest = {
+    id: "wh",
+    name: "Warehouses",
+    surface: { view: "databases" },
+    detect: { authCheck: { cmd: "wh", args: ["test"] } },
+    poll: { everyMs: 30000, cli: { cmd: "wh", args: ["ls", "--json"] } },
+    map: {
+      items: "$",
+      key: "$.name",
+      title: "$.name",
+      subtitle: "$.size",
+      state: {
+        from: "$.state",
+        running: ["STARTED", "RESUMING"],
+        default: "idle",
+      },
+      show: ["running", "idle", "done", "failed"],
+    },
+  };
+
+  it("returns a ready integration with one resource per item", async () => {
+    const run: CliRunner = async (_c, args) =>
+      args[0] === "test" ? "" : PROBE;
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toEqual({
+      id: "wh",
+      name: "Warehouses",
+      view: "databases",
+      status: "ready",
+      resources: [
+        { id: "int:wh:W1", title: "W1", subtitle: "X-Small", state: "running" },
+        { id: "int:wh:W2", title: "W2", subtitle: "Small", state: "idle" },
+      ],
+    });
+  });
+
+  it("returns absent (no resources) when the binary is missing", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("nope"), { code: "ENOENT" });
+    };
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toMatchObject({ status: "absent", resources: [] });
+  });
+
+  it("stays ready with no rows when authed but the probe fails", async () => {
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] === "test") return ""; // authed
+      throw new Error("query failed");
+    };
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toMatchObject({ status: "ready", resources: [] });
+  });
+
+  it("honors everyMs: serves cache within the window", async () => {
+    let polls = 0;
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] !== "test") polls++;
+      return args[0] === "test" ? "" : PROBE;
+    };
+    const cache: SteadyCache = {};
+    await pollSteady([steadyM], null, 1000, cache, run);
+    await pollSteady([steadyM], null, 1000 + 5000, cache, run); // within 30000
+    expect(polls).toBe(1);
+  });
+
+  it("ignores transient (Activity) manifests", async () => {
+    const run: CliRunner = async () => "";
+    expect(await pollSteady([VERCEL], null, 1000, {}, run)).toEqual([]);
+  });
+
+  it("surfaces unauthed (no resources) when authed check fails but binary exists", async () => {
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] === "test")
+        throw Object.assign(new Error("not logged in"), { code: 1 });
+      return PROBE; // unreachable: detect fails first
+    };
+    const [s] = await pollSteady([steadyM], null, 1000, {}, run);
+    expect(s).toMatchObject({ status: "unauthed", resources: [] });
   });
 });

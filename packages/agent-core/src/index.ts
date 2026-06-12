@@ -122,9 +122,16 @@ export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
 export { type PortProber, probePort } from "./host/probe";
 export {
   type CliRunner,
+  type DetectStatus,
+  detectStatus,
+  isCommandMissing,
   type PollCache,
   pollIntegrations,
+  pollSteady,
   runManifest,
+  type SteadyCache,
+  type SteadyIntegration,
+  steadyView,
 } from "./integrations/engine";
 export { evalExpr } from "./integrations/expr";
 export type {
@@ -134,9 +141,10 @@ export type {
   IntegrationState,
   MapSpec,
   StateSpec,
+  Surface,
 } from "./integrations/manifest";
 export { applyState, mapToItems } from "./integrations/map";
-export { INTEGRATIONS, VERCEL } from "./integrations/registry";
+export { INTEGRATIONS, SNOWFLAKE, VERCEL } from "./integrations/registry";
 export {
   type ClaudeRunner,
   type McpRegisterInput,

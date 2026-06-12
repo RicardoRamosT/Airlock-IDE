@@ -18,6 +18,7 @@ import {
   gitFileVersions,
   gitPull,
   gitPush,
+  INTEGRATIONS,
   importAllDotEnv,
   importExternal,
   injectInto,
@@ -32,6 +33,7 @@ import {
   type PtySession,
   parseConnString,
   pingDb,
+  pollSteady,
   probePort,
   readAudit,
   readImageDataUrl,
@@ -45,6 +47,7 @@ import {
   redactSecrets,
   resolveWithin,
   runGit,
+  type SteadyCache,
   searchProject,
   setGlobalSecret,
   setSecret,
@@ -110,6 +113,10 @@ import {
 } from "./window";
 
 const sessions = new Map<string, PtySession>();
+
+// Per-manifest steady-state poll cache, persisted across IPC calls so each
+// manifest's everyMs cadence holds regardless of how often the sidebar polls.
+const steadyCache: SteadyCache = {};
 
 // Per-PTY owning window (sessionId -> BrowserWindow id). Terminal-reading agent
 // tools are scoped to the agent's (last-focused) window, so a window only ever
@@ -1036,6 +1043,12 @@ export function registerIpc(
     activityStatus(
       typeof root === "string" && root && isOpenRoot(e, root) ? root : null,
     ),
+  );
+
+  // integrations:steady -> SteadyIntegration[] for the sidebar steady surface.
+  // Account-wide (a warehouse/service is not project-scoped), so no root.
+  ipcMain.handle("integrations:steady", () =>
+    pollSteady(INTEGRATIONS, null, Date.now(), steadyCache),
   );
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast

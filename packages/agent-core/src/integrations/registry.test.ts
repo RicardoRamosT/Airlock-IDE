@@ -1,7 +1,7 @@
 // packages/agent-core/src/integrations/registry.test.ts
 import { describe, expect, it } from "vitest";
 import { mapToItems } from "./map";
-import { INTEGRATIONS, VERCEL } from "./registry";
+import { INTEGRATIONS, SNOWFLAKE, VERCEL } from "./registry";
 
 // Captured shape of `vercel ls --json` (trimmed to the fields the manifest reads).
 const VERCEL_FIXTURE = {
@@ -29,6 +29,42 @@ const VERCEL_FIXTURE = {
     },
   ],
 };
+
+// Captured shape of `snow sql -q "SHOW WAREHOUSES" --format=json` (trimmed).
+const WAREHOUSES = [
+  { name: "COMPUTE_WH", state: "STARTED", size: "X-Small" },
+  { name: "ETL_WH", state: "SUSPENDED", size: "Small" },
+  { name: "LOAD_WH", state: "RESUMING", size: "Medium" },
+];
+
+describe("SNOWFLAKE manifest", () => {
+  it("is registered and targets the databases view", () => {
+    expect(INTEGRATIONS).toContain(SNOWFLAKE);
+    expect(SNOWFLAKE.surface).toEqual({ view: "databases" });
+  });
+  it("maps each warehouse to a row, running for STARTED/RESUMING, idle for SUSPENDED", () => {
+    expect(mapToItems(SNOWFLAKE, WAREHOUSES)).toEqual([
+      {
+        id: "int:snowflake:COMPUTE_WH",
+        title: "COMPUTE_WH",
+        subtitle: "X-Small",
+        state: "running",
+      },
+      {
+        id: "int:snowflake:ETL_WH",
+        title: "ETL_WH",
+        subtitle: "Small",
+        state: "idle",
+      },
+      {
+        id: "int:snowflake:LOAD_WH",
+        title: "LOAD_WH",
+        subtitle: "Medium",
+        state: "running",
+      },
+    ]);
+  });
+});
 
 describe("VERCEL manifest", () => {
   it("is registered", () => {
