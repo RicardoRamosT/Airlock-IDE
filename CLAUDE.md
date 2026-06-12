@@ -13,6 +13,17 @@ ad-hoc signed — recipients use the Gatekeeper "Open Anyway" bypass).
 **Testing convention:** unit-test pure modules; keep electron/chokidar wiring
 thin and untested (e.g. `fsWatch.ts` only tests its pure helper).
 
+**Renderer ↔ agent-core boundary:** the React renderer must NEVER *value*-import
+`@airlock/agent-core`. Its index barrel re-exports native deps (e.g.
+`@napi-rs/keyring` via `broker/keychain`), so `electron-vite` tries to bundle a
+`.node` binary into the browser build and fails
+(`UNLOADABLE_DEPENDENCY: stream did not contain valid UTF-8`). `import type` is
+fine (erased at build). For renderer-facing *runtime* data, put it in
+`packages/app/src/shared/ipc.ts` (no native deps) or pass it over IPC — e.g.
+`TERMINAL_DISPLAY_NAMES` mirrors agent-core's registry there. **`npm test` and
+`npm run typecheck` do NOT catch this — only `npm run package` does**, so
+repackage after any change that adds a renderer import.
+
 ## Claude usage quota meter
 
 A sidebar-pinned, **account-wide** meter showing Claude subscription usage
