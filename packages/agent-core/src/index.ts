@@ -119,6 +119,12 @@ export {
   switchGhAccount,
 } from "./github/accounts";
 export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
+export {
+  COMMON_DEV_PORTS,
+  FRONTEND_SUBDIRS,
+  guessDevPort,
+  pickListeningPort,
+} from "./host/detect";
 export { type PortProber, probePort } from "./host/probe";
 export {
   type CliRunner,

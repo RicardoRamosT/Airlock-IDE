@@ -17,10 +17,12 @@
 import {
   type DockerStatus,
   dockerContainers,
+  FRONTEND_SUBDIRS,
   type GitStatus,
   getGlobalSecret,
   getSecretValue,
   gitStatus,
+  guessDevPort,
   headSha,
   listSecrets,
   type NeonBranch,
@@ -31,7 +33,9 @@ import {
   neonListProjects,
   normalizeRepoUrl,
   originRemoteUrl,
+  type PortProber,
   parseConnString,
+  pickListeningPort,
   pingDb,
   probePort,
   readProjectConfig,
@@ -162,41 +166,34 @@ export function gitStatusFor(root: string): Promise<GitStatus> {
   return gitStatus(root);
 }
 
-// Resolve the per-project dev URL: config.devUrl if set, else a best-effort
-// guess from package.json (explicit --port flag, then framework default).
-// Returns null when nothing can be determined. Shared by host:localUrl and
-// hostStatus so the URL logic lives in one place.
-export async function resolveDevUrl(root: string): Promise<string | null> {
+// Resolve the per-project dev URL. config.devUrl wins (explicit; shown whether
+// or not it is reachable). Otherwise DETECT a running server: guess candidate
+// ports from package.json at the root AND common frontend subdirs (frontend/,
+// web/, ...), then surface a port that is actually LISTENING -- preferring a
+// guessed one, else scanning the common dev ports. Returns null when nothing is
+// up, so a guessed-but-down port is never shown (the old root-only guess gave
+// both false negatives -- a frontend in a subdir -- and false positives -- a
+// guessed port occupied by an unrelated server). Shared by host:localUrl and
+// hostStatus. The prober is injectable; defaults to the real TCP probe.
+export async function resolveDevUrl(
+  root: string,
+  probe: PortProber = probePort,
+): Promise<string | null> {
   const cfg = await readProjectConfig(root);
   if (cfg.devUrl) return cfg.devUrl;
-  try {
-    const { content } = await readWorkspaceFile(root, "package.json");
-    const pkg = JSON.parse(content) as {
-      scripts?: Record<string, string>;
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    const deps = {
-      ...(pkg.dependencies ?? {}),
-      ...(pkg.devDependencies ?? {}),
-    };
-    const scriptText = Object.values(pkg.scripts ?? {}).join(" ");
-    const portMatch = scriptText.match(/--port[ =](\d{2,5})/);
-    const port = portMatch
-      ? Number(portMatch[1])
-      : deps.next
-        ? 3000
-        : deps.vite || deps["@vitejs/plugin-react"]
-          ? 5173
-          : deps["react-scripts"]
-            ? 3000
-            : deps.astro
-              ? 4321
-              : null;
-    return port ? `http://localhost:${port}` : null;
-  } catch {
-    return null;
+  const guessed: number[] = [];
+  for (const sub of FRONTEND_SUBDIRS) {
+    const rel = sub ? `${sub}/package.json` : "package.json";
+    try {
+      const { content } = await readWorkspaceFile(root, rel);
+      const port = guessDevPort(content);
+      if (port && !guessed.includes(port)) guessed.push(port);
+    } catch {
+      // no package.json at this path -- skip
+    }
   }
+  const port = await pickListeningPort(guessed, probe);
+  return port ? `http://localhost:${port}` : null;
 }
 
 // Local dev server status: the resolved dev URL plus whether its host/port is
