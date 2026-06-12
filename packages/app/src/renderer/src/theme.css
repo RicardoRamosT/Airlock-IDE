@@ -3033,7 +3033,7 @@ textarea:focus-visible {
   text-align: right;
 }
 .search-preview {
-  font-family: var(--mono, monospace);
+  font-family: "SF Mono", Menlo, monospace;
   opacity: 0.85;
   white-space: pre;
   overflow: hidden;
@@ -3052,7 +3052,7 @@ textarea:focus-visible {
 /* Editor right-click context menu (EditorContextMenu.tsx). Positioned via
    inline style (fixed, at click coords). Uses palette-backdrop for click-away. */
 .editor-context-menu {
-  background: var(--panel, #1e1e1e);
+  background: var(--bg-panel);
   border: 1px solid var(--border, #333);
   border-radius: 6px;
   padding: 4px;
