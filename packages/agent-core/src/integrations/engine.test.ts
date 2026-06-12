@@ -9,7 +9,6 @@ import {
   pollSteady,
   runManifest,
   type SteadyCache,
-  type SteadyIntegration,
   steadyView,
 } from "./engine";
 import type { IntegrationManifest } from "./manifest";
