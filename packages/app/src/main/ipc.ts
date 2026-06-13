@@ -112,11 +112,7 @@ import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
 import { DockController } from "./terminal/dockController";
-import {
-  getDockController,
-  hasDockController,
-  setDockController,
-} from "./terminal/dockRegistry";
+import { getDockController, setDockController } from "./terminal/dockRegistry";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
 import {
@@ -662,17 +658,14 @@ export function registerIpc(
     // If this terminal is dockable and Accessibility is granted, bind a
     // DockController to this window so the renderer's terminal:dockRect signals
     // can pin the real window onto the terminal pane. No permission -> leave it
-    // as a free-floating window (the documented fallback). accessibilityTrusted
-    // is last in the && so the one-time prompt only fires for a known dockable
-    // terminal that is not already docked.
+    // as a free-floating window (the documented fallback). Always overwrite any
+    // existing controller: if the user changed defaultTerminal mid-session the
+    // old one carries a stale axProcess (and holds no OS handles, so it just
+    // GCs). accessibilityTrusted is last in the && so its one-time macOS prompt
+    // only fires for a known dockable terminal.
     const term = KNOWN_TERMINALS.find((t) => t.id === id);
     const win = BrowserWindow.fromWebContents(e.sender);
-    if (
-      term &&
-      win &&
-      !hasDockController(win.id) &&
-      accessibilityTrusted(true)
-    ) {
+    if (term && win && accessibilityTrusted(true)) {
       setDockController(
         win.id,
         new DockController({

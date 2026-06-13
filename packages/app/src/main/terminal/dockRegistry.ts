@@ -11,9 +11,6 @@ export function setDockController(id: number, c: DockController): void {
 export function getDockController(id: number): DockController | undefined {
   return controllers.get(id);
 }
-export function hasDockController(id: number): boolean {
-  return controllers.has(id);
-}
 export function deleteDockController(id: number): void {
   controllers.delete(id);
 }

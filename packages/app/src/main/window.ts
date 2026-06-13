@@ -164,6 +164,10 @@ export function createWindow(): BrowserWindow {
   );
   win.on("hide", () => void getDockController(win.id)?.setWindowVisible(false));
   win.on("show", () => void getDockController(win.id)?.setWindowVisible(true));
+  // If 'moved'/'resized' never fires after a 'move'/'will-resize' (rare:
+  // Mission Control / Stage Manager transitions, display reconfigure),
+  // dragSettling stays true and the terminal stays hidden until the next
+  // move/resize cycle. Self-healing on the next interaction; acceptable for v1.
   win.on("move", startDrag);
   win.on("moved", endDrag);
   win.on("will-resize", startDrag);
