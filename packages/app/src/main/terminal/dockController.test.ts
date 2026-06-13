@@ -40,6 +40,8 @@ describe("DockController", () => {
     const { c, calls, run } = make();
     await c.update({ rect: domRect, shown: true, overlayActive: false });
     c.onDragStart();
+    // onDragStart fires apply() without awaiting; one microtask tick flushes it
+    // because the mock run() records synchronously before resolving.
     await Promise.resolve();
     expect(calls.at(-1)).toContain("{-32000, -32000}"); // hidden during drag
     run.mockClear();

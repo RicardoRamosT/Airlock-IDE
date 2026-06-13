@@ -56,6 +56,9 @@ export class DockController {
     await this.apply();
   }
 
+  // Fire-and-forget: a drag-start must hide immediately without the caller
+  // (a synchronous BrowserWindow event handler) awaiting osascript; the settle
+  // is awaited in onDragEnd.
   onDragStart(): void {
     this.dragging = true;
     void this.apply();
@@ -75,7 +78,16 @@ export class DockController {
     };
   }
 
+  // NOTE(concurrency): apply() is not serialized. Rapid signals (resize spam, a
+  // drag overlapping a rect update) can interleave osascript calls; the last to
+  // land wins. Calls are idempotent against window state and "hide" is issued
+  // first on drag, so races are cosmetic and self-correcting for v1. Revisit
+  // with a single-flight queue if fast-resize flicker is reported.
   private async apply(): Promise<void> {
+    // `|| !this.last` is also the type guard that narrows this.last to non-null
+    // for the show branch below: dockVisibility can only be "show" when
+    // paneShown (= last?.shown) is true, but TS cannot infer that across
+    // state(), so the explicit null check is load-bearing, not dead code.
     if (dockVisibility(this.state()) === "hide" || !this.last) {
       await this.safe(hideWindowScript(this.deps.axProcess));
       return;
