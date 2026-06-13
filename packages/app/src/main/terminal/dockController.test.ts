@@ -56,4 +56,34 @@ describe("DockController", () => {
     await c.setWindowVisible(false);
     expect(calls.at(-1)).toContain("{-32000, -32000}");
   });
+
+  it("skips osascript when the computed frame is unchanged (dedupe)", async () => {
+    const { c, run } = make();
+    await c.update({ rect: domRect, shown: true, overlayActive: false });
+    expect(run).toHaveBeenCalledTimes(1);
+    // An identical signal yields the same setFrame script -> skipped.
+    await c.update({ rect: domRect, shown: true, overlayActive: false });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-runs an identical script after a failure (no false dedupe)", async () => {
+    let failNext = true;
+    const run = vi.fn((_script: string) => {
+      if (failNext) {
+        failNext = false;
+        return Promise.reject(new Error("no window yet"));
+      }
+      return Promise.resolve("");
+    });
+    const c = new DockController({
+      axProcess: "Ghostty",
+      run,
+      getContentBounds: () => content,
+    });
+    // First apply fails (window not up yet) -> not memoized; the retry with the
+    // same rect must run again rather than being deduped away.
+    await c.update({ rect: domRect, shown: true, overlayActive: false });
+    await c.update({ rect: domRect, shown: true, overlayActive: false });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
 });

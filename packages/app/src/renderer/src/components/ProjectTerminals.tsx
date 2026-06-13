@@ -79,6 +79,7 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const appPage = useApp((s) => s.appPage);
   const dockRef = useRef<HTMLDivElement>(null);
   const openedRef = useRef(false);
+  const tabRoot = useApp((s) => s.tabState[tabId]?.root ?? null);
   const docked = defaultTerminal !== "airlock";
   const shownDock = mainPrimary === "terminal" && isVisible;
   const overlay = overlayActive({ searchOpen, references, appPage });
@@ -122,14 +123,16 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     };
   }, [docked, report]);
 
-  // Auto-open the external terminal ONCE when the docked pane is first shown
-  // (parity with the airlock default's auto-spawn). Main launches it + creates
-  // the DockController; we then re-report on a short schedule so the controller
-  // positions the window once it has actually appeared (launch latency / cold
-  // start). If Accessibility is not granted, main opens it as a free window
-  // (the fallback) and these reports are simply dropped.
+  // Auto-open the external terminal ONCE, when the docked pane is shown AND this
+  // tab has a project root (parity with the airlock default's auto-spawn). The
+  // tabRoot gate matters for a tab opened blank: openExternalTerminal needs a
+  // root, so we wait for a folder to be attached rather than burning the
+  // once-only guard on a no-op. Main launches it + creates the DockController;
+  // we then re-report on a short schedule so the controller can position the
+  // window once it has actually appeared (launch latency / cold start). Without
+  // Accessibility, main opens a free window (the fallback) and the reports drop.
   useEffect(() => {
-    if (!docked || !shownDock || openedRef.current) return;
+    if (!docked || !shownDock || !tabRoot || openedRef.current) return;
     openedRef.current = true;
     openExternalTerminal(tabId);
     const timers = [300, 900, 1800, 3000].map((ms) =>
@@ -138,7 +141,7 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     return () => {
       for (const t of timers) clearTimeout(t);
     };
-  }, [docked, shownDock, tabId, openExternalTerminal]);
+  }, [docked, shownDock, tabRoot, tabId, openExternalTerminal]);
 
   // On screen = the shown scene's pane(s): the primary terminal (active) and/or
   // the secondary when it is a terminal. (The derived mainPrimary/mainSecondary

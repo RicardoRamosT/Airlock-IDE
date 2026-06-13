@@ -36,6 +36,8 @@ export class DockController {
   } | null = null;
   private windowVisible = true;
   private dragging = false;
+  // The last script that ran cleanly, for dedupe (see apply()).
+  private lastApplied: string | null = null;
 
   constructor(private readonly deps: DockDeps) {
     this.run = deps.run ?? realRunner;
@@ -85,23 +87,37 @@ export class DockController {
   // with a single-flight queue if fast-resize flicker is reported.
   private async apply(): Promise<void> {
     // `|| !this.last` is also the type guard that narrows this.last to non-null
-    // for the show branch below: dockVisibility can only be "show" when
-    // paneShown (= last?.shown) is true, but TS cannot infer that across
-    // state(), so the explicit null check is load-bearing, not dead code.
-    if (dockVisibility(this.state()) === "hide" || !this.last) {
-      await this.safe(hideWindowScript(this.deps.axProcess));
-      return;
-    }
-    const screen = paneScreenRect(this.deps.getContentBounds(), this.last.rect);
-    await this.safe(setFrameScript(this.deps.axProcess, screen));
+    // for the show branch: dockVisibility can only be "show" when paneShown
+    // (= last?.shown) is true, but TS cannot infer that across state(), so the
+    // explicit null check is load-bearing, not dead code. In the ternary's else
+    // branch TS narrows this.last to non-null for the same reason.
+    const script =
+      dockVisibility(this.state()) === "hide" || !this.last
+        ? hideWindowScript(this.deps.axProcess)
+        : setFrameScript(
+            this.deps.axProcess,
+            paneScreenRect(this.deps.getContentBounds(), this.last.rect),
+          );
+    // Dedupe: collapses the renderer's per-frame resize reports and repeated
+    // drag-hides to a single osascript spawn. Memoize BEFORE the await so an
+    // overlapping apply (the fire-and-forget onDragStart racing onDragEnd) reads
+    // the current key, not a stale one -- otherwise a fast drag's snap-back gets
+    // deduped away and the window stays hidden. On failure clear the key so the
+    // next identical apply (a post-open retry) re-runs until the window exists.
+    if (script === this.lastApplied) return;
+    this.lastApplied = script;
+    if (!(await this.safe(script))) this.lastApplied = null;
   }
 
   // osascript failures (no window yet, permission, etc.) must never crash main.
-  private async safe(script: string): Promise<void> {
+  // Returns whether the script ran cleanly, so apply() only dedupes successes.
+  private async safe(script: string): Promise<boolean> {
     try {
       await this.run(script);
+      return true;
     } catch (err) {
       console.error("[dock] osascript failed", err);
+      return false;
     }
   }
 }
