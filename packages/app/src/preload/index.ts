@@ -4,6 +4,7 @@ import type {
   AgentCommandResult,
   AirlockApi,
   AnthropicStatus,
+  DockRectSignal,
   FsChangedEvent,
   LspDiagnostic,
   MenuAction,
@@ -132,6 +133,8 @@ const api: AirlockApi = {
   listExternalTerminals: () => ipcRenderer.invoke("terminal:listExternal"),
   openExternalTerminal: (root) =>
     ipcRenderer.invoke("terminal:openExternal", root),
+  terminalDockRect: (signal: DockRectSignal) =>
+    ipcRenderer.send("terminal:dockRect", signal),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
   usageGet: () => ipcRenderer.invoke("usage:get"),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { TERMINAL_DISPLAY_NAMES } from "../../../shared/ipc";
+import { useCallback, useEffect, useRef } from "react";
+import type { DomRect } from "../../../shared/ipc";
+import { overlayActive } from "../lib/dockSignals";
 import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
 import { TerminalPane } from "./TerminalPane";
 
@@ -43,7 +44,6 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   const runningNotice = useApp((s) => s.runningNotice);
   const showRunningProcessNotice = useApp((s) => s.showRunningProcessNotice);
   const root = useApp((s) => s.root);
-  const tabRoot = useApp((s) => s.tabState[tabId]?.root ?? null);
 
   // Always keep at least one terminal alive in THIS tab. The ref guards against
   // React 19 StrictMode replaying this mount effect with a stale (length === 0)
@@ -69,6 +69,79 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
     spawningDefault.current = true;
     addTerminal(tabId);
   }, [terminals.length, addTerminal, isVisible, tabId, defaultTerminal]);
+
+  // --- Docked external terminal (Ghostty et al.) ---
+  // When the default terminal is external we do not mount xterm; instead we show
+  // a placeholder host, auto-open the real terminal, and report this pane's
+  // rect + show/overlay state to main, which pins the real window onto the pane.
+  const searchOpen = useApp((s) => s.searchOpen);
+  const references = useApp((s) => s.references);
+  const appPage = useApp((s) => s.appPage);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const openedRef = useRef(false);
+  const tabRoot = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const docked = defaultTerminal !== "airlock";
+  const shownDock = mainPrimary === "terminal" && isVisible;
+  const overlay = overlayActive({ searchOpen, references, appPage });
+
+  // Report the docked pane's rect + signals to main. useCallback so the effects
+  // share one identity; it changes when shown/overlay change, which re-runs the
+  // tracking effect to fire a fresh report on cover/uncover/show/hide.
+  const report = useCallback(() => {
+    const el = dockRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const rect: DomRect = {
+      left: r.left,
+      top: r.top,
+      width: r.width,
+      height: r.height,
+    };
+    window.airlock.terminalDockRect({
+      rect,
+      shown: shownDock,
+      overlayActive: overlay,
+    });
+  }, [shownDock, overlay]);
+  // Latest report fn, so the auto-open effect can re-report without listing
+  // `report` in its deps (which would reset the open schedule on overlay toggle).
+  const reportRef = useRef(report);
+  reportRef.current = report;
+
+  // Live tracking: report on mount + pane-resize + window-resize.
+  useEffect(() => {
+    if (!docked) return;
+    const el = dockRef.current;
+    if (!el) return;
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    window.addEventListener("resize", report);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", report);
+    };
+  }, [docked, report]);
+
+  // Auto-open the external terminal ONCE, when the docked pane is shown AND this
+  // tab has a project root (parity with the airlock default's auto-spawn). The
+  // tabRoot gate matters for a tab opened blank: openExternalTerminal needs a
+  // root, so we wait for a folder to be attached rather than burning the
+  // once-only guard on a no-op. Main launches it + creates the DockController;
+  // we then re-report on a short schedule so the controller can position the
+  // window once it has actually appeared (launch latency / cold start). Without
+  // Accessibility, main opens a free window (the fallback) and the reports drop.
+  useEffect(() => {
+    if (!docked || !shownDock || !tabRoot || openedRef.current) return;
+    openedRef.current = true;
+    openExternalTerminal(tabId);
+    const timers = [300, 900, 1800, 3000].map((ms) =>
+      setTimeout(() => reportRef.current(), ms),
+    );
+    return () => {
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [docked, shownDock, tabRoot, tabId, openExternalTerminal]);
 
   // On screen = the shown scene's pane(s): the primary terminal (active) and/or
   // the secondary when it is a terminal. (The derived mainPrimary/mainSecondary
@@ -115,30 +188,22 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   // root, title, and per-pane terminal controls would target the wrong pane.
   // switchTab no-ops when this tab is already active; the terminal host nodes are
   // stable, so this re-render does not remount/blur xterm.
+  if (docked) {
+    return (
+      <div
+        className="terminal-manager"
+        onMouseDownCapture={() => switchTab(tabId)}
+      >
+        <div ref={dockRef} className="terminal-dock-host" />
+      </div>
+    );
+  }
+
   return (
     <div
       className="terminal-manager"
       onMouseDownCapture={() => switchTab(tabId)}
     >
-      {defaultTerminal !== "airlock" &&
-        terminals.length === 0 &&
-        isVisible &&
-        tabRoot !== null && (
-          <div className="terminal-external-placeholder">
-            <p>
-              Terminals open in{" "}
-              {TERMINAL_DISPLAY_NAMES[defaultTerminal] ?? defaultTerminal}.
-            </p>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => openExternalTerminal(tabId)}
-            >
-              Open in{" "}
-              {TERMINAL_DISPLAY_NAMES[defaultTerminal] ?? defaultTerminal}
-            </button>
-          </div>
-        )}
       {noticeTerminal && (
         <div className="terminal-notice" role="status">
           <span className="terminal-notice-text">

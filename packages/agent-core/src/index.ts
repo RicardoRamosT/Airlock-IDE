@@ -204,6 +204,15 @@ export {
 } from "./render/client";
 export { normalizeRepoUrl } from "./render/parse";
 export {
+  type DockState,
+  type DomRect,
+  dockVisibility,
+  hideWindowScript,
+  paneScreenRect,
+  type ScreenRect,
+  setFrameScript,
+} from "./terminal/dock";
+export {
   detectInstalledTerminals,
   type ExternalTerminal,
   KNOWN_TERMINALS,
