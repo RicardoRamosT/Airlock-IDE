@@ -26,9 +26,8 @@ it("shows a 'not installed' row + Install button when absent", async () => {
     },
   ]);
   render(<IntegrationsSteadySection view="databases" />);
-  expect(
-    await screen.findByText(/Snowflake CLI not installed/),
-  ).toBeTruthy();
+  expect(await screen.findByText("Snowflake")).toBeTruthy(); // name header
+  expect(screen.getByText("CLI not installed")).toBeTruthy(); // muted subtitle
   expect(screen.getByRole("button", { name: "Install" })).toBeTruthy();
 });
 
