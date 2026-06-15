@@ -1,7 +1,7 @@
 // packages/agent-core/src/integrations/registry.test.ts
 import { describe, expect, it } from "vitest";
 import { mapToItems } from "./map";
-import { AZURE, INTEGRATIONS, NEON, SNOWFLAKE, VERCEL } from "./registry";
+import { AZURE, INTEGRATIONS, SNOWFLAKE, VERCEL } from "./registry";
 
 // Captured shape of `vercel ls --json` (trimmed to the fields the manifest reads).
 const VERCEL_FIXTURE = {
@@ -90,38 +90,6 @@ describe("VERCEL manifest", () => {
   });
 });
 
-// Captured shape of `neonctl projects list --output json` (trimmed). Neon
-// projects have no live run state, so each maps to an idle row.
-const NEON_PROJECTS = {
-  projects: [
-    { id: "proj-1", name: "acme-prod", region_id: "aws-us-east-2" },
-    { id: "proj-2", name: "acme-dev", region_id: "aws-eu-central-1" },
-  ],
-};
-
-describe("NEON manifest", () => {
-  it("is registered and targets the databases view", () => {
-    expect(INTEGRATIONS).toContain(NEON);
-    expect(NEON.surface).toEqual({ view: "databases" });
-  });
-  it("maps each project to an idle row (projects have no live state)", () => {
-    expect(mapToItems(NEON, NEON_PROJECTS)).toEqual([
-      {
-        id: "int:neon:proj-1",
-        title: "acme-prod",
-        subtitle: "aws-us-east-2",
-        state: "idle",
-      },
-      {
-        id: "int:neon:proj-2",
-        title: "acme-dev",
-        subtitle: "aws-eu-central-1",
-        state: "idle",
-      },
-    ]);
-  });
-});
-
 // Captured shape of `az webapp list --output json` (trimmed).
 const WEBAPPS = [
   { name: "api-prod", state: "Running", resourceGroup: "rg-prod" },
@@ -153,7 +121,7 @@ describe("AZURE manifest", () => {
 
 describe("steady manifests carry an install command", () => {
   it("each ships a `brew install` command for the absent-state Install button", () => {
-    for (const m of [SNOWFLAKE, NEON, AZURE]) {
+    for (const m of [SNOWFLAKE, AZURE]) {
       expect(m.install?.command).toMatch(/^brew install /);
     }
   });

@@ -59,32 +59,12 @@ export const SNOWFLAKE: IntegrationManifest = {
   install: { command: "brew install snowflake-cli" },
 };
 
-// Neon: projects via `neonctl projects list --output json`, authed through the
-// CLI's own login (`neonctl me`) -- no API key stored in AirLock. Steady-state
-// under the databases view, beside the API-based Neon section. Projects have no
-// live run state, so every project is an idle row (we read a state field that
-// does not exist -> default idle). The CLI wraps the Neon API, whose list shape
-// is `{ projects: [...] }`; if a future neonctl emits a bare array, change
-// `items` to "$".
-export const NEON: IntegrationManifest = {
-  id: "neon",
-  name: "Neon",
-  surface: { view: "databases" },
-  detect: { authCheck: { cmd: "neonctl", args: ["me"] } },
-  poll: {
-    everyMs: 30000,
-    cli: { cmd: "neonctl", args: ["projects", "list", "--output", "json"] },
-  },
-  map: {
-    items: "$.projects",
-    key: "$.id",
-    title: "$.name",
-    subtitle: "$.region_id",
-    state: { from: "$.state", default: "idle" }, // no live state -> idle
-    show: ["running", "idle", "done", "failed"], // steady: show every project
-  },
-  install: { command: "brew install neonctl" },
-};
+// NOTE: there is deliberately NO Neon CLI manifest. Unlike snow/az/vercel (which
+// fail non-interactively when unauthenticated), `neonctl` AUTO-LAUNCHES a browser
+// OAuth flow when its token is missing or expired -- so background-polling it
+// every cycle spams "Log in to Neon" tabs (diagnosed 2026-06-15). It is therefore
+// unsafe as a steady integration. Neon is already covered by the richer
+// API-based NeonSection, so nothing is lost.
 
 // Azure: App Service web apps via `az webapp list --output json`, authed through
 // `az account show` (exit 0 when logged in). Steady-state under the host view,
@@ -111,9 +91,4 @@ export const AZURE: IntegrationManifest = {
 };
 
 // Every shipped first-party integration. Adding one = appending a manifest.
-export const INTEGRATIONS: IntegrationManifest[] = [
-  VERCEL,
-  SNOWFLAKE,
-  NEON,
-  AZURE,
-];
+export const INTEGRATIONS: IntegrationManifest[] = [VERCEL, SNOWFLAKE, AZURE];
