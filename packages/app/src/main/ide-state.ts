@@ -15,8 +15,10 @@
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
 import {
+  COMMON_DEV_PORTS,
   type DockerStatus,
   dockerContainers,
+  excludeReservedPorts,
   FRONTEND_SUBDIRS,
   type GitStatus,
   getGlobalSecret,
@@ -192,7 +194,16 @@ export async function resolveDevUrl(
       // no package.json at this path -- skip
     }
   }
-  const port = await pickListeningPort(guessed, probe);
+  // Never auto-surface an OS-reserved port: macOS runs the AirPlay Receiver /
+  // Control Center on 5000/7000, so a TCP connect there succeeds with no dev
+  // server -- which would show the OS as a phantom "host up" (the reported
+  // http://localhost:5000 false positive). Filter both guessed and common
+  // candidates; an explicit cfg.devUrl above bypasses detection entirely.
+  const port = await pickListeningPort(
+    excludeReservedPorts(guessed, process.platform),
+    probe,
+    excludeReservedPorts(COMMON_DEV_PORTS, process.platform),
+  );
   return port ? `http://localhost:${port}` : null;
 }
 

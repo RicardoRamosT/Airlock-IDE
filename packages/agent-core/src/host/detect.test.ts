@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { COMMON_DEV_PORTS, guessDevPort, pickListeningPort } from "./detect";
+import {
+  COMMON_DEV_PORTS,
+  excludeReservedPorts,
+  guessDevPort,
+  MACOS_RESERVED_PORTS,
+  pickListeningPort,
+} from "./detect";
 import type { PortProber } from "./probe";
 
 describe("guessDevPort", () => {
@@ -78,8 +84,44 @@ describe("pickListeningPort", () => {
     expect(await pickListeningPort([5173], proberFor(), [3000])).toBeNull();
   });
 
+  it("does not surface a reserved macOS port even when it is the only listener", async () => {
+    // The reported bug: the user's dev server is stopped, but macOS Control
+    // Center / AirPlay Receiver squats :5000, so a blind TCP scan finds the OS
+    // and reports http://localhost:5000 as a live host. After excluding the
+    // reserved ports on darwin, nothing is up -> null (no phantom dev server).
+    const common = excludeReservedPorts(COMMON_DEV_PORTS, "darwin");
+    expect(await pickListeningPort([], proberFor(5000), common)).toBeNull();
+  });
+
   it("ships a non-empty default common-port list including 5173", () => {
     expect(COMMON_DEV_PORTS).toContain(5173);
     expect(COMMON_DEV_PORTS.length).toBeGreaterThan(3);
+  });
+});
+
+describe("excludeReservedPorts", () => {
+  it("drops the macOS AirPlay ports (5000/7000) on darwin, preserving order", () => {
+    expect(excludeReservedPorts([5173, 5000, 3000, 7000], "darwin")).toEqual([
+      5173, 3000,
+    ]);
+  });
+
+  it("keeps every port on non-darwin platforms (5000 is a real dev port there)", () => {
+    expect(excludeReservedPorts([5173, 5000, 7000], "linux")).toEqual([
+      5173, 5000, 7000,
+    ]);
+    expect(excludeReservedPorts([5000], "win32")).toEqual([5000]);
+  });
+
+  it("strips 5000 from the default common-port list on darwin", () => {
+    expect(COMMON_DEV_PORTS).toContain(5000); // raw list still has it...
+    expect(excludeReservedPorts(COMMON_DEV_PORTS, "darwin")).not.toContain(
+      5000,
+    );
+  });
+
+  it("MACOS_RESERVED_PORTS covers the AirPlay Receiver ports", () => {
+    expect(MACOS_RESERVED_PORTS).toContain(5000);
+    expect(MACOS_RESERVED_PORTS).toContain(7000);
   });
 });
