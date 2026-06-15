@@ -76,6 +76,7 @@ export function Sidebar() {
       <>
         <LocalHostSection />
         <RenderSection />
+        <IntegrationsSteadySection view="host" />
       </>
     );
   else if (view === "audit") body = <AuditSection />;
