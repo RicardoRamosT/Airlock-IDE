@@ -46,11 +46,11 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
           return (
             <div key={s.id} className="db-entry">
               <div className="db-row">
-                <span className="section-note">{s.name} CLI not installed</span>
+                <span className="db-name">{s.name}</span>
                 {s.install && (
                   <button
                     type="button"
-                    className="btn"
+                    className="btn integration-install-btn"
                     title={s.install.command}
                     onClick={() => {
                       const c = s.install?.command;
@@ -61,6 +61,7 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
                   </button>
                 )}
               </div>
+              <div className="section-note">CLI not installed</div>
             </div>
           );
         }

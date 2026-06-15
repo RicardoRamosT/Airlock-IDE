@@ -2765,6 +2765,13 @@ textarea:focus-visible {
   flex: none;
 }
 
+/* Right-anchored Install button on an absent integration's header row (the name
+   sits left, the button right, vertically centered with it). */
+.integration-install-btn {
+  margin-left: auto;
+  flex: none;
+}
+
 .host-input {
   flex: 1;
   min-width: 0;
