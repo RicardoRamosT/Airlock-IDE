@@ -336,6 +336,12 @@ body,
   font-size: 11px;
   color: var(--fg-dim);
   grid-row: 4; /* app-shell's 22px row; pinned -- see the .workspace note */
+  /* Raise above the terminal pane. .terminal-pane-slot is positioned (for its
+     focus glow) and opaque, so it paints after this non-positioned bar and its
+     bg covered the 1px border-top at the grid seam. A stacking context puts the
+     divider back on top; modals/palette use z-index 50+, so they still overlay. */
+  position: relative;
+  z-index: 1;
 }
 
 .statusbar-side {
@@ -2315,6 +2321,9 @@ textarea:focus-visible {
    the old .terminal-slot did (it also carries .terminal-slot). */
 .pane-terminal-slot {
   min-height: 0;
+  /* Clip the portaled terminal so xterm's scrollbar/overflow can't bleed past
+     the pane into the status bar at the grid seam. */
+  overflow: hidden;
 }
 
 .terminal-manager {
