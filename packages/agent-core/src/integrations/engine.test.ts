@@ -239,16 +239,18 @@ describe("pollSteady", () => {
     expect(s).toMatchObject({ status: "ready", resources: [] });
   });
 
-  it("carries the manifest's install command into the steady result", async () => {
+  it("carries the manifest's install + connect commands into the steady result", async () => {
     const m: IntegrationManifest = {
       ...steadyM,
       install: { command: "brew install wh" },
+      connect: { command: "wh auth" },
     };
     const run: CliRunner = async () => {
       throw Object.assign(new Error("nope"), { code: "ENOENT" }); // absent
     };
     const [s] = await pollSteady([m], null, 1000, {}, run);
     expect(s?.install).toEqual({ command: "brew install wh" });
+    expect(s?.connect).toEqual({ command: "wh auth" });
   });
 
   it("honors everyMs: serves cache within the window", async () => {

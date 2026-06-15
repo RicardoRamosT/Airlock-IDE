@@ -48,6 +48,11 @@ export interface IntegrationManifest {
   // the absent row; clicking RUNS `command` in a new terminal (nothing auto-runs
   // -- the user chooses). `docsUrl` is an optional manual-install fallback.
   install?: { command: string; docsUrl?: string };
+  // How to authenticate the CLI when it is installed but not connected. The
+  // unauthed row's "Connect" button RUNS this in a new terminal -- user-initiated,
+  // never background. (Terminal-interactive auth is fine here; only BACKGROUND
+  // polling that opens a browser is unsafe -- see the Neon note in registry.ts.)
+  connect?: { command: string; docsUrl?: string };
 }
 
 // Neutral, UI-agnostic result. app/main maps this to the renderer's

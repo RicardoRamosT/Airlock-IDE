@@ -57,6 +57,7 @@ export const SNOWFLAKE: IntegrationManifest = {
     show: ["running", "idle", "done", "failed"], // steady: show the full picture
   },
   install: { command: "brew install snowflake-cli" },
+  connect: { command: "snow connection add" }, // interactive terminal setup, no browser
 };
 
 // NOTE: there is deliberately NO Neon CLI manifest. Unlike snow/az/vercel (which
@@ -88,6 +89,7 @@ export const AZURE: IntegrationManifest = {
     show: ["running", "idle", "done", "failed"], // steady: show every web app
   },
   install: { command: "brew install azure-cli" },
+  connect: { command: "az login" }, // opens a browser, but only on user click (not polled)
 };
 
 // Every shipped first-party integration. Adding one = appending a manifest.

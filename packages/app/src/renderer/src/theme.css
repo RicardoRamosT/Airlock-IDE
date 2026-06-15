@@ -2508,7 +2508,14 @@ textarea:focus-visible {
 .databases {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
+}
+
+/* Separate the stacked Databases-view groups (Neon, the integrations panel, the
+   secrets/databases list) so they read as distinct sections instead of one
+   piled-up block. */
+.sidebar-view-body > .databases + .databases {
+  margin-top: 14px;
 }
 
 .db-toolbar {
