@@ -25,7 +25,6 @@ import {
   importExternal,
   injectInto,
   isGitRepo,
-  KNOWN_TERMINALS,
   launchArgs,
   listBranches,
   listDirectory,
@@ -66,14 +65,7 @@ import {
   writeProjectConfig,
   writeWorkspaceFile,
 } from "@airlock/agent-core";
-import {
-  BrowserWindow,
-  clipboard,
-  dialog,
-  ipcMain,
-  shell,
-  systemPreferences,
-} from "electron";
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import type { AppPrefs, Section } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
@@ -111,8 +103,6 @@ import {
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
-import { DockController } from "./terminal/dockController";
-import { getDockController, setDockController } from "./terminal/dockRegistry";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
 import {
@@ -155,14 +145,6 @@ const TAIL_CAP = 256 * 1024; // bytes of raw output retained per terminal
 const DEFAULT_TAIL_LINES = 40;
 const MAX_TAIL_LINES = 400;
 const PREVIEW_LINES = 3;
-
-// macOS Accessibility is required to move another app's window. Returns true if
-// already trusted; when `prompt` is true and not yet trusted, macOS shows the
-// one-time permission dialog. Non-macOS: always false (docking is mac-only).
-function accessibilityTrusted(prompt: boolean): boolean {
-  if (process.platform !== "darwin") return false;
-  return systemPreferences.isTrustedAccessibilityClient(prompt);
-}
 
 function requireRoot(e: { sender: Electron.WebContents }): string {
   const root = rootForEvent(e);
@@ -655,40 +637,6 @@ export function registerIpc(
     } catch (err) {
       console.error("[terminal] open external failed", err);
     }
-    // If this terminal is dockable and Accessibility is granted, bind a
-    // DockController to this window so the renderer's terminal:dockRect signals
-    // can pin the real window onto the terminal pane. No permission -> leave it
-    // as a free-floating window (the documented fallback). Always overwrite any
-    // existing controller: if the user changed defaultTerminal mid-session the
-    // old one carries a stale axProcess (and holds no OS handles, so it just
-    // GCs). accessibilityTrusted is last in the && so its one-time macOS prompt
-    // only fires for a known dockable terminal.
-    const term = KNOWN_TERMINALS.find((t) => t.id === id);
-    const win = BrowserWindow.fromWebContents(e.sender);
-    if (term && win && accessibilityTrusted(true)) {
-      setDockController(
-        win.id,
-        new DockController({
-          axProcess: term.axProcess,
-          getContentBounds: () => win.getContentBounds(),
-        }),
-      );
-    }
-  });
-
-  // High-frequency one-way signal (preload uses send): the renderer reports the
-  // terminal pane's rect + show/overlay state; route it to this window's docked
-  // terminal controller, if any. Dropped when no controller exists.
-  ipcMain.on("terminal:dockRect", (e, signal: unknown) => {
-    if (!signal || typeof signal !== "object") return;
-    const s = signal as {
-      rect: { left: number; top: number; width: number; height: number };
-      shown: boolean;
-      overlayActive: boolean;
-    };
-    const win = BrowserWindow.fromWebContents(e.sender);
-    if (!win) return;
-    void getDockController(win.id)?.update(s);
   });
 
   // App-global prefs: NOT requireRoot-gated (work with no folder open).

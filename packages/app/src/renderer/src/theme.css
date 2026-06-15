@@ -3145,10 +3145,12 @@ textarea:focus-visible {
   background: var(--bg-panel);
 }
 
-/* Docked external terminal: a placeholder host the real OS window covers. The
-   dark bg avoids a white flash during launch before the window appears. */
-.terminal-dock-host {
-  width: 100%;
+.terminal-external-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
   height: 100%;
-  background: #0d1117;
+  color: var(--text-dim, #888);
 }

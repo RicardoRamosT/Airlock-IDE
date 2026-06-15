@@ -6,33 +6,6 @@ import type {
   DbTable,
   DiffSide,
   DirEntry,
-  DomRect,
-  EnvFileImport,
-  FileContent,
-  FileVersions,
-  GhStatus,
-  GitStatus,
-  ImportExternalResult,
-  NeonBranch,
-  NeonDatabase,
-  NeonProject,
-  ProjectConfig,
-  QueryResult,
-  RiskCategory,
-  SearchResults,
-  SecretMeta,
-  SteadyIntegration,
-} from "@airlock/agent-core";
-
-export type {
-  AgentCommandPolicy,
-  AnthropicIndicator,
-  AuditEntry,
-  Container,
-  DbTable,
-  DiffSide,
-  DirEntry,
-  DomRect,
   EnvFileImport,
   FileContent,
   FileVersions,
@@ -41,7 +14,6 @@ export type {
   GitStatus,
   ImportExternalResult,
   ImportResult,
-  IntegrationItem,
   NeonBranch,
   NeonDatabase,
   NeonProject,
@@ -49,13 +21,42 @@ export type {
   QueryResult,
   RiskAction,
   RiskCategory,
-  ScreenRect,
   SearchFileResult,
   SearchMatch,
   SearchResults,
   SecretMeta,
   SteadyIntegration,
 } from "@airlock/agent-core";
+
+export type { IntegrationItem, SteadyIntegration } from "@airlock/agent-core";
+export type {
+  AgentCommandPolicy,
+  AnthropicIndicator,
+  AuditEntry,
+  Container,
+  DbTable,
+  DiffSide,
+  DirEntry,
+  EnvFileImport,
+  FileContent,
+  FileVersions,
+  GhAccount,
+  GhStatus,
+  GitStatus,
+  ImportExternalResult,
+  ImportResult,
+  NeonBranch,
+  NeonDatabase,
+  NeonProject,
+  ProjectConfig,
+  QueryResult,
+  RiskAction,
+  RiskCategory,
+  SearchFileResult,
+  SearchMatch,
+  SearchResults,
+  SecretMeta,
+};
 
 export interface LspDiagnostic {
   range: {
@@ -313,12 +314,6 @@ export type UpdateProgress =
 export interface ExternalTerminalInfo {
   id: string;
   name: string;
-}
-
-export interface DockRectSignal {
-  rect: DomRect; // the terminal pane's getBoundingClientRect projection
-  shown: boolean; // the terminal pane is the shown main view
-  overlayActive: boolean; // an AirLock overlay covers the pane
 }
 
 // Renderer-safe terminal display names. The renderer must NOT import the
@@ -644,7 +639,6 @@ export interface AirlockApi {
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
   listExternalTerminals(): Promise<ExternalTerminalInfo[]>;
   openExternalTerminal(root: string): Promise<void>;
-  terminalDockRect(signal: DockRectSignal): void;
   // Claude quota meter: last-known account usage (null before the first emit),
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;

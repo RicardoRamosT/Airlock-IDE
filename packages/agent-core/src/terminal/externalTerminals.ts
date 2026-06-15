@@ -10,8 +10,6 @@ export interface ExternalTerminal {
   id: string;
   name: string;
   bundleId: string;
-  // axProcess: the Accessibility process name (may differ from the open -a app name; verify per app).
-  axProcess: string;
   // Build the execFile(cmd, args) that opens `dir` in this terminal.
   launch: (dir: string) => { cmd: string; args: string[] };
 }
@@ -33,35 +31,30 @@ export const KNOWN_TERMINALS: ExternalTerminal[] = [
     id: "terminal",
     name: "Terminal",
     bundleId: "com.apple.Terminal",
-    axProcess: "Terminal",
     launch: openA("Terminal"),
   },
   {
     id: "iterm2",
     name: "iTerm",
     bundleId: "com.googlecode.iterm2",
-    axProcess: "iTerm2",
     launch: openA("iTerm"),
   },
   {
     id: "ghostty",
     name: "Ghostty",
     bundleId: "com.mitchellh.ghostty",
-    axProcess: "Ghostty",
     launch: openA("Ghostty"),
   },
   {
     id: "warp",
     name: "Warp",
     bundleId: "dev.warp.Warp-Stable",
-    axProcess: "Warp",
     launch: openA("Warp"),
   },
   {
     id: "alacritty",
     name: "Alacritty",
     bundleId: "org.alacritty",
-    axProcess: "Alacritty",
     launch: (dir) => ({
       cmd: "open",
       args: ["-a", "Alacritty", "--args", "--working-directory", dir],
@@ -71,7 +64,6 @@ export const KNOWN_TERMINALS: ExternalTerminal[] = [
     id: "kitty",
     name: "kitty",
     bundleId: "net.kovidgoyal.kitty",
-    axProcess: "kitty",
     launch: (dir) => ({
       cmd: "open",
       args: ["-a", "kitty", "--args", "--directory", dir],
@@ -81,7 +73,6 @@ export const KNOWN_TERMINALS: ExternalTerminal[] = [
     id: "wezterm",
     name: "WezTerm",
     bundleId: "com.github.wez.wezterm",
-    axProcess: "WezTerm",
     launch: (dir) => ({
       cmd: "open",
       args: ["-a", "WezTerm", "--args", "start", "--cwd", dir],

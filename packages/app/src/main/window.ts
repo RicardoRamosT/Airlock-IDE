@@ -7,10 +7,6 @@ import path, { basename } from "node:path";
 import { BrowserWindow, type WebContents } from "electron";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
-import {
-  deleteDockController,
-  getDockController,
-} from "./terminal/dockRegistry";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
 // The SET of roots the user currently has open in each window (every tab's
@@ -138,45 +134,10 @@ export function createWindow(): BrowserWindow {
   win.on("focus", () => {
     lastFocusedId = win.id;
   });
-  // A docked external terminal (Ghostty et al.) tracks this window via its
-  // DockController. Hide it while the user drags/resizes AirLock -- per-call
-  // osascript is too slow to follow a live drag, so hide on the first
-  // move/resize tick and snap back on settle (moved/resized; Electron 42 emits
-  // both on macOS). dragSettling collapses the high-frequency move/will-resize
-  // stream to a single hide so we don't flood osascript with one spawn per tick.
-  let dragSettling = false;
-  const startDrag = () => {
-    if (dragSettling) return;
-    dragSettling = true;
-    getDockController(win.id)?.onDragStart();
-  };
-  const endDrag = () => {
-    dragSettling = false;
-    void getDockController(win.id)?.onDragEnd();
-  };
-  win.on(
-    "minimize",
-    () => void getDockController(win.id)?.setWindowVisible(false),
-  );
-  win.on(
-    "restore",
-    () => void getDockController(win.id)?.setWindowVisible(true),
-  );
-  win.on("hide", () => void getDockController(win.id)?.setWindowVisible(false));
-  win.on("show", () => void getDockController(win.id)?.setWindowVisible(true));
-  // If 'moved'/'resized' never fires after a 'move'/'will-resize' (rare:
-  // Mission Control / Stage Manager transitions, display reconfigure),
-  // dragSettling stays true and the terminal stays hidden until the next
-  // move/resize cycle. Self-healing on the next interaction; acceptable for v1.
-  win.on("move", startDrag);
-  win.on("moved", endDrag);
-  win.on("will-resize", startDrag);
-  win.on("resized", endDrag);
   win.on("closed", () => {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
     disposeWindowWatchers(win.id);
-    deleteDockController(win.id);
     syncLspServers(allOpenRoots());
     if (lastFocusedId === win.id) {
       lastFocusedId =
