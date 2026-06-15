@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { IntegrationItem, SteadyIntegration } from "../../../shared/ipc";
+import { useApp } from "../store";
 
 // Per the per-section convention, each section owns its dot mapping.
 function dotClass(state: IntegrationItem["state"]): string {
@@ -34,17 +35,43 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
     };
   }, [view]);
 
-  const shown = items.filter((s) => s.status !== "absent");
-  if (shown.length === 0) return null;
+  // Absent integrations are shown (with an Install affordance) rather than
+  // hidden, so a missing CLI reads as "installable", not "broken".
+  if (items.length === 0) return null;
 
   return (
     <div className="databases">
-      {shown.map((s) =>
-        s.status === "unauthed" ? (
-          <div key={s.id} className="db-entry">
-            <div className="section-note">{s.name} — not connected</div>
-          </div>
-        ) : (
+      {items.map((s) => {
+        if (s.status === "absent") {
+          return (
+            <div key={s.id} className="db-entry">
+              <div className="db-row">
+                <span className="section-note">{s.name} CLI not installed</span>
+                {s.install && (
+                  <button
+                    type="button"
+                    className="btn"
+                    title={s.install.command}
+                    onClick={() => {
+                      const c = s.install?.command;
+                      if (c) useApp.getState().runInNewTerminal(c);
+                    }}
+                  >
+                    Install
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        }
+        if (s.status === "unauthed") {
+          return (
+            <div key={s.id} className="db-entry">
+              <div className="section-note">{s.name} — not connected</div>
+            </div>
+          );
+        }
+        return (
           <div key={s.id} className="db-entry">
             <div className="db-row">
               <span className="db-name">{s.name}</span>
@@ -59,8 +86,8 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
               ))}
             </div>
           </div>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

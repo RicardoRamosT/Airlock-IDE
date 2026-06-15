@@ -244,6 +244,7 @@ export interface AppState {
   sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
   tabGlow: Record<string, boolean>; // tabId -> finished-in-background, awaiting a look
   tabRenames: Record<string, string>; // tabId -> custom display label (display-only; never touches the folder on disk; session-scoped)
+  pendingTerminalCommands: Record<string, string>; // terminalId -> one-shot command injected when its pty adopts (Install buttons)
   openProjectsAsTabs: boolean; // app-global (persisted); used by later tasks
   showRunningProcessNotice: boolean; // app-global (persisted); gates the kept-busy-terminal notice
 
@@ -356,6 +357,12 @@ export interface AppState {
   // in "first" mode a true return ALSO takes the tab's claim. False for
   // blank tabs, unknown ids, and mode "off".
   claudeAutoDecision: (terminalId: string) => boolean;
+  // Open a new terminal in the active tab and run `command` in it once its pty
+  // adopts (the integrations' Install buttons). A queued command pre-empts
+  // claude auto-start, so nothing else runs in that terminal.
+  runInNewTerminal: (command: string) => void;
+  // One-shot: return + clear a terminal's queued command (called at pty adopt).
+  takePendingTerminalCommand: (terminalId: string) => string | null;
 
   // --- App-global setters ---
   setSidebarVisible: (v: boolean) => void;
@@ -620,6 +627,7 @@ export const useApp = create<AppState>((set) => ({
   sessionWorking: {},
   tabGlow: {},
   tabRenames: {},
+  pendingTerminalCommands: {},
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
 
@@ -1202,6 +1210,29 @@ export const useApp = create<AppState>((set) => ({
       );
     });
     return entry.id;
+  },
+  runInNewTerminal: (command) => {
+    const id = useApp.getState().addTerminal();
+    set((s) => ({
+      pendingTerminalCommands: {
+        ...s.pendingTerminalCommands,
+        [id]: `${command}\n`,
+      },
+    }));
+  },
+  takePendingTerminalCommand: (terminalId) => {
+    // Read inside set (not via useApp.getState()) so this action's inferred
+    // return type does not reference useApp -- that creates a type cycle that
+    // collapses useApp to `any`.
+    let cmd: string | null = null;
+    set((s) => {
+      cmd = s.pendingTerminalCommands[terminalId] ?? null;
+      if (cmd === null) return {};
+      const next = { ...s.pendingTerminalCommands };
+      delete next[terminalId];
+      return { pendingTerminalCommands: next };
+    });
+    return cmd;
   },
   removeTerminal: (id) =>
     set((s) => {

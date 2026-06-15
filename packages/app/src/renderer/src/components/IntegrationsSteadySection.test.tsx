@@ -14,7 +14,7 @@ const mockSteady = (all: SteadyIntegration[]) => {
   ).airlock = { integrationsSteady: vi.fn(() => Promise.resolve(all)) };
 };
 
-it("renders nothing when the only integration is absent", async () => {
+it("shows a 'not installed' row + Install button when absent", async () => {
   mockSteady([
     {
       id: "snowflake",
@@ -22,13 +22,14 @@ it("renders nothing when the only integration is absent", async () => {
       view: "databases",
       status: "absent",
       resources: [],
+      install: { command: "brew install snowflake-cli" },
     },
   ]);
-  const { container } = render(<IntegrationsSteadySection view="databases" />);
-  await waitFor(() =>
-    expect(window.airlock.integrationsSteady).toHaveBeenCalled(),
-  );
-  expect(container.textContent).toBe("");
+  render(<IntegrationsSteadySection view="databases" />);
+  expect(
+    await screen.findByText(/Snowflake CLI not installed/),
+  ).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Install" })).toBeTruthy();
 });
 
 it("shows a 'not connected' hint when unauthed", async () => {
