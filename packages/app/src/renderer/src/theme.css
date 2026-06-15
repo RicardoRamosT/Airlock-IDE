@@ -335,6 +335,7 @@ body,
   padding: 0 10px;
   font-size: 11px;
   color: var(--fg-dim);
+  grid-row: 4; /* app-shell's 22px row; pinned -- see the .workspace note */
 }
 
 .statusbar-side {
@@ -392,6 +393,12 @@ body,
   display: grid;
   grid-template-columns: 44px 230px minmax(0, 1fr);
   min-height: 0;
+  /* Pin to the app-shell's minmax(0,1fr) row. ProjectTabs renders null in
+     windows mode (openProjectsAsTabs off); without explicit rows, positional
+     grid placement shifts up so .workspace collapses into the `auto` row and
+     .statusbar balloons into the 1fr row ("bottom bar too tall"). The two
+     filling/fixed rows are pinned to stay correct in either mode. (2026-06-15) */
+  grid-row: 3;
 }
 
 .workspace > .project-pane,
