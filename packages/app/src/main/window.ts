@@ -119,6 +119,13 @@ export function createWindow(): BrowserWindow {
     backgroundColor: "#0d1117",
     title: "AirLock",
     titleBarStyle: "hiddenInset",
+    // Created hidden and shown on `ready-to-show` (below). With the default
+    // show:true the window appears before the renderer's first frame, so the
+    // compositor can latch a stale/partial frame (content collapsed to the top
+    // of the window) that never repaints until a reflow -- resize or opening
+    // devtools -- forces one. The DOM lays out full-height correctly; it is
+    // purely a first-paint glitch. (diagnosed 2026-06-15)
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -126,6 +133,10 @@ export function createWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   });
+
+  // Show only once the renderer has painted its first frame, so the initial
+  // visible frame is the fully laid-out content (see show:false above).
+  win.once("ready-to-show", () => win.show());
 
   // Security: never allow new windows or navigation away from the app.
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
