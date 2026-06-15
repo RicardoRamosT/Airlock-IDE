@@ -140,8 +140,10 @@ export interface SteadyIntegration {
   status: DetectStatus; // absent | unauthed | ready
   resources: IntegrationItem[]; // [] unless ready
   // Passed through from the manifest so the renderer can offer an Install button
-  // on the absent row (clicking runs the command in a new terminal).
+  // on the absent row / a Connect button on the unauthed row (each runs its
+  // command in a new terminal).
   install?: { command: string; docsUrl?: string };
+  connect?: { command: string; docsUrl?: string };
 }
 
 // Steady analogue of PollCache: caches the whole SteadyIntegration per id.
@@ -188,6 +190,7 @@ export async function pollSteady(
         status,
         resources,
         ...(m.install ? { install: m.install } : {}),
+        ...(m.connect ? { connect: m.connect } : {}),
       };
       cache[m.id] = { at: now, value };
       return value;

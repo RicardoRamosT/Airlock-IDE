@@ -119,10 +119,11 @@ describe("AZURE manifest", () => {
   });
 });
 
-describe("steady manifests carry an install command", () => {
-  it("each ships a `brew install` command for the absent-state Install button", () => {
+describe("steady manifests carry install + connect commands", () => {
+  it("each ships a brew-install and a connect command for the absent/unauthed buttons", () => {
     for (const m of [SNOWFLAKE, AZURE]) {
       expect(m.install?.command).toMatch(/^brew install /);
+      expect(m.connect?.command).toBeTruthy();
     }
   });
 });

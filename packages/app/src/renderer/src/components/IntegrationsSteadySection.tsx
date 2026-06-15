@@ -68,7 +68,23 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
         if (s.status === "unauthed") {
           return (
             <div key={s.id} className="db-entry">
-              <div className="section-note">{s.name} — not connected</div>
+              <div className="db-row">
+                <span className="db-name">{s.name}</span>
+                {s.connect && (
+                  <button
+                    type="button"
+                    className="btn integration-install-btn"
+                    title={s.connect.command}
+                    onClick={() => {
+                      const c = s.connect?.command;
+                      if (c) useApp.getState().runInNewTerminal(c);
+                    }}
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+              <div className="section-note">not connected</div>
             </div>
           );
         }

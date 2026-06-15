@@ -31,7 +31,7 @@ it("shows a 'not installed' row + Install button when absent", async () => {
   expect(screen.getByRole("button", { name: "Install" })).toBeTruthy();
 });
 
-it("shows a 'not connected' hint when unauthed", async () => {
+it("shows 'not connected' + a Connect button when unauthed", async () => {
   mockSteady([
     {
       id: "snowflake",
@@ -39,10 +39,13 @@ it("shows a 'not connected' hint when unauthed", async () => {
       view: "databases",
       status: "unauthed",
       resources: [],
+      connect: { command: "snow connection add" },
     },
   ]);
   render(<IntegrationsSteadySection view="databases" />);
-  expect(await screen.findByText(/Snowflake — not connected/)).toBeTruthy();
+  expect(await screen.findByText("Snowflake")).toBeTruthy(); // name header
+  expect(screen.getByText("not connected")).toBeTruthy(); // muted subtitle
+  expect(screen.getByRole("button", { name: "Connect" })).toBeTruthy();
 });
 
 it("renders a header and a row per resource when ready", async () => {
