@@ -13,6 +13,28 @@ export const COMMON_DEV_PORTS = [
   5173, 5174, 3000, 3001, 4321, 4200, 8080, 8000, 5000,
 ];
 
+// Ports the OS itself listens on, so a TCP connect there succeeds with no dev
+// server running. macOS (Monterey+) runs the AirPlay Receiver / Control Center
+// on 5000 and 7000 by default -- scanning them reports the OS as a phantom dev
+// server (http://localhost:5000 shown "up"). A real dev server cannot bind them
+// on macOS anyway unless the user disables AirPlay Receiver.
+export const MACOS_RESERVED_PORTS = [5000, 7000];
+
+// Drop ports the OS reserves for the given platform from a candidate list,
+// preserving order. Currently only macOS (darwin) reserves ports (AirPlay). On
+// every other platform the list is returned unchanged (5000 is a real dev port
+// there). Pure; platform is passed in so it is testable. An explicitly
+// configured devUrl bypasses detection entirely, so this never blocks a user
+// who deliberately runs on a reserved port.
+export function excludeReservedPorts(
+  ports: number[],
+  platform: NodeJS.Platform,
+): number[] {
+  if (platform !== "darwin") return ports;
+  const reserved = new Set(MACOS_RESERVED_PORTS);
+  return ports.filter((p) => !reserved.has(p));
+}
+
 // Guess a dev-server port from ONE package.json's contents: an explicit
 // --port flag in any script wins, else the framework default by dependency.
 // Returns null when nothing recognizable (or the content is not JSON). Pure.

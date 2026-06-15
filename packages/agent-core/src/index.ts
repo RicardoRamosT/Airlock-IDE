@@ -121,8 +121,10 @@ export {
 export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
 export {
   COMMON_DEV_PORTS,
+  excludeReservedPorts,
   FRONTEND_SUBDIRS,
   guessDevPort,
+  MACOS_RESERVED_PORTS,
   pickListeningPort,
 } from "./host/detect";
 export { type PortProber, probePort } from "./host/probe";
