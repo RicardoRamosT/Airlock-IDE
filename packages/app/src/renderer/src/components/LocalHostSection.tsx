@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
-// The local dev-server group of the Host section. Mirrors DockerSection's
+// Re-probe cadence for the dev-server status while the window is focused. A
+// probe is a sub-second localhost TCP connect, so 5s keeps the dot live (a
+// server started/stopped outside the app flips within ~5s) at negligible cost.
+const HOST_POLL_MS = 5000;
+
+// The local dev-server group of the Host section. Builds on DockerSection's
 // refresh-on-focus + busy guard (the server may be started/stopped outside the
-// app) and NeonSection's mounted-ref guard (so an in-flight probe never sets
+// app) by ALSO polling on a timer while focused (see the effect below), and
+// reuses NeonSection's mounted-ref guard (so an in-flight probe never sets
 // state after the collapsible section unmounts).
 //
 // State machine:
@@ -59,17 +66,21 @@ export function LocalHostSection() {
     }
   }, [root]);
 
-  // Fetch on mount, when the pane's project changes, and whenever the window
-  // regains focus (the dev server may have been started/stopped outside the
-  // app). The focus listener is added and removed together so it never outlives
-  // the section. `root` is a dep so a pane that swaps projects re-probes.
+  // Probe on mount and whenever the pane's project (root) changes -- `refresh`
+  // changes with `root`, so this effect re-runs. Live updates are delegated to
+  // startFocusPolling: re-probe every HOST_POLL_MS while focused (the dev server
+  // may be started/stopped outside the app, e.g. Ctrl-C'd in a terminal pane,
+  // which never blurs the window) and pause when backgrounded. See focusPolling.
   useEffect(() => {
-    void root; // re-probe when the pane's project changes
     void refresh();
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [refresh, root]);
+    return startFocusPolling(() => void refresh(), HOST_POLL_MS, {
+      hasFocus: () => document.hasFocus(),
+      setInterval: (fn, ms) => window.setInterval(fn, ms),
+      clearInterval: (id) => window.clearInterval(id),
+      addEventListener: (type, fn) => window.addEventListener(type, fn),
+      removeEventListener: (type, fn) => window.removeEventListener(type, fn),
+    });
+  }, [refresh]);
 
   const save = async () => {
     const next = draft.trim();
