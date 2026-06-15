@@ -56,6 +56,7 @@ export const SNOWFLAKE: IntegrationManifest = {
     },
     show: ["running", "idle", "done", "failed"], // steady: show the full picture
   },
+  install: { command: "brew install snowflake-cli" },
 };
 
 // Neon: projects via `neonctl projects list --output json`, authed through the
@@ -82,6 +83,7 @@ export const NEON: IntegrationManifest = {
     state: { from: "$.state", default: "idle" }, // no live state -> idle
     show: ["running", "idle", "done", "failed"], // steady: show every project
   },
+  install: { command: "brew install neonctl" },
 };
 
 // Azure: App Service web apps via `az webapp list --output json`, authed through
@@ -105,6 +107,7 @@ export const AZURE: IntegrationManifest = {
     state: { from: "$.state", running: ["Running"], default: "idle" },
     show: ["running", "idle", "done", "failed"], // steady: show every web app
   },
+  install: { command: "brew install azure-cli" },
 };
 
 // Every shipped first-party integration. Adding one = appending a manifest.

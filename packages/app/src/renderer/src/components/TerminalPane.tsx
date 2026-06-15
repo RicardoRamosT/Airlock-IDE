@@ -172,7 +172,12 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         // Auto-start claude when the store grants it (mode/blank-tab/claim
         // logic lives there). Typed-ahead bytes sit in the pty buffer until
         // zsh reads them, so shell startup timing cannot drop the command.
-        if (useApp.getState().claudeAutoDecision(terminalId)) {
+        // A queued command (an integration Install button) pre-empts claude
+        // auto-start, so the install terminal runs only the install.
+        const queued = useApp.getState().takePendingTerminalCommand(terminalId);
+        if (queued) {
+          window.airlock.ptyInput(id, queued);
+        } else if (useApp.getState().claudeAutoDecision(terminalId)) {
           window.airlock.ptyInput(id, CLAUDE_AUTO_COMMAND);
         }
       })

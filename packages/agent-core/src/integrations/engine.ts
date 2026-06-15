@@ -139,6 +139,9 @@ export interface SteadyIntegration {
   view: string; // target sidebar view, e.g. "databases"
   status: DetectStatus; // absent | unauthed | ready
   resources: IntegrationItem[]; // [] unless ready
+  // Passed through from the manifest so the renderer can offer an Install button
+  // on the absent row (clicking runs the command in a new terminal).
+  install?: { command: string; docsUrl?: string };
 }
 
 // Steady analogue of PollCache: caches the whole SteadyIntegration per id.
@@ -184,6 +187,7 @@ export async function pollSteady(
         view,
         status,
         resources,
+        ...(m.install ? { install: m.install } : {}),
       };
       cache[m.id] = { at: now, value };
       return value;

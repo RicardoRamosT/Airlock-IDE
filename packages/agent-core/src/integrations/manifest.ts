@@ -44,6 +44,10 @@ export interface IntegrationManifest {
   };
   map: MapSpec;
   surface?: Surface; // default "activity" (transient, Activity feed)
+  // How to install the CLI when it is absent. Surfaced as an "Install" button on
+  // the absent row; clicking RUNS `command` in a new terminal (nothing auto-runs
+  // -- the user chooses). `docsUrl` is an optional manual-install fallback.
+  install?: { command: string; docsUrl?: string };
 }
 
 // Neutral, UI-agnostic result. app/main maps this to the renderer's
