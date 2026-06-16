@@ -81,6 +81,24 @@ export function DatabasesSection() {
       );
   };
 
+  // Remove a database = delete its vaulted connection-string secret. Confirmed
+  // because it permanently drops the stored credentials; refresh() re-lists.
+  const removeDb = async (id: string) => {
+    if (!root) return;
+    if (
+      !window.confirm(
+        `Remove database "${id}"? This deletes its stored connection string.`,
+      )
+    )
+      return;
+    try {
+      await window.airlock.secretsDelete(root, id);
+    } catch (err) {
+      console.error("secretsDelete failed", id, err);
+    }
+    await refresh();
+  };
+
   return (
     <div className="databases">
       <div className="db-toolbar">
@@ -122,20 +140,31 @@ export function DatabasesSection() {
           const open = !!expanded[d.id];
           return (
             <div key={d.id} className="db-entry">
-              <button
-                type="button"
-                className="db-row"
-                onClick={() => void toggle(d.id)}
-                disabled={busy}
-                title={d.redacted}
-              >
-                <i
-                  className={`codicon codicon-chevron-${open ? "down" : "right"}`}
-                />
-                <span className={dotClass} />
-                <span className="db-name">{d.id}</span>
-                <span className="db-host">{d.host}</span>
-              </button>
+              <div className="db-entry-head">
+                <button
+                  type="button"
+                  className="db-row"
+                  onClick={() => void toggle(d.id)}
+                  disabled={busy}
+                  title={d.redacted}
+                >
+                  <i
+                    className={`codicon codicon-chevron-${open ? "down" : "right"}`}
+                  />
+                  <span className={dotClass} />
+                  <span className="db-name">{d.id}</span>
+                  <span className="db-host">{d.host}</span>
+                </button>
+                <button
+                  type="button"
+                  className="db-remove"
+                  onClick={() => void removeDb(d.id)}
+                  disabled={busy}
+                  title="Remove this database (deletes its stored connection string)"
+                >
+                  <i className="codicon codicon-trash" />
+                </button>
+              </div>
               {open && (
                 <div className="db-tables">
                   {tables[d.id]?.length === 0 ? (

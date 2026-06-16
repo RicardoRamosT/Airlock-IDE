@@ -2542,11 +2542,43 @@ textarea:focus-visible {
   text-decoration: underline;
 }
 
+/* Row header: the expand button (.db-row) plus a hover-revealed Remove button. */
+.db-entry-head {
+  display: flex;
+  align-items: center;
+}
+
+.db-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0 6px;
+  opacity: 0;
+}
+
+.db-entry-head:hover .db-remove {
+  opacity: 1;
+}
+
+.db-remove:hover {
+  color: var(--fg);
+}
+
+.db-remove:disabled {
+  cursor: default;
+}
+
 .db-row {
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
+  /* flex:1/min-width:0 let the row share .db-entry-head with the Remove button
+     and ellipsize; inert for Neon rows whose parent isn't a flex container. */
+  flex: 1;
+  min-width: 0;
   text-align: left;
   background: none;
   border: none;
