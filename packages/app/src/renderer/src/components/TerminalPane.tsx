@@ -134,7 +134,8 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       const bytes = terminalKeyBytes(e);
       if (bytes !== null) {
         if (idRef.current) window.airlock.ptyInput(idRef.current, bytes);
-        resetSelAnchor(); // a move/edit key ends any keyboard selection
+        term.clearSelection(); // a move/edit chord ends the keyboard selection
+        resetSelAnchor();
         e.preventDefault();
         return false;
       }
@@ -157,7 +158,20 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         e.preventDefault();
         return false;
       }
-      resetSelAnchor(); // any other key ends the selection
+      // Bare modifier keydowns (Cmd/Shift/Option/Ctrl on their own) must NOT end
+      // the selection: pressing Cmd before Cmd+C, or changing modifiers mid-
+      // selection, has to keep the highlight + anchor intact. Any real key clears
+      // both the visual highlight and the anchor.
+      if (
+        e.key === "Meta" ||
+        e.key === "Shift" ||
+        e.key === "Alt" ||
+        e.key === "Control"
+      ) {
+        return true;
+      }
+      term.clearSelection();
+      resetSelAnchor();
       return true;
     });
 
