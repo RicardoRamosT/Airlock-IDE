@@ -109,3 +109,34 @@ project terminals only exist post-hydration). The decision is
 `CLAUDE_AUTO_COMMAND` (`"claude\n"`, same bytes as the "Start Claude here"
 notice) at pty adoption. Spec:
 `docs/superpowers/specs/2026-06-09-claude-auto-start-design.md`.
+
+## Sidebar layout system
+
+All left-sidebar section panels share one layout grammar so a new section looks
+like the rest instead of drifting into ad-hoc styles. Defined in `theme.css`;
+**use these, don't reinvent per section.**
+
+- **Tokens:** `--control-h` (24px — every interactive control: `.btn`, `select`,
+  `input`, `.sb-control`), `--sb-gap` (6px, between controls in a row),
+  `--sb-row-gap` (2px, between list rows), `--sb-block-gap` (10px, between stacked
+  blocks). List/tree rows keep `--row-h` (22px).
+- **Classes:** `.section-toolbar` (a row of action buttons; its `.btn` children
+  stretch equal-width — use it for every refresh / connect / add / set row,
+  including a lone full-width connect button), `.row-action` (a trailing 22×22
+  icon action on a row; add `.reveal` to hide until the row is hovered — the
+  reveal trigger is wired per row container, currently only `.db-entry-head` for
+  Databases' remove), `.sb-control` (a `select`/`input` sized to `--control-h`
+  that fills its flex row), `.section-empty` (the empty-state note; works as a
+  clickable `<button>` too).
+- **Skeleton per section:** shared header (`.sidebar-view-header`) → optional
+  `.section-toolbar` → body (list rows at `--sb-row-gap`, control blocks at
+  `--sb-block-gap`) → optional footer. Block-style sections (e.g. Git) set their
+  container `gap` to `--sb-block-gap`; list-style sections use `--sb-row-gap`.
+- **Composed views:** DATABASES and HOST stack several section components
+  (`LocalHostSection` + `RenderSection` + `IntegrationsSteadySection`, etc.) under
+  the single view header — keep each section's primary action a full-width
+  `.section-toolbar` button so the stack reads consistently, and give "authed but
+  no resources" states a `.section-note` (not a bare header).
+
+Spec: `docs/superpowers/specs/2026-06-15-sidebar-layout-standardization-design.md` ·
+Plan: `docs/superpowers/plans/2026-06-15-sidebar-layout-standardization.md`.
