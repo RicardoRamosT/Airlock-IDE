@@ -1341,3 +1341,21 @@ describe("showRunningProcessNotice", () => {
     expect(get().showRunningProcessNotice).toBe(true);
   });
 });
+
+// --- overviewOpen overlay ---------------------------------------------------
+
+it("setOverviewOpen(true) shows the overview overlay and clears the others", () => {
+  const s = useApp.getState();
+  s.openProject("/p"); // gives the active tab a real root
+  s.setDiff({ path: "a", which: "unstaged", original: "x", modified: "y" });
+  useApp.getState().setOverviewOpen(true);
+  expect(useApp.getState().overviewOpen).toBe(true);
+  expect(useApp.getState().diff).toBeNull();
+});
+
+it("selecting a terminal dismisses the overview overlay", () => {
+  useApp.getState().setOverviewOpen(true);
+  const id = useApp.getState().addTerminal();
+  useApp.getState().viewItem({ kind: "terminal", id });
+  expect(useApp.getState().overviewOpen).toBe(false);
+});
