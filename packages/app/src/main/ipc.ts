@@ -94,6 +94,7 @@ import {
   syncLspServers,
 } from "./lsp/client";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
+import { gatherProfile } from "./overview/gather";
 import {
   loadPrefs,
   RECENT_CAP,
@@ -350,6 +351,13 @@ export function registerIpc(
     assertNotVault(relPath);
     return readWorkspaceFile(resolveRoot(e, root), relPath);
   });
+
+  ipcMain.handle("overview:get", (e, root: unknown) => {
+    if (typeof root !== "string" || !isOpenRoot(e, root))
+      throw new Error("Invalid or unopened root");
+    return gatherProfile(root);
+  });
+
   ipcMain.handle("fs:readImage", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
