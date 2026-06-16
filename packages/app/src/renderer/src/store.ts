@@ -280,6 +280,7 @@ export interface AppState {
       }
     | "connect-neon"
     | "connect-render"
+    | "add-database"
     | null;
 
   // Set when opening a folder KEPT a busy terminal (a running session was not
@@ -340,6 +341,10 @@ export interface AppState {
   setConfig: (config: ProjectConfig | null, tabId?: string) => void;
   setGitStatus: (gitStatus: GitStatus | null, tabId?: string) => void;
   setModal: (modal: AppState["modal"]) => void;
+  // Bumped to force DatabasesSection to re-list/re-ping (e.g. after the
+  // Add-database modal vaults a new postgres-url secret). Renderer-only.
+  dbRefreshNonce: number;
+  bumpDbRefresh: () => void;
 
   // --- Terminal setters ---
   // addTerminal/setActiveTerminal/setSplit take the PANE's tabId (the terminal-
@@ -633,6 +638,7 @@ export const useApp = create<AppState>((set) => ({
 
   // app-global
   modal: null,
+  dbRefreshNonce: 0,
   sidebarVisible: true,
   sidebarPosition: "left",
   theme: "dark",
@@ -1177,6 +1183,7 @@ export const useApp = create<AppState>((set) => ({
   setGitStatus: (gitStatus, tabId) =>
     set((s) => patchTab(s, tabId ?? s.activeTabId, { gitStatus })),
   setModal: (modal) => set({ modal }),
+  bumpDbRefresh: () => set((s) => ({ dbRefreshNonce: s.dbRefreshNonce + 1 })),
   setRunningNotice: (runningNotice) => set({ runningNotice }),
 
   // --- Terminal setters ---
