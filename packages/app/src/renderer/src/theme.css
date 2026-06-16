@@ -626,6 +626,9 @@ body,
 /* A single-line control (select/input) sized to match .btn. */
 .sb-control {
   height: var(--control-h);
+  /* Fill the remaining width of its row (the retired .git-branch/.git-account/
+     .host-input all did this); inert outside a flex container. */
+  flex: 1;
   min-width: 0;
   background: var(--hover);
   border: 1px solid var(--border);
@@ -675,10 +678,7 @@ body,
 .row-action.reveal {
   opacity: 0;
 }
-.db-entry-head:hover .row-action.reveal,
-.secret-row:hover .row-action.reveal,
-.docker-row:hover .row-action.reveal,
-.activity-row:hover .row-action.reveal {
+.db-entry-head:hover .row-action.reveal {
   opacity: 1;
 }
 
