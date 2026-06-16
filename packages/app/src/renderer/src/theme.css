@@ -1809,7 +1809,7 @@ button.quota-meter:hover {
 .secrets {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sb-row-gap);
 }
 
 .secret-row {
@@ -1844,22 +1844,6 @@ button.quota-meter:hover {
   background: var(--hover);
 }
 
-/* Per-row "..." opening the secret actions menu. Always visible (it replaced
-   the old hover-revealed eye/copy/trash cluster); takes the auto margin so it
-   sits flush right. */
-.secret-more {
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  font-size: 11px;
-  margin-left: auto;
-}
-
-.secret-more:hover {
-  color: var(--accent);
-}
-
 /* Destructive row in a context menu (the secret Delete item): literal
    semantic color, same convention as .modal-error (see the light-palette
    note). */
@@ -1887,12 +1871,6 @@ button.quota-meter:hover {
   font-size: 10px;
   color: var(--fg-dim);
   margin: 0 0 4px 22px;
-}
-
-.secret-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
 }
 
 .btn {

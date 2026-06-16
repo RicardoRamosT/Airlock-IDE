@@ -154,7 +154,7 @@ export function SecretsSection() {
             {!s.valid && <span className="badge">check</span>}
             <button
               type="button"
-              className="secret-more"
+              className="row-action"
               title="Secret actions"
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
@@ -245,7 +245,7 @@ export function SecretsSection() {
           </div>
         </>
       )}
-      <div className="secret-actions">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
