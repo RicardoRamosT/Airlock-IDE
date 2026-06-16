@@ -3171,6 +3171,12 @@ textarea:focus-visible {
   gap: 6px;
   font-weight: 600;
 }
+.overview-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-gap);
+  flex: 0 0 auto;
+}
 .overview-refresh {
   flex: 0 0 auto;
 }

@@ -392,6 +392,11 @@ export interface AppState {
   // adopts (the integrations' Install buttons). A queued command pre-empts
   // claude auto-start, so nothing else runs in that terminal.
   runInNewTerminal: (command: string) => void;
+  // Inject `text` into the focused project's Claude terminal (the tab's
+  // auto-claude claim, else its active terminal). Returns false when no live
+  // terminal (no pty adopted) exists, so the caller can prompt the user to start
+  // one. Used by the Project Overview "Generate summary" action.
+  sendToClaudeTerminal: (text: string, tabId?: string) => boolean;
   // One-shot: return + clear a terminal's queued command (called at pty adopt).
   takePendingTerminalCommand: (terminalId: string) => string | null;
 
@@ -1268,6 +1273,22 @@ export const useApp = create<AppState>((set) => ({
         [id]: `${command}\n`,
       },
     }));
+  },
+  sendToClaudeTerminal: (text, tabId) => {
+    // Resolve the pty id INSIDE set (no useApp ref -> no inferred-type cycle),
+    // then do the fire-and-forget write outside.
+    let ptyId: string | null = null;
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const tt = s.tabTerminals[tid];
+      const termId = tt ? (tt.claudeAutoId ?? tt.activeTerminalId) : null;
+      if (tt && termId)
+        ptyId = tt.terminals.find((t) => t.id === termId)?.ptyId ?? null;
+      return {};
+    });
+    if (!ptyId) return false;
+    window.airlock.ptyInput(ptyId, text);
+    return true;
   },
   takePendingTerminalCommand: (terminalId) => {
     // Read inside set (not via useApp.getState()) so this action's inferred

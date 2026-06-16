@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   OverviewResult,
   ProjectTech,
   TechCategory,
 } from "../../../shared/ipc";
 import { logoUrl } from "../lib/overviewLogos";
+import { useApp } from "../store";
 
 const CATEGORY_LABEL: Partial<Record<TechCategory, string>> = {
   language: "Languages & Runtimes",
@@ -22,6 +23,11 @@ const CATEGORY_LABEL: Partial<Record<TechCategory, string>> = {
   observability: "Observability",
   other: "Other",
 };
+
+const GENERATE_PROMPT_HEAD =
+  "Analyze this project and write/update .airlock/overview.md: one short heading " +
+  "per area (workspace or top-level dir) with a 1-2 sentence description and key " +
+  "entry files. Keep it concise -- this is the IDE's Overview context.";
 
 function Tile({ tech }: { tech: ProjectTech }) {
   const url = logoUrl(tech.id);
@@ -73,6 +79,16 @@ function groupByCategory(
 export function OverviewTab({ root }: { root: string }) {
   const [data, setData] = useState<OverviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
 
   const load = useCallback(() => {
     window.airlock
@@ -84,7 +100,46 @@ export function OverviewTab({ root }: { root: string }) {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [root]);
 
+  // Ask the project's Claude to (re)write .airlock/overview.md, then poll until
+  // the file's mtime advances (or give up after ~2 min). A "start Claude" hint
+  // uses `notice` (NOT `error`) so it never blanks the dashboard.
+  const generate = useCallback(() => {
+    const seed =
+      data?.profile.areas.map((a) => a.path).join(", ") ||
+      "(infer from the tree)";
+    const prompt = `${GENERATE_PROMPT_HEAD} Areas to cover: ${seed}.\n`;
+    if (!useApp.getState().sendToClaudeTerminal(prompt)) {
+      setNotice(
+        "Start Claude in this project's terminal, then click Generate.",
+      );
+      return;
+    }
+    setNotice(null);
+    setGenerating(true);
+    const baseline = data?.summaryMtimeMs ?? 0;
+    let tries = 0;
+    stopPoll();
+    pollRef.current = setInterval(() => {
+      tries += 1;
+      window.airlock
+        .overviewGet(root)
+        .then((r) => {
+          if (r.summaryMtimeMs > baseline) {
+            setData(r);
+            setGenerating(false);
+            stopPoll();
+          }
+        })
+        .catch(() => {});
+      if (tries >= 60) {
+        setGenerating(false);
+        stopPoll();
+      }
+    }, 2000);
+  }, [data, root, stopPoll]);
+
   useEffect(load, [load]);
+  useEffect(() => stopPoll, [stopPoll]); // clear the poll on unmount
 
   if (error)
     return (
@@ -102,9 +157,23 @@ export function OverviewTab({ root }: { root: string }) {
         <span className="overview-title">
           <i className="codicon codicon-info" /> {projectName}
         </span>
-        <button type="button" className="btn overview-refresh" onClick={load}>
-          <i className="codicon codicon-refresh" /> Reload
-        </button>
+        <span className="overview-actions">
+          <button
+            type="button"
+            className="btn overview-generate"
+            disabled={generating}
+            onClick={generate}
+          >
+            {generating
+              ? "Generating…"
+              : summary
+                ? "Regenerate"
+                : "Generate summary"}
+          </button>
+          <button type="button" className="btn overview-refresh" onClick={load}>
+            <i className="codicon codicon-refresh" /> Reload
+          </button>
+        </span>
       </div>
 
       {techGroups.map(([cat, items]) => (
@@ -124,11 +193,12 @@ export function OverviewTab({ root }: { root: string }) {
               </div>
             ))}
             <div className="section-note">
-              No written summary yet — use “Generate summary” to have Claude
-              describe each area.
+              No written summary yet — “Generate summary” has Claude describe
+              each area.
             </div>
           </div>
         )}
+        {notice && <div className="section-note">{notice}</div>}
       </div>
     </div>
   );
