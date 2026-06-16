@@ -35,8 +35,11 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
     };
   }, [view]);
 
-  // Absent integrations are shown (with an Install affordance) rather than
-  // hidden, so a missing CLI reads as "installable", not "broken".
+  // Absent/unauthed integrations are shown (rather than hidden) as a full-width
+  // action button -- matching the "Connect Neon"/"Connect Render" buttons -- so a
+  // missing or unconnected CLI reads as actionable, not broken. A `.btn` stretches
+  // to full width as a flex child of `.databases`. The button RUNS the install/
+  // connect command in a new terminal (user-initiated; nothing background-runs).
   if (items.length === 0) return null;
 
   return (
@@ -44,48 +47,34 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
       {items.map((s) => {
         if (s.status === "absent") {
           return (
-            <div key={s.id} className="db-entry">
-              <div className="db-row">
-                <span className="db-name">{s.name}</span>
-                {s.install && (
-                  <button
-                    type="button"
-                    className="btn integration-install-btn"
-                    title={s.install.command}
-                    onClick={() => {
-                      const c = s.install?.command;
-                      if (c) useApp.getState().runInNewTerminal(c);
-                    }}
-                  >
-                    Install
-                  </button>
-                )}
-              </div>
-              <div className="section-note">CLI not installed</div>
-            </div>
+            <button
+              key={s.id}
+              type="button"
+              className="btn"
+              title={s.install?.command}
+              onClick={() => {
+                const c = s.install?.command;
+                if (c) useApp.getState().runInNewTerminal(c);
+              }}
+            >
+              Install {s.name} CLI
+            </button>
           );
         }
         if (s.status === "unauthed") {
           return (
-            <div key={s.id} className="db-entry">
-              <div className="db-row">
-                <span className="db-name">{s.name}</span>
-                {s.connect && (
-                  <button
-                    type="button"
-                    className="btn integration-install-btn"
-                    title={s.connect.command}
-                    onClick={() => {
-                      const c = s.connect?.command;
-                      if (c) useApp.getState().runInNewTerminal(c);
-                    }}
-                  >
-                    Connect
-                  </button>
-                )}
-              </div>
-              <div className="section-note">not connected</div>
-            </div>
+            <button
+              key={s.id}
+              type="button"
+              className="btn"
+              title={s.connect?.command}
+              onClick={() => {
+                const c = s.connect?.command;
+                if (c) useApp.getState().runInNewTerminal(c);
+              }}
+            >
+              Connect {s.name}
+            </button>
           );
         }
         return (

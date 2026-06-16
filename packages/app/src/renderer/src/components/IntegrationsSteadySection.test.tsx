@@ -14,7 +14,7 @@ const mockSteady = (all: SteadyIntegration[]) => {
   ).airlock = { integrationsSteady: vi.fn(() => Promise.resolve(all)) };
 };
 
-it("shows a 'not installed' row + Install button when absent", async () => {
+it("shows a full-width 'Install <name> CLI' button when absent", async () => {
   mockSteady([
     {
       id: "snowflake",
@@ -26,12 +26,12 @@ it("shows a 'not installed' row + Install button when absent", async () => {
     },
   ]);
   render(<IntegrationsSteadySection view="databases" />);
-  expect(await screen.findByText("Snowflake")).toBeTruthy(); // name header
-  expect(screen.getByText("CLI not installed")).toBeTruthy(); // muted subtitle
-  expect(screen.getByRole("button", { name: "Install" })).toBeTruthy();
+  expect(
+    await screen.findByRole("button", { name: "Install Snowflake CLI" }),
+  ).toBeTruthy();
 });
 
-it("shows 'not connected' + a Connect button when unauthed", async () => {
+it("shows a full-width 'Connect <name>' button when unauthed", async () => {
   mockSteady([
     {
       id: "snowflake",
@@ -43,9 +43,9 @@ it("shows 'not connected' + a Connect button when unauthed", async () => {
     },
   ]);
   render(<IntegrationsSteadySection view="databases" />);
-  expect(await screen.findByText("Snowflake")).toBeTruthy(); // name header
-  expect(screen.getByText("not connected")).toBeTruthy(); // muted subtitle
-  expect(screen.getByRole("button", { name: "Connect" })).toBeTruthy();
+  expect(
+    await screen.findByRole("button", { name: "Connect Snowflake" }),
+  ).toBeTruthy();
 });
 
 it("renders a header and a row per resource when ready", async () => {
