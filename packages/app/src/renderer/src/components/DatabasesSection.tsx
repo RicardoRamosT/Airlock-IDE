@@ -101,7 +101,7 @@ export function DatabasesSection() {
 
   return (
     <div className="databases">
-      <div className="db-toolbar">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
@@ -123,7 +123,7 @@ export function DatabasesSection() {
       {dbs.length === 0 ? (
         <button
           type="button"
-          className="section-note db-empty-add"
+          className="section-empty"
           onClick={() => setModal("add-database")}
         >
           No databases yet — click to add one with a connection string.
@@ -157,7 +157,7 @@ export function DatabasesSection() {
                 </button>
                 <button
                   type="button"
-                  className="db-remove"
+                  className="row-action reveal"
                   onClick={() => void removeDb(d.id)}
                   disabled={busy}
                   title="Remove this database (deletes its stored connection string)"

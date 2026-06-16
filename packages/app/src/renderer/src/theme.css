@@ -2598,7 +2598,7 @@ textarea:focus-visible {
 .databases {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--sb-row-gap);
 }
 
 /* Separate the stacked Databases-view groups (Neon, the integrations panel, the
@@ -2608,56 +2608,10 @@ textarea:focus-visible {
   margin-top: 14px;
 }
 
-.db-toolbar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
-/* Actionable empty state: looks like a muted note (.section-note) but is a
-   <button>, so reset the default UA chrome (which otherwise renders as a
-   light "white square" on the dark theme) and add a hover affordance. */
-.db-empty-add {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.db-empty-add:hover {
-  color: var(--fg);
-  text-decoration: underline;
-}
-
 /* Row header: the expand button (.db-row) plus a hover-revealed Remove button. */
 .db-entry-head {
   display: flex;
   align-items: center;
-}
-
-.db-remove {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  padding: 0 6px;
-  opacity: 0;
-}
-
-.db-entry-head:hover .db-remove {
-  opacity: 1;
-}
-
-.db-remove:hover {
-  color: var(--fg);
-}
-
-.db-remove:disabled {
-  cursor: default;
 }
 
 .db-row {
