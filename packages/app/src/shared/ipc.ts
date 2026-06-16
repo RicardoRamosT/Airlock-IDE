@@ -17,7 +17,10 @@ import type {
   NeonBranch,
   NeonDatabase,
   NeonProject,
+  ProjectArea,
   ProjectConfig,
+  ProjectProfile,
+  ProjectTech,
   QueryResult,
   RiskAction,
   RiskCategory,
@@ -26,6 +29,7 @@ import type {
   SearchResults,
   SecretMeta,
   SteadyIntegration,
+  TechCategory,
 } from "@airlock/agent-core";
 
 export type { IntegrationItem, SteadyIntegration } from "@airlock/agent-core";
@@ -48,7 +52,10 @@ export type {
   NeonBranch,
   NeonDatabase,
   NeonProject,
+  ProjectArea,
   ProjectConfig,
+  ProjectProfile,
+  ProjectTech,
   QueryResult,
   RiskAction,
   RiskCategory,
@@ -56,6 +63,7 @@ export type {
   SearchMatch,
   SearchResults,
   SecretMeta,
+  TechCategory,
 };
 
 export interface LspDiagnostic {
@@ -429,6 +437,15 @@ export interface SessionUsage {
   lastProgressAt: number;
 }
 
+// Payload of the overview:get IPC. profile is always present (computed live);
+// summary is the .airlock/overview.md text or null; summaryMtimeMs is its mtime
+// (0 when absent) so the renderer can detect a fresh write while polling.
+export interface OverviewResult {
+  profile: ProjectProfile;
+  summary: string | null;
+  summaryMtimeMs: number;
+}
+
 export interface FsChangedEvent {
   root: string;
 }
@@ -645,6 +662,8 @@ export interface AirlockApi {
   quotaGet(): Promise<QuotaStatus | null>;
   // Per-session usage ledger (since launch) for the Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
+  // Project overview: live tech-stack profile + optional .airlock/overview.md summary.
+  overviewGet(root: string): Promise<OverviewResult>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   anthropicStatusGet(): Promise<AnthropicStatus | null>;
   onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;
