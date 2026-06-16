@@ -17,6 +17,7 @@ export {
 } from "./audit/audit";
 export {
   type BrokerOptions,
+  deleteGlobalSecret,
   deleteSecret,
   type EnvFileImport,
   getGlobalSecret,

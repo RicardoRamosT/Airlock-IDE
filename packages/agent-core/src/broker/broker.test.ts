@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { readAudit } from "../audit/audit";
 import {
+  deleteGlobalSecret,
   deleteSecret,
   getGlobalSecret,
   getSecretValue,
@@ -267,6 +268,14 @@ describe("broker", () => {
     await expect(
       setGlobalSecret("NEON_API_KEY", "", { keychain: fake }),
     ).rejects.toThrow(/empty/i);
+  });
+
+  it("deletes an app-global secret so it reads back null", async () => {
+    await setGlobalSecret("NEON_API_KEY", "v", { keychain: fake });
+    await deleteGlobalSecret("NEON_API_KEY", { keychain: fake });
+    expect(
+      await getGlobalSecret("NEON_API_KEY", { keychain: fake }),
+    ).toBeNull();
   });
 
   it("audits setGlobalSecret to the app-global chain when auditLog is set", async () => {

@@ -173,6 +173,21 @@ export function NeonSection() {
     });
   };
 
+  // Clear the stored Neon API key. Recovers from a bad/stale key (e.g. a
+  // connection string pasted into the API-key modal, which 401s forever).
+  const disconnect = async () => {
+    try {
+      await window.airlock.neonDisconnect();
+    } catch (e) {
+      console.error("neonDisconnect failed", e);
+    }
+    if (mounted.current) {
+      setConnected(false);
+      setProjects([]);
+      setError(null);
+    }
+  };
+
   if (connected === null) return <div className="section-note">checking…</div>;
 
   if (connected === false) {
@@ -191,6 +206,16 @@ export function NeonSection() {
 
   return (
     <div className="databases">
+      <div className="db-toolbar">
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void disconnect()}
+          title="Disconnect Neon and clear the stored API key"
+        >
+          Disconnect Neon
+        </button>
+      </div>
       {error && <div className="modal-error">{error}</div>}
       {projects.length === 0 ? (
         <div className="section-note">No Neon projects.</div>

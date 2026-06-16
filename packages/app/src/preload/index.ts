@@ -106,6 +106,7 @@ const api: AirlockApi = {
     ipcRenderer.invoke("db:rows", root, id, schema, table, limit),
   neonStatus: () => ipcRenderer.invoke("neon:status"),
   neonConnect: (key) => ipcRenderer.invoke("neon:connect", key),
+  neonDisconnect: () => ipcRenderer.invoke("neon:disconnect"),
   neonProjects: () => ipcRenderer.invoke("neon:projects"),
   neonBranches: (p) => ipcRenderer.invoke("neon:branches", p),
   neonDatabases: (p, b) => ipcRenderer.invoke("neon:databases", p, b),

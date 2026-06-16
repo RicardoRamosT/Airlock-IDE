@@ -7,6 +7,7 @@ import {
   createDir,
   createFile,
   createPtySession,
+  deleteGlobalSecret,
   deleteSecret,
   detectInstalledTerminals,
   dockerStart,
@@ -961,6 +962,13 @@ export function registerIpc(
       throw new Error("Invalid payload");
     await setGlobalSecret(NEON_KEY, key.trim(), { auditLog: globalAuditLog });
     return { connected: true };
+  });
+  ipcMain.handle("neon:disconnect", async () => {
+    // Clears the stored Neon API key (the global keychain entry). Lets the user
+    // recover from a bad/stale key -- e.g. a connection string mistakenly
+    // pasted here, which then 401s forever with no other way to clear it.
+    await deleteGlobalSecret(NEON_KEY, { auditLog: globalAuditLog });
+    return { connected: false };
   });
   ipcMain.handle("neon:projects", () => neonProjects());
   ipcMain.handle("neon:branches", (_e, p: unknown) => {

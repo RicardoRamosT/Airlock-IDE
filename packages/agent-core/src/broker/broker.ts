@@ -188,6 +188,25 @@ export async function setGlobalSecret(
   }
 }
 
+// Remove an app-global secret (e.g. Neon "Disconnect" clears its API key).
+// Audited like setGlobalSecret. Best-effort: the keychain delete reports false
+// on not-found/platform failure, but we record the intent regardless.
+export async function deleteGlobalSecret(
+  name: string,
+  opts: BrokerOptions & { auditLog?: string } = {},
+): Promise<void> {
+  const keychain = opts.keychain ?? systemKeychain;
+  keychain.delete(SERVICE, globalAccountFor(name));
+  if (opts.auditLog) {
+    await appendAuditAt(
+      opts.auditLog,
+      opts.actor ?? "user",
+      "secret.global.delete",
+      { name },
+    );
+  }
+}
+
 export interface InjectResult {
   env: Record<string, string>;
   injected: string[];

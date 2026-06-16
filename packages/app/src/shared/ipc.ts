@@ -581,6 +581,7 @@ export interface AirlockApi {
   // (projectId, branchId, database, role) instead of a vaulted secret name.
   neonStatus(): Promise<{ connected: boolean }>;
   neonConnect(key: string): Promise<{ connected: boolean }>;
+  neonDisconnect(): Promise<{ connected: boolean }>;
   neonProjects(): Promise<NeonProject[]>;
   neonBranches(projectId: string): Promise<NeonBranch[]>;
   neonDatabases(projectId: string, branchId: string): Promise<NeonDatabase[]>;

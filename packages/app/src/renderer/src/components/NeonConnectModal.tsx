@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isLikelyPostgresUrl } from "../lib/dbConnect";
 import { useApp } from "../store";
 
 export function NeonConnectModal() {
@@ -10,6 +11,12 @@ export function NeonConnectModal() {
 
   const submit = async () => {
     if (!key.trim() || busy) return;
+    if (isLikelyPostgresUrl(key.trim())) {
+      setError(
+        'That looks like a Postgres connection string, not a Neon API key. Use "+ Add database" in the Databases section to connect with a connection string.',
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
