@@ -315,6 +315,7 @@ body,
   padding: 0 6px;
   font-weight: 700;
   font-size: 13px;
+  -webkit-app-region: no-drag; /* stay clickable inside the titlebar drag strip */
 }
 .titlebar-overview:hover {
   color: var(--accent, #4ea1ff);
