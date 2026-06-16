@@ -206,7 +206,7 @@ export function NeonSection() {
 
   return (
     <div className="databases">
-      <div className="db-toolbar">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
