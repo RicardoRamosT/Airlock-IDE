@@ -1,4 +1,5 @@
 import { ActivityBar } from "./components/ActivityBar";
+import { AddDatabaseModal } from "./components/AddDatabaseModal";
 import { NeonConnectModal } from "./components/NeonConnectModal";
 import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
@@ -97,6 +98,7 @@ export function App() {
           />
         )}
         {modal === "connect-neon" && <NeonConnectModal />}
+        {modal === "add-database" && <AddDatabaseModal />}
         {modal === "connect-render" && <RenderConnectModal />}
         <Palette />
         {searchOpen && <SearchPanel />}
