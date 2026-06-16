@@ -1,6 +1,9 @@
 node_modules/
 dist/
 out/
+# Stray Vite build output sometimes left at the repo root (the real renderer
+# build lives under packages/app/out/); never source.
+/index.html
 .airlock/
 .env
 .env.*
