@@ -189,6 +189,7 @@ body,
   align-items: center;
   border-radius: 4px;
   height: 24px;
+  position: relative; /* positioning context for the drag drop indicator */
 }
 
 .project-tab:hover {
@@ -197,6 +198,31 @@ body,
 
 .project-tab.active {
   background: var(--selected);
+}
+
+/* Drag-to-reorder drop indicator: a vertical accent line on the edge where the
+   dragged tab would land (before/after the hovered tab). Shared by the project
+   strip and the main tab bar (both are position:relative in their base rules). */
+.project-tab--drop-before::after,
+.project-tab--drop-after::after,
+.main-tab--drop-before::after,
+.main-tab--drop-after::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.project-tab--drop-before::after,
+.main-tab--drop-before::after {
+  left: -2px;
+}
+.project-tab--drop-after::after,
+.main-tab--drop-after::after {
+  right: -2px;
 }
 
 /* Per-tab Claude status dot (leads the tab label). Gray = idle/done/not
@@ -1010,6 +1036,7 @@ body,
   align-items: center;
   border-radius: 4px;
   height: 24px;
+  position: relative; /* positioning context for the drag drop indicator */
 }
 
 .main-tab.active {

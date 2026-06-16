@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
+import { reorderNames } from "../lib/fileOrder";
+import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
 import { useApp } from "../store";
 
 // Label for a tab: its folder basename, or "New Tab" for a blank tab.
@@ -65,6 +67,10 @@ function TabRenameInput({
 // (above the terminal split button) and splits the active project with a new
 // blank pane (or un-splits). Right-click a tab -> "Split" pairs it with the
 // active project (active = left/primary, right-clicked = right/secondary).
+//
+// Every entry (project tabs, the split pair, and the Settings/Usage/Overview
+// page-tabs) is drag-to-reorder: the left-to-right order is `stripOrder`, a
+// reconciled list of entry keys; a drop reorders it via fileOrder.reorderNames.
 export function ProjectTabs() {
   const tabs = useApp((s) => s.tabs);
   const activeTabId = useApp((s) => s.activeTabId);
@@ -77,6 +83,7 @@ export function ProjectTabs() {
   const usageTabOpen = useApp((s) => s.usageTabOpen);
   const overviewTabOpen = useApp((s) => s.overviewTabOpen);
   const overviewRoot = useApp((s) => s.overviewRoot);
+  const stripOrder = useApp((s) => s.stripOrder);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
   // terminals' ptyIds working in sessionWorking); the glow is the stored flag.
   const sessionWorking = useApp((s) => s.sessionWorking);
@@ -96,6 +103,14 @@ export function ProjectTabs() {
     | { x: number; y: number; kind: "pair" }
     | null
   >(null);
+  // Drag-to-reorder state: the key being dragged (a ref, so the drag start
+  // forces no re-render) and the current drop target + side (state, which drives
+  // the drop indicator).
+  const dragKey = useRef<string | null>(null);
+  const [over, setOver] = useState<{
+    key: string;
+    place: "before" | "after";
+  } | null>(null);
   // Close BOTH members of the split pair (the unified tab's X / "Close both").
   // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
   // null), so read both before closing; closeTab promotes/cleans up each tab.
@@ -138,239 +153,266 @@ export function ProjectTabs() {
       (t) => t.ptyId !== null && sessionWorking[t.ptyId] === true,
     );
 
+  // The strip's left-to-right order: stripOrder reconciled against the live
+  // entry keys (stale dropped, new appended), so an entry can never vanish.
+  const orderedKeys = reconcileOrder(
+    stripOrder,
+    stripLiveKeys(tabs, split, {
+      settings: settingsTabOpen,
+      usage: usageTabOpen,
+      overview: overviewTabOpen,
+    }),
+  );
+
+  // --- Drag-to-reorder wiring (one group: every strip entry is interchangeable).
+  const clearDrag = () => {
+    dragKey.current = null;
+    setOver(null);
+  };
+  const dragHandlers = (key: string) => ({
+    onDragStart: (e: DragEvent<HTMLDivElement>) => {
+      dragKey.current = key;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", key);
+    },
+    onDragOver: (e: DragEvent<HTMLDivElement>) => {
+      const dk = dragKey.current;
+      if (!dk || dk === key) return;
+      e.preventDefault();
+      setOver({
+        key,
+        place: dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
+      });
+    },
+    onDrop: (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const dk = dragKey.current;
+      if (dk && dk !== key)
+        useApp
+          .getState()
+          .setStripOrder(
+            reorderNames(
+              orderedKeys,
+              dk,
+              key,
+              dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
+            ),
+          );
+      clearDrag();
+    },
+    onDragEnd: clearDrag,
+  });
+  const dropClass = (key: string): string =>
+    over?.key === key ? ` project-tab--drop-${over.place}` : "";
+
+  // The split pair: ONE combined entry (both names), dragged/reordered as a unit.
+  const renderPair = () => {
+    if (!split) return null;
+    const pair = split;
+    const tabA = tabs.find((t) => t.id === pair.a);
+    const tabB = tabs.find((t) => t.id === pair.b);
+    const working = isWorking(pair.a) || isWorking(pair.b);
+    // Never glow while working: busy (yellow dot) takes priority over the
+    // finished-glow, matching the single-tab store invariant.
+    const glow =
+      !working && (tabGlow[pair.a] === true || tabGlow[pair.b] === true);
+    const labelA = tabA ? displayLabel(tabA) : tabLabel(null);
+    const labelB = tabB ? displayLabel(tabB) : tabLabel(null);
+    return (
+      <div
+        key="__split__"
+        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}${dropClass("pair")}`}
+        draggable
+        {...dragHandlers("pair")}
+      >
+        <button
+          type="button"
+          className="project-tab-label"
+          // Show the split (focus the left member) unless already in it,
+          // so re-clicking does not steal focus from the right pane.
+          onClick={() => {
+            if (activeTabId !== pair.a && activeTabId !== pair.b)
+              useApp.getState().switchTab(pair.a);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY, kind: "pair" });
+          }}
+          title={`${labelA}  +  ${labelB} (split)`}
+        >
+          <span className={`project-tab-status${working ? " working" : ""}`} />
+          <i className="codicon codicon-split-horizontal" />
+          <span className="project-tab-title">
+            {labelA}
+            <span className="project-tab-pair-sep">+</span>
+            {labelB}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="project-tab-overview"
+          title="Project overview"
+          onClick={(e) => {
+            e.stopPropagation();
+            const st = useApp.getState();
+            const r = st.tabState[pair.a]?.root;
+            if (r) st.openOverviewPage(r);
+          }}
+        >
+          !
+        </button>
+        <button
+          type="button"
+          className="project-tab-close"
+          title="Close both tabs"
+          onClick={(e) => {
+            e.stopPropagation();
+            closePair();
+          }}
+        >
+          <i className="codicon codicon-close" />
+        </button>
+      </div>
+    );
+  };
+
+  // A normal single project (or blank) tab.
+  const renderSingle = (tab: { id: string; root: string | null }) => {
+    const active = projectActive(tab.id);
+    const working = isWorking(tab.id);
+    const glow = !working && tabGlow[tab.id] === true;
+    return (
+      <div
+        key={tab.id}
+        className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}${dropClass(tab.id)}`}
+        // A tab being renamed is not draggable (so its input stays editable).
+        draggable={renaming !== tab.id}
+        {...dragHandlers(tab.id)}
+      >
+        {renaming === tab.id ? (
+          <span className="project-tab-label">
+            <span
+              className={`project-tab-status${working ? " working" : ""}`}
+            />
+            <i className="codicon codicon-folder" />
+            <TabRenameInput
+              initial={displayLabel(tab)}
+              onCommit={(name) => {
+                useApp.getState().renameTab(tab.id, name);
+                setRenaming(null);
+              }}
+              onCancel={() => setRenaming(null)}
+            />
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="project-tab-label"
+            onClick={() => useApp.getState().switchTab(tab.id)}
+            onDoubleClick={() => setRenaming(tab.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({
+                x: e.clientX,
+                y: e.clientY,
+                kind: "tab",
+                tabId: tab.id,
+              });
+            }}
+            title={tab.root ?? "New Tab"}
+          >
+            <span
+              className={`project-tab-status${working ? " working" : ""}`}
+            />
+            <i className="codicon codicon-folder" />
+            <span className="project-tab-title">{displayLabel(tab)}</span>
+          </button>
+        )}
+        {tab.root && (
+          <button
+            type="button"
+            className="project-tab-overview"
+            title="Project overview"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tab.root) useApp.getState().openOverviewPage(tab.root);
+            }}
+          >
+            !
+          </button>
+        )}
+        <button
+          type="button"
+          className="project-tab-close"
+          title="Close project"
+          onClick={(e) => {
+            e.stopPropagation();
+            useApp.getState().closeTab(tab.id);
+          }}
+        >
+          <i className="codicon codicon-close" />
+        </button>
+      </div>
+    );
+  };
+
+  // An IDE-level page-tab (Settings / Usage / Overview).
+  const PAGE_META = {
+    settings: { icon: "gear", title: "Settings", label: "Settings" },
+    usage: { icon: "graph", title: "Usage", label: "Usage" },
+    overview: {
+      icon: "info",
+      title: overviewRoot ? `Overview — ${overviewRoot}` : "Overview",
+      label: overviewRoot
+        ? (overviewRoot.split("/").pop() ?? "Overview")
+        : "Overview",
+    },
+  } as const;
+  const renderPage = (kind: "settings" | "usage" | "overview") => {
+    const m = PAGE_META[kind];
+    return (
+      <div
+        key={`page:${kind}`}
+        className={`project-tab page-tab${appPage === kind ? " active" : ""}${dropClass(`page:${kind}`)}`}
+        draggable
+        {...dragHandlers(`page:${kind}`)}
+      >
+        <button
+          type="button"
+          className="project-tab-label"
+          title={m.title}
+          onClick={() => useApp.getState().showAppPage(kind)}
+        >
+          <i className={`codicon codicon-${m.icon}`} />
+          <span className="project-tab-title">{m.label}</span>
+        </button>
+        <button
+          type="button"
+          className="project-tab-close"
+          title={`Close ${kind}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            useApp.getState().closeAppPage(kind);
+          }}
+        >
+          <i className="codicon codicon-close" />
+        </button>
+      </div>
+    );
+  };
+
+  const renderEntry = (key: string) => {
+    if (key === "pair") return renderPair();
+    if (key === "page:settings") return renderPage("settings");
+    if (key === "page:usage") return renderPage("usage");
+    if (key === "page:overview") return renderPage("overview");
+    const tab = tabs.find((t) => t.id === key);
+    return tab ? renderSingle(tab) : null;
+  };
+
   return (
     <div className="project-tabs">
-      <div className="project-tabs-list">
-        {tabs.map((tab) => {
-          // The split pair is ONE combined entry, rendered at member a; member b
-          // is skipped (it is shown inside the pair entry).
-          if (split && tab.id === split.b) return null;
-          if (split && tab.id === split.a) {
-            const tabB = tabs.find((t) => t.id === split.b);
-            const working = isWorking(split.a) || isWorking(split.b);
-            // Never glow while working: busy (yellow dot) takes priority over the
-            // finished-glow, matching the single-tab store invariant.
-            const glow =
-              !working &&
-              (tabGlow[split.a] === true || tabGlow[split.b] === true);
-            const labelA = displayLabel(tab);
-            const labelB = tabB ? displayLabel(tabB) : tabLabel(null);
-            const pair = split; // narrow for the click handler closure
-            return (
-              <div
-                key="__split__"
-                className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="project-tab-label"
-                  // Show the split (focus the left member) unless already in it,
-                  // so re-clicking does not steal focus from the right pane.
-                  onClick={() => {
-                    if (activeTabId !== pair.a && activeTabId !== pair.b)
-                      useApp.getState().switchTab(pair.a);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMenu({ x: e.clientX, y: e.clientY, kind: "pair" });
-                  }}
-                  title={`${labelA}  +  ${labelB} (split)`}
-                >
-                  <span
-                    className={`project-tab-status${working ? " working" : ""}`}
-                  />
-                  <i className="codicon codicon-split-horizontal" />
-                  <span className="project-tab-title">
-                    {labelA}
-                    <span className="project-tab-pair-sep">+</span>
-                    {labelB}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="project-tab-overview"
-                  title="Project overview"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const st = useApp.getState();
-                    const r = st.tabState[pair.a]?.root;
-                    if (r) st.openOverviewPage(r);
-                  }}
-                >
-                  !
-                </button>
-                <button
-                  type="button"
-                  className="project-tab-close"
-                  title="Close both tabs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closePair();
-                  }}
-                >
-                  <i className="codicon codicon-close" />
-                </button>
-              </div>
-            );
-          }
-          // A normal single tab.
-          const active = projectActive(tab.id);
-          const working = isWorking(tab.id);
-          const glow = !working && tabGlow[tab.id] === true;
-          return (
-            <div
-              key={tab.id}
-              className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}`}
-            >
-              {renaming === tab.id ? (
-                <span className="project-tab-label">
-                  <span
-                    className={`project-tab-status${working ? " working" : ""}`}
-                  />
-                  <i className="codicon codicon-folder" />
-                  <TabRenameInput
-                    initial={displayLabel(tab)}
-                    onCommit={(name) => {
-                      useApp.getState().renameTab(tab.id, name);
-                      setRenaming(null);
-                    }}
-                    onCancel={() => setRenaming(null)}
-                  />
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="project-tab-label"
-                  onClick={() => useApp.getState().switchTab(tab.id)}
-                  onDoubleClick={() => setRenaming(tab.id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      kind: "tab",
-                      tabId: tab.id,
-                    });
-                  }}
-                  title={tab.root ?? "New Tab"}
-                >
-                  <span
-                    className={`project-tab-status${working ? " working" : ""}`}
-                  />
-                  <i className="codicon codicon-folder" />
-                  <span className="project-tab-title">{displayLabel(tab)}</span>
-                </button>
-              )}
-              {tab.root && (
-                <button
-                  type="button"
-                  className="project-tab-overview"
-                  title="Project overview"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (tab.root) useApp.getState().openOverviewPage(tab.root);
-                  }}
-                >
-                  !
-                </button>
-              )}
-              <button
-                type="button"
-                className="project-tab-close"
-                title="Close project"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  useApp.getState().closeTab(tab.id);
-                }}
-              >
-                <i className="codicon codicon-close" />
-              </button>
-            </div>
-          );
-        })}
-        {settingsTabOpen && (
-          <div
-            className={`project-tab page-tab${appPage === "settings" ? " active" : ""}`}
-          >
-            <button
-              type="button"
-              className="project-tab-label"
-              title="Settings"
-              onClick={() => useApp.getState().showAppPage("settings")}
-            >
-              <i className="codicon codicon-gear" />
-              <span className="project-tab-title">Settings</span>
-            </button>
-            <button
-              type="button"
-              className="project-tab-close"
-              title="Close settings"
-              onClick={(e) => {
-                e.stopPropagation();
-                useApp.getState().closeAppPage("settings");
-              }}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        )}
-        {usageTabOpen && (
-          <div
-            className={`project-tab page-tab${appPage === "usage" ? " active" : ""}`}
-          >
-            <button
-              type="button"
-              className="project-tab-label"
-              title="Usage"
-              onClick={() => useApp.getState().showAppPage("usage")}
-            >
-              <i className="codicon codicon-graph" />
-              <span className="project-tab-title">Usage</span>
-            </button>
-            <button
-              type="button"
-              className="project-tab-close"
-              title="Close usage"
-              onClick={(e) => {
-                e.stopPropagation();
-                useApp.getState().closeAppPage("usage");
-              }}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        )}
-        {overviewTabOpen && (
-          <div
-            className={`project-tab page-tab${appPage === "overview" ? " active" : ""}`}
-          >
-            <button
-              type="button"
-              className="project-tab-label"
-              title={overviewRoot ? `Overview — ${overviewRoot}` : "Overview"}
-              onClick={() => useApp.getState().showAppPage("overview")}
-            >
-              <i className="codicon codicon-info" />
-              <span className="project-tab-title">
-                {overviewRoot
-                  ? (overviewRoot.split("/").pop() ?? "Overview")
-                  : "Overview"}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="project-tab-close"
-              title="Close overview"
-              onClick={(e) => {
-                e.stopPropagation();
-                useApp.getState().closeAppPage("overview");
-              }}
-            >
-              <i className="codicon codicon-close" />
-            </button>
-          </div>
-        )}
-      </div>
+      <div className="project-tabs-list">{orderedKeys.map(renderEntry)}</div>
       <button
         type="button"
         className="project-tab-action"

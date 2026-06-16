@@ -260,6 +260,12 @@ export interface AppState {
   tabs: { id: string; root: string | null }[]; // tab order; root null = a BLANK tab
   activeTabId: string; // non-null (FOCUSED pane): the window always has >= 1 tab
   split: { a: string; b: string } | null; // the split PAIR (a=left/primary, b=right/secondary); null = no split. Shown iff activeTabId is a or b.
+  // The project STRIP's left-to-right presentation order: a reconciled list of
+  // entry keys -- project tab ids, "pair" for the split, "page:settings|usage|
+  // overview" for the IDE page-tabs. Drag-reorder writes this; it is reconciled
+  // against live membership each render (stale dropped, new appended).
+  // Session-scoped, like tabs/mainTabOrder.
+  stripOrder: string[];
   tabState: Record<string, ProjectState>; // SOURCE OF TRUTH: per-project state for EVERY tab
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
@@ -360,6 +366,12 @@ export interface AppState {
   setDbView: (v: DbView | null, tabId?: string) => void;
   openDbTable: (view: DbView, tabId?: string) => void;
   closeDbTab: (view: DbView, tabId?: string) => void;
+  // Drag-reorder within ONE tab's main bar: content tabs (terminals+files) via
+  // mainTabOrder, db-table tabs via dbTabs. The two groups stay separate.
+  reorderMainTabs: (order: PaneItem[], tabId?: string) => void;
+  reorderDbTabs: (order: DbView[], tabId?: string) => void;
+  // Set the project strip's presentation order (drag-reorder).
+  setStripOrder: (order: string[]) => void;
   setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
   setConfig: (config: ProjectConfig | null, tabId?: string) => void;
   setGitStatus: (gitStatus: GitStatus | null, tabId?: string) => void;
@@ -663,6 +675,7 @@ export const useApp = create<AppState>((set) => ({
   tabs: [{ id: INITIAL_TAB_ID, root: null }],
   activeTabId: INITIAL_TAB_ID,
   split: null,
+  stripOrder: [],
   tabState: { [INITIAL_TAB_ID]: freshProjectState(null) },
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   sessionWorking: {},
@@ -1491,6 +1504,12 @@ export const useApp = create<AppState>((set) => ({
         cur.dbView && sameDbView(cur.dbView, view) ? null : cur.dbView;
       return patchTab(s, tid, { dbTabs, dbView });
     }),
+  // Drag-reorder: thin setters (the bar computes the new array via reorderNames).
+  reorderMainTabs: (order, tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { mainTabOrder: order })),
+  reorderDbTabs: (order, tabId) =>
+    set((s) => patchTab(s, tabId ?? s.activeTabId, { dbTabs: order })),
+  setStripOrder: (order) => set({ stripOrder: order }),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
   fsVersion: {},
   newFileRequest: null,

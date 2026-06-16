@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import { closeEditorFile, openEditorFile } from "../lib/editorFiles";
+import { reorderNames } from "../lib/fileOrder";
+import { dropPlace } from "../lib/stripOrder";
 import {
   type DbView,
   EMPTY_TAB_TERMINALS,
@@ -168,8 +170,82 @@ export function MainTabs({ tabId }: { tabId: string }) {
       .map((p) => ({ kind: "file" as const, path: p })),
   ];
 
+  // --- Drag-to-reorder. Two independent groups in one row: content tabs
+  // (terminals+files, ordered by mainTabOrder) and db-table tabs (ordered by
+  // dbTabs). A drop only reorders within the dragged tab's OWN group; the array
+  // math reuses fileOrder.reorderNames over per-tab string keys.
+  const paneKey = (it: PaneItem): string =>
+    it.kind === "terminal" ? `t:${it.id}` : `f:${it.path}`;
+  const groupOf = (key: string): "db" | "content" =>
+    key.startsWith("db:") ? "db" : "content";
+  const dragKey = useRef<string | null>(null);
+  const [over, setOver] = useState<{
+    key: string;
+    place: "before" | "after";
+  } | null>(null);
+  const clearDrag = () => {
+    dragKey.current = null;
+    setOver(null);
+  };
+  const applyReorder = (dk: string, ok: string, place: "before" | "after") => {
+    if (groupOf(ok) === "db") {
+      const byKey = new Map<string, DbView>(
+        dbTabs.map((v) => [`db:${dbKey(v)}`, v]),
+      );
+      const next = reorderNames([...byKey.keys()], dk, ok, place);
+      useApp.getState().reorderDbTabs(
+        next.map((k) => byKey.get(k)).filter((v): v is DbView => !!v),
+        tabId,
+      );
+    } else {
+      const byKey = new Map(
+        orderedTabs.map((it) => [paneKey(it), it] as const),
+      );
+      const next = reorderNames([...byKey.keys()], dk, ok, place);
+      useApp.getState().reorderMainTabs(
+        next.map((k) => byKey.get(k)).filter((it): it is PaneItem => !!it),
+        tabId,
+      );
+    }
+  };
+  const dragHandlers = (key: string) => ({
+    onDragStart: (e: DragEvent<HTMLDivElement>) => {
+      dragKey.current = key;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", key);
+    },
+    onDragOver: (e: DragEvent<HTMLDivElement>) => {
+      const dk = dragKey.current;
+      if (!dk || dk === key || groupOf(dk) !== groupOf(key)) return;
+      e.preventDefault();
+      setOver({
+        key,
+        place: dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
+      });
+    },
+    onDrop: (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const dk = dragKey.current;
+      if (dk && dk !== key && groupOf(dk) === groupOf(key))
+        applyReorder(
+          dk,
+          key,
+          dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
+        );
+      clearDrag();
+    },
+    onDragEnd: clearDrag,
+  });
+  const dropClass = (key: string): string =>
+    over?.key === key ? ` main-tab--drop-${over.place}` : "";
+
   const renderTerminalTab = (t: (typeof terminals)[number]) => (
-    <div key={t.id} className={`main-tab${termActive(t.id) ? " active" : ""}`}>
+    <div
+      key={t.id}
+      className={`main-tab${termActive(t.id) ? " active" : ""}${dropClass(`t:${t.id}`)}`}
+      draggable={renaming !== t.id}
+      {...dragHandlers(`t:${t.id}`)}
+    >
       {renaming === t.id ? (
         <form
           onSubmit={(e) => {
@@ -218,7 +294,12 @@ export function MainTabs({ tabId }: { tabId: string }) {
   );
 
   const renderFileTab = (p: string) => (
-    <div key={`f:${p}`} className={`main-tab${fileActive(p) ? " active" : ""}`}>
+    <div
+      key={`f:${p}`}
+      className={`main-tab${fileActive(p) ? " active" : ""}${dropClass(`f:${p}`)}`}
+      draggable
+      {...dragHandlers(`f:${p}`)}
+    >
       <button
         type="button"
         className="main-tab-label"
@@ -255,7 +336,12 @@ export function MainTabs({ tabId }: { tabId: string }) {
   // Clicking shows the table (sets the dbView overlay); the x closes the tab.
   const dbActive = (v: DbView) => !!dbView && sameDbView(dbView, v);
   const renderDbTab = (v: DbView) => (
-    <div key={dbKey(v)} className={`main-tab${dbActive(v) ? " active" : ""}`}>
+    <div
+      key={dbKey(v)}
+      className={`main-tab${dbActive(v) ? " active" : ""}${dropClass(`db:${dbKey(v)}`)}`}
+      draggable
+      {...dragHandlers(`db:${dbKey(v)}`)}
+    >
       <button
         type="button"
         className="main-tab-label"
