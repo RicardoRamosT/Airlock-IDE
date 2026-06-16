@@ -1,4 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -350,6 +351,20 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
     return readWorkspaceFile(resolveRoot(e, root), relPath);
+  });
+
+  // True iff relPath is an existing FILE within root. Any failure (escape,
+  // vault, missing, or a directory) returns false -- the terminal link provider
+  // uses this to decide whether to underline a path, so it must never throw.
+  ipcMain.handle("fs:exists", async (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") return false;
+    try {
+      assertNotVault(relPath);
+      const abs = await resolveWithin(resolveRoot(e, root), relPath);
+      return (await stat(abs)).isFile();
+    } catch {
+      return false;
+    }
   });
 
   ipcMain.handle("overview:get", (e, root: unknown) => {

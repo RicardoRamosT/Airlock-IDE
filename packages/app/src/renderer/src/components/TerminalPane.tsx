@@ -2,8 +2,10 @@ import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
+import { openEditorFile } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalKeyBytes } from "../lib/terminalKeys";
+import { findPathCandidates, resolveRel } from "../lib/terminalLinks";
 import {
   keepsSelection,
   planSelection,
@@ -128,6 +130,58 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     term.loadAddon(fit);
     term.open(host);
     fit.fit();
+
+    // Cmd+click file links: underline paths that resolve to an existing FILE
+    // under the project root; Cmd+click opens them in the editor (revealing a
+    // parsed :line). A per-terminal cache of known-existing paths bounds the
+    // existence IPC. Plain clicks stay normal (activate is metaKey-gated), and
+    // term.dispose() (cleanup) disposes this provider with the terminal.
+    const existsCache = new Set<string>();
+    term.registerLinkProvider({
+      provideLinks(lineNo, callback) {
+        const root = useApp.getState().tabState[tabId]?.root ?? null;
+        if (!root) {
+          callback(undefined);
+          return;
+        }
+        const text =
+          term.buffer.active.getLine(lineNo - 1)?.translateToString(true) ?? "";
+        const cands = findPathCandidates(text).flatMap((c) => {
+          const rel = resolveRel(root, c.path);
+          return rel ? [{ c, rel }] : [];
+        });
+        if (cands.length === 0) {
+          callback(undefined);
+          return;
+        }
+        void Promise.all(
+          cands.map(async ({ c, rel }) => {
+            const key = `${root}\n${rel}`;
+            let ok = existsCache.has(key);
+            if (!ok) {
+              ok = await window.airlock.exists(root, rel).catch(() => false);
+              if (ok) existsCache.add(key);
+            }
+            if (!ok) return null;
+            return {
+              text: text.slice(c.start, c.end + 1),
+              range: {
+                start: { x: c.start + 1, y: lineNo },
+                end: { x: c.end + 1, y: lineNo },
+              },
+              decorations: { pointerCursor: true, underline: true },
+              activate: (event: MouseEvent) => {
+                if (!event.metaKey) return; // Cmd+click only; plain click = normal
+                void openEditorFile(tabId, rel);
+                if (c.line) useApp.getState().revealLine(tabId, rel, c.line);
+              },
+            };
+          }),
+        ).then((links) =>
+          callback(links.filter((l): l is NonNullable<typeof l> => l !== null)),
+        );
+      },
+    });
 
     // macOS line-editing chords -> readline control bytes (see lib/terminalKeys).
     // Matched chords are sent straight to the pty and suppressed in xterm (and

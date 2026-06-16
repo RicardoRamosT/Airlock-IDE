@@ -53,6 +53,9 @@ vi.mock("@xterm/xterm", () => {
       return { dispose() {} };
     }
     attachCustomKeyEventHandler() {}
+    registerLinkProvider() {
+      return { dispose() {} };
+    }
     dispose() {}
   }
   return { Terminal };

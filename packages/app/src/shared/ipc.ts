@@ -482,6 +482,9 @@ export interface AirlockApi {
   // is identical.
   listDir(root: string, relPath: string): Promise<DirEntry[]>;
   readFile(root: string, relPath: string): Promise<FileContent>;
+  // True iff relPath resolves to an existing FILE within root. Cheap stat used
+  // by the terminal's Cmd+click link provider to only link paths that exist.
+  exists(root: string, relPath: string): Promise<boolean>;
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;
