@@ -4,6 +4,11 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalKeyBytes } from "../lib/terminalKeys";
+import {
+  planSelection,
+  type SelectChord,
+  terminalSelectChord,
+} from "../lib/terminalSelect";
 import { hasWorkingIndicator } from "../lib/workingIndicator";
 import { CLAUDE_AUTO_COMMAND, useApp } from "../store";
 
@@ -41,6 +46,8 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   // Last working state pushed to the store, so the scan only calls applyPtyStatus
   // on a change (not every tick).
   const lastWorkingRef = useRef(false);
+  const selAnchorRef = useRef<number | null>(null);
+  const selActiveRef = useRef<number | null>(null);
   const setTerminalPty = useApp((s) => s.setTerminalPty);
   const setTerminalTitle = useApp((s) => s.setTerminalTitle);
   const removeTerminal = useApp((s) => s.removeTerminal);
@@ -49,6 +56,57 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+
+    // Clear the keyboard-selection anchor (called when a non-selection key ends it).
+    const resetSelAnchor = () => {
+      selAnchorRef.current = null;
+      selActiveRef.current = null;
+    };
+
+    // Apply a selection chord to the focused terminal's CURRENT logical line.
+    // Reads the shell cursor + the (wrap-joined) line, plans the new range with the
+    // pure planner, and highlights it via xterm. Visual only -- never touches the pty.
+    const applySelectionChord = (term: Terminal, chord: SelectChord) => {
+      const buf = term.buffer.active;
+      const cols = term.cols;
+      const cursorRow = buf.baseY + buf.cursorY;
+      // Logical line = the cursor row plus any rows it wrapped across.
+      let startRow = cursorRow;
+      while (startRow > 0 && buf.getLine(startRow)?.isWrapped) startRow--;
+      let endRow = cursorRow;
+      while (buf.getLine(endRow + 1)?.isWrapped) endRow++;
+      let joined = "";
+      for (let r = startRow; r <= endRow; r++) {
+        joined += buf.getLine(r)?.translateToString(false) ?? "";
+      }
+      const lineText = joined.replace(/\s+$/, ""); // drop trailing grid padding
+      const lineLen = lineText.length;
+      const cursorCol = Math.min(
+        (cursorRow - startRow) * cols + buf.cursorX,
+        lineLen,
+      );
+      const next = planSelection(
+        {
+          cursorCol,
+          lineLen,
+          lineText,
+          anchor: selAnchorRef.current,
+          activeEnd: selActiveRef.current,
+        },
+        chord,
+      );
+      selAnchorRef.current = next.anchor;
+      selActiveRef.current = next.activeEnd;
+      const lo = Math.min(next.anchor, next.activeEnd);
+      const hi = Math.max(next.anchor, next.activeEnd);
+      if (lo === hi) {
+        term.clearSelection();
+        return;
+      }
+      const row = startRow + Math.floor(lo / cols);
+      const col = lo % cols;
+      term.select(col, row, hi - lo);
+    };
 
     const term = new Terminal({
       fontSize: 13,
@@ -74,10 +132,33 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
       const bytes = terminalKeyBytes(e);
-      if (bytes === null) return true;
-      if (idRef.current) window.airlock.ptyInput(idRef.current, bytes);
-      e.preventDefault();
-      return false;
+      if (bytes !== null) {
+        if (idRef.current) window.airlock.ptyInput(idRef.current, bytes);
+        resetSelAnchor(); // a move/edit key ends any keyboard selection
+        e.preventDefault();
+        return false;
+      }
+      const chord = terminalSelectChord(e);
+      if (chord) {
+        applySelectionChord(term, chord);
+        e.preventDefault();
+        return false;
+      }
+      // Cmd+C copies the highlight when there is one (Ctrl+C / SIGINT is unaffected).
+      if (
+        e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        (e.key === "c" || e.key === "C") &&
+        term.hasSelection()
+      ) {
+        void navigator.clipboard.writeText(term.getSelection());
+        e.preventDefault();
+        return false;
+      }
+      resetSelAnchor(); // any other key ends the selection
+      return true;
     });
 
     // Hold the resolved pty id in a ref so the data/exit listeners (attached
