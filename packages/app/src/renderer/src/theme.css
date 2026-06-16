@@ -34,6 +34,10 @@
   --ficon-claude: #b180d7;
   --ficon-vm: #519aba;
   --row-h: 22px;
+  --control-h: 24px; /* interactive controls: .btn, select, input, sb-control */
+  --sb-gap: 6px; /* between sibling controls in a row (toolbars) */
+  --sb-row-gap: 2px; /* between list rows within a section */
+  --sb-block-gap: 10px; /* between stacked blocks (toolbar / list / footer / control groups) */
   /* Shared height of the two bottom "docks" (the rail's accounts/settings
      block and the sidebar's quota meter) so their top borders form ONE
      continuous line across both columns. Sized to fit the meter's tallest
@@ -624,6 +628,86 @@ body,
   font-size: 12px;
   color: var(--fg-dim);
   padding: 2px 0;
+}
+
+/* ---- Shared sidebar layout primitives (see sidebar standardization spec) ---- */
+
+/* A row of action buttons: equal-width .btn children, separated from the body. */
+.section-toolbar {
+  display: flex;
+  gap: var(--sb-gap);
+  margin-bottom: var(--sb-block-gap);
+}
+
+/* A single-line control (select/input) sized to match .btn. */
+.sb-control {
+  height: var(--control-h);
+  min-width: 0;
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 2px 6px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+.sb-control:hover {
+  border-color: var(--fg-dim);
+}
+
+/* A trailing icon action on a row: fixed box, muted, brighten on hover. */
+.row-action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.row-action:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+.row-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* .reveal: hidden until its row is hovered (secondary/destructive actions). */
+.row-action.reveal {
+  opacity: 0;
+}
+.db-entry-head:hover .row-action.reveal,
+.secret-row:hover .row-action.reveal,
+.docker-row:hover .row-action.reveal,
+.activity-row:hover .row-action.reveal {
+  opacity: 1;
+}
+
+/* One empty-state note; works as a static note or a clickable button. */
+.section-empty {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  color: var(--fg-dim);
+  padding: 2px 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.section-empty:hover {
+  color: var(--fg);
+  text-decoration: underline;
 }
 
 /* Fill the section body: without this the tree's height collapses to its rows
@@ -1816,7 +1900,7 @@ button.quota-meter:hover {
   border: 1px solid var(--border);
   color: var(--fg);
   border-radius: 4px;
-  height: 22px;
+  height: var(--control-h);
   padding: 0 10px;
   font-size: 12px;
   font-weight: 500;
@@ -1858,6 +1942,12 @@ button.quota-meter:hover {
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Toolbar buttons share width equally. Declared after base .btn so specificity
+   ascends (avoids noDescendingSpecificity). */
+.section-toolbar .btn {
+  flex: 1;
 }
 
 .inject-toggle {
