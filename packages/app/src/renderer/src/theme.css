@@ -3113,3 +3113,82 @@ textarea:focus-visible {
   height: 100%;
   color: var(--text-dim, #888);
 }
+
+/* Project Overview overlay (the "!" dashboard) */
+.overview {
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-block-gap);
+}
+.overview.empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim, #888);
+}
+.overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-gap);
+}
+.overview-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.overview-refresh {
+  flex: 0 0 auto;
+}
+.overview-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+}
+.overview-group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #888);
+}
+.overview-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-gap);
+}
+.overview-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.overview-logo {
+  flex: 0 0 auto;
+}
+.overview-tile-name {
+  white-space: nowrap;
+}
+.overview-areas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+}
+.overview-summary {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.overview-area-row {
+  font-size: 12px;
+  padding: 2px 0;
+}
