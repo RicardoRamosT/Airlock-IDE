@@ -162,7 +162,7 @@ export function NeonSection() {
     db: NeonDatabase,
     t: DbTable,
   ) => {
-    useApp.getState().setDbView({
+    useApp.getState().openDbTable({
       kind: "neon",
       projectId,
       branchId,

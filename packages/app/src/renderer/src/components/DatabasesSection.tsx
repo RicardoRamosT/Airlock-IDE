@@ -75,7 +75,7 @@ export function DatabasesSection() {
   const openTable = (id: string, t: DbTable) => {
     useApp
       .getState()
-      .setDbView(
+      .openDbTable(
         { kind: "secret", id, schema: t.schema, table: t.name },
         tabId,
       );

@@ -32,7 +32,7 @@ export function DataGrid() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
-  const setDbView = useApp((s) => s.setDbView);
+  const closeDbTab = useApp((s) => s.closeDbTab);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,8 +101,10 @@ export function DataGrid() {
         <button
           type="button"
           className="viewer-close"
-          onClick={() => setDbView(null, tabId)}
-          title="Close data grid (back to full terminal)"
+          onClick={() => {
+            if (dbView) closeDbTab(dbView, tabId);
+          }}
+          title="Close table"
         >
           <i className="codicon codicon-close" />
         </button>

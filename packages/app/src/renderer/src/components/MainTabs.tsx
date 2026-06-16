@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { closeEditorFile, openEditorFile } from "../lib/editorFiles";
 import {
+  type DbView,
   EMPTY_TAB_TERMINALS,
   type PaneItem,
+  sameDbView,
   samePaneItem,
   useApp,
 } from "../store";
@@ -10,8 +12,14 @@ import { FileIcon } from "./FileIcon";
 
 const EMPTY_FILES: string[] = [];
 const EMPTY_ORDER: PaneItem[] = [];
+const EMPTY_DBTABS: DbView[] = [];
 const fileName = (relPath: string): string =>
   relPath.split("/").pop() ?? relPath;
+// Stable React key / identity string for an open db-table tab.
+const dbKey = (v: DbView): string =>
+  v.kind === "secret"
+    ? `s:${v.id}:${v.schema}.${v.table}`
+    : `n:${v.projectId}/${v.branchId}/${v.database}/${v.role}/${v.schema}.${v.table}`;
 
 // The unified main-area tab bar: every terminal AND every open file as tabs in
 // one row. Clicking a tab makes it the PRIMARY (single pane). Right-click ->
@@ -44,6 +52,10 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const viewItem = useApp((s) => s.viewItem);
   const splitItems = useApp((s) => s.splitItems);
   const unsplitCurrent = useApp((s) => s.unsplitCurrent);
+  const dbTabs = useApp((s) => s.tabState[tabId]?.dbTabs ?? EMPTY_DBTABS);
+  const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
+  const setDbView = useApp((s) => s.setDbView);
+  const closeDbTab = useApp((s) => s.closeDbTab);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [menu, setMenu] = useState<
@@ -66,12 +78,16 @@ export function MainTabs({ tabId }: { tabId: string }) {
 
   // A tab is "active" (highlighted) when it is in the SHOWN scene: the primary
   // pane (the active terminal / selected file) or the secondary pane.
+  // When a db table is shown (the dbView overlay), it is the active tab -- no
+  // terminal/file pane tab is highlighted underneath it.
   const termActive = (id: string) =>
-    (mainPrimary === "terminal" && id === activeTerminalId) ||
-    (mainSecondary?.kind === "terminal" && mainSecondary.id === id);
+    !dbView &&
+    ((mainPrimary === "terminal" && id === activeTerminalId) ||
+      (mainSecondary?.kind === "terminal" && mainSecondary.id === id));
   const fileActive = (p: string) =>
-    (mainPrimary === "editor" && p === selectedFile) ||
-    (mainSecondary?.kind === "file" && mainSecondary.path === p);
+    !dbView &&
+    ((mainPrimary === "editor" && p === selectedFile) ||
+      (mainSecondary?.kind === "file" && mainSecondary.path === p));
 
   const killTerminal = (id: string) => {
     const entry = terminals.find((t) => t.id === id);
@@ -235,10 +251,38 @@ export function MainTabs({ tabId }: { tabId: string }) {
     return renderFileTab(item.path);
   };
 
+  // Open db tables render as persistent tabs after the terminal/file tabs.
+  // Clicking shows the table (sets the dbView overlay); the x closes the tab.
+  const dbActive = (v: DbView) => !!dbView && sameDbView(dbView, v);
+  const renderDbTab = (v: DbView) => (
+    <div key={dbKey(v)} className={`main-tab${dbActive(v) ? " active" : ""}`}>
+      <button
+        type="button"
+        className="main-tab-label"
+        onClick={() => setDbView(v, tabId)}
+        title={`${v.schema}.${v.table}`}
+      >
+        <i className="codicon codicon-table" />
+        <span className="main-tab-title">
+          {v.schema}.{v.table}
+        </span>
+      </button>
+      <button
+        type="button"
+        className="main-tab-close"
+        title="Close table"
+        onClick={() => closeDbTab(v, tabId)}
+      >
+        <i className="codicon codicon-close" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="main-tabs">
       <div className="main-tabs-list">
         {orderedTabs.map(renderTab)}
+        {dbTabs.map(renderDbTab)}
         <button
           type="button"
           className="main-tab-action"

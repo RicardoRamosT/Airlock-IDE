@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { restartActiveTerminal } from "./lib/restartActiveTerminal";
-import { type TabTerminals, useApp } from "./store";
+import { type DbView, type TabTerminals, useApp } from "./store";
 
 // Pristine store state (incl. all action fns) captured ONCE. The actions are
 // immutable (spreads/maps), so this reference stays clean and can be restored
@@ -693,6 +693,47 @@ describe("per-project setters: explicit tabId vs active", () => {
     });
     // active mirror (b) unaffected by the explicit-tab writes
     expect(s.dbView).toBeNull();
+  });
+});
+
+describe("db tabs (openDbTable / closeDbTab)", () => {
+  const V1: DbView = { kind: "secret", id: "x", schema: "s", table: "t1" };
+  const V2: DbView = { kind: "secret", id: "x", schema: "s", table: "t2" };
+
+  it("openDbTable adds a persistent tab and shows it; dedupes repeats", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1);
+    get().openDbTable(V1, aId);
+    get().openDbTable(V2, aId);
+    get().openDbTable(V1, aId); // repeat -> no duplicate entry
+    const s = get();
+    expect(s.tabState[aId]?.dbTabs).toEqual([V1, V2]);
+    expect(s.tabState[aId]?.dbView).toEqual(V1); // last opened is the shown one
+  });
+
+  it("switching to a terminal clears the overlay but keeps the db tabs", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1);
+    get().openDbTable(V1, aId);
+    get().viewItem({ kind: "terminal", id: "term-1" }, aId);
+    const s = get();
+    expect(s.tabState[aId]?.dbView).toBeNull(); // overlay hidden
+    expect(s.tabState[aId]?.dbTabs).toEqual([V1]); // tab persists in the bar
+  });
+
+  it("closeDbTab removes the tab; clears the overlay only if it was shown", () => {
+    get().openProject("/a");
+    const aId = tabIdAt(1);
+    get().openDbTable(V1, aId);
+    get().openDbTable(V2, aId); // V2 is shown
+    get().closeDbTab(V1, aId); // close the NOT-shown one
+    let s = get();
+    expect(s.tabState[aId]?.dbTabs).toEqual([V2]);
+    expect(s.tabState[aId]?.dbView).toEqual(V2); // still shown
+    get().closeDbTab(V2, aId); // close the shown one
+    s = get();
+    expect(s.tabState[aId]?.dbTabs).toEqual([]);
+    expect(s.tabState[aId]?.dbView).toBeNull();
   });
 });
 

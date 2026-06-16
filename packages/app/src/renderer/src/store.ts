@@ -99,6 +99,22 @@ export const samePaneItem = (a: PaneItem, b: PaneItem): boolean =>
     ? b.kind === "terminal" && a.id === b.id
     : b.kind === "file" && a.path === b.path;
 
+// Structural equality for DbView (same vaulted secret + table, or same Neon
+// project/branch/database/role + table). Used to dedupe and match open db tabs.
+export const sameDbView = (a: DbView, b: DbView): boolean =>
+  a.kind === "secret"
+    ? b.kind === "secret" &&
+      a.id === b.id &&
+      a.schema === b.schema &&
+      a.table === b.table
+    : b.kind === "neon" &&
+      a.projectId === b.projectId &&
+      a.branchId === b.branchId &&
+      a.database === b.database &&
+      a.role === b.role &&
+      a.schema === b.schema &&
+      a.table === b.table;
+
 // The scene shown for `current`: the split pair containing it ([left,right]),
 // else `current` alone (right = null). The single source the UI renders from.
 export const shownScene = (
@@ -154,6 +170,9 @@ export interface ProjectState {
   gitStatus: GitStatus | null;
   diff: AppState["diff"]; // the {path,which,original,modified}|null shape
   dbView: DbView | null;
+  // The open db-table tabs in this tab's main tab bar; they persist across pane
+  // switches (the shown one is dbView). Closed individually via closeDbTab.
+  dbTabs: DbView[];
   settingsOpen: boolean;
   // Unified main area: the open file editor TABS (relPaths; the tab bar shows
   // these alongside the terminals).
@@ -188,6 +207,7 @@ const freshProjectState = (root: string | null): ProjectState => ({
   gitStatus: null,
   diff: null,
   dbView: null,
+  dbTabs: [],
   settingsOpen: false,
   editorTabs: [],
   mainTabOrder: [],
@@ -221,6 +241,7 @@ export interface AppState {
   // file/diff this is part of the viewer-pane discriminator: only one of
   // file/diff/settings/dbView is non-null at a time (mutual exclusion).
   dbView: DbView | null;
+  dbTabs: DbView[];
   diff: {
     path: string;
     which: "staged" | "unstaged";
@@ -337,6 +358,8 @@ export interface AppState {
   unsplitCurrent: (tabId?: string) => void;
   setDiff: (diff: AppState["diff"], tabId?: string) => void;
   setDbView: (v: DbView | null, tabId?: string) => void;
+  openDbTable: (view: DbView, tabId?: string) => void;
+  closeDbTab: (view: DbView, tabId?: string) => void;
   setSecrets: (secrets: SecretMeta[], tabId?: string) => void;
   setConfig: (config: ProjectConfig | null, tabId?: string) => void;
   setGitStatus: (gitStatus: GitStatus | null, tabId?: string) => void;
@@ -444,6 +467,7 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   gitStatus: ps.gitStatus,
   diff: ps.diff,
   dbView: ps.dbView,
+  dbTabs: ps.dbTabs,
   settingsOpen: ps.settingsOpen,
   editorTabs: ps.editorTabs,
   mainTabOrder: ps.mainTabOrder,
@@ -612,6 +636,7 @@ export const useApp = create<AppState>((set) => ({
   gitStatus: null,
   settingsOpen: false,
   dbView: null,
+  dbTabs: [],
   diff: null,
   editorTabs: [],
   mainTabOrder: [],
@@ -1402,6 +1427,38 @@ export const useApp = create<AppState>((set) => ({
       // Browsing data surfaces the project: hide any shown IDE page.
       ...(v ? { appPage: null } : {}),
     })),
+  // Open a table as a persistent tab in the main tab bar: add it to dbTabs (so
+  // it survives switching to a terminal/file) and show it as the dbView overlay.
+  openDbTable: (view, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      const dbTabs = cur.dbTabs.some((v) => sameDbView(v, view))
+        ? cur.dbTabs
+        : [...cur.dbTabs, view];
+      return {
+        ...patchTab(s, tid, {
+          dbTabs,
+          dbView: view,
+          diff: null,
+          settingsOpen: false,
+        }),
+        appPage: null,
+      };
+    }),
+  // Close one db-table tab: drop it from dbTabs and, if it was the shown
+  // overlay, clear dbView (revealing the terminal/file underneath).
+  closeDbTab: (view, tabId) =>
+    set((s) => {
+      const tid = tabId ?? s.activeTabId;
+      const cur = s.tabState[tid];
+      if (!cur) return {};
+      const dbTabs = cur.dbTabs.filter((v) => !sameDbView(v, view));
+      const dbView =
+        cur.dbView && sameDbView(cur.dbView, view) ? null : cur.dbView;
+      return patchTab(s, tid, { dbTabs, dbView });
+    }),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
   fsVersion: {},
   newFileRequest: null,
