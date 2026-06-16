@@ -80,13 +80,15 @@ export function RenderSection() {
   if (connected === false) {
     return (
       <div className="databases">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => useApp.getState().setModal("connect-render")}
-        >
-          Connect Render
-        </button>
+        <div className="section-toolbar">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => useApp.getState().setModal("connect-render")}
+          >
+            Connect Render
+          </button>
+        </div>
       </div>
     );
   }

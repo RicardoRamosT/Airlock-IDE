@@ -166,20 +166,22 @@ export function LocalHostSection() {
           </button>
         </div>
       ) : (
-        <div className="docker-row">
-          <span className="section-note">No dev server detected</span>
-          <button
-            type="button"
-            className="btn host-set"
-            onClick={() => {
-              setDraft("http://localhost:3000");
-              setEditing(true);
-            }}
-            title="Set dev server URL"
-          >
-            Set URL
-          </button>
-        </div>
+        <>
+          <div className="section-note">No dev server detected</div>
+          <div className="section-toolbar">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setDraft("http://localhost:3000");
+                setEditing(true);
+              }}
+              title="Set dev server URL"
+            >
+              Set URL
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

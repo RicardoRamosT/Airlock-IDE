@@ -85,13 +85,19 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
               <span className="db-name">{s.name}</span>
             </div>
             <div className="neon-children">
-              {s.resources.map((r) => (
-                <div key={r.id} className="db-row">
-                  <span className={dotClass(r.state)} />
-                  <span className="db-name">{r.title}</span>
-                  {r.subtitle && <span className="db-host">{r.subtitle}</span>}
-                </div>
-              ))}
+              {s.resources.length === 0 ? (
+                <div className="section-note">no resources</div>
+              ) : (
+                s.resources.map((r) => (
+                  <div key={r.id} className="db-row">
+                    <span className={dotClass(r.state)} />
+                    <span className="db-name">{r.title}</span>
+                    {r.subtitle && (
+                      <span className="db-host">{r.subtitle}</span>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         );
