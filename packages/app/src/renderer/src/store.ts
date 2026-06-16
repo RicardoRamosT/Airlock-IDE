@@ -174,7 +174,6 @@ export interface ProjectState {
   // switches (the shown one is dbView). Closed individually via closeDbTab.
   dbTabs: DbView[];
   settingsOpen: boolean;
-  overviewOpen: boolean;
   // Unified main area: the open file editor TABS (relPaths; the tab bar shows
   // these alongside the terminals).
   editorTabs: string[];
@@ -210,7 +209,6 @@ const freshProjectState = (root: string | null): ProjectState => ({
   dbView: null,
   dbTabs: [],
   settingsOpen: false,
-  overviewOpen: false,
   editorTabs: [],
   mainTabOrder: [],
   splits: [],
@@ -239,7 +237,6 @@ export interface AppState {
   config: ProjectConfig | null;
   gitStatus: GitStatus | null;
   settingsOpen: boolean; // Settings tab shown in viewer-pane (excludes file/diff)
-  overviewOpen: boolean; // Project Overview overlay (per-tab; mutually exclusive with diff/dbView/settings)
   // A vaulted DB table being browsed in the viewer-pane. Like settingsOpen and
   // file/diff this is part of the viewer-pane discriminator: only one of
   // file/diff/settings/dbView is non-null at a time (mutual exclusion).
@@ -413,7 +410,6 @@ export interface AppState {
   setDefaultTerminal: (v: string) => void;
   openExternalTerminal: (tabId: string) => void;
   setSettingsOpen: (v: boolean, tabId?: string) => void;
-  setOverviewOpen: (v: boolean, tabId?: string) => void;
   // The command/quick-open palette overlay (window-level, one per window).
   palette: { mode: "files" | "commands" } | null;
   openPalette: (mode: "files" | "commands") => void;
@@ -433,12 +429,18 @@ export interface AppState {
   // tabs; BOTH can be open at once, `appPage` selects which one is SHOWN
   // (replacing the panes area; selecting a project tab hides the page but
   // keeps its tab open). ---
-  appPage: "settings" | "usage" | null;
+  appPage: "settings" | "usage" | "overview" | null;
   settingsTabOpen: boolean;
   usageTabOpen: boolean;
+  // The Overview is per-PROJECT (Settings/Usage are global), so it is a SINGLETON
+  // page-tab that RETARGETS to whichever project's "!" you click. overviewRoot is
+  // the project root it currently shows; null when the chip is closed.
+  overviewTabOpen: boolean;
+  overviewRoot: string | null;
   openAppPage: (p: "settings" | "usage") => void; // open the tab + show it
-  showAppPage: (p: "settings" | "usage") => void; // click an already-open tab
-  closeAppPage: (p: "settings" | "usage") => void; // the tab's X
+  showAppPage: (p: "settings" | "usage" | "overview") => void; // click an already-open tab
+  closeAppPage: (p: "settings" | "usage" | "overview") => void; // the tab's X
+  openOverviewPage: (root: string) => void; // open/retarget the Overview page-tab + show it
   setSearchResults: (query: string, results: SearchResults) => void;
   // A one-shot "scroll the editor to this line" signal, keyed by tabId+path and
   // consumed by EditorPane. nonce makes repeated clicks on the same line retrigger.
@@ -478,7 +480,6 @@ const mirrorOf = (ps: ProjectState): Pick<AppState, keyof ProjectState> => ({
   dbView: ps.dbView,
   dbTabs: ps.dbTabs,
   settingsOpen: ps.settingsOpen,
-  overviewOpen: ps.overviewOpen,
   editorTabs: ps.editorTabs,
   mainTabOrder: ps.mainTabOrder,
   splits: ps.splits,
@@ -645,7 +646,6 @@ export const useApp = create<AppState>((set) => ({
   config: null,
   gitStatus: null,
   settingsOpen: false,
-  overviewOpen: false,
   dbView: null,
   dbTabs: [],
   diff: null,
@@ -1060,7 +1060,6 @@ export const useApp = create<AppState>((set) => ({
         file,
         diff: null,
         settingsOpen: false,
-        overviewOpen: false,
         dbView: null,
       }),
     ),
@@ -1090,7 +1089,6 @@ export const useApp = create<AppState>((set) => ({
           mainTabOrder,
           diff: null,
           settingsOpen: false,
-          overviewOpen: false,
           dbView: null,
         },
       );
@@ -1156,7 +1154,6 @@ export const useApp = create<AppState>((set) => ({
       return setView(s, tid, cur.splits, item, {
         diff: null,
         settingsOpen: false,
-        overviewOpen: false,
         dbView: null,
       });
     }),
@@ -1188,7 +1185,6 @@ export const useApp = create<AppState>((set) => ({
         mainTabOrder,
         diff: null,
         settingsOpen: false,
-        overviewOpen: false,
         dbView: null,
       });
     }),
@@ -1213,7 +1209,6 @@ export const useApp = create<AppState>((set) => ({
       patchTab(s, tabId ?? s.activeTabId, {
         diff,
         settingsOpen: false,
-        overviewOpen: false,
         dbView: null,
       }),
     ),
@@ -1258,7 +1253,6 @@ export const useApp = create<AppState>((set) => ({
           mainTabOrder,
           diff: null,
           settingsOpen: false,
-          overviewOpen: false,
           dbView: null,
         },
       );
@@ -1454,22 +1448,13 @@ export const useApp = create<AppState>((set) => ({
       appPage: v ? "settings" : s.appPage === "settings" ? null : s.appPage,
       settingsTabOpen: v,
     })),
-  // Project Overview overlay: opening clears the sibling overlays (diff/settings/dbView).
-  // Closing leaves the rest untouched. Mirrors the setDiff pattern exactly.
-  setOverviewOpen: (v, tabId) =>
-    set((s) =>
-      patchTab(s, tabId ?? s.activeTabId, {
-        overviewOpen: v,
-        ...(v ? { diff: null, settingsOpen: false, dbView: null } : {}),
-      }),
-    ),
   // Browsing a DB table is an overlay too: clears diff/settings (one overlay at
   // a time) but keeps the editor underneath. Passing null closes the data grid.
   setDbView: (v, tabId) =>
     set((s) => ({
       ...patchTab(s, tabId ?? s.activeTabId, {
         dbView: v,
-        ...(v ? { diff: null, settingsOpen: false, overviewOpen: false } : {}),
+        ...(v ? { diff: null, settingsOpen: false } : {}),
       }),
       // Browsing data surfaces the project: hide any shown IDE page.
       ...(v ? { appPage: null } : {}),
@@ -1490,7 +1475,6 @@ export const useApp = create<AppState>((set) => ({
           dbView: view,
           diff: null,
           settingsOpen: false,
-          overviewOpen: false,
         }),
         appPage: null,
       };
@@ -1523,6 +1507,8 @@ export const useApp = create<AppState>((set) => ({
   appPage: null,
   settingsTabOpen: false,
   usageTabOpen: false,
+  overviewTabOpen: false,
+  overviewRoot: null,
   openAppPage: (p) =>
     set((s) => ({
       appPage: p,
@@ -1530,11 +1516,16 @@ export const useApp = create<AppState>((set) => ({
       usageTabOpen: p === "usage" ? true : s.usageTabOpen,
     })),
   showAppPage: (p) => set({ appPage: p }),
+  // Open (or retarget) the per-project Overview page-tab and show it.
+  openOverviewPage: (root) =>
+    set({ appPage: "overview", overviewTabOpen: true, overviewRoot: root }),
   closeAppPage: (p) =>
     set((s) => ({
       appPage: s.appPage === p ? null : s.appPage,
       settingsTabOpen: p === "settings" ? false : s.settingsTabOpen,
       usageTabOpen: p === "usage" ? false : s.usageTabOpen,
+      overviewTabOpen: p === "overview" ? false : s.overviewTabOpen,
+      overviewRoot: p === "overview" ? null : s.overviewRoot,
     })),
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),

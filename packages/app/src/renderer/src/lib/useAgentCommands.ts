@@ -44,7 +44,9 @@ function buildSnapshot(): TabsSnapshot {
         ...(s.settingsTabOpen ? (["settings"] as const) : []),
         ...(s.usageTabOpen ? (["usage"] as const) : []),
       ],
-      shown: s.appPage,
+      // The Overview page is per-project (not an MCP-openable global page like
+      // Settings/Usage), so report it as "no app-page shown" to the agent surface.
+      shown: s.appPage === "overview" ? null : s.appPage,
     },
   };
 }

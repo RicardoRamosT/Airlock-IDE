@@ -1342,20 +1342,43 @@ describe("showRunningProcessNotice", () => {
   });
 });
 
-// --- overviewOpen overlay ---------------------------------------------------
+// --- Overview page-tab ------------------------------------------------------
 
-it("setOverviewOpen(true) shows the overview overlay and clears the others", () => {
+it("openOverviewPage opens + shows the Overview page-tab, targeting the root", () => {
   const s = useApp.getState();
   s.openProject("/p"); // gives the active tab a real root
-  s.setDiff({ path: "a", which: "unstaged", original: "x", modified: "y" });
-  useApp.getState().setOverviewOpen(true);
-  expect(useApp.getState().overviewOpen).toBe(true);
-  expect(useApp.getState().diff).toBeNull();
+  s.openOverviewPage("/p");
+  const st = useApp.getState();
+  expect(st.appPage).toBe("overview");
+  expect(st.overviewTabOpen).toBe(true);
+  expect(st.overviewRoot).toBe("/p");
 });
 
-it("selecting a terminal dismisses the overview overlay", () => {
-  useApp.getState().setOverviewOpen(true);
-  const id = useApp.getState().addTerminal();
-  useApp.getState().viewItem({ kind: "terminal", id });
-  expect(useApp.getState().overviewOpen).toBe(false);
+it("openOverviewPage retargets the singleton tab to a new project root", () => {
+  const s = useApp.getState();
+  s.openOverviewPage("/a");
+  s.openOverviewPage("/b");
+  const st = useApp.getState();
+  expect(st.overviewRoot).toBe("/b");
+  expect(st.overviewTabOpen).toBe(true);
+});
+
+it("showing another IDE page hides the Overview but keeps its tab open", () => {
+  const s = useApp.getState();
+  s.openOverviewPage("/p");
+  s.openAppPage("settings");
+  const st = useApp.getState();
+  expect(st.appPage).toBe("settings");
+  expect(st.overviewTabOpen).toBe(true); // chip persists
+  expect(st.overviewRoot).toBe("/p");
+});
+
+it("closeAppPage('overview') closes the chip, clears the root, and hides the page", () => {
+  const s = useApp.getState();
+  s.openOverviewPage("/p");
+  s.closeAppPage("overview");
+  const st = useApp.getState();
+  expect(st.overviewTabOpen).toBe(false);
+  expect(st.overviewRoot).toBeNull();
+  expect(st.appPage).toBeNull();
 });

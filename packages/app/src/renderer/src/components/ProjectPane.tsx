@@ -9,7 +9,6 @@ import { DataGrid } from "./DataGrid";
 import { EditorPane } from "./EditorPane";
 import { ImagePreview } from "./ImagePreview";
 import { MainTabs } from "./MainTabs";
-import { OverviewTab } from "./OverviewTab";
 import { Viewer } from "./Viewer";
 
 // One project's unified main area scoped to a single tab (the window's single
@@ -37,7 +36,6 @@ export function ProjectPane({
   const selectedFile = useApp((s) => s.tabState[tabId]?.selectedFile ?? null);
   const diff = useApp((s) => s.tabState[tabId]?.diff ?? null);
   const dbView = useApp((s) => s.tabState[tabId]?.dbView ?? null);
-  const overviewOpen = useApp((s) => s.tabState[tabId]?.overviewOpen ?? false);
   const mainPrimary = useApp(
     (s) => s.tabState[tabId]?.mainPrimary ?? "terminal",
   );
@@ -101,7 +99,7 @@ export function ProjectPane({
 
   const focus = () => useApp.getState().switchTab(tabId);
 
-  const overlay = !!dbView || !!diff || overviewOpen;
+  const overlay = !!dbView || !!diff;
   // The primary pane is an editor only when an editor file is the primary; else
   // it is the terminal.
   const primaryEditorPath =
@@ -153,8 +151,7 @@ export function ProjectPane({
         : editorArea(mainSecondary.path, secContent);
 
   let content: React.ReactNode;
-  if (overviewOpen && root) content = <OverviewTab root={root} />;
-  else if (dbView) content = <DataGrid />;
+  if (dbView) content = <DataGrid />;
   else if (diff) content = <Viewer />;
   else if (bothTerminals)
     content = slot; // ProjectTerminals shows both

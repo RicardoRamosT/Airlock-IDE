@@ -75,6 +75,8 @@ export function ProjectTabs() {
   const appPage = useApp((s) => s.appPage);
   const settingsTabOpen = useApp((s) => s.settingsTabOpen);
   const usageTabOpen = useApp((s) => s.usageTabOpen);
+  const overviewTabOpen = useApp((s) => s.overviewTabOpen);
+  const overviewRoot = useApp((s) => s.overviewRoot);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
   // terminals' ptyIds working in sessionWorking); the glow is the stored flag.
   const sessionWorking = useApp((s) => s.sessionWorking);
@@ -120,7 +122,8 @@ export function ProjectTabs() {
     !openProjectsAsTabs &&
     tabs.length <= 1 &&
     !settingsTabOpen &&
-    !usageTabOpen
+    !usageTabOpen &&
+    !overviewTabOpen
   )
     return null;
 
@@ -190,8 +193,8 @@ export function ProjectTabs() {
                   onClick={(e) => {
                     e.stopPropagation();
                     const st = useApp.getState();
-                    st.switchTab(pair.a);
-                    st.setOverviewOpen(true, pair.a);
+                    const r = st.tabState[pair.a]?.root;
+                    if (r) st.openOverviewPage(r);
                   }}
                 >
                   !
@@ -258,19 +261,19 @@ export function ProjectTabs() {
                   <span className="project-tab-title">{displayLabel(tab)}</span>
                 </button>
               )}
-              <button
-                type="button"
-                className="project-tab-overview"
-                title="Project overview"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const st = useApp.getState();
-                  st.switchTab(tab.id);
-                  st.setOverviewOpen(true, tab.id);
-                }}
-              >
-                !
-              </button>
+              {tab.root && (
+                <button
+                  type="button"
+                  className="project-tab-overview"
+                  title="Project overview"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (tab.root) useApp.getState().openOverviewPage(tab.root);
+                  }}
+                >
+                  !
+                </button>
+              )}
               <button
                 type="button"
                 className="project-tab-close"
@@ -331,6 +334,36 @@ export function ProjectTabs() {
               onClick={(e) => {
                 e.stopPropagation();
                 useApp.getState().closeAppPage("usage");
+              }}
+            >
+              <i className="codicon codicon-close" />
+            </button>
+          </div>
+        )}
+        {overviewTabOpen && (
+          <div
+            className={`project-tab page-tab${appPage === "overview" ? " active" : ""}`}
+          >
+            <button
+              type="button"
+              className="project-tab-label"
+              title={overviewRoot ? `Overview — ${overviewRoot}` : "Overview"}
+              onClick={() => useApp.getState().showAppPage("overview")}
+            >
+              <i className="codicon codicon-info" />
+              <span className="project-tab-title">
+                {overviewRoot
+                  ? (overviewRoot.split("/").pop() ?? "Overview")
+                  : "Overview"}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="project-tab-close"
+              title="Close overview"
+              onClick={(e) => {
+                e.stopPropagation();
+                useApp.getState().closeAppPage("overview");
               }}
             >
               <i className="codicon codicon-close" />

@@ -41,7 +41,9 @@ export function TitleBar() {
           type="button"
           className="titlebar-overview"
           title="Project overview"
-          onClick={() => useApp.getState().setOverviewOpen(true)}
+          onClick={() =>
+            activeRoot && useApp.getState().openOverviewPage(activeRoot)
+          }
         >
           !
         </button>

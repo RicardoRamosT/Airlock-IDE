@@ -1,6 +1,7 @@
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
 import { NeonConnectModal } from "./components/NeonConnectModal";
+import { OverviewTab } from "./components/OverviewTab";
 import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
 import { ProjectTabs } from "./components/ProjectTabs";
@@ -41,6 +42,7 @@ export function App() {
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const sidebarPosition = useApp((s) => s.sidebarPosition);
   const appPage = useApp((s) => s.appPage);
+  const overviewRoot = useApp((s) => s.overviewRoot);
   // Show the split ONLY when the focused tab is a member of the pair: switching
   // to a non-pair tab hides the split (the pair persists in `split`), switching
   // back to a member shows it again. Left = a (primary), right = b (secondary);
@@ -70,6 +72,10 @@ export function App() {
           ) : appPage === "usage" ? (
             <div className="app-page">
               <UsageTab />
+            </div>
+          ) : appPage === "overview" && overviewRoot ? (
+            <div className="app-page">
+              <OverviewTab root={overviewRoot} />
             </div>
           ) : showSplit && split ? (
             <div className="project-split">
