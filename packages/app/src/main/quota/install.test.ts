@@ -34,6 +34,28 @@ it("builds a command that runs Electron-as-node against the emitter", () => {
   expect(cmd).toContain(paths.emitConfigPath);
 });
 
+it("launches the emitter with a sanitized env (env -i) so the caller's injected environment cannot reach Node bootstrap", () => {
+  const cmd = buildStatusLineCommand(paths);
+  // Sanitized launch: env -i wipes the inherited environment...
+  expect(cmd).toContain("/usr/bin/env -i");
+  // ...and it precedes the binary + ELECTRON_RUN_AS_NODE so it controls launch.
+  expect(cmd.indexOf("/usr/bin/env -i")).toBeLessThan(
+    cmd.indexOf("'/fake/Electron'"),
+  );
+  expect(cmd.indexOf("/usr/bin/env -i")).toBeLessThan(
+    cmd.indexOf("ELECTRON_RUN_AS_NODE=1"),
+  );
+  // Only the safe basics are re-added (unquoted $VAR so the shell expands them),
+  // for a chained prior statusLine; the emitter itself needs none.
+  expect(cmd).toContain('PATH="$PATH"');
+  expect(cmd).toContain('HOME="$HOME"');
+  // Nothing else is forwarded: exactly the allowlist + ELECTRON_RUN_AS_NODE
+  // appear as VAR= assignments before the quoted binary path.
+  const beforeBin = cmd.slice(0, cmd.indexOf("'/fake/Electron'"));
+  const assignments = beforeBin.match(/[A-Z_]+=/g) ?? [];
+  expect(assignments).toHaveLength(11); // 10 passthrough vars + ELECTRON_RUN_AS_NODE
+});
+
 it("single-quotes paths so shell metacharacters cannot break the command", () => {
   const cmd = buildStatusLineCommand({
     ...paths,

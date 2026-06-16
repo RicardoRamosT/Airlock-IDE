@@ -61,11 +61,42 @@ function shQuote(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`;
 }
 
-// ELECTRON_RUN_AS_NODE makes the app's own Electron binary behave as plain
-// node, so no `node`/`jq` on PATH is assumed (packaged-app safe). Paths are
-// single-quoted so usernames/dirs with shell metacharacters can't break it.
+// Env vars the emitter (and a chained prior statusLine) legitimately need. The
+// emitter ITSELF needs none of them -- it uses absolute paths, node:fs, and
+// stdin only -- so these exist purely so a chained user statusLine still has a
+// working PATH/locale.
+const SAFE_ENV_PASSTHROUGH = [
+  "PATH",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "USER",
+  "LOGNAME",
+  "TMPDIR",
+  "SHELL",
+  "TERM",
+];
+
+// ELECTRON_RUN_AS_NODE makes the app's own Electron binary behave as plain node,
+// so no `node`/`jq` on PATH is assumed (packaged-app safe).
+//
+// We launch it via `/usr/bin/env -i` with ONLY the safe vars above, so NOTHING
+// the caller (Claude Code) injects into the statusLine subprocess's environment
+// can reach the emitter's Node bootstrap. Diagnosed 2026-06-16: opening a project
+// in a NEW WINDOW spawned a Claude whose statusLine emitter aborted in Node's
+// internal bootstrap (EXC_BREAKPOINT in node::Assert, reached via process.env
+// enumeration + Utf8Value), crash-spamming a macOS crash report every
+// refreshInterval (~5s). The crashing Claude's *own* env was vanilla, so the
+// poison was in what Claude passed the subprocess; the emitter needs nothing
+// from the environment, so a sanitized launch is structurally immune.
+//
+// Paths are single-quoted so usernames/dirs with shell metacharacters can't
+// break it; the `$VAR` refs are intentionally UNquoted (and the values
+// double-quoted) so the POSIX shell Claude Code runs this in expands them.
 export function buildStatusLineCommand(p: QuotaPaths): string {
-  return `ELECTRON_RUN_AS_NODE=1 ${shQuote(p.execPath)} ${shQuote(p.emitScript)} ${shQuote(p.emitConfigPath)}`;
+  const passthrough = SAFE_ENV_PASSTHROUGH.map((v) => `${v}="$${v}"`).join(" ");
+  return `/usr/bin/env -i ${passthrough} ELECTRON_RUN_AS_NODE=1 ${shQuote(p.execPath)} ${shQuote(p.emitScript)} ${shQuote(p.emitConfigPath)}`;
 }
 
 export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
