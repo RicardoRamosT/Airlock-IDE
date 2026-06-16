@@ -103,7 +103,7 @@ export function LocalHostSection() {
 
   return (
     <div className="docker">
-      <div className="db-toolbar">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
@@ -117,7 +117,7 @@ export function LocalHostSection() {
       {editing ? (
         <div className="docker-row">
           <input
-            className="host-input"
+            className="sb-control"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="http://localhost:5173"
@@ -147,7 +147,7 @@ export function LocalHostSection() {
           <span className="docker-name host-url">{url}</span>
           <button
             type="button"
-            className="docker-action"
+            className="row-action"
             onClick={() => void window.airlock.hostOpenExternal(url)}
             title="Open in browser"
           >
@@ -155,7 +155,7 @@ export function LocalHostSection() {
           </button>
           <button
             type="button"
-            className="docker-action"
+            className="row-action"
             onClick={() => {
               setDraft(url);
               setEditing(true);

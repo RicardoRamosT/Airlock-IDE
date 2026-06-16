@@ -93,7 +93,7 @@ export function RenderSection() {
 
   return (
     <div className="docker">
-      <div className="db-toolbar">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
@@ -128,7 +128,7 @@ export function RenderSection() {
             {svc.url && (
               <button
                 type="button"
-                className="docker-action"
+                className="row-action"
                 onClick={() => void window.airlock.hostOpenExternal(svc.url)}
                 title="Open in browser"
               >

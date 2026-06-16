@@ -128,7 +128,7 @@ export function ActivitySection() {
 
   return (
     <div className="activity">
-      <div className="db-toolbar">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
@@ -183,7 +183,7 @@ export function ActivitySection() {
               <span className="activity-sub">{item.subtitle}</span>
               <button
                 type="button"
-                className="activity-more"
+                className="row-action"
                 title="Activity actions"
                 onClick={(e) => {
                   // Never toggle the steps expander under the menu click.

@@ -61,7 +61,7 @@ export function DockerSection() {
 
   return (
     <div className="docker">
-      <div className="db-toolbar">
+      <div className="section-toolbar">
         <button
           type="button"
           className="btn"
@@ -88,7 +88,7 @@ export function DockerSection() {
               <span className="docker-image">{c.image}</span>
               <button
                 type="button"
-                className="docker-action"
+                className="row-action"
                 onClick={() => void toggle(c)}
                 disabled={acting === c.id}
                 title={running ? "Stop container" : "Start container"}

@@ -2792,7 +2792,7 @@ textarea:focus-visible {
 .docker {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sb-row-gap);
 }
 
 .docker-row {
@@ -2825,35 +2825,6 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
-.docker-action {
-  margin-left: auto;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  color: var(--fg-dim);
-  cursor: pointer;
-}
-
-.docker-action:hover {
-  background: var(--hover);
-  color: var(--fg);
-}
-
-.docker-action:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.docker-action .codicon {
-  font-size: 14px;
-}
-
 /* Host section. Reuses the docker row/dot/action vocabulary; these add only
    the dev-server URL text, the inline URL editor input, and the Render
    deployed-vs-HEAD badge. No new palette -- accent/fg-dim/border only. */
@@ -2864,19 +2835,6 @@ textarea:focus-visible {
 .host-set {
   margin-left: auto;
   flex: none;
-}
-
-.host-input {
-  flex: 1;
-  min-width: 0;
-  height: 24px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-family: "SF Mono", Menlo, monospace;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--fg);
 }
 
 .host-badge {
@@ -2904,7 +2862,7 @@ textarea:focus-visible {
 .activity {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sb-row-gap);
 }
 .activity-item {
   display: flex;
@@ -2943,22 +2901,6 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-/* Per-row "..." opening the activity actions menu (Open on GitHub / Dismiss).
-   Always visible, replacing the old link + hover-revealed dismiss buttons. */
-.activity-more {
-  flex: none;
-  margin-left: 4px;
-  padding: 0 2px;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.activity-more:hover {
-  color: var(--accent);
 }
 .activity-progress-label {
   font-size: 11px;
