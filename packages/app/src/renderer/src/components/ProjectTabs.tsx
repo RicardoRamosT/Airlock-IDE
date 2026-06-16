@@ -185,6 +185,19 @@ export function ProjectTabs() {
                 </button>
                 <button
                   type="button"
+                  className="project-tab-overview"
+                  title="Project overview"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const st = useApp.getState();
+                    st.switchTab(pair.a);
+                    st.setOverviewOpen(true, pair.a);
+                  }}
+                >
+                  !
+                </button>
+                <button
+                  type="button"
                   className="project-tab-close"
                   title="Close both tabs"
                   onClick={(e) => {
@@ -245,6 +258,19 @@ export function ProjectTabs() {
                   <span className="project-tab-title">{displayLabel(tab)}</span>
                 </button>
               )}
+              <button
+                type="button"
+                className="project-tab-overview"
+                title="Project overview"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const st = useApp.getState();
+                  st.switchTab(tab.id);
+                  st.setOverviewOpen(true, tab.id);
+                }}
+              >
+                !
+              </button>
               <button
                 type="button"
                 className="project-tab-close"

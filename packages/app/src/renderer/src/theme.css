@@ -293,6 +293,37 @@ body,
   color: #f85149;
 }
 
+/* "!" project-overview launchers */
+.project-tab-overview {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0 4px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+.project-tab:hover .project-tab-overview,
+.project-tab:focus-within .project-tab-overview {
+  opacity: 1;
+}
+.project-tab-overview:hover {
+  color: var(--accent, #4ea1ff);
+}
+.titlebar-overview {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.titlebar-overview:hover {
+  color: var(--accent, #4ea1ff);
+}
+
 .project-tab-action {
   background: none;
   border: none;
