@@ -38,10 +38,20 @@ registers a statusLine that siphons the payload to a side-channel file it
 watches.
 
 **Pipeline** (all under `packages/app/src/main/quota/` unless noted):
-- `resources/statusline-emit.cjs` — first-party emitter Claude Code runs as the
-  statusLine. Atomically writes the raw payload to the side-channel file, then
-  **chains** any pre-existing user statusLine (re-feeds stdin, passes its stdout
-  through) in a cleaned env (strips `ELECTRON_RUN_AS_NODE`) with a spawn timeout.
+- `resources/statusline-emit.sh` — first-party emitter Claude Code runs as the
+  statusLine. **Pure POSIX shell, intentionally NOT node** (see below).
+  Atomically writes the raw payload to the side-channel file, then **chains** any
+  pre-existing user statusLine (re-feeds the payload, passes its stdout through).
+  Reads its config (`OUT`, `PRIOR`) from a shell-sourceable file (`emit-config.sh`,
+  argv[1]) written by `install.ts`.
+  **Why shell, not node (diagnosed 2026-06-16):** Claude Code's statusLine spawn
+  crashes ANY Node program at bootstrap on some machines — a Node
+  `Utf8Value`/`MaybeStackBuffer` capacity assertion (reproduced with a trivial
+  `node -e`, real node, and Electron-as-node; NOT reproducible by a normal spawn
+  with matched env/cwd/argv/stdin/fds; env-sanitization via `env -i` did NOT
+  help). It is not an AirLock bug — our node-based statusLine was just the victim.
+  A shell statusLine sidesteps the whole class. See
+  `memory/project-quota-statusline-node-crash`.
 - `install.ts` — installs/uninstalls the chained statusLine in
   `~/.claude/settings.json`: idempotent, reversible, never clobbers a user
   statusLine, sets `refreshInterval`. Pure `node:fs`, unit-tested.
@@ -73,10 +83,10 @@ watches.
   "no emit within `STALE_AFTER_SECONDS` (15s, in `QuotaMeter.tsx`)" as **no
   active session** → shows "Start a Claude session…". Tune the two together
   (threshold must exceed refreshInterval + jitter).
-- **Packaging:** the emitter ships via electron-builder `extraResources`;
-  `wire.ts` resolves `process.resourcesPath` (packaged) vs repo `resources/`
-  (dev). It runs via `ELECTRON_RUN_AS_NODE` on the app's own Electron binary
-  (no `node`/`jq` on PATH assumed); shell paths are single-quoted.
+- **Packaging:** the emitter (`statusline-emit.sh`) ships via electron-builder
+  `extraResources`; `wire.ts` resolves `process.resourcesPath` (packaged) vs repo
+  `resources/` (dev). It runs via `/bin/sh` (no `node`/`jq`/PATH assumed); the
+  emitter + config paths are single-quoted.
 
 Clicking the meter opens the **Usage dashboard** — an IDE-level page-tab in
 the PROJECT strip (like Settings; both can be open at once, `appPage` selects

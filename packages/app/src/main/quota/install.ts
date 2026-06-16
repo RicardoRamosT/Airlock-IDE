@@ -6,14 +6,16 @@ import path from "node:path";
 export interface QuotaPaths {
   settingsPath: string; // ~/.claude/settings.json
   bookkeepingPath: string; // <userData>/quota/install.json (main-only state)
-  emitConfigPath: string; // <userData>/quota/emit-config.json (read by the emitter)
+  emitConfigPath: string; // <userData>/quota/emit-config.sh (shell-sourceable; read by the emitter)
   outPath: string; // <userData>/quota/rate-limits.json (side-channel)
-  execPath: string; // process.execPath (the app's Electron binary)
-  emitScript: string; // absolute path to statusline-emit.cjs
+  emitScript: string; // absolute path to statusline-emit.sh
 }
 
-// A statusLine command is OURS iff it references the emitter script.
-const EMIT_MARKER = "statusline-emit.cjs";
+// A statusLine command is OURS iff it references our emitter script. Matches both
+// the current shell emitter (statusline-emit.sh) AND the legacy node one
+// (statusline-emit.cjs), so an upgrade replaces the legacy command instead of
+// mistaking it for the user's prior statusLine and chaining to it.
+const EMIT_MARKER = "statusline-emit";
 
 // Re-run the statusLine (hence our emitter) every N seconds while a Claude
 // session is open, in addition to event-driven runs. This keeps the meter live
@@ -37,14 +39,15 @@ async function readJson(file: string): Promise<Record<string, unknown> | null> {
   }
 }
 
-async function writeJsonAtomic(file: string, value: unknown): Promise<void> {
+async function writeTextAtomic(file: string, body: string): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  await writeFile(tmp, body, { encoding: "utf8", mode: 0o600 });
   await rename(tmp, file);
+}
+
+async function writeJsonAtomic(file: string, value: unknown): Promise<void> {
+  await writeTextAtomic(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function isOurs(sl: StatusLine): boolean {
@@ -61,42 +64,32 @@ function shQuote(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`;
 }
 
-// Env vars the emitter (and a chained prior statusLine) legitimately need. The
-// emitter ITSELF needs none of them -- it uses absolute paths, node:fs, and
-// stdin only -- so these exist purely so a chained user statusLine still has a
-// working PATH/locale.
-const SAFE_ENV_PASSTHROUGH = [
-  "PATH",
-  "HOME",
-  "LANG",
-  "LC_ALL",
-  "LC_CTYPE",
-  "USER",
-  "LOGNAME",
-  "TMPDIR",
-  "SHELL",
-  "TERM",
-];
-
-// ELECTRON_RUN_AS_NODE makes the app's own Electron binary behave as plain node,
-// so no `node`/`jq` on PATH is assumed (packaged-app safe).
+// The quota statusLine is a PURE-SHELL siphon, intentionally NOT node.
 //
-// We launch it via `/usr/bin/env -i` with ONLY the safe vars above, so NOTHING
-// the caller (Claude Code) injects into the statusLine subprocess's environment
-// can reach the emitter's Node bootstrap. Diagnosed 2026-06-16: opening a project
-// in a NEW WINDOW spawned a Claude whose statusLine emitter aborted in Node's
-// internal bootstrap (EXC_BREAKPOINT in node::Assert, reached via process.env
-// enumeration + Utf8Value), crash-spamming a macOS crash report every
-// refreshInterval (~5s). The crashing Claude's *own* env was vanilla, so the
-// poison was in what Claude passed the subprocess; the emitter needs nothing
-// from the environment, so a sanitized launch is structurally immune.
+// Diagnosed 2026-06-16: Claude Code's statusLine spawn crashes ANY Node program
+// at bootstrap on some machines -- a Node `Utf8Value`/`MaybeStackBuffer` capacity
+// assertion (util.h: `(length + 1) <= capacity()`) reached during early
+// bootstrap. Reproduced with a trivial `node -e "process.exit(0)"`, real `node`,
+// AND Electron-as-node; NOT reproducible by a normal spawn with matched
+// env/cwd/argv/stdin/stdio/fds, so the trigger is something in Claude Code's
+// spawn we can't replicate. An earlier env-sanitization attempt (`env -i`) did
+// NOT help -- the env is not the cause. A shell statusLine sidesteps the whole
+// class: `/bin/sh` runs fine; only node crashes.
 //
-// Paths are single-quoted so usernames/dirs with shell metacharacters can't
-// break it; the `$VAR` refs are intentionally UNquoted (and the values
-// double-quoted) so the POSIX shell Claude Code runs this in expands them.
+// statusline-emit.sh reads stdin, atomically writes the payload to the
+// side-channel, and chains a prior user statusLine -- all in POSIX shell.
+// argv[1] is the shell-sourceable config (OUT=..., PRIOR=...). Paths are
+// single-quoted so usernames/dirs with shell metacharacters can't break it.
 export function buildStatusLineCommand(p: QuotaPaths): string {
-  const passthrough = SAFE_ENV_PASSTHROUGH.map((v) => `${v}="$${v}"`).join(" ");
-  return `/usr/bin/env -i ${passthrough} ELECTRON_RUN_AS_NODE=1 ${shQuote(p.execPath)} ${shQuote(p.emitScript)} ${shQuote(p.emitConfigPath)}`;
+  return `/bin/sh ${shQuote(p.emitScript)} ${shQuote(p.emitConfigPath)}`;
+}
+
+// The prior user statusLine, reduced to the shell command string the emitter
+// chains (empty unless it is a `{ type: "command", command }` statusLine).
+function priorCommand(prior: StatusLine | null): string {
+  return prior && prior.type === "command" && typeof prior.command === "string"
+    ? prior.command
+    : "";
 }
 
 export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
@@ -118,10 +111,15 @@ export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
     refreshInterval: STATUSLINE_REFRESH_SECONDS,
   };
   await writeJsonAtomic(p.settingsPath, settings);
-  await writeJsonAtomic(p.emitConfigPath, {
-    out: p.outPath,
-    prior: prior ?? null,
-  });
+  // emit-config is shell-sourceable (sourced by statusline-emit.sh): OUT is the
+  // side-channel path; PRIOR is the prior user statusLine command to chain (empty
+  // when there is none). Quoted so paths/commands with metacharacters are verbatim.
+  await writeTextAtomic(
+    p.emitConfigPath,
+    `# AirLock quota statusLine config -- sourced by statusline-emit.sh\n` +
+      `OUT=${shQuote(p.outPath)}\n` +
+      `PRIOR=${shQuote(priorCommand(prior))}\n`,
+  );
   await writeJsonAtomic(p.bookkeepingPath, {
     installed: true,
     prior: prior ?? null,

@@ -16,14 +16,13 @@ import { startQuotaWatch, stopQuotaWatch } from "./watch";
 export function quotaPaths(): QuotaPaths {
   const quotaDir = path.join(app.getPath("userData"), "quota");
   const emitScript = app.isPackaged
-    ? path.join(process.resourcesPath, "statusline-emit.cjs")
-    : path.join(__dirname, "../../resources/statusline-emit.cjs");
+    ? path.join(process.resourcesPath, "statusline-emit.sh")
+    : path.join(__dirname, "../../resources/statusline-emit.sh");
   return {
     settingsPath: path.join(os.homedir(), ".claude", "settings.json"),
     bookkeepingPath: path.join(quotaDir, "install.json"),
-    emitConfigPath: path.join(quotaDir, "emit-config.json"),
+    emitConfigPath: path.join(quotaDir, "emit-config.sh"),
     outPath: path.join(quotaDir, "rate-limits.json"),
-    execPath: process.execPath,
     emitScript,
   };
 }

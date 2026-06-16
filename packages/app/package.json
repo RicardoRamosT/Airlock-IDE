@@ -39,8 +39,8 @@
         "to": "lsp-server"
       },
       {
-        "from": "resources/statusline-emit.cjs",
-        "to": "statusline-emit.cjs"
+        "from": "resources/statusline-emit.sh",
+        "to": "statusline-emit.sh"
       }
     ],
     "mac": {
