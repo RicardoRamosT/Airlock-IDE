@@ -47,34 +47,36 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
       {items.map((s) => {
         if (s.status === "absent") {
           return (
-            <button
-              key={s.id}
-              type="button"
-              className="btn"
-              title={s.install?.command}
-              onClick={() => {
-                const c = s.install?.command;
-                if (c) useApp.getState().runInNewTerminal(c);
-              }}
-            >
-              Install {s.name} CLI
-            </button>
+            <div key={s.id} className="section-toolbar">
+              <button
+                type="button"
+                className="btn"
+                title={s.install?.command}
+                onClick={() => {
+                  const c = s.install?.command;
+                  if (c) useApp.getState().runInNewTerminal(c);
+                }}
+              >
+                Install {s.name} CLI
+              </button>
+            </div>
           );
         }
         if (s.status === "unauthed") {
           return (
-            <button
-              key={s.id}
-              type="button"
-              className="btn"
-              title={s.connect?.command}
-              onClick={() => {
-                const c = s.connect?.command;
-                if (c) useApp.getState().runInNewTerminal(c);
-              }}
-            >
-              Connect {s.name}
-            </button>
+            <div key={s.id} className="section-toolbar">
+              <button
+                type="button"
+                className="btn"
+                title={s.connect?.command}
+                onClick={() => {
+                  const c = s.connect?.command;
+                  if (c) useApp.getState().runInNewTerminal(c);
+                }}
+              >
+                Connect {s.name}
+              </button>
+            </div>
           );
         }
         return (
