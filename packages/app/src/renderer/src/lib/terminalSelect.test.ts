@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TermKeyEvent } from "./terminalKeys";
 import {
+  keepsSelection,
   nextWord,
   planSelection,
   prevWord,
@@ -118,5 +119,26 @@ describe("planSelection", () => {
   it("can flip across the anchor", () => {
     const s = { ...base, cursorCol: 4, anchor: 4, activeEnd: 0 };
     expect(planSelection(s, "lineEnd")).toEqual({ anchor: 4, activeEnd: 13 });
+  });
+});
+
+describe("keepsSelection", () => {
+  it("preserves the selection for bare modifiers, lock, and dead keys", () => {
+    for (const k of [
+      "Meta",
+      "Shift",
+      "Alt",
+      "Control",
+      "CapsLock",
+      "AltGraph",
+      "Dead",
+    ]) {
+      expect(keepsSelection(k)).toBe(true);
+    }
+  });
+  it("ends the selection for printing keys, arrows, Enter, and Backspace", () => {
+    for (const k of ["a", "1", "@", "ArrowLeft", "Enter", "Backspace", "Tab"]) {
+      expect(keepsSelection(k)).toBe(false);
+    }
   });
 });

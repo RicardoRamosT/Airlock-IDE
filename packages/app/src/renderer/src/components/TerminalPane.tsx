@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalKeyBytes } from "../lib/terminalKeys";
 import {
+  keepsSelection,
   planSelection,
   type SelectChord,
   terminalSelectChord,
@@ -67,6 +68,10 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // Reads the shell cursor + the (wrap-joined) line, plans the new range with the
     // pure planner, and highlights it via xterm. Visual only -- never touches the pty.
     const applySelectionChord = (term: Terminal, chord: SelectChord) => {
+      // If our previous selection was cleared externally (mouse click, output,
+      // focus loss), start fresh instead of extending a stale anchor.
+      if (selAnchorRef.current !== null && !term.hasSelection())
+        resetSelAnchor();
       const buf = term.buffer.active;
       const cols = term.cols;
       const cursorRow = buf.baseY + buf.cursorY;
@@ -139,8 +144,10 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         e.preventDefault();
         return false;
       }
+      // Only act on the shell's NORMAL buffer. In the alt buffer (vim/less/htop)
+      // these chords belong to the TUI -- fall through so it receives them.
       const chord = terminalSelectChord(e);
-      if (chord) {
+      if (chord && term.buffer.active.type === "normal") {
         applySelectionChord(term, chord);
         e.preventDefault();
         return false;
@@ -154,22 +161,14 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         (e.key === "c" || e.key === "C") &&
         term.hasSelection()
       ) {
-        void navigator.clipboard.writeText(term.getSelection());
+        navigator.clipboard.writeText(term.getSelection()).catch(() => {});
         e.preventDefault();
         return false;
       }
-      // Bare modifier keydowns (Cmd/Shift/Option/Ctrl on their own) must NOT end
-      // the selection: pressing Cmd before Cmd+C, or changing modifiers mid-
-      // selection, has to keep the highlight + anchor intact. Any real key clears
-      // both the visual highlight and the anchor.
-      if (
-        e.key === "Meta" ||
-        e.key === "Shift" ||
-        e.key === "Alt" ||
-        e.key === "Control"
-      ) {
-        return true;
-      }
+      // Bare modifiers, lock, and dead keys must NOT end the selection (pressing
+      // Cmd before Cmd+C, or AltGraph/Dead to type a special char mid-selection,
+      // has to keep the highlight + anchor). Any real key clears both.
+      if (keepsSelection(e.key)) return true;
       term.clearSelection();
       resetSelAnchor();
       return true;

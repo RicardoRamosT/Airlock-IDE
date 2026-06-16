@@ -15,6 +15,31 @@ export function terminalSelectChord(e: TermKeyEvent): SelectChord | null {
   return null;
 }
 
+// Keys that must NOT end an active keyboard selection: bare modifiers, lock
+// keys, and dead-key compose. (AltGraph/Dead matter on non-US keyboards —
+// pressing them to type a special character shouldn't wipe the highlight, and
+// Cmd/Shift/Alt are pressed on the way into a chord or Cmd+C.) Any other key
+// (letters, Enter, arrows, …) ends the selection.
+const SELECTION_PRESERVING_KEYS = new Set([
+  "Meta",
+  "Shift",
+  "Alt",
+  "Control",
+  "CapsLock",
+  "NumLock",
+  "ScrollLock",
+  "AltGraph",
+  "Dead",
+  "Fn",
+  "FnLock",
+  "Hyper",
+  "Super",
+]);
+
+export function keepsSelection(key: string): boolean {
+  return SELECTION_PRESERVING_KEYS.has(key);
+}
+
 // Words are runs of [A-Za-z0-9_] (matches readline Meta-b/f used by the
 // existing Option+Arrow move chords); everything else is a separator.
 const isWord = (ch: string | undefined): boolean =>
