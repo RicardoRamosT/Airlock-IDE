@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 26 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 27 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -68,6 +68,7 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   e.g. to decide which sidebar sections to surface. Acts on the **focused** project; the
   result's `root` field names which project it answered for — check it if the user may
   have switched tabs since you asked. See `security-model.md`.
+- **`project_info`** — the focused project's detected technologies and services (names + categories, with the signal that detected each) plus the prose project overview (`.airlock/overview.md`) when present. Metadata only — no secret values. Use it to understand the stack/layout without re-scanning the tree.
 
 ## Acting — import the project's .env files into the vault
 

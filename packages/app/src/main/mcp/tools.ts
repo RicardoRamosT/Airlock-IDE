@@ -73,6 +73,7 @@ export const TOOL_NAMES: string[] = [
   "close_terminal",
   "open_app_page",
   "close_app_page",
+  "project_info",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -131,6 +132,9 @@ export interface ToolDeps {
     id: Section,
     visible: boolean,
   ) => Promise<SectionVisibility>;
+  // The detected ProjectProfile + .airlock/overview.md text for a root, value-free
+  // (tech/service names from manifests/config + secret NAMES, never values).
+  getProjectInfo: (root: string) => Promise<unknown>;
 }
 
 // Wrap any JSON-able result in the SDK text-content shape the ping tool uses.
@@ -351,6 +355,22 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       // GUI focus, so without the echo an agent asking about project A while
       // the user focuses project B gets B's answer with no way to notice.
       return ok({ root, secrets: await ide.listSecretNames(root) });
+    },
+  );
+
+  mcp.registerTool(
+    "project_info",
+    {
+      description:
+        "Report the focused project's detected technologies and services (names + " +
+        "categories, with the signal that detected each) plus the prose project " +
+        "overview (.airlock/overview.md) when present. Metadata only -- no secret " +
+        "values. Use it to understand the stack/layout without re-scanning the tree.",
+    },
+    async () => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      return ok({ root, ...((await deps.getProjectInfo(root)) as object) });
     },
   );
 

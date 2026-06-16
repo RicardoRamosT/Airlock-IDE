@@ -95,20 +95,27 @@ const baseDeps = {
         data: { tabs: [], split: null, appPages: { open: [], shown: null } },
       }) as AgentCommandResult,
   ),
+  // The project profile + overview.md for the focused project; value-free metadata.
+  getProjectInfo: vi.fn(async () => ({
+    profile: {},
+    summary: null,
+    summaryMtimeMs: 0,
+  })),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-six allowlisted tools (seventeen read/curate/run/commit + the nine
+  // twenty-seven allowlisted tools (eighteen read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the twenty-six allowlisted tools and nothing else", () => {
+  it("registers exactly the twenty-seven allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(26);
+    expect(registered).toHaveLength(27);
+    expect(registered).toContain("project_info");
     expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");

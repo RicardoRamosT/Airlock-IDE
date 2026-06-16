@@ -36,6 +36,7 @@ import type {
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
+import { gatherProfile } from "../overview/gather";
 import { savePrefs } from "../prefs";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
@@ -119,6 +120,7 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     getQuota: deps.getQuota,
     getUsageLedger: deps.getUsageLedger,
     runAgentCommand: deps.runAgentCommand,
+    getProjectInfo: (root) => gatherProfile(root),
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list
