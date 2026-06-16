@@ -8,6 +8,8 @@ type PingState = "checking" | "ok" | "fail";
 export function DatabasesSection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const setModal = useApp((s) => s.setModal);
+  const dbRefreshNonce = useApp((s) => s.dbRefreshNonce);
   const [dbs, setDbs] = useState<DbEntry[]>([]);
   const [pings, setPings] = useState<Record<string, PingState>>({});
   const [tables, setTables] = useState<Record<string, DbTable[]>>({});
@@ -17,6 +19,7 @@ export function DatabasesSection() {
   // List the vaulted Postgres DBs, then ping each one. Pings run in parallel
   // and stream their results into `pings` as they resolve, so a slow/unreachable
   // DB does not block the others from going green.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dbRefreshNonce is not read in the body but intentionally included as a trigger dep — bumping it forces a refresh after a new DB secret is saved.
   const refresh = useCallback(async () => {
     if (!root) return;
     setBusy(true);
@@ -44,7 +47,7 @@ export function DatabasesSection() {
     } finally {
       setBusy(false);
     }
-  }, [root]);
+  }, [root, dbRefreshNonce]);
 
   useEffect(() => {
     refresh().catch(console.error);
@@ -84,6 +87,14 @@ export function DatabasesSection() {
         <button
           type="button"
           className="btn"
+          onClick={() => setModal("add-database")}
+          title="Add a database by pasting a Postgres connection string"
+        >
+          + Add database
+        </button>
+        <button
+          type="button"
+          className="btn"
           onClick={() => void refresh()}
           disabled={busy}
           title="Refresh databases and re-check status"
@@ -92,9 +103,13 @@ export function DatabasesSection() {
         </button>
       </div>
       {dbs.length === 0 ? (
-        <div className="section-note">
-          No databases. Vault a Postgres connection string in Secrets.
-        </div>
+        <button
+          type="button"
+          className="section-note db-empty-add"
+          onClick={() => setModal("add-database")}
+        >
+          No databases yet — click to add one with a connection string.
+        </button>
       ) : (
         dbs.map((d) => {
           const state = pings[d.id] ?? "checking";
