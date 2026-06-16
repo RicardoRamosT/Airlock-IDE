@@ -2234,32 +2234,17 @@ button.quota-meter:hover {
 .git {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sb-block-gap);
+}
+
+.git .section-toolbar {
+  margin-bottom: 0;
 }
 
 .git-branch-row {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.git-branch {
-  flex: 1;
-  min-width: 0;
-  height: 24px;
-  background: var(--hover);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--fg);
-  font-size: 12px;
-  padding: 2px 6px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.1s;
-}
-
-.git-branch:hover {
-  border-color: var(--fg-dim);
 }
 
 .git-group-title {
@@ -3112,36 +3097,6 @@ textarea:focus-visible {
   background: var(--hover, rgba(255, 255, 255, 0.08));
 }
 
-/* Git sync buttons (Fetch / Pull / Push|Publish) under the branch row. */
-.git-sync-row {
-  display: flex;
-  gap: 6px;
-  padding: 0 0 2px;
-}
-.git-sync-btn {
-  flex: 1;
-  height: 22px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  color: var(--fg);
-  background: var(--hover);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-  transition:
-    border-color 0.1s,
-    background 0.1s;
-}
-.git-sync-btn:hover:not(:disabled) {
-  background: var(--bg-panel);
-  border-color: var(--fg-dim);
-}
-.git-sync-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 .git-account-row {
   display: flex;
   align-items: center;
@@ -3152,24 +3107,6 @@ textarea:focus-visible {
 }
 .git-account-label {
   color: var(--fg-dim);
-}
-.git-account {
-  flex: 1;
-  min-width: 0;
-  height: 24px;
-  background: var(--hover);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.1s;
-}
-
-.git-account:hover {
-  border-color: var(--fg-dim);
 }
 
 /* LSP hover tooltip (type/doc on hover). */

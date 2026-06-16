@@ -111,7 +111,7 @@ export function GitSection() {
       <div className="git-branch-row">
         <i className="codicon codicon-git-branch" />
         <select
-          className="git-branch"
+          className="sb-control"
           value={status.branch.head}
           onChange={(e) => switchTo(e.target.value)}
         >
@@ -139,7 +139,7 @@ export function GitSection() {
             <>
               <span className="git-account-label">push as</span>
               <select
-                className="git-account"
+                className="sb-control"
                 value={
                   account.source === "override" && account.account
                     ? account.account.username
@@ -175,10 +175,10 @@ export function GitSection() {
           )}
         </div>
       )}
-      <div className="git-sync-row">
+      <div className="section-toolbar">
         <button
           type="button"
-          className="git-sync-btn"
+          className="btn"
           title="Fetch"
           disabled={syncing}
           onClick={() => sync(() => window.airlock.gitFetch(root))}
@@ -187,7 +187,7 @@ export function GitSection() {
         </button>
         <button
           type="button"
-          className="git-sync-btn"
+          className="btn"
           title="Pull (fast-forward only)"
           disabled={syncing}
           onClick={() => sync(() => window.airlock.gitPull(root))}
@@ -196,7 +196,7 @@ export function GitSection() {
         </button>
         <button
           type="button"
-          className="git-sync-btn"
+          className="btn"
           title={status.branch.upstream ? "Push" : "Publish branch"}
           disabled={syncing}
           onClick={() => sync(() => window.airlock.gitPush(root))}
