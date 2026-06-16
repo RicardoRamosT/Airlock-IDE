@@ -96,7 +96,7 @@ export function Sidebar() {
               <span className="section-actions">
                 <button
                   type="button"
-                  className="section-action"
+                  className="row-action"
                   title="New File"
                   onClick={() => requestNewFile(tabId, "file")}
                 >
@@ -104,7 +104,7 @@ export function Sidebar() {
                 </button>
                 <button
                   type="button"
-                  className="section-action"
+                  className="row-action"
                   title="New Folder"
                   onClick={() => requestNewFile(tabId, "dir")}
                 >

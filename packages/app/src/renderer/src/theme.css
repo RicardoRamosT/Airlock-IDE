@@ -595,22 +595,6 @@ body,
   transition: opacity 0.1s;
 }
 
-.section-action {
-  display: flex;
-  align-items: center;
-  padding: 2px 4px;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.section-action:hover {
-  color: var(--fg);
-  background: rgba(255, 255, 255, 0.08);
-}
-
 .codicon {
   font-size: 14px;
   vertical-align: middle;
@@ -679,6 +663,12 @@ body,
 .row-action:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+/* In the files header, multiple row-action siblings sit in a .section-actions
+   flex group — suppress the auto margin so they don't push apart. */
+.section-actions .row-action {
+  margin-left: 0;
 }
 
 /* .reveal: hidden until its row is hovered (secondary/destructive actions). */
@@ -2205,7 +2195,7 @@ button.quota-meter:hover {
 .audit {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sb-row-gap);
 }
 
 .audit-row {
