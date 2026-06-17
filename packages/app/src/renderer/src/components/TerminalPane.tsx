@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { openEditorFile } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalKeyBytes } from "../lib/terminalKeys";
-import { findPathCandidates, resolveRel } from "../lib/terminalLinks";
+import { linksForRows, resolveRel } from "../lib/terminalLinks";
 import {
   keepsSelection,
   planSelection,
@@ -144,18 +144,36 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
           callback(undefined);
           return;
         }
-        const text =
-          term.buffer.active.getLine(lineNo - 1)?.translateToString(true) ?? "";
-        const cands = findPathCandidates(text).flatMap((c) => {
-          const rel = resolveRel(root, c.path);
-          return rel ? [{ c, rel }] : [];
-        });
+        const buf = term.buffer.active;
+        const cols = term.cols;
+        const y0 = lineNo - 1; // 0-based queried row
+        // Reconstruct the LOGICAL line this row belongs to: xterm soft-wraps
+        // long output (e.g. Claude's TUI) across rows flagged `isWrapped`, so a
+        // path split across rows is invisible to per-row scanning. Only scan a
+        // small window around the hovered row (a path spans few rows), so this
+        // stays cheap even for a very long wrapped block.
+        let start = y0;
+        while (start > 0 && buf.getLine(start)?.isWrapped) start--;
+        let end = y0;
+        while (buf.getLine(end + 1)?.isWrapped) end++;
+        const RADIUS = 3;
+        const winStart = Math.max(start, y0 - RADIUS);
+        const winEnd = Math.min(end, y0 + RADIUS);
+        const rows: string[] = [];
+        for (let r = winStart; r <= winEnd; r++)
+          rows.push(buf.getLine(r)?.translateToString(false) ?? "");
+        const cands = linksForRows(rows, cols, winStart)
+          .filter((l) => l.startY <= lineNo && lineNo <= l.endY) // covers this row
+          .flatMap((l) => {
+            const rel = resolveRel(root, l.path);
+            return rel ? [{ l, rel }] : [];
+          });
         if (cands.length === 0) {
           callback(undefined);
           return;
         }
         void Promise.all(
-          cands.map(async ({ c, rel }) => {
+          cands.map(async ({ l, rel }) => {
             const key = `${root}\n${rel}`;
             let ok = existsCache.has(key);
             if (!ok) {
@@ -164,21 +182,21 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
             }
             if (!ok) return null;
             return {
-              text: text.slice(c.start, c.end + 1),
+              text: l.text,
               range: {
-                start: { x: c.start + 1, y: lineNo },
-                end: { x: c.end + 1, y: lineNo },
+                start: { x: l.startX, y: l.startY },
+                end: { x: l.endX, y: l.endY },
               },
               decorations: { pointerCursor: true, underline: true },
               activate: (event: MouseEvent) => {
                 if (!event.metaKey) return; // Cmd+click only; plain click = normal
                 void openEditorFile(tabId, rel);
-                if (c.line) useApp.getState().revealLine(tabId, rel, c.line);
+                if (l.line) useApp.getState().revealLine(tabId, rel, l.line);
               },
             };
           }),
         ).then((links) =>
-          callback(links.filter((l): l is NonNullable<typeof l> => l !== null)),
+          callback(links.filter((x): x is NonNullable<typeof x> => x !== null)),
         );
       },
     });

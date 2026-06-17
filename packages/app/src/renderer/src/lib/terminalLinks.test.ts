@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   findPathCandidates,
+  linksForRows,
   type PathCandidate,
   resolveRel,
 } from "./terminalLinks";
@@ -81,6 +82,29 @@ it("requires a known extension for a bare (slash-less) filename", () => {
   expect(first("open config.ts now").path).toBe("config.ts");
   expect(findPathCandidates("version 1.2.3 shipped")).toEqual([]);
   expect(findPathCandidates("e.g. this")).toEqual([]);
+});
+
+it("linksForRows finds a path on a single row with a 1-based cell range", () => {
+  const links = linksForRows(["edit src/a.ts ok"], 80, 4);
+  expect(links).toHaveLength(1);
+  const l = links[0];
+  if (!l) throw new Error("no link");
+  expect(l.path).toBe("src/a.ts");
+  expect(l.text).toBe("src/a.ts");
+  // "edit " = 5 chars -> 0-based start col 5 -> x=6; row 4 (0-based) -> y=5.
+  expect([l.startX, l.startY]).toEqual([6, 5]);
+  expect([l.endX, l.endY]).toEqual([13, 5]);
+});
+
+it("linksForRows reconstructs a path WRAPPED across two rows (multi-row range)", () => {
+  // cols=10: "packages/x.ts" (13 chars) wraps as "packages/x" + ".ts".
+  const links = linksForRows(["packages/x", ".ts"], 10, 7);
+  expect(links).toHaveLength(1);
+  const l = links[0];
+  if (!l) throw new Error("no link");
+  expect(l.path).toBe("packages/x.ts");
+  expect([l.startX, l.startY]).toEqual([1, 8]); // row 7 -> y=8, col 0 -> x=1
+  expect([l.endX, l.endY]).toEqual([3, 9]); // offset 12 -> row 7+1=8 -> y=9, col 2 -> x=3
 });
 
 it("resolveRel returns the relative path as-is, stripping a leading ./", () => {

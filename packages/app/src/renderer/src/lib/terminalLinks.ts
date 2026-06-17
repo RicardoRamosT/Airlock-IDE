@@ -109,6 +109,44 @@ export function findPathCandidates(line: string): PathCandidate[] {
   return out;
 }
 
+// A path candidate located in the terminal's cell grid: its buffer range is
+// 1-based and end-inclusive (xterm's convention) and MAY span rows (a wrapped
+// path). Produced by linksForRows for the xterm link provider.
+export interface BufferLink {
+  path: string;
+  line?: number;
+  col?: number;
+  text: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+// Reconstruct consecutive terminal rows (each `cols` cells wide) into one
+// logical line, find path candidates across it, and map each candidate's char
+// offsets back to a 1-based cell range — so a path that WRAPPED across rows is
+// detected whole and highlighted across both rows. `firstRowAbs` is the 0-based
+// absolute buffer index of rows[0]. (ASCII paths only: 1 char == 1 cell.)
+export function linksForRows(
+  rows: string[],
+  cols: number,
+  firstRowAbs: number,
+): BufferLink[] {
+  const width = cols > 0 ? cols : 1;
+  const full = rows.map((r) => r.padEnd(width, " ").slice(0, width)).join("");
+  return findPathCandidates(full).map((c) => ({
+    path: c.path,
+    line: c.line,
+    col: c.col,
+    text: full.slice(c.start, c.end + 1),
+    startX: (c.start % width) + 1,
+    startY: firstRowAbs + Math.floor(c.start / width) + 1,
+    endX: (c.end % width) + 1,
+    endY: firstRowAbs + Math.floor(c.end / width) + 1,
+  }));
+}
+
 // Map a candidate path to a path relative to `root`, or null if it cannot be
 // opened in the editor (an absolute path outside root, or the root itself).
 export function resolveRel(root: string, path: string): string | null {
