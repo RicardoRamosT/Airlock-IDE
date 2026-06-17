@@ -50,6 +50,12 @@ const projTab = (el: HTMLElement): Element => {
   if (!d) throw new Error("no .project-tab ancestor");
   return d;
 };
+// The label button is the drag SOURCE (the container is the drop TARGET).
+const labelBtn = (el: HTMLElement): Element => {
+  const b = el.closest("button");
+  if (!b) throw new Error("no label button");
+  return b;
+};
 
 function seedTabs(): void {
   useApp.setState({
@@ -68,9 +74,8 @@ it("dragging a project tab to the front reorders stripOrder", () => {
   seedTabs();
   const { getByText } = render(<ProjectTabs />);
   const alpha = projTab(getByText("alpha"));
-  const gamma = projTab(getByText("gamma"));
   stubRect(100, 40); // midpoint 120
-  fireDrag("dragstart", gamma);
+  fireDrag("dragstart", labelBtn(getByText("gamma"))); // source = label button
   fireDrag("dragover", alpha, 105); // before alpha
   fireDrag("drop", alpha, 105);
 
@@ -81,10 +86,9 @@ it("page-tabs are draggable among project tabs (everything draggable)", () => {
   seedTabs();
   useApp.setState({ settingsTabOpen: true, appPage: "settings" });
   const { getByText } = render(<ProjectTabs />);
-  const settings = projTab(getByText("Settings"));
   const alpha = projTab(getByText("alpha"));
   stubRect(100, 40);
-  fireDrag("dragstart", settings);
+  fireDrag("dragstart", labelBtn(getByText("Settings"))); // source = label button
   fireDrag("dragover", alpha, 105); // before alpha
   fireDrag("drop", alpha, 105);
 

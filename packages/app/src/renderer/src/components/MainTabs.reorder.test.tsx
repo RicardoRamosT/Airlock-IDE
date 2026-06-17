@@ -53,6 +53,12 @@ const tabDiv = (el: HTMLElement): Element => {
   if (!d) throw new Error("no .main-tab ancestor");
   return d;
 };
+// The label button is the drag SOURCE (the container is the drop TARGET).
+const labelBtn = (el: HTMLElement): Element => {
+  const b = el.closest("button");
+  if (!b) throw new Error("no label button");
+  return b;
+};
 
 it("dragging a terminal tab before another reorders mainTabOrder", () => {
   const tabId = get().tabs[0]?.id as string;
@@ -67,9 +73,8 @@ it("dragging a terminal tab before another reorders mainTabOrder", () => {
 
   const { getByText } = render(<MainTabs tabId={tabId} />);
   const aTab = tabDiv(getByText("alpha"));
-  const bTab = tabDiv(getByText("beta"));
   stubRect(100, 40); // midpoint 120
-  fireDrag("dragstart", bTab);
+  fireDrag("dragstart", labelBtn(getByText("beta"))); // source = label button
   fireDrag("dragover", aTab, 105); // left half -> before
   fireDrag("drop", aTab, 105);
 
@@ -89,10 +94,9 @@ it("dropping on the right half lands the tab after the target", () => {
   get().setTerminalTitle(c, "gamma", true);
 
   const { getByText } = render(<MainTabs tabId={tabId} />);
-  const aTab = tabDiv(getByText("alpha"));
   const cTab = tabDiv(getByText("gamma"));
   stubRect(100, 40); // midpoint 120
-  fireDrag("dragstart", aTab);
+  fireDrag("dragstart", labelBtn(getByText("alpha"))); // source = label button
   fireDrag("dragover", cTab, 130); // right half -> after
   fireDrag("drop", cTab, 130);
 

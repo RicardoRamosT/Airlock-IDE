@@ -208,12 +208,21 @@ export function MainTabs({ tabId }: { tabId: string }) {
       );
     }
   };
-  const dragHandlers = (key: string) => ({
-    onDragStart: (e: DragEvent<HTMLDivElement>) => {
+  // Drag SOURCE goes on the tab's LABEL BUTTON (not the container): a draggable
+  // <div> does NOT start a drag when you grab a <button> child in Chromium, so
+  // the source must be the button you actually grab (mirrors FileTree).
+  const dragSource = (key: string) => ({
+    draggable: true,
+    onDragStart: (e: DragEvent<HTMLElement>) => {
       dragKey.current = key;
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", key);
     },
+    onDragEnd: clearDrag,
+  });
+  // Drop TARGET stays on the container <div> so the whole tab is a drop zone
+  // (dragover bubbles up from the label/close buttons); its rect drives before/after.
+  const dropTarget = (key: string) => ({
     onDragOver: (e: DragEvent<HTMLDivElement>) => {
       const dk = dragKey.current;
       if (!dk || dk === key || groupOf(dk) !== groupOf(key)) return;
@@ -234,7 +243,6 @@ export function MainTabs({ tabId }: { tabId: string }) {
         );
       clearDrag();
     },
-    onDragEnd: clearDrag,
   });
   const dropClass = (key: string): string =>
     over?.key === key ? ` main-tab--drop-${over.place}` : "";
@@ -243,8 +251,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
     <div
       key={t.id}
       className={`main-tab${termActive(t.id) ? " active" : ""}${dropClass(`t:${t.id}`)}`}
-      draggable={renaming !== t.id}
-      {...dragHandlers(`t:${t.id}`)}
+      {...dropTarget(`t:${t.id}`)}
     >
       {renaming === t.id ? (
         <form
@@ -267,6 +274,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
         <button
           type="button"
           className="main-tab-label"
+          {...dragSource(`t:${t.id}`)}
           onClick={() => viewTerminal(t.id)}
           onDoubleClick={() => {
             setRenaming(t.id);
@@ -297,12 +305,12 @@ export function MainTabs({ tabId }: { tabId: string }) {
     <div
       key={`f:${p}`}
       className={`main-tab${fileActive(p) ? " active" : ""}${dropClass(`f:${p}`)}`}
-      draggable
-      {...dragHandlers(`f:${p}`)}
+      {...dropTarget(`f:${p}`)}
     >
       <button
         type="button"
         className="main-tab-label"
+        {...dragSource(`f:${p}`)}
         onClick={() => viewFile(p)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -339,12 +347,12 @@ export function MainTabs({ tabId }: { tabId: string }) {
     <div
       key={dbKey(v)}
       className={`main-tab${dbActive(v) ? " active" : ""}${dropClass(`db:${dbKey(v)}`)}`}
-      draggable
-      {...dragHandlers(`db:${dbKey(v)}`)}
+      {...dropTarget(`db:${dbKey(v)}`)}
     >
       <button
         type="button"
         className="main-tab-label"
+        {...dragSource(`db:${dbKey(v)}`)}
         onClick={() => setDbView(v, tabId)}
         title={`${v.schema}.${v.table}`}
       >

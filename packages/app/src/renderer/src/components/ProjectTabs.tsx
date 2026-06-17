@@ -169,12 +169,21 @@ export function ProjectTabs() {
     dragKey.current = null;
     setOver(null);
   };
-  const dragHandlers = (key: string) => ({
-    onDragStart: (e: DragEvent<HTMLDivElement>) => {
+  // Drag SOURCE goes on the tab's LABEL BUTTON (not the container): a draggable
+  // <div> does NOT start a drag when you grab a <button> child in Chromium, so
+  // the source must be the button you actually grab (mirrors FileTree).
+  const dragSource = (key: string) => ({
+    draggable: true,
+    onDragStart: (e: DragEvent<HTMLElement>) => {
       dragKey.current = key;
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", key);
     },
+    onDragEnd: clearDrag,
+  });
+  // Drop TARGET stays on the container <div> so the whole tab is a drop zone
+  // (dragover bubbles up from the label/close buttons); its rect drives before/after.
+  const dropTarget = (key: string) => ({
     onDragOver: (e: DragEvent<HTMLDivElement>) => {
       const dk = dragKey.current;
       if (!dk || dk === key) return;
@@ -200,7 +209,6 @@ export function ProjectTabs() {
           );
       clearDrag();
     },
-    onDragEnd: clearDrag,
   });
   const dropClass = (key: string): string =>
     over?.key === key ? ` project-tab--drop-${over.place}` : "";
@@ -222,12 +230,12 @@ export function ProjectTabs() {
       <div
         key="__split__"
         className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}${dropClass("pair")}`}
-        draggable
-        {...dragHandlers("pair")}
+        {...dropTarget("pair")}
       >
         <button
           type="button"
           className="project-tab-label"
+          {...dragSource("pair")}
           // Show the split (focus the left member) unless already in it,
           // so re-clicking does not steal focus from the right pane.
           onClick={() => {
@@ -285,9 +293,7 @@ export function ProjectTabs() {
       <div
         key={tab.id}
         className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}${dropClass(tab.id)}`}
-        // A tab being renamed is not draggable (so its input stays editable).
-        draggable={renaming !== tab.id}
-        {...dragHandlers(tab.id)}
+        {...dropTarget(tab.id)}
       >
         {renaming === tab.id ? (
           <span className="project-tab-label">
@@ -308,6 +314,7 @@ export function ProjectTabs() {
           <button
             type="button"
             className="project-tab-label"
+            {...dragSource(tab.id)}
             onClick={() => useApp.getState().switchTab(tab.id)}
             onDoubleClick={() => setRenaming(tab.id)}
             onContextMenu={(e) => {
@@ -374,12 +381,12 @@ export function ProjectTabs() {
       <div
         key={`page:${kind}`}
         className={`project-tab page-tab${appPage === kind ? " active" : ""}${dropClass(`page:${kind}`)}`}
-        draggable
-        {...dragHandlers(`page:${kind}`)}
+        {...dropTarget(`page:${kind}`)}
       >
         <button
           type="button"
           className="project-tab-label"
+          {...dragSource(`page:${kind}`)}
           title={m.title}
           onClick={() => useApp.getState().showAppPage(kind)}
         >
