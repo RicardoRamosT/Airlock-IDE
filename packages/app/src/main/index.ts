@@ -9,6 +9,7 @@ import { app, BrowserWindow, nativeImage } from "electron";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { registerAgentCommandIpc, runAgentCommand } from "./agent-commands";
 import {
+  gatedTerminalInput,
   registerAgentRequestIpc,
   requestSecretFromUser,
 } from "./agent-requests";
@@ -22,6 +23,8 @@ import {
   killAllSessions,
   listTerminals,
   registerIpc,
+  terminalLabel,
+  writeTerminalInput,
 } from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
@@ -134,6 +137,14 @@ function bootstrap(): void {
       requestSecretFromUser,
       getTerminalTail,
       listTerminals,
+      // send_terminal_input: gate the agent's bytes behind a one-time per-
+      // terminal user grant (modal), then write them to the live pty. Value-free
+      // outcome only -- never terminal output or a secret value.
+      sendTerminalInput: (id, data) =>
+        gatedTerminalInput(id, data, {
+          write: writeTerminalInput,
+          label: terminalLabel,
+        }),
       // activityStatus self-filters dismissed ids, so the read tool reflects
       // dismissals automatically (same list the sidebar shows).
       getActivity: (root) => activityStatus(root),

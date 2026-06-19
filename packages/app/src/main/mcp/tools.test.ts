@@ -14,6 +14,7 @@ import type {
   SectionVisibility,
   SessionUsage,
   TabsSnapshot,
+  TerminalInputResult,
 } from "../../shared/ipc";
 import { SECTIONS } from "../prefs";
 import { registerTools, TOOL_NAMES } from "./tools";
@@ -101,6 +102,14 @@ const baseDeps = {
     summary: null,
     summaryMtimeMs: 0,
   })),
+  // Gated terminal input for send_terminal_input: resolves a value-free outcome
+  // (sent/denied/timedOut/busy/error), never terminal output or a secret. The
+  // grant + write are stubbed so these tests never open a modal or touch a pty.
+  // The return is annotated as the full TerminalInputResult so per-test overrides
+  // returning a non-sent outcome (e.g. {error}) still spread cleanly over baseDeps.
+  sendTerminalInput: vi.fn(
+    async (): Promise<TerminalInputResult> => ({ sent: true }),
+  ),
 };
 
 describe("registerTools allowlist guard", () => {
@@ -114,7 +123,7 @@ describe("registerTools allowlist guard", () => {
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(27);
+    expect(registered).toHaveLength(28);
     expect(registered).toContain("project_info");
     expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
@@ -407,6 +416,46 @@ describe("get_terminal_tail tool", () => {
     };
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toBe("No such terminal");
+  });
+});
+
+describe("send_terminal_input tool", () => {
+  // Build the tool against a deps object whose sendTerminalInput is a spy, so
+  // each test can assert the forwarded (terminalId, data) and the outcome
+  // mapping. The dep resolves a value-free outcome -- never terminal output.
+  function getSendTerminalInputTool(deps: typeof baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const tool = tools.find((t) => t.name === "send_terminal_input");
+    if (!tool) throw new Error("send_terminal_input tool not registered");
+    return tool;
+  }
+
+  it("forwards (terminalId, data) to the dep and wraps the outcome", async () => {
+    const sendTerminalInput = vi.fn(
+      async (): Promise<TerminalInputResult> => ({ sent: true }),
+    );
+    const tool = getSendTerminalInputTool({ ...baseDeps, sendTerminalInput });
+    const res = (await tool.handler({ terminalId: "p1", data: "hi\n" })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(sendTerminalInput).toHaveBeenCalledWith("p1", "hi\n");
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual({ sent: true });
+  });
+
+  it("surfaces an error outcome as isError", async () => {
+    const sendTerminalInput = vi.fn(
+      async (): Promise<TerminalInputResult> => ({ error: "No such terminal" }),
+    );
+    const tool = getSendTerminalInputTool({ ...baseDeps, sendTerminalInput });
+    const res = (await tool.handler({ terminalId: "dead", data: "x" })) as {
+      content: [{ text: string }];
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain("No such terminal");
   });
 });
 

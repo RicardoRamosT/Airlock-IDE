@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 27 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 28 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -8,8 +8,9 @@ injected and the output returned with those values **redacted**; one (`git_commi
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
 asks the user to vault a secret you need (you get back only whether it was vaulted, never
 the value); one (`import_env`) batch-imports the project's .env files into the vault (per-file summaries, names only);
-one (`get_terminal_tail`) reads a terminal tab's recent output, with every
-vaulted secret value **redacted**; and nine **IDE-control** tools (`list_tabs`, `open_tab`,
+two terminal tools (`get_terminal_tail` reads a terminal tab's recent output, with every
+vaulted secret value **redacted**; `send_terminal_input` writes input into a running
+terminal behind a one-time per-terminal approval); and nine **IDE-control** tools (`list_tabs`, `open_tab`,
 `close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`,
 `open_app_page`, `close_app_page`) drive the focused window's tabs / split / terminals /
 page-tabs, returning layout metadata only. **None returns a secret value.**
@@ -129,7 +130,7 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   once it reports vaulted. Workspace-rooted (the secret is vaulted into the open project).
   See `security-model.md`.
 
-## Observing — read a terminal tab's recent output
+## Observing & driving a terminal — read its output, send it input
 
 - **`get_terminal_tail`** — read the recent output of a terminal tab. Two modes:
   - **No `terminalId` → LIST the terminals.** Returns one entry per live terminal:
@@ -165,6 +166,18 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
       same window the rest of your tools resolve to (see `overview.md`). Terminals in
       other windows are not visible here, and each window's tail is redacted against
       that window's own vaulted secrets.
+
+- **`send_terminal_input`** — write input into a **running** terminal: type a prompt into a
+  live Claude session, answer an interactive prompt (`y`/`n`, a path), or send a keystroke.
+  Args: `terminalId` (the **pty session id** — the `ptyId` field on `list_tabs`' terminals,
+  the same id `get_terminal_tail` takes, **not** `list_tabs`' layout `id`) and `data`, which
+  is written **verbatim**: include `\n` to submit a line, `\u0003` for Ctrl-C. The **first**
+  send to a given terminal opens a **one-time approval modal** in the IDE and waits for the
+  user; once approved, later sends to that terminal proceed without a prompt for the rest of
+  the session. Returns `{ sent }` on success, or `{ denied }` / `{ timedOut }` / `{ busy }`
+  when approval did not complete (and an error if the terminal has closed). You **never** see
+  the terminal output or its secret values — this tool only writes; pair it with
+  `get_terminal_tail` to read the result.
 
 ## Curating the Activity feed
 

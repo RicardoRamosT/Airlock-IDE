@@ -31,6 +31,7 @@ import type {
   Section,
   SectionVisibility,
   SessionUsage,
+  TerminalInputResult,
 } from "../../shared/ipc";
 import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
@@ -61,6 +62,7 @@ export const TOOL_NAMES: string[] = [
   "request_secret",
   "import_env",
   "get_terminal_tail",
+  "send_terminal_input",
   "activity_status",
   "dismiss_activity",
   "plan_usage",
@@ -107,6 +109,14 @@ export interface ToolDeps {
     lines: number,
   ) => Promise<{ tail: string } | { error: string }>;
   listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  // Gated terminal input for send_terminal_input: writes agent input into a live
+  // pty AFTER a one-time per-terminal user grant (modal). Returns a value-free
+  // outcome (sent/denied/timedOut/busy/error) -- never terminal output or a
+  // secret -- so this dep keeps the source-guard green.
+  sendTerminalInput: (
+    terminalId: string,
+    data: string,
+  ) => Promise<TerminalInputResult>;
   // The focused project's Activity feed (CI/Render/Docker), already filtered of
   // dismissed ids (activityStatus self-filters). Status metadata only -- no
   // secret values, consistent with the other status reads.
@@ -479,6 +489,27 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       if (!terminalId) return ok(await deps.listTerminals());
       const res = await deps.getTerminalTail(terminalId, lines ?? 40);
       return "error" in res ? err(res.error) : ok(res);
+    },
+  );
+
+  // Write input into a RUNNING terminal (drive a live Claude session, answer an
+  // interactive prompt, send a keystroke). Gated by a one-time per-terminal user
+  // grant (a modal); the grant + write live behind deps.sendTerminalInput, which
+  // returns a value-free outcome -- this handler references no value-returning
+  // identifier, so the source-guard stays green.
+  mcp.registerTool(
+    "send_terminal_input",
+    {
+      description:
+        'Send input to a RUNNING terminal: type a prompt into a live Claude session, answer an interactive prompt, or send a keystroke. terminalId is the PTY session id -- the `ptyId` from list_tabs (the same id get_terminal_tail takes, NOT the layout id). data is written verbatim: include "\\n" to submit a line, "\\u0003" for Ctrl-C. The FIRST send to a terminal opens a one-time approval modal in the IDE and waits for the user; once approved, later sends to that terminal proceed without a prompt for the rest of the session. Returns { sent } on success, or { denied } / { timedOut } / { busy } when approval did not complete. You never see the terminal output or its secret values.',
+      inputSchema: {
+        terminalId: z.string(),
+        data: z.string(),
+      },
+    },
+    async ({ terminalId, data }) => {
+      const r = await deps.sendTerminalInput(terminalId, data);
+      return r.error ? err(r.error) : ok(r);
     },
   );
 

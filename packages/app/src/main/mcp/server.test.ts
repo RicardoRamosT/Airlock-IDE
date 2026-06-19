@@ -24,6 +24,10 @@ async function startOnEphemeralPort(): Promise<number> {
     requestSecretFromUser: async () => ({ vaulted: true }),
     getTerminalTail: async () => ({ tail: "" }),
     listTerminals: async () => [],
+    // Stub the gated terminal-input dep so the McpDeps literal type-checks; the
+    // server-level tests assert the tool SURFACE (count/names), not the gated
+    // write behavior (that is covered in tools.test.ts).
+    sendTerminalInput: async () => ({ sent: true as const }),
     getActivity: async () => [],
     dismissActivity: () => {},
     importEnvFiles: async () => [],
@@ -135,7 +139,7 @@ describe("MCP server handshake", () => {
     expect(result?.capabilities).toBeDefined();
   });
 
-  it("tools/list (after initialize) returns EXACTLY the twenty-seven allowlisted tools", async () => {
+  it("tools/list (after initialize) returns EXACTLY the twenty-eight allowlisted tools", async () => {
     const port = await startOnEphemeralPort();
     // A real client initializes first; with a fresh per-request transport this
     // second request must also succeed (the reused-transport bug 500'd here).
@@ -154,7 +158,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(27);
+    expect(names).toHaveLength(28);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {

@@ -66,6 +66,12 @@ export interface McpDeps {
     lines: number,
   ) => Promise<{ tail: string } | { error: string }>;
   listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  // Gated agent input into a live pty for the send_terminal_input tool (main
+  // wires gatedTerminalInput). Value-free outcome only -- never terminal output.
+  sendTerminalInput: (
+    terminalId: string,
+    data: string,
+  ) => Promise<import("../../shared/ipc").TerminalInputResult>;
   getActivity: (root: string | null) => Promise<ActivityItem[]>;
   dismissActivity: (entryId: string) => void;
   // The account's Claude plan usage for plan_usage: cached QuotaStatus + the
@@ -115,6 +121,7 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     notifySecretsChanged: deps.notifySecretsChanged,
     getTerminalTail: deps.getTerminalTail,
     listTerminals: deps.listTerminals,
+    sendTerminalInput: deps.sendTerminalInput,
     getActivity: deps.getActivity,
     dismissActivity: deps.dismissActivity,
     getQuota: deps.getQuota,
