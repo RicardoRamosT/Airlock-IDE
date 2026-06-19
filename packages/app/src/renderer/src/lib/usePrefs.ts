@@ -80,6 +80,15 @@ export function usePrefs(): void {
     });
   }, []);
 
+  // The agent (via send_terminal_input) asks to type into a live terminal. Main
+  // pushes agent:terminal-grant-request; open the approval modal for it. The
+  // modal reports allow/deny back so the awaiting agent is never stranded.
+  useEffect(() => {
+    return window.airlock.onTerminalGrantRequest((p) => {
+      useApp.getState().setModal({ grantTerminal: p });
+    });
+  }, []);
+
   // Apply the active theme to the DOM whenever it changes. This single effect
   // covers BOTH hydrate (store.theme updated above) and any live toggle, so
   // the CSS [data-theme] override on <html> always tracks store.theme. Default

@@ -305,6 +305,14 @@ export interface AppState {
           providerHint?: string;
         };
       }
+    | {
+        grantTerminal: {
+          requestId: string;
+          ptyId: string;
+          label: string; // project folder name (from main)
+          preview: string; // short echo of the bytes to be sent
+        };
+      }
     | "connect-neon"
     | "connect-render"
     | "add-database"

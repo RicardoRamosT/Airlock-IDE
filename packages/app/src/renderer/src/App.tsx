@@ -12,6 +12,7 @@ import { SecretModal } from "./components/SecretModal";
 import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import { TerminalGrantModal } from "./components/TerminalGrantModal";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
 import { UsageTab } from "./components/UsageTab";
@@ -92,7 +93,9 @@ export function App() {
         <TerminalManager />
         <StatusBar />
         {(modal === "add-secret" ||
-          (typeof modal === "object" && modal !== null)) && (
+          (typeof modal === "object" &&
+            modal !== null &&
+            ("requestSecret" in modal || "update" in modal))) && (
           <SecretModal
             key={
               typeof modal === "string"
@@ -103,6 +106,11 @@ export function App() {
             }
           />
         )}
+        {typeof modal === "object" &&
+          modal !== null &&
+          "grantTerminal" in modal && (
+            <TerminalGrantModal key={modal.grantTerminal.requestId} />
+          )}
         {modal === "connect-neon" && <NeonConnectModal />}
         {modal === "add-database" && <AddDatabaseModal />}
         {modal === "connect-render" && <RenderConnectModal />}
