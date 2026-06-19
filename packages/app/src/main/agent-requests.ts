@@ -51,6 +51,13 @@ const realNotify: RequestNotifier = (payload) => {
   return true;
 };
 
+// One agent modal at a time across BOTH flows: they share the renderer's single
+// `modal` slot, so a second request must return busy rather than clobber the
+// first modal (which would unmount it unresolved and strand the first agent).
+function anyAgentModalPending(): boolean {
+  return pending.size > 0 || grantPending.size > 0;
+}
+
 // MAIN-ONLY: ask the user to vault a secret. Opens the modal and awaits the
 // user's save/cancel. NEVER returns or handles a value -- the value goes
 // user -> keychain via secretsSet; this resolves only a boolean.
@@ -59,9 +66,11 @@ export function requestSecretFromUser(
   providerHint?: string,
   notify: RequestNotifier = realNotify,
 ): Promise<SecretRequestResult> {
-  // Single in-flight: a 2nd request while one is pending returns busy rather
-  // than stacking a second modal on top of the first.
-  if (pending.size > 0) return Promise.resolve({ vaulted: false, busy: true });
+  // Single in-flight across BOTH agent-modal flows: a 2nd request while either a
+  // secret OR a terminal-grant modal is pending returns busy rather than
+  // clobbering the open modal (see anyAgentModalPending).
+  if (anyAgentModalPending())
+    return Promise.resolve({ vaulted: false, busy: true });
   const requestId = randomUUID();
   // No live window to ask -- resolve not-vaulted immediately and leave no
   // pending entry, so the next request can proceed.
@@ -162,8 +171,12 @@ export function requestTerminalGrant(
   preview: string,
   notify: GrantNotifier = realGrantNotify,
 ): Promise<{ granted: boolean; timedOut?: boolean; busy?: boolean }> {
+  // Already-granted pty opens NO modal, so it must short-circuit FIRST -- never
+  // blocked by an unrelated pending modal from either flow.
   if (grantedTerminals.has(ptyId)) return Promise.resolve({ granted: true });
-  if (grantPending.size > 0)
+  // Busy if EITHER flow has a modal open (they share the renderer's single modal
+  // slot); see anyAgentModalPending.
+  if (anyAgentModalPending())
     return Promise.resolve({ granted: false, busy: true });
   const requestId = randomUUID();
   if (!notify({ requestId, ptyId, label, preview })) {

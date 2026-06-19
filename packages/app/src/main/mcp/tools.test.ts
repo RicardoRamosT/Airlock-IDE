@@ -114,10 +114,10 @@ const baseDeps = {
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-seven allowlisted tools (eighteen read/curate/run/commit + the nine
+  // twenty-eight allowlisted tools (nineteen read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the twenty-seven allowlisted tools and nothing else", () => {
+  it("registers exactly the twenty-eight allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 

@@ -227,4 +227,105 @@ describe("terminal input grants", () => {
     expect(r).toEqual({ denied: true });
     expect(write).not.toHaveBeenCalled();
   });
+
+  it("times out to {timedOut:true} when the grant is never resolved, and does not write", async () => {
+    vi.useFakeTimers();
+    const notify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const promise = gatedTerminalInput("p-grant-timeout", "x\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    // Advance well past the 5-minute grant timeout with no allow/deny.
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
+    expect(await promise).toEqual({ timedOut: true });
+    expect(write).not.toHaveBeenCalled();
+  });
+});
+
+// Both flows share the renderer's single `modal` slot, so an outstanding request
+// in EITHER flow must make the OTHER flow report busy (else the second modal
+// would clobber the first, stranding the first agent until its timeout). Each
+// test uses unique ptyIds/names since grant/secret state is module-level.
+describe("cross-flow agent-modal busy guard", () => {
+  it("a pending secret request makes a terminal grant for an ungranted pty report busy without notifying", async () => {
+    const { notify: secretNotify, payloads } = makeFakeNotify();
+    // Leave this secret request pending (do not resolve) -- a modal is open.
+    const secret = requestSecretFromUser("X_SECRET", undefined, secretNotify);
+
+    const grantNotify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const r = await gatedTerminalInput("p-cross-1", "y\n", {
+      write,
+      label: () => "x",
+      notify: grantNotify,
+    });
+    expect(r).toEqual({ busy: true });
+    // No second modal was opened, and nothing was written.
+    expect(grantNotify).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+
+    // Clean up the pending secret request so it does not leak into later tests.
+    resolveSecretRequest(nth(payloads, 0).requestId, false);
+    await expect(secret).resolves.toEqual({ vaulted: false });
+  });
+
+  it("a pending terminal grant makes a secret request report {vaulted:false, busy:true}", async () => {
+    const grantNotify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    // Leave this grant request pending (do not resolve) -- a modal is open.
+    const grant = gatedTerminalInput("p-cross-2", "z\n", {
+      write,
+      label: () => "x",
+      notify: grantNotify,
+    });
+
+    const { notify: secretNotify, payloads } = makeFakeNotify();
+    const second = await requestSecretFromUser(
+      "Y_SECRET",
+      undefined,
+      secretNotify,
+    );
+    expect(second).toEqual({ vaulted: false, busy: true });
+    // No secret modal was opened.
+    expect(payloads).toHaveLength(0);
+
+    // Clean up the pending grant.
+    resolveTerminalGrant(firstGrant(grantNotify).requestId, false);
+    await expect(grant).resolves.toEqual({ denied: true });
+  });
+
+  it("an already-granted pty still resolves immediately even while a secret request is pending", async () => {
+    // First, grant the pty via a resolved grant request.
+    const grantNotify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const g1 = gatedTerminalInput("p-cross-3", "a\n", {
+      write,
+      label: () => "x",
+      notify: grantNotify,
+    });
+    resolveTerminalGrant(firstGrant(grantNotify).requestId, true);
+    await g1;
+    grantNotify.mockClear();
+
+    // Now open (and leave pending) a secret request.
+    const { notify: secretNotify, payloads } = makeFakeNotify();
+    const secret = requestSecretFromUser("Z_SECRET", undefined, secretNotify);
+
+    // The already-granted pty short-circuits before the busy guard: no notify,
+    // resolves {granted:true} (here surfaced as {sent:true} after the write).
+    const r2 = await gatedTerminalInput("p-cross-3", "b\n", {
+      write,
+      label: () => "x",
+      notify: grantNotify,
+    });
+    expect(r2).toEqual({ sent: true });
+    expect(grantNotify).not.toHaveBeenCalled();
+    expect(write).toHaveBeenLastCalledWith("p-cross-3", "b\n");
+
+    // Clean up the pending secret request.
+    resolveSecretRequest(nth(payloads, 0).requestId, false);
+    await expect(secret).resolves.toEqual({ vaulted: false });
+  });
 });
