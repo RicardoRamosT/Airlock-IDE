@@ -1,4 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -67,8 +68,15 @@ import {
   writeProjectConfig,
   writeWorkspaceFile,
 } from "@airlock/agent-core";
-import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
-import type { AppPrefs, Section } from "../shared/ipc";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  shell,
+} from "electron";
+import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
 import { syncWindowWatchers } from "./fsWatch";
@@ -106,6 +114,7 @@ import {
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
+import { readSession, writeSession } from "./session-store";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
 import {
@@ -220,6 +229,30 @@ async function neonUri(
 }
 const allStr = (xs: unknown[]): boolean =>
   xs.every((x) => typeof x === "string");
+
+// Path to the layout snapshot, alongside prefs.json in userData.
+const sessionFile = () => path.join(app.getPath("userData"), "session.json");
+
+// Last snapshot the renderer reported, kept for the synchronous quit flush.
+let latestSnapshot: SessionSnapshot | null = null;
+
+// Synchronous best-effort flush of the latest snapshot, for app before-quit
+// (async writes may not finish before the process exits).
+export function flushSession(): void {
+  if (!latestSnapshot) return;
+  try {
+    writeFileSync(
+      sessionFile(),
+      `${JSON.stringify(latestSnapshot, null, 2)}\n`,
+      {
+        encoding: "utf8",
+        mode: 0o600,
+      },
+    );
+  } catch (err) {
+    console.error("[airlock] session flush failed", err);
+  }
+}
 
 // getBaseEnv supplies the login-shell env captured once at startup (real
 // PATH, locale). pty:create uses it as the base for every terminal. Passed
@@ -674,6 +707,15 @@ export function registerIpc(
   // usage:get -> SessionUsage[] for the Usage dashboard (sorted by output
   // tokens, the cost proxy on subscription plans).
   ipcMain.handle("usage:get", () => getUsageLedger());
+
+  // Session restore: read the persisted layout snapshot; save the latest one
+  // (async, serialized, best-effort) and hold it for the synchronous quit flush.
+  // App-global (NOT root-gated). Value-free: roots + booleans only.
+  ipcMain.handle("session:get", () => readSession(sessionFile()));
+  ipcMain.on("session:save", (_e, snap: SessionSnapshot) => {
+    latestSnapshot = snap;
+    void writeSession(sessionFile(), snap); // async, serialized, best-effort
+  });
 
   ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");

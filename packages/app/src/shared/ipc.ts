@@ -493,6 +493,11 @@ export interface AirlockApi {
   // store calls this on tab open/close so main can validate a per-project
   // handler's explicit root against the set the user actually opened.
   workspaceRoots(roots: string[]): Promise<void>;
+  // Restore: read the persisted layout snapshot (null = none). sessionSave sends
+  // the current snapshot to main (debounced by the renderer); main writes it and
+  // keeps the latest for the synchronous quit flush. Value-free (roots+booleans).
+  sessionGet(): Promise<SessionSnapshot | null>;
+  sessionSave(snap: SessionSnapshot): void;
   openFile(): Promise<string | null>;
   onMenuAction(cb: (a: MenuAction) => void): () => void;
   // Per-project methods below take a leading `root` (the calling pane's): two
