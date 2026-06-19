@@ -100,6 +100,7 @@ const DEFAULT_PREFS: AppPrefs = {
   },
   quotaMeter: { enabled: false },
   defaultTerminal: "airlock",
+  restoreSession: true,
 };
 
 // Only the methods whose RESOLVED SHAPE the mount destructures need an explicit

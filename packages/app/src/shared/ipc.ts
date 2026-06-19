@@ -375,6 +375,15 @@ export interface QuotaStatus {
   available: boolean;
 }
 
+// Restorable layout snapshot, persisted to session.json. Keyed by project ROOT
+// (tab ids are regenerated on restore). Value-free: roots + booleans only.
+export interface SessionSnapshot {
+  version: 1;
+  tabs: { root: string; hadClaude: boolean }[]; // array order = strip order
+  activeRoot: string | null;
+  split: { a: string; b: string } | null; // project roots of the side-by-side pair
+}
+
 /**
  * App-global preferences (userData JSON) - distinct from per-project config
  * and the keychain. Defined here as the single source of truth so both the
@@ -403,6 +412,7 @@ export interface AppPrefs {
   // integrated terminal (default); otherwise a KNOWN_TERMINALS id -> that
   // external app is launched at the project folder instead of an embedded pane.
   defaultTerminal: string;
+  restoreSession: boolean; // restore open projects + resume chats on launch
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to

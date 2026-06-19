@@ -36,6 +36,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       defaultTerminal: "airlock",
+      restoreSession: true,
     });
   });
 
@@ -93,6 +94,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       defaultTerminal: "airlock",
+      restoreSession: true,
     });
   });
 
@@ -114,6 +116,21 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).claudeAutoStart).toBe("off");
     await savePrefs(file, { claudeAutoStart: "every" });
     expect((await loadPrefs(file)).claudeAutoStart).toBe("every");
+  });
+
+  it("restoreSession defaults to true and sanitizes non-booleans", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    // (a) absent key -> the default (true)
+    const absent = path.join(dir, "absent.json");
+    expect((await loadPrefs(absent)).restoreSession).toBe(true);
+    // (b) a non-boolean value -> sanitized back to the default (true)
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(wrong, JSON.stringify({ restoreSession: "yes" }));
+    expect((await loadPrefs(wrong)).restoreSession).toBe(true);
+    // explicit false is honored (round-trips)
+    const file = path.join(dir, "prefs.json");
+    await savePrefs(file, { restoreSession: false });
+    expect((await loadPrefs(file)).restoreSession).toBe(false);
   });
 
   it("sanitizes unknown/garbage fields", async () => {
@@ -156,6 +173,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       defaultTerminal: "airlock",
+      restoreSession: true,
     });
   });
 
@@ -191,6 +209,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       defaultTerminal: "airlock",
+      restoreSession: true,
     });
   });
 

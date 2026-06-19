@@ -57,6 +57,7 @@ const DEFAULTS: AppPrefs = {
   quotaMeter: { enabled: true },
   claudeAutoStart: "first",
   defaultTerminal: "airlock",
+  restoreSession: true,
 };
 
 const CLAUDE_AUTO_MODES: ClaudeAutoStart[] = ["off", "first", "every"];
@@ -183,6 +184,10 @@ function sanitize(raw: unknown): AppPrefs {
       ? (r.claudeAutoStart as ClaudeAutoStart)
       : "first",
     defaultTerminal: sanitizeDefaultTerminal(r.defaultTerminal),
+    restoreSession:
+      typeof r.restoreSession === "boolean"
+        ? r.restoreSession
+        : DEFAULTS.restoreSession,
   };
   // Only attach mcp when present and valid; keep it off the object otherwise so
   // toEqual against the defaults (which have no mcp key) stays exact.
