@@ -125,6 +125,16 @@ export interface CommandGateBlock {
   reason: string;
 }
 
+// Outcome of the send_terminal_input MCP tool. Value-free: it reports whether
+// the bytes were sent or why not -- never terminal output or a secret.
+export interface TerminalInputResult {
+  sent?: true;
+  denied?: true;
+  timedOut?: true;
+  busy?: true;
+  error?: string;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO

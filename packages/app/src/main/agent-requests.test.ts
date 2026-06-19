@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  type GrantNotifier,
+  gatedTerminalInput,
   type RequestNotifier,
   requestSecretFromUser,
   resolveSecretRequest,
+  resolveTerminalGrant,
 } from "./agent-requests";
 
 type NotifyPayload = Parameters<RequestNotifier>[0];
@@ -27,6 +30,19 @@ function nth(payloads: NotifyPayload[], i: number): NotifyPayload {
   const p = payloads[i];
   if (!p) throw new Error(`expected a recorded payload at index ${i}`);
   return p;
+}
+
+type GrantPayload = Parameters<GrantNotifier>[0];
+
+// Same narrowing as nth(), for a mocked GrantNotifier: returns its first
+// recorded payload (throwing if absent) so noUncheckedIndexedAccess does not
+// flag the direct calls[0][0] access in the terminal-grant tests below.
+function firstGrant(
+  notify: ReturnType<typeof vi.fn<GrantNotifier>>,
+): GrantPayload {
+  const call = notify.mock.calls[0];
+  if (!call) throw new Error("expected a recorded grant request");
+  return call[0];
 }
 
 afterEach(() => {
@@ -113,5 +129,102 @@ describe("requestSecretFromUser", () => {
     expect(payloads).toHaveLength(2);
     resolveSecretRequest(nth(payloads, 1).requestId, true);
     await expect(second).resolves.toEqual({ vaulted: true });
+  });
+});
+
+// grantedTerminals is module state that persists across tests, so each test uses
+// a UNIQUE ptyId to avoid cross-test grant leakage.
+describe("terminal input grants", () => {
+  it("unknown terminal -> error, no prompt, no write", async () => {
+    const notify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const r = await gatedTerminalInput("p-unknown", "hi\n", {
+      write,
+      label: () => null,
+      notify,
+    });
+    expect(r).toEqual({ error: expect.any(String) });
+    expect(notify).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("first send prompts, waits, and on allow writes -> {sent}", async () => {
+    const notify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const promise = gatedTerminalInput("p-allow", "fix tests\n", {
+      write,
+      label: () => "myproj",
+      notify,
+    });
+    expect(notify).toHaveBeenCalledTimes(1);
+    const { requestId, label } = firstGrant(notify);
+    expect(label).toBe("myproj");
+    resolveTerminalGrant(requestId, true);
+    expect(await promise).toEqual({ sent: true });
+    expect(write).toHaveBeenCalledWith("p-allow", "fix tests\n");
+  });
+
+  it("a second send to an already-granted terminal skips the prompt", async () => {
+    const notify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const p1 = gatedTerminalInput("p-twice", "a\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    resolveTerminalGrant(firstGrant(notify).requestId, true);
+    await p1;
+    notify.mockClear();
+    const r2 = await gatedTerminalInput("p-twice", "b\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    expect(notify).not.toHaveBeenCalled();
+    expect(r2).toEqual({ sent: true });
+    expect(write).toHaveBeenLastCalledWith("p-twice", "b\n");
+  });
+
+  it("deny -> {denied}, no write", async () => {
+    const notify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const promise = gatedTerminalInput("p-deny", "x\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    resolveTerminalGrant(firstGrant(notify).requestId, false);
+    expect(await promise).toEqual({ denied: true });
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("a second request while one is pending -> {busy}", async () => {
+    const notify = vi.fn<GrantNotifier>(() => true);
+    const write = vi.fn(() => true);
+    const p1 = gatedTerminalInput("p-busy-1", "x\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    const r2 = await gatedTerminalInput("p-busy-2", "y\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    expect(r2).toEqual({ busy: true });
+    resolveTerminalGrant(firstGrant(notify).requestId, false); // cleanup
+    await p1;
+  });
+
+  it("no live window (notify false) -> {denied}, no write", async () => {
+    const notify = vi.fn<GrantNotifier>(() => false);
+    const write = vi.fn(() => true);
+    const r = await gatedTerminalInput("p-nowin", "x\n", {
+      write,
+      label: () => "x",
+      notify,
+    });
+    expect(r).toEqual({ denied: true });
+    expect(write).not.toHaveBeenCalled();
   });
 });
