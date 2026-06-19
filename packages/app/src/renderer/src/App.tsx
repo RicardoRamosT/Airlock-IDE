@@ -24,12 +24,14 @@ import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
 import { usePrefs } from "./lib/usePrefs";
 import { useQuota } from "./lib/useQuota";
+import { useSessionPersist } from "./lib/useSessionPersist";
 import { useUpdate } from "./lib/useUpdate";
 import { useApp } from "./store";
 
 export function App() {
   useGitStatus();
   usePrefs();
+  useSessionPersist();
   useMenuActions();
   useAgentCommands();
   useFsWatch();

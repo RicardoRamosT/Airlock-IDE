@@ -295,6 +295,10 @@ export interface AppState {
   claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
   defaultTerminal: string; // app-global (persisted): "airlock" or a terminal id
   layoutHydrated: boolean; // default false
+  restoreSession: boolean; // hydrated from prefs (Task 6); gates persist + restore
+  setRestoreSession: (v: boolean) => void;
+  sessionRestoreDone: boolean; // flips true once startup restore finishes (Task 5)
+  setSessionRestoreDone: (v: boolean) => void;
   modal:
     | "add-secret"
     | { update: string }
@@ -724,6 +728,8 @@ export const useApp = create<AppState>((set) => ({
   claudeAutoStart: "first",
   defaultTerminal: "airlock",
   layoutHydrated: false,
+  restoreSession: true,
+  sessionRestoreDone: false,
   runningNotice: null,
 
   // --- Tab actions ---
@@ -1519,6 +1525,8 @@ export const useApp = create<AppState>((set) => ({
     set((s) => patchTab(s, tabId ?? s.activeTabId, { dbTabs: order })),
   setStripOrder: (order) => set({ stripOrder: order }),
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
+  setRestoreSession: (v) => set({ restoreSession: v }),
+  setSessionRestoreDone: (v) => set({ sessionRestoreDone: v }),
   fsVersion: {},
   newFileRequest: null,
   // Bump the freshness counter for a root so FileTrees on it re-list. Driven by
