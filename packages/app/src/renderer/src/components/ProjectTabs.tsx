@@ -1,4 +1,5 @@
 import { type DragEvent, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
 import { useApp } from "../store";
@@ -86,8 +87,22 @@ export function ProjectTabs() {
   const stripOrder = useApp((s) => s.stripOrder);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
   // terminals' ptyIds working in sessionWorking); the glow is the stored flag.
-  const sessionWorking = useApp((s) => s.sessionWorking);
-  const tabTerminals = useApp((s) => s.tabTerminals);
+  // Shallow-compared so the strip re-renders only when a dot actually flips --
+  // NOT on the ~10Hz title-spinner churn Claude writes into tabTerminals. The
+  // old whole-map subscription re-rendered the entire strip on every title
+  // frame; with many active sessions that was O(N^2) main-thread work and froze
+  // the app (beachball with ~7 active project tabs).
+  const workingByTab = useApp(
+    useShallow((s) => {
+      const out: Record<string, boolean> = {};
+      for (const [tabId, tt] of Object.entries(s.tabTerminals)) {
+        out[tabId] = tt.terminals.some(
+          (t) => t.ptyId !== null && s.sessionWorking[t.ptyId] === true,
+        );
+      }
+      return out;
+    }),
+  );
   const tabGlow = useApp((s) => s.tabGlow);
   const tabRenames = useApp((s) => s.tabRenames);
   // The tab currently being renamed inline (null = none).
@@ -148,10 +163,7 @@ export function ProjectTabs() {
   // their active highlight (their state is untouched underneath).
   const projectActive = (tabId: string) =>
     appPage === null && tabId === activeTabId;
-  const isWorking = (tabId: string): boolean =>
-    (tabTerminals[tabId]?.terminals ?? []).some(
-      (t) => t.ptyId !== null && sessionWorking[t.ptyId] === true,
-    );
+  const isWorking = (tabId: string): boolean => workingByTab[tabId] ?? false;
 
   // The strip's left-to-right order: stripOrder reconciled against the live
   // entry keys (stale dropped, new appended), so an entry can never vanish.
