@@ -701,6 +701,20 @@ export interface AirlockApi {
     cb: (p: { requestId: string; name: string; providerHint?: string }) => void,
   ): () => void;
   requestSecretResolve(requestId: string, vaulted: boolean): Promise<void>;
+  // Agent-requested terminal input: main pushes agent:terminal-grant-request when
+  // the send_terminal_input MCP tool asks to type into a live terminal. The
+  // renderer opens the approval modal, then reports allow/deny via
+  // terminalGrantResolve. Only a boolean crosses back -- no terminal output, no
+  // secret. `preview` is the agent's own input (never a vault value).
+  onTerminalGrantRequest(
+    cb: (p: {
+      requestId: string;
+      ptyId: string;
+      label: string;
+      preview: string;
+    }) => void,
+  ): () => void;
+  terminalGrantResolve(requestId: string, granted: boolean): Promise<void>;
   // Agent IDE-control command: main pushes agent:command when an IDE-control MCP
   // tool (list_tabs/open_tab/close_tab/switch_tab/split_view/open_terminal/
   // close_terminal) drives the focused window. The useAgentCommands hook runs the

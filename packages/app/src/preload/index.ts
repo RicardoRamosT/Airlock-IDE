@@ -159,6 +159,15 @@ const api: AirlockApi = {
     ),
   requestSecretResolve: (requestId, vaulted) =>
     ipcRenderer.invoke("agent:request-secret-resolved", requestId, vaulted),
+  onTerminalGrantRequest: (cb) =>
+    subscribe<{
+      requestId: string;
+      ptyId: string;
+      label: string;
+      preview: string;
+    }>("agent:terminal-grant-request", cb),
+  terminalGrantResolve: (requestId, granted) =>
+    ipcRenderer.invoke("agent:terminal-grant-resolved", requestId, granted),
   onAgentCommand: (cb) =>
     subscribe<{ id: string; cmd: AgentCommand }>("agent:command", cb),
   agentCommandResult: (id, result: AgentCommandResult) =>
