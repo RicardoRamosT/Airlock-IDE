@@ -1309,6 +1309,26 @@ function scrubSecretFromBuffers(value: string): void {
   }
 }
 
+// Write agent-supplied input bytes to a live pty (the send_terminal_input MCP
+// tool, gated by a user grant in agent-requests). Returns false if the session
+// is gone. Same write path the pty:input IPC handler uses.
+export function writeTerminalInput(ptyId: string, data: string): boolean {
+  const s = sessions.get(ptyId);
+  if (!s) return false;
+  s.write(data);
+  return true;
+}
+
+// A short human label for the grant modal: the owning project's folder name (or
+// "a terminal" when the pty has no recorded root, e.g. a blank-tab shell).
+// Returns null if the pty id is unknown, so the tool can report "no such
+// terminal". Value-free -- a path basename, never a secret.
+export function terminalLabel(ptyId: string): string | null {
+  if (!sessions.has(ptyId)) return null;
+  const root = sessionRoots.get(ptyId);
+  return root ? (root.split("/").pop() ?? root) : "a terminal";
+}
+
 // The redacted tail of one terminal's recent output. Root-gated + audited
 // (ids/counts only -- never the content). The MCP tool calls THIS (not
 // getSecretValue), so the tools.ts source-guard stays green.
