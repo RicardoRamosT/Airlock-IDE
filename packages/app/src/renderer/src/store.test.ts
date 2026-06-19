@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { restartActiveTerminal } from "./lib/restartActiveTerminal";
-import { type DbView, type TabTerminals, useApp } from "./store";
+import {
+  CLAUDE_CONTINUE_COMMAND,
+  type DbView,
+  type TabTerminals,
+  useApp,
+} from "./store";
 
 // Pristine store state (incl. all action fns) captured ONCE. The actions are
 // immutable (spreads/maps), so this reference stays clean and can be restored
@@ -1381,4 +1386,43 @@ it("closeAppPage('overview') closes the chip, clears the root, and hides the pag
   expect(st.overviewTabOpen).toBe(false);
   expect(st.overviewRoot).toBeNull();
   expect(st.appPage).toBeNull();
+});
+
+// --- Lazy-resume primitives (session restore) -------------------------------
+
+it("CLAUDE_CONTINUE_COMMAND resumes the project's last chat", () => {
+  expect(CLAUDE_CONTINUE_COMMAND).toBe("claude --continue\n");
+});
+
+it("consumePendingResume returns true once then false; mark sets it", () => {
+  useApp.getState().markPendingResume(["t1", "t2"]);
+  expect(useApp.getState().consumePendingResume("t1")).toBe(true);
+  expect(useApp.getState().consumePendingResume("t1")).toBe(false); // consumed
+  expect(useApp.getState().consumePendingResume("t9")).toBe(false); // never set
+});
+
+it("claudeAutoDecision returns false for a tab pending resume (no fresh claude)", () => {
+  // Reuse the post-reset blank tab's ProjectState as a valid seed (asserted
+  // present -- the raw index is ProjectState | undefined under noUnchecked).
+  const seedTabId = Object.keys(get().tabState)[0];
+  if (!seedTabId) throw new Error("no tabState to seed from");
+  const seedProjectState = get().tabState[seedTabId];
+  if (!seedProjectState) throw new Error("no ProjectState to seed from");
+  // Seed a project tab with a terminal whose pty has adopted.
+  useApp.setState({
+    tabs: [{ id: "tp", root: "/p" }],
+    activeTabId: "tp",
+    tabState: { tp: seedProjectState },
+    tabTerminals: {
+      tp: {
+        terminals: [{ id: "ep", title: "zsh", renamed: false, ptyId: "pp" }],
+        activeTerminalId: "ep",
+        splitTerminalId: null,
+        claudeAutoId: null,
+      },
+    },
+    claudeAutoStart: "first",
+  });
+  useApp.getState().markPendingResume(["tp"]);
+  expect(useApp.getState().claudeAutoDecision("ep")).toBe(false);
 });

@@ -80,6 +80,10 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
 // shell so exiting it returns to the prompt.
 export const CLAUDE_AUTO_COMMAND = "claude\n";
 
+// Resume a project's most recent Claude conversation (session restore). Same
+// shape as CLAUDE_AUTO_COMMAND -- typed into the shell at the restored tab.
+export const CLAUDE_CONTINUE_COMMAND = "claude --continue\n";
+
 // The full non-terminal per-project state for ONE tab. `tabState` keeps one of
 // these for EVERY tab (the source of truth); the top-level per-project fields
 // (root/selectedFile/...) are a MIRROR of the ACTIVE tab's ProjectState, so
@@ -299,6 +303,11 @@ export interface AppState {
   setRestoreSession: (v: boolean) => void;
   sessionRestoreDone: boolean; // flips true once startup restore finishes (Task 5)
   setSessionRestoreDone: (v: boolean) => void;
+  // Tabs awaiting a lazy Claude resume on first focus (session restore). Marked
+  // by useSessionRestore; consumed by the focus-gated resume effect.
+  pendingResume: Set<string>;
+  markPendingResume: (tabIds: string[]) => void;
+  consumePendingResume: (tabId: string) => boolean;
   modal:
     | "add-secret"
     | { update: string }
@@ -730,6 +739,7 @@ export const useApp = create<AppState>((set) => ({
   layoutHydrated: false,
   restoreSession: true,
   sessionRestoreDone: false,
+  pendingResume: new Set<string>(),
   runningNotice: null,
 
   // --- Tab actions ---
@@ -1418,6 +1428,14 @@ export const useApp = create<AppState>((set) => ({
     }),
 
   claudeAutoDecision: (terminalId) => {
+    // A restored tab resumes via claude --continue on focus (the lazy-resume
+    // effect), so its terminal must NOT fresh-start claude at adoption.
+    {
+      const owner = findOwningTabId(useApp.getState().tabTerminals, terminalId);
+      if (owner !== null && useApp.getState().pendingResume.has(owner)) {
+        return false;
+      }
+    }
     let granted = false;
     set((s) => {
       const mode = s.claudeAutoStart;
@@ -1527,6 +1545,21 @@ export const useApp = create<AppState>((set) => ({
   setLayoutHydrated: (v) => set({ layoutHydrated: v }),
   setRestoreSession: (v) => set({ restoreSession: v }),
   setSessionRestoreDone: (v) => set({ sessionRestoreDone: v }),
+  markPendingResume: (tabIds) =>
+    set((s) => {
+      const next = new Set(s.pendingResume);
+      for (const id of tabIds) next.add(id);
+      return { pendingResume: next };
+    }),
+  consumePendingResume: (tabId) => {
+    if (!useApp.getState().pendingResume.has(tabId)) return false;
+    set((s) => {
+      const next = new Set(s.pendingResume);
+      next.delete(tabId);
+      return { pendingResume: next };
+    });
+    return true;
+  },
   fsVersion: {},
   newFileRequest: null,
   // Bump the freshness counter for a root so FileTrees on it re-list. Driven by
