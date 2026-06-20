@@ -29,6 +29,8 @@ export function SettingsTab() {
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
+  const restoreSession = useApp((s) => s.restoreSession);
+  const setRestoreSession = useApp((s) => s.setRestoreSession);
   const defaultTerminal = useApp((s) => s.defaultTerminal);
   const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   // Per-project bits are scoped to the pane's tab; the app-global controls above
@@ -300,6 +302,24 @@ export function SettingsTab() {
             Runs `claude` automatically in new terminals of project tabs. "First
             terminal per tab" starts one session per project; extra terminals
             open as plain shells. Blank tabs are never auto-started.
+          </p>
+          <div className="settings-row">
+            <label htmlFor="restore-session">Restore previous session</label>
+            <input
+              id="restore-session"
+              type="checkbox"
+              checked={restoreSession}
+              onChange={(e) => {
+                const v = e.target.checked;
+                useApp.getState().setLayoutHydrated(true);
+                setRestoreSession(v);
+                void window.airlock.prefsSet({ restoreSession: v });
+              }}
+            />
+          </div>
+          <p className="settings-note">
+            Reopens your projects and resumes each one's Claude chat (claude
+            --continue) when AirLock starts.
           </p>
           <div className="settings-row">
             <label htmlFor="default-terminal">Default terminal</label>

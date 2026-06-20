@@ -14,6 +14,7 @@ export function usePrefs(): void {
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const setActiveView = useApp((s) => s.setActiveView);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
+  const setRestoreSession = useApp((s) => s.setRestoreSession);
   const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const theme = useApp((s) => s.theme);
@@ -39,6 +40,7 @@ export function usePrefs(): void {
         setSectionVisibility(p.sectionVisibility);
         setActiveView(p.activeView);
         setClaudeAutoStart(p.claudeAutoStart);
+        setRestoreSession(p.restoreSession);
         setDefaultTerminal(p.defaultTerminal);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
         useApp.getState().setLayoutHydrated(true);
@@ -57,6 +59,7 @@ export function usePrefs(): void {
     setSectionVisibility,
     setActiveView,
     setClaudeAutoStart,
+    setRestoreSession,
     setDefaultTerminal,
     setQuotaMeterEnabled,
   ]);
