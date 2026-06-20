@@ -266,6 +266,10 @@ body,
 .project-tab-label {
   display: flex;
   align-items: center;
+  /* Fill the full tab height so the WHOLE tab body (not just the text) is the
+     click + drag hitbox -- the button is otherwise content-height and centered,
+     leaving dead strips above/below it. */
+  align-self: stretch;
   gap: 5px;
   background: none;
   border: none;
@@ -1046,6 +1050,9 @@ body,
 .main-tab-label {
   display: flex;
   align-items: center;
+  /* Fill the full tab height so the WHOLE tab body is the click + drag hitbox
+     (see .project-tab-label). */
+  align-self: stretch;
   gap: 5px;
   background: none;
   border: none;

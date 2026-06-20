@@ -190,6 +190,13 @@ export function ProjectTabs() {
       dragKey.current = key;
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", key);
+      // Ghost the FULL tab (the container), not just the label button the drag
+      // started on; offset by the grab point so it tracks under the cursor.
+      const tab = e.currentTarget.closest<HTMLElement>(".project-tab");
+      if (tab) {
+        const r = tab.getBoundingClientRect();
+        e.dataTransfer.setDragImage(tab, e.clientX - r.left, e.clientY - r.top);
+      }
     },
     onDragEnd: clearDrag,
   });

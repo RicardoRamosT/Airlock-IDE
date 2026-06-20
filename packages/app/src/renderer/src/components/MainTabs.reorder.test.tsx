@@ -44,7 +44,12 @@ function stubRect(left: number, width: number) {
 function fireDrag(type: string, el: Element, clientX = 0) {
   const ev = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
   Object.defineProperty(ev, "dataTransfer", {
-    value: { setData: vi.fn(), getData: () => "", effectAllowed: "" },
+    value: {
+      setData: vi.fn(),
+      setDragImage: vi.fn(),
+      getData: () => "",
+      effectAllowed: "",
+    },
   });
   fireEvent(el, ev);
 }
