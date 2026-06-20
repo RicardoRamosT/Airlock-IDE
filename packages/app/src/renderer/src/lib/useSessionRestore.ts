@@ -38,15 +38,25 @@ export function useSessionRestore(): void {
         snap.tabs.filter((_, i) => exists[i]).map((t) => t.root),
       );
       const plan = planRestore(snap, (r) => existsSet.has(r));
+      if (plan.roots.length === 0) {
+        s.setSessionRestoreDone(true);
+        return; // every saved folder is gone -> keep the default blank tab
+      }
 
-      // Reopen: reuse the boot blank tab for the first project, then openProject.
+      // Open EVERY project as a fresh tab so its terminal spawns in the project
+      // root. (Reusing the boot blank tab via fillActiveTab kept that tab's
+      // already-spawned $HOME shell -> wrong cwd, and claude --continue then
+      // resumed the wrong directory.) The leftover boot blank tab is dropped
+      // afterward so its $HOME terminal does not linger.
+      const blankTabId = useApp.getState().activeTabId;
       const rootToTab = new Map<string, string>();
-      plan.roots.forEach((root, i) => {
-        if (i === 0) s.fillActiveTab(root);
-        else s.openProject(root);
-        // openProject/fillActiveTab set activeTabId to the new tab.
+      for (const root of plan.roots) {
+        s.openProject(root); // sets activeTabId to the new tab
         rootToTab.set(root, useApp.getState().activeTabId);
-      });
+      }
+      if (useApp.getState().tabState[blankTabId]?.root == null) {
+        s.closeTab(blankTabId);
+      }
       // Strip order follows the restored order.
       s.setStripOrder(plan.roots.map((r) => rootToTab.get(r) as string));
       // Split (both members exist per the plan).
@@ -72,10 +82,13 @@ export function useSessionRestore(): void {
   // terminal, inject claude --continue once. Re-runs as tabTerminals updates
   // (so it retries after the pty adopts).
   const activeTabId = useApp((s) => s.activeTabId);
-  // tabTerminals is an intentional change-trigger (not read in the body, which
-  // snapshots fresh state via useApp.getState()): it re-fires this effect as a
-  // pty adopts so the resume retries until sendToClaudeTerminal succeeds.
+  // tabTerminals + pendingResume are intentional change-triggers (the body reads
+  // fresh state via useApp.getState()): tabTerminals re-fires this effect as a
+  // pty adopts (so the resume retries until sendToClaudeTerminal succeeds), and
+  // pendingResume re-fires it when restore marks a tab AFTER activeTabId is
+  // already the restored tab (otherwise the mark would be missed).
   const tabTerminals = useApp((s) => s.tabTerminals);
+  const pendingResume = useApp((s) => s.pendingResume);
   // biome-ignore lint/correctness/useExhaustiveDependencies: trigger deps, not used in the body
   useEffect(() => {
     const s = useApp.getState();
@@ -85,5 +98,5 @@ export function useSessionRestore(): void {
     if (s.sendToClaudeTerminal(CLAUDE_CONTINUE_COMMAND, activeTabId)) {
       s.consumePendingResume(activeTabId);
     }
-  }, [activeTabId, tabTerminals]);
+  }, [activeTabId, tabTerminals, pendingResume]);
 }
