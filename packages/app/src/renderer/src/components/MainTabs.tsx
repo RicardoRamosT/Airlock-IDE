@@ -183,9 +183,14 @@ export function MainTabs({ tabId }: { tabId: string }) {
     key: string;
     place: "before" | "after";
   } | null>(null);
+  // The key being dragged, as STATE so the dragged tab can collapse OUT of the
+  // row while dragging (else its slot stays and the make-room gap opens next to
+  // it). Mirrors ProjectTabs.
+  const [dragging, setDragging] = useState<string | null>(null);
   const clearDrag = () => {
     dragKey.current = null;
     setOver(null);
+    setDragging(null);
   };
   const applyReorder = (dk: string, ok: string, place: "before" | "after") => {
     if (groupOf(ok) === "db") {
@@ -215,6 +220,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
     draggable: true,
     onDragStart: (e: DragEvent<HTMLElement>) => {
       dragKey.current = key;
+      setDragging(key); // collapse this tab out of the row while dragging
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", key);
       // Ghost the FULL tab (the container), not just the label button the drag
@@ -260,7 +266,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const renderTerminalTab = (t: (typeof terminals)[number]) => (
     <div
       key={t.id}
-      className={`main-tab${termActive(t.id) ? " active" : ""}${dropClass(`t:${t.id}`)}`}
+      className={`main-tab${termActive(t.id) ? " active" : ""}${dragging === `t:${t.id}` ? " dragging" : ""}${dropClass(`t:${t.id}`)}`}
       {...dropTarget(`t:${t.id}`)}
     >
       {renaming === t.id ? (
@@ -314,7 +320,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const renderFileTab = (p: string) => (
     <div
       key={`f:${p}`}
-      className={`main-tab${fileActive(p) ? " active" : ""}${dropClass(`f:${p}`)}`}
+      className={`main-tab${fileActive(p) ? " active" : ""}${dragging === `f:${p}` ? " dragging" : ""}${dropClass(`f:${p}`)}`}
       {...dropTarget(`f:${p}`)}
     >
       <button
@@ -356,7 +362,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
   const renderDbTab = (v: DbView) => (
     <div
       key={dbKey(v)}
-      className={`main-tab${dbActive(v) ? " active" : ""}${dropClass(`db:${dbKey(v)}`)}`}
+      className={`main-tab${dbActive(v) ? " active" : ""}${dragging === `db:${dbKey(v)}` ? " dragging" : ""}${dropClass(`db:${dbKey(v)}`)}`}
       {...dropTarget(`db:${dbKey(v)}`)}
     >
       <button

@@ -238,6 +238,21 @@ body,
   margin-right: var(--drop-gap, 72px);
 }
 
+/* The dragged tab collapses OUT of the row so its neighbors close up and only
+   the make-room gap at the drop target remains -- not a redundant gap beside the
+   dragged tab's old slot. The drag ghost (set in onDragStart) is what the user
+   sees move. */
+.project-tab.dragging,
+.main-tab.dragging {
+  width: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 /* Per-tab Claude status dot (leads the tab label). Gray = idle/done/not
    running; yellow = a Claude session in this tab is actively working. The
    dim gray reads on both the active (--selected) and inactive tab grounds. */

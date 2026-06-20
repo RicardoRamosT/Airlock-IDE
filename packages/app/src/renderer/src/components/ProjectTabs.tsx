@@ -126,6 +126,10 @@ export function ProjectTabs() {
     key: string;
     place: "before" | "after";
   } | null>(null);
+  // The key being dragged, as STATE (not just the dragKey ref) so the dragged
+  // tab can collapse OUT of the row while dragging -- otherwise its slot stays
+  // and the make-room gap opens confusingly right next to it.
+  const [dragging, setDragging] = useState<string | null>(null);
   // Close BOTH members of the split pair (the unified tab's X / "Close both").
   // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
   // null), so read both before closing; closeTab promotes/cleans up each tab.
@@ -180,6 +184,7 @@ export function ProjectTabs() {
   const clearDrag = () => {
     dragKey.current = null;
     setOver(null);
+    setDragging(null);
   };
   // Drag SOURCE goes on the tab's LABEL BUTTON (not the container): a draggable
   // <div> does NOT start a drag when you grab a <button> child in Chromium, so
@@ -188,6 +193,7 @@ export function ProjectTabs() {
     draggable: true,
     onDragStart: (e: DragEvent<HTMLElement>) => {
       dragKey.current = key;
+      setDragging(key); // collapse this tab out of the row while dragging
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", key);
       // Ghost the FULL tab (the container), not just the label button the drag
@@ -251,7 +257,7 @@ export function ProjectTabs() {
     return (
       <div
         key="__split__"
-        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}${dropClass("pair")}`}
+        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
         {...dropTarget("pair")}
       >
         <button
@@ -314,7 +320,7 @@ export function ProjectTabs() {
     return (
       <div
         key={tab.id}
-        className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}${dropClass(tab.id)}`}
+        className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
         {...dropTarget(tab.id)}
       >
         {renaming === tab.id ? (
@@ -402,7 +408,7 @@ export function ProjectTabs() {
     return (
       <div
         key={`page:${kind}`}
-        className={`project-tab page-tab${appPage === kind ? " active" : ""}${dropClass(`page:${kind}`)}`}
+        className={`project-tab page-tab${appPage === kind ? " active" : ""}${dragging === `page:${kind}` ? " dragging" : ""}${dropClass(`page:${kind}`)}`}
         {...dropTarget(`page:${kind}`)}
       >
         <button
