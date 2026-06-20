@@ -241,8 +241,10 @@ export function MainTabs({ tabId }: { tabId: string }) {
     },
     onDragEnd: clearDrag,
   });
-  // Drop TARGET stays on the container <div> so the whole tab is a drop zone
-  // (dragover bubbles up from the label/close buttons); its rect drives before/after.
+  // Drop TARGET (per tab) ONLY tracks the hovered insertion point (over), and
+  // only within the dragged item's group. The actual DROP is handled at the LIST
+  // level (onListDrop): the make-room gap is margin OUTSIDE any tab's box, so a
+  // release over the gap would otherwise fall through and not reorder. (slide fix)
   const dropTarget = (key: string) => ({
     onDragOver: (e: DragEvent<HTMLDivElement>) => {
       const dk = dragKey.current;
@@ -253,18 +255,23 @@ export function MainTabs({ tabId }: { tabId: string }) {
         place: dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
       });
     },
+  });
+  // Allow a drop anywhere in the bar (incl. the opened gap / bare background) and
+  // commit it using the last hovered insertion point (over is same-group by the
+  // dragover guard above, so applyReorder stays within the group). Spread onto
+  // the list (like dropTarget) so the a11y "static element" lint -- which only
+  // sees literal handlers -- treats this drag-drop zone the same way.
+  const listDropZone = {
+    onDragOver: (e: DragEvent<HTMLDivElement>) => {
+      if (dragKey.current) e.preventDefault();
+    },
     onDrop: (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       const dk = dragKey.current;
-      if (dk && dk !== key && groupOf(dk) === groupOf(key))
-        applyReorder(
-          dk,
-          key,
-          dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
-        );
+      if (dk && over && over.key !== dk) applyReorder(dk, over.key, over.place);
       clearDrag();
     },
-  });
+  };
   const dropClass = (key: string): string =>
     over?.key === key ? ` main-tab--drop-${over.place}` : "";
 
@@ -395,7 +402,7 @@ export function MainTabs({ tabId }: { tabId: string }) {
 
   return (
     <div className="main-tabs">
-      <div className="main-tabs-list">
+      <div className="main-tabs-list" {...listDropZone}>
         {orderedTabs.map(renderTab)}
         {dbTabs.map(renderDbTab)}
         <button

@@ -87,6 +87,22 @@ it("dragging a project tab to the front reorders stripOrder", () => {
   expect(get().stripOrder).toEqual(["t3", "t1", "t2"]);
 });
 
+it("dropping on the strip background (the opened make-room gap) still reorders", () => {
+  // The make-room gap is margin OUTSIDE any tab's box, so a release there lands
+  // on the list, not a tab. The list-level drop must still commit using the last
+  // hovered insertion point.
+  seedTabs();
+  const { getByText, container } = render(<ProjectTabs />);
+  const alpha = projTab(getByText("alpha"));
+  stubRect(100, 40); // midpoint 120
+  fireDrag("dragstart", labelBtn(getByText("gamma")));
+  fireDrag("dragover", alpha, 105); // hover -> over = { alpha, before }
+  const list = container.querySelector(".project-tabs-list");
+  if (!list) throw new Error("no .project-tabs-list");
+  fireDrag("drop", list, 105); // drop on the LIST, NOT a tab
+  expect(get().stripOrder).toEqual(["t3", "t1", "t2"]);
+});
+
 it("page-tabs are draggable among project tabs (everything draggable)", () => {
   seedTabs();
   useApp.setState({ settingsTabOpen: true, appPage: "settings" });

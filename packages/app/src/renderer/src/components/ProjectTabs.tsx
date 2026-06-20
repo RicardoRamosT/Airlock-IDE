@@ -214,8 +214,11 @@ export function ProjectTabs() {
     },
     onDragEnd: clearDrag,
   });
-  // Drop TARGET stays on the container <div> so the whole tab is a drop zone
-  // (dragover bubbles up from the label/close buttons); its rect drives before/after.
+  // Drop TARGET (per tab) ONLY tracks the hovered insertion point (over). The
+  // actual DROP is handled at the LIST level (onListDrop): the make-room gap is
+  // margin OUTSIDE any tab's box, so a release over the gap would otherwise fall
+  // through to empty space and not reorder. Handling drop on the list captures
+  // those releases too. (drag-reorder slide fix)
   const dropTarget = (key: string) => ({
     onDragOver: (e: DragEvent<HTMLDivElement>) => {
       const dk = dragKey.current;
@@ -226,23 +229,25 @@ export function ProjectTabs() {
         place: dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
       });
     },
+  });
+  // Allow a drop anywhere in the strip (including the opened gap / bare list
+  // background) and commit it using the last hovered insertion point. Spread
+  // onto the list (like dropTarget) so the a11y "static element" lint -- which
+  // only sees literal handlers -- treats this drag-drop zone the same way.
+  const listDropZone = {
+    onDragOver: (e: DragEvent<HTMLDivElement>) => {
+      if (dragKey.current) e.preventDefault();
+    },
     onDrop: (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       const dk = dragKey.current;
-      if (dk && dk !== key)
+      if (dk && over && over.key !== dk)
         useApp
           .getState()
-          .setStripOrder(
-            reorderNames(
-              orderedKeys,
-              dk,
-              key,
-              dropPlace(e.currentTarget.getBoundingClientRect(), e.clientX),
-            ),
-          );
+          .setStripOrder(reorderNames(orderedKeys, dk, over.key, over.place));
       clearDrag();
     },
-  });
+  };
   const dropClass = (key: string): string =>
     over?.key === key ? ` project-tab--drop-${over.place}` : "";
 
@@ -452,7 +457,9 @@ export function ProjectTabs() {
 
   return (
     <div className="project-tabs">
-      <div className="project-tabs-list">{orderedKeys.map(renderEntry)}</div>
+      <div className="project-tabs-list" {...listDropZone}>
+        {orderedKeys.map(renderEntry)}
+      </div>
       <button
         type="button"
         className="project-tab-action"
