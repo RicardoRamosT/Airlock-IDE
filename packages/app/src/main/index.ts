@@ -19,6 +19,7 @@ import {
 } from "./anthropicStatus/watch";
 import {
   broadcastActivityChanged,
+  flushSession,
   getTerminalTail,
   killAllSessions,
   listTerminals,
@@ -220,7 +221,10 @@ function bootstrap(): void {
     }
   });
 
-  app.on("before-quit", killAllSessions);
+  app.on("before-quit", () => {
+    flushSession(); // synchronous: persist the latest layout before teardown
+    killAllSessions();
+  });
   // Tear down the MCP listener on quit (it intentionally outlives window-close
   // on darwin). Coexists with killAllSessions above.
   app.on("before-quit", () => {
