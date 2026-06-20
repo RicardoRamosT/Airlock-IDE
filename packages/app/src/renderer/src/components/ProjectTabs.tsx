@@ -193,7 +193,6 @@ export function ProjectTabs() {
     draggable: true,
     onDragStart: (e: DragEvent<HTMLElement>) => {
       dragKey.current = key;
-      setDragging(key); // collapse this tab out of the row while dragging
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", key);
       // Ghost the FULL tab (the container), not just the label button the drag
@@ -206,6 +205,12 @@ export function ProjectTabs() {
         // matches where it will land. Set on the list so it inherits to all tabs.
         tab.parentElement?.style.setProperty("--drop-gap", `${r.width}px`);
       }
+      // Collapse the dragged tab out of the row -- but on the NEXT frame: hiding
+      // the drag source synchronously inside dragstart CANCELS the drag in
+      // Chromium. By the next frame the drag has latched. Skip if it already ended.
+      requestAnimationFrame(() => {
+        if (dragKey.current === key) setDragging(key);
+      });
     },
     onDragEnd: clearDrag,
   });
