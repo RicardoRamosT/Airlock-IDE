@@ -196,6 +196,9 @@ export function ProjectTabs() {
       if (tab) {
         const r = tab.getBoundingClientRect();
         e.dataTransfer.setDragImage(tab, e.clientX - r.left, e.clientY - r.top);
+        // Size the "make room" drop gap to the dragged tab so the slid-open slot
+        // matches where it will land. Set on the list so it inherits to all tabs.
+        tab.parentElement?.style.setProperty("--drop-gap", `${r.width}px`);
       }
     },
     onDragEnd: clearDrag,

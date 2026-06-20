@@ -190,6 +190,7 @@ body,
   border-radius: 4px;
   height: 24px;
   position: relative; /* positioning context for the drag drop indicator */
+  transition: margin 110ms ease; /* smooth "make room" slide while dragging */
 }
 
 .project-tab:hover {
@@ -223,6 +224,18 @@ body,
 .project-tab--drop-after::after,
 .main-tab--drop-after::after {
   right: -2px;
+}
+
+/* "Make room": the hovered tab slides aside to open a gap (sized to the dragged
+   tab via --drop-gap, set on the list in onDragStart) so the empty drop slot is
+   clearly visible -- the thin line alone is hard to see under the drag ghost. */
+.project-tab--drop-before,
+.main-tab--drop-before {
+  margin-left: var(--drop-gap, 72px);
+}
+.project-tab--drop-after,
+.main-tab--drop-after {
+  margin-right: var(--drop-gap, 72px);
 }
 
 /* Per-tab Claude status dot (leads the tab label). Gray = idle/done/not
@@ -1041,6 +1054,7 @@ body,
   border-radius: 4px;
   height: 24px;
   position: relative; /* positioning context for the drag drop indicator */
+  transition: margin 110ms ease; /* smooth "make room" slide while dragging */
 }
 
 .main-tab.active {
