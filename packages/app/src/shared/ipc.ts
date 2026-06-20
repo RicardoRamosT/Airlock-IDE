@@ -510,6 +510,11 @@ export interface AirlockApi {
   // True iff relPath resolves to an existing FILE within root. Cheap stat used
   // by the terminal's Cmd+click link provider to only link paths that exist.
   exists(root: string, relPath: string): Promise<boolean>;
+  // True iff an absolute path is an existing DIRECTORY. Renderer-only, used by
+  // session restore to skip saved project roots that no longer exist. NOT
+  // root-gated and NOT an MCP/agent tool: the path comes from our own
+  // session.json (no relPath join -> no path-traversal vector).
+  dirExists(path: string): Promise<boolean>;
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;

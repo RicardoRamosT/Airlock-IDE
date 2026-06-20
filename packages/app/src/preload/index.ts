@@ -36,6 +36,7 @@ const api: AirlockApi = {
   listDir: (root, relPath) => ipcRenderer.invoke("fs:listDir", root, relPath),
   readFile: (root, relPath) => ipcRenderer.invoke("fs:readFile", root, relPath),
   exists: (root, relPath) => ipcRenderer.invoke("fs:exists", root, relPath),
+  dirExists: (path) => ipcRenderer.invoke("fs:dirExists", path),
   writeFile: (root, relPath, content) =>
     ipcRenderer.invoke("fs:writeFile", root, relPath, content),
   readImageDataUrl: (root, relPath) =>

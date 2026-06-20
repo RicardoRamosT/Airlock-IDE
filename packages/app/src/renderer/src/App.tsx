@@ -25,6 +25,7 @@ import { useMenuActions } from "./lib/useMenuActions";
 import { usePrefs } from "./lib/usePrefs";
 import { useQuota } from "./lib/useQuota";
 import { useSessionPersist } from "./lib/useSessionPersist";
+import { useSessionRestore } from "./lib/useSessionRestore";
 import { useUpdate } from "./lib/useUpdate";
 import { useApp } from "./store";
 
@@ -32,6 +33,7 @@ export function App() {
   useGitStatus();
   usePrefs();
   useSessionPersist();
+  useSessionRestore();
   useMenuActions();
   useAgentCommands();
   useFsWatch();

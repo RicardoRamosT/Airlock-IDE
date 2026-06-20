@@ -400,6 +400,19 @@ export function registerIpc(
     }
   });
 
+  // True iff an absolute path is an existing DIRECTORY. Renderer-only (session
+  // restore skips saved project roots that vanished); NOT an MCP/agent tool.
+  // The arg is an absolute path from our own session.json -- no relPath join,
+  // so no path-traversal vector. Never throws.
+  ipcMain.handle("fs:dirExists", async (_e, p: unknown) => {
+    if (typeof p !== "string") return false;
+    try {
+      return (await stat(p)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
   ipcMain.handle("overview:get", (e, root: unknown) => {
     if (typeof root !== "string" || !isOpenRoot(e, root))
       throw new Error("Invalid or unopened root");
