@@ -1,5 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { renameSync, writeFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -237,18 +237,20 @@ const sessionFile = () => path.join(app.getPath("userData"), "session.json");
 let latestSnapshot: SessionSnapshot | null = null;
 
 // Synchronous best-effort flush of the latest snapshot, for app before-quit
-// (async writes may not finish before the process exits).
+// (async writes may not finish before the process exits). Writes atomically
+// (temp file + renameSync) to match the async writeNow discipline, so a crash
+// mid-write can't leave a torn session.json. Single-threaded at quit, so a
+// fixed temp path is safe.
 export function flushSession(): void {
   if (!latestSnapshot) return;
   try {
-    writeFileSync(
-      sessionFile(),
-      `${JSON.stringify(latestSnapshot, null, 2)}\n`,
-      {
-        encoding: "utf8",
-        mode: 0o600,
-      },
-    );
+    const file = sessionFile();
+    const tmp = `${file}.flush.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(latestSnapshot, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    renameSync(tmp, file);
   } catch (err) {
     console.error("[airlock] session flush failed", err);
   }
