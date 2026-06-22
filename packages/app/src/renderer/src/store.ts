@@ -14,6 +14,7 @@ import type {
   UpdateProgress,
   UpdateStatus,
 } from "../../shared/ipc";
+import { type OverviewRunResult, planOverviewRun } from "./lib/overviewRun";
 
 export interface TerminalEntry {
   id: string; // renderer-side uid (not the pty id)
@@ -79,6 +80,13 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
 // The exact bytes the "Start Claude here" notice writes: run claude INSIDE the
 // shell so exiting it returns to the prompt.
 export const CLAUDE_AUTO_COMMAND = "claude\n";
+
+// Auto-submit into Claude's TUI: the prompt is written as one paste, then a
+// SEPARATE Enter keystroke a beat later. Enter in a raw-mode TUI is "\r" (not
+// "\n", which lands as a literal newline in the input). The delay lets Claude
+// commit the pasted input before Enter arrives.
+export const OVERVIEW_SUBMIT_KEY = "\r";
+export const OVERVIEW_SUBMIT_DELAY_MS = 120;
 
 // Resume a project's most recent Claude conversation (session restore). Same
 // shape as CLAUDE_AUTO_COMMAND -- typed into the shell at the restored tab.
@@ -428,6 +436,13 @@ export interface AppState {
   // terminal (no pty adopted) exists, so the caller can prompt the user to start
   // one. Used by the Project Overview "Generate summary" action.
   sendToClaudeTerminal: (text: string, tabId?: string) => boolean;
+  // Generate an overview summary in the project's Claude session. Reuse a live
+  // Claude terminal (reveal + type + deferred Enter) or spawn one. Returns
+  // "submitted" (sent) or "spawning" (terminal started; UI stages the prompt + a "Send to Claude" button).
+  runOverviewPrompt: (prompt: string, tabId?: string) => OverviewRunResult;
+  // Force-send an overview prompt to the resolved Claude terminal now (the
+  // spawn-case "Send to Claude" button). False if no live pty resolves yet.
+  sendOverviewPromptNow: (prompt: string, tabId?: string) => boolean;
   // One-shot: return + clear a terminal's queued command (called at pty adopt).
   takePendingTerminalCommand: (terminalId: string) => string | null;
 
@@ -1323,6 +1338,41 @@ export const useApp = create<AppState>((set) => ({
     if (!ptyId) return false;
     window.airlock.ptyInput(ptyId, text);
     return true;
+  },
+  sendOverviewPromptNow: (prompt, tabId) => {
+    const s = useApp.getState();
+    const tid = tabId ?? s.activeTabId;
+    const plan = planOverviewRun(s.tabTerminals[tid], s.sessionWorking);
+    if (plan.mode !== "reuse") return false;
+    s.switchTab(tid); // reveal the tab...
+    s.setActiveTerminal(plan.termId, tid); // ...and show the Claude terminal
+    window.airlock.ptyInput(plan.ptyId, prompt);
+    setTimeout(
+      () => window.airlock.ptyInput(plan.ptyId, OVERVIEW_SUBMIT_KEY),
+      OVERVIEW_SUBMIT_DELAY_MS,
+    );
+    return true;
+  },
+  runOverviewPrompt: (prompt, tabId) => {
+    const s = useApp.getState();
+    const tid = tabId ?? s.activeTabId;
+    const plan = planOverviewRun(s.tabTerminals[tid], s.sessionWorking);
+    if (plan.mode === "reuse") {
+      s.sendOverviewPromptNow(prompt, tid);
+      return "submitted";
+    }
+    // No live Claude: spawn a terminal, queue `claude` (pre-empts auto-start
+    // via the same pending-command path the Install buttons use), reveal it.
+    const newId = s.addTerminal(tid);
+    set((st) => ({
+      pendingTerminalCommands: {
+        ...st.pendingTerminalCommands,
+        [newId]: CLAUDE_AUTO_COMMAND,
+      },
+    }));
+    s.switchTab(tid);
+    s.setActiveTerminal(newId, tid);
+    return "spawning";
   },
   takePendingTerminalCommand: (terminalId) => {
     // Read inside set (not via useApp.getState()) so this action's inferred
