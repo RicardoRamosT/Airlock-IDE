@@ -8,13 +8,51 @@ import * as si from "simple-icons";
 
 // Every id emitted by DEP_CATALOG + FILE_CATALOG (keep in sync as the catalog grows).
 const SLUGS = [
-  "anthropic", "astro", "auth0", "biome", "bun", "clerk", "cloudflare",
-  "docker", "drizzle", "electron", "eslint", "express", "fastify", "firebase",
-  "flydotio", "go", "hono", "jest", "neon", "netlify", "nextdotjs", "npm",
-  "openai", "playwright", "pnpm", "postgresql", "prettier", "prisma", "python",
-  "react", "remix", "render", "rust", "sentry", "solid", "stripe", "supabase",
-  "svelte", "tailwindcss", "typescript", "vercel", "vite", "vitest",
-  "vuedotjs", "yarn",
+  "anthropic",
+  "astro",
+  "auth0",
+  "biome",
+  "bun",
+  "clerk",
+  "cloudflare",
+  "docker",
+  "drizzle",
+  "electron",
+  "eslint",
+  "express",
+  "fastify",
+  "firebase",
+  "flydotio",
+  "go",
+  "hono",
+  "jest",
+  "neon",
+  "netlify",
+  "nextdotjs",
+  "npm",
+  "openai",
+  "playwright",
+  "pnpm",
+  "postgresql",
+  "prettier",
+  "prisma",
+  "python",
+  "react",
+  "remix",
+  "render",
+  "rust",
+  "sentry",
+  "solid",
+  "stripe",
+  "supabase",
+  "svelte",
+  "tailwindcss",
+  "typescript",
+  "vercel",
+  "vite",
+  "vitest",
+  "vuedotjs",
+  "yarn",
 ];
 const FILL = "#c9ccd6"; // light neutral — visible on the dark IDE theme
 const OUT = "packages/app/src/renderer/src/assets/logos";
@@ -39,4 +77,6 @@ for (const slug of SLUGS) {
   writeFileSync(`${OUT}/${slug}.svg`, svg);
   made += 1;
 }
-console.log(`Generated ${made} logos. Missing (fall back to category glyph): ${missing.join(", ") || "none"}`);
+console.log(
+  `Generated ${made} logos. Missing (fall back to category glyph): ${missing.join(", ") || "none"}`,
+);
