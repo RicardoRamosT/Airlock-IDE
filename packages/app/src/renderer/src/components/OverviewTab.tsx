@@ -4,6 +4,7 @@ import type {
   ProjectTech,
   TechCategory,
 } from "../../../shared/ipc";
+import { openEditorFile } from "../lib/editorFiles";
 import { categoryGlyph } from "../lib/overviewGlyphs";
 import { logoUrl } from "../lib/overviewLogos";
 import { buildOverviewPrompt } from "../lib/overviewPrompt";
@@ -229,7 +230,10 @@ export function OverviewTab({ root }: { root: string }) {
       <div className="overview-areas">
         <div className="overview-group-label">Areas</div>
         {summary ? (
-          <OverviewMarkdown md={summary} />
+          <OverviewMarkdown
+            md={summary}
+            onOpenFile={(p) => void openEditorFile(activeTabId, p)}
+          />
         ) : (
           <div className="overview-areas-skeleton">
             {profile.areas.map((a) => (

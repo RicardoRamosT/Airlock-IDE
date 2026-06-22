@@ -1,7 +1,14 @@
 // OverviewMarkdown.tsx
+import { resolveOverviewLink } from "../lib/overviewLink";
 import { type Inline, parseOverviewMarkdown } from "../lib/overviewMarkdown";
 
-function Spans({ spans }: { spans: Inline[] }) {
+function Spans({
+  spans,
+  onOpenFile,
+}: {
+  spans: Inline[];
+  onOpenFile?: (rootRelPath: string) => void;
+}) {
   return (
     <>
       {spans.map((s, i) => {
@@ -26,7 +33,14 @@ function Spans({ spans }: { spans: Inline[] }) {
               e: React.MouseEvent<HTMLAnchorElement>,
             ): void => {
               e.preventDefault();
-              if (external) window.open(s.href, "_blank", "noopener");
+              if (external) {
+                window.open(s.href, "_blank", "noopener");
+                return;
+              }
+              // In-repo link -> open the file in the editor (resolved against
+              // .airlock/, where overview.md lives). Non-openable -> no-op.
+              const rel = resolveOverviewLink(s.href);
+              if (rel) onOpenFile?.(rel);
             };
             return (
               // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
@@ -43,14 +57,20 @@ function Spans({ spans }: { spans: Inline[] }) {
   );
 }
 
-export function OverviewMarkdown({ md }: { md: string }) {
+export function OverviewMarkdown({
+  md,
+  onOpenFile,
+}: {
+  md: string;
+  onOpenFile?: (rootRelPath: string) => void;
+}) {
   const blocks = parseOverviewMarkdown(md);
   return (
     <div className="overview-md">
       {blocks.map((b, i) => {
         switch (b.t) {
           case "heading": {
-            const inner = <Spans spans={b.spans} />;
+            const inner = <Spans spans={b.spans} onOpenFile={onOpenFile} />;
             const l = Math.min(b.level + 1, 6); // tab already owns the H1
             // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
             if (l <= 2) return <h2 key={i}>{inner}</h2>;
@@ -67,7 +87,7 @@ export function OverviewMarkdown({ md }: { md: string }) {
             return (
               // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
               <p key={i}>
-                <Spans spans={b.spans} />
+                <Spans spans={b.spans} onOpenFile={onOpenFile} />
               </p>
             );
           case "list":
@@ -77,7 +97,7 @@ export function OverviewMarkdown({ md }: { md: string }) {
                 {b.items.map((it, j) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: list items are positionally stable (static render)
                   <li key={j}>
-                    <Spans spans={it} />
+                    <Spans spans={it} onOpenFile={onOpenFile} />
                   </li>
                 ))}
               </ol>
@@ -87,7 +107,7 @@ export function OverviewMarkdown({ md }: { md: string }) {
                 {b.items.map((it, j) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: list items are positionally stable (static render)
                   <li key={j}>
-                    <Spans spans={it} />
+                    <Spans spans={it} onOpenFile={onOpenFile} />
                   </li>
                 ))}
               </ul>
