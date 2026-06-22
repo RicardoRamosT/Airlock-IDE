@@ -3338,3 +3338,56 @@ textarea:focus-visible {
   font-size: 12px;
   padding: 2px 0;
 }
+.overview-md {
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+.overview-md h2 {
+  font-size: 14px;
+  margin: 12px 0 4px;
+}
+.overview-md h3 {
+  font-size: 13px;
+  margin: 10px 0 3px;
+}
+.overview-md h4,
+.overview-md h5,
+.overview-md h6 {
+  font-size: 12px;
+  margin: 8px 0 2px;
+}
+.overview-md p {
+  margin: 4px 0;
+}
+.overview-md ul,
+.overview-md ol {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.overview-md li {
+  margin: 1px 0;
+}
+.overview-md code {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.overview-md-code {
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.07);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+.overview-md a {
+  color: var(--link, #5aa0e0);
+  text-decoration: none;
+}
+.overview-md a:hover {
+  text-decoration: underline;
+}
