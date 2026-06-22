@@ -3300,6 +3300,11 @@ textarea:focus-visible {
   letter-spacing: 0.04em;
   color: var(--text-dim, #888);
 }
+.overview-fresh {
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.7;
+}
 .overview-tiles {
   display: flex;
   flex-wrap: wrap;

@@ -5,6 +5,7 @@ import type {
   TechCategory,
 } from "../../../shared/ipc";
 import { openEditorFile } from "../lib/editorFiles";
+import { relativeTime, uncoveredAreaPaths } from "../lib/overviewFreshness";
 import { categoryGlyph } from "../lib/overviewGlyphs";
 import { logoUrl } from "../lib/overviewLogos";
 import { buildOverviewPrompt } from "../lib/overviewPrompt";
@@ -171,6 +172,16 @@ export function OverviewTab({ root }: { root: string }) {
   if (!data) return <div className="overview empty">Loading…</div>;
 
   const { profile, summary } = data;
+  const generatedAgo =
+    summary && data.summaryMtimeMs
+      ? relativeTime(data.summaryMtimeMs, Date.now())
+      : null;
+  const uncovered = summary
+    ? uncoveredAreaPaths(
+        summary,
+        profile.areas.map((a) => a.path),
+      )
+    : [];
   const techGroups = groupByCategory(profile.techs);
   const projectName = root.split("/").pop() ?? root;
   const plan = planOverviewRun(tabTerminals[activeTabId], sessionWorking);
@@ -228,12 +239,27 @@ export function OverviewTab({ root }: { root: string }) {
       <Group label="Services" items={profile.services} />
 
       <div className="overview-areas">
-        <div className="overview-group-label">Areas</div>
+        <div className="overview-group-label">
+          Areas
+          {generatedAgo ? (
+            <span className="overview-fresh"> · generated {generatedAgo}</span>
+          ) : null}
+        </div>
         {summary ? (
-          <OverviewMarkdown
-            md={summary}
-            onOpenFile={(p) => void openEditorFile(activeTabId, p)}
-          />
+          <>
+            {uncovered.length > 0 ? (
+              <div className="section-note">
+                {uncovered.length === 1
+                  ? `1 area not covered (${uncovered[0]})`
+                  : `${uncovered.length} areas not covered (${uncovered.join(", ")})`}{" "}
+                — Regenerate to refresh.
+              </div>
+            ) : null}
+            <OverviewMarkdown
+              md={summary}
+              onOpenFile={(p) => void openEditorFile(activeTabId, p)}
+            />
+          </>
         ) : (
           <div className="overview-areas-skeleton">
             {profile.areas.map((a) => (
