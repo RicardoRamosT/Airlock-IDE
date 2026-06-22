@@ -305,7 +305,7 @@ export function ProjectTabs() {
             if (r) st.openOverviewPage(r);
           }}
         >
-          !
+          <i className="codicon codicon-book" />
         </button>
         <button
           type="button"
@@ -383,7 +383,7 @@ export function ProjectTabs() {
               if (tab.root) useApp.getState().openOverviewPage(tab.root);
             }}
           >
-            !
+            <i className="codicon codicon-book" />
           </button>
         )}
         <button

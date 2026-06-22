@@ -45,7 +45,7 @@ export function TitleBar() {
             activeRoot && useApp.getState().openOverviewPage(activeRoot)
           }
         >
-          !
+          <i className="codicon codicon-book" />
         </button>
       )}
       <LayoutControls />
