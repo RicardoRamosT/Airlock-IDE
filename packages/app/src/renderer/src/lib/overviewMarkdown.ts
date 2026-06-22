@@ -41,6 +41,9 @@ function parseInline(src: string): Inline[] {
       i += mCode[0].length;
       continue;
     }
+    // Link regex matches one level of balanced parens in the href; deeper nesting
+    // truncates (rare, malformed-URL edge case). Security boundary is sanitizeHref
+    // (scheme rejection), not this regex — do not widen it as a security control.
     const mLink = /^\[([^\]]*)\]\(([^\s()]*(?:\([^\s()]*\)[^\s()]*)*)\)/.exec(
       rest,
     );

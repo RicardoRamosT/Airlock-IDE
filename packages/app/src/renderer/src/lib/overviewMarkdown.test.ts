@@ -50,6 +50,19 @@ describe("parseOverviewMarkdown", () => {
       { t: "paragraph", spans: [{ t: "text", v: "x" }] },
     ]);
   });
+  it("drops a data: link but keeps its text", () => {
+    expect(parseOverviewMarkdown("[x](data:text/html,<h1>)")).toEqual([
+      { t: "paragraph", spans: [{ t: "text", v: "x" }] },
+    ]);
+  });
+  it("keeps an https:// link", () => {
+    expect(parseOverviewMarkdown("[site](https://example.com)")).toEqual([
+      {
+        t: "paragraph",
+        spans: [{ t: "link", href: "https://example.com", text: "site" }],
+      },
+    ]);
+  });
   it("parses a fenced code block", () => {
     expect(parseOverviewMarkdown("```ts\nconst x = 1\n```")).toEqual([
       { t: "code", lang: "ts", v: "const x = 1" },
