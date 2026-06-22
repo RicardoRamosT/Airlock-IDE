@@ -1,6 +1,10 @@
 // OverviewMarkdown.tsx
 import { resolveOverviewLink } from "../lib/overviewLink";
-import { type Inline, parseOverviewMarkdown } from "../lib/overviewMarkdown";
+import {
+  type Inline,
+  type ListItem,
+  parseOverviewMarkdown,
+} from "../lib/overviewMarkdown";
 
 function Spans({
   spans,
@@ -57,6 +61,32 @@ function Spans({
   );
 }
 
+// Recursive list renderer — shared path for ol/ul and any nesting depth.
+function RenderList({
+  ordered,
+  items,
+  onOpenFile,
+}: {
+  ordered: boolean;
+  items: ListItem[];
+  onOpenFile?: (rootRelPath: string) => void;
+}) {
+  const children = items.map((item, j) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: list items are positionally stable (static render)
+    <li key={j}>
+      <Spans spans={item.spans} onOpenFile={onOpenFile} />
+      {item.sub && (
+        <RenderList
+          ordered={item.sub.ordered}
+          items={item.sub.items}
+          onOpenFile={onOpenFile}
+        />
+      )}
+    </li>
+  ));
+  return ordered ? <ol>{children}</ol> : <ul>{children}</ul>;
+}
+
 export function OverviewMarkdown({
   md,
   onOpenFile,
@@ -91,26 +121,14 @@ export function OverviewMarkdown({
               </p>
             );
           case "list":
-            return b.ordered ? (
-              // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
-              <ol key={i}>
-                {b.items.map((it, j) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: list items are positionally stable (static render)
-                  <li key={j}>
-                    <Spans spans={it} onOpenFile={onOpenFile} />
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
-              <ul key={i}>
-                {b.items.map((it, j) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: list items are positionally stable (static render)
-                  <li key={j}>
-                    <Spans spans={it} onOpenFile={onOpenFile} />
-                  </li>
-                ))}
-              </ul>
+            return (
+              <RenderList
+                // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
+                key={i}
+                ordered={b.ordered}
+                items={b.items}
+                onOpenFile={onOpenFile}
+              />
             );
           case "code":
             return (
@@ -118,6 +136,42 @@ export function OverviewMarkdown({
               <pre key={i} className="overview-md-code">
                 <code>{b.v}</code>
               </pre>
+            );
+          case "quote":
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
+              <blockquote key={i} className="overview-md-quote">
+                <Spans spans={b.spans} onOpenFile={onOpenFile} />
+              </blockquote>
+            );
+          case "table":
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: markdown blocks are positionally stable (static render)
+              <table key={i} className="overview-md-table">
+                <thead>
+                  <tr>
+                    {b.headers.map((cell, j) => (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: table headers are positionally stable (static render)
+                      <th key={j}>
+                        <Spans spans={cell} onOpenFile={onOpenFile} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((row, j) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: table rows are positionally stable (static render)
+                    <tr key={j}>
+                      {row.map((cell, k) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: table cells are positionally stable (static render)
+                        <td key={k}>
+                          <Spans spans={cell} onOpenFile={onOpenFile} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             );
           default:
             return null;

@@ -14,7 +14,10 @@ describe("parseOverviewMarkdown", () => {
       {
         t: "list",
         ordered: false,
-        items: [[{ t: "text", v: "one" }], [{ t: "text", v: "two" }]],
+        items: [
+          { spans: [{ t: "text", v: "one" }], sub: null },
+          { spans: [{ t: "text", v: "two" }], sub: null },
+        ],
       },
     ]);
   });
@@ -66,6 +69,79 @@ describe("parseOverviewMarkdown", () => {
   it("parses a fenced code block", () => {
     expect(parseOverviewMarkdown("```ts\nconst x = 1\n```")).toEqual([
       { t: "code", lang: "ts", v: "const x = 1" },
+    ]);
+  });
+
+  // --- blockquote ---
+  it("parses a blockquote into a quote block with joined inline spans", () => {
+    const b = parseOverviewMarkdown("> This is\n> a quote");
+    expect(b).toEqual([
+      {
+        t: "quote",
+        spans: [{ t: "text", v: "This is a quote" }],
+      },
+    ]);
+  });
+
+  it("terminates a blockquote at a blank line", () => {
+    const b = parseOverviewMarkdown("> line one\n\n> line two");
+    expect(b).toHaveLength(2);
+    expect(b[0]).toEqual({
+      t: "quote",
+      spans: [{ t: "text", v: "line one" }],
+    });
+    expect(b[1]).toEqual({
+      t: "quote",
+      spans: [{ t: "text", v: "line two" }],
+    });
+  });
+
+  // --- GFM table ---
+  it("parses a GFM table into a table block", () => {
+    const md =
+      "| Name | Role |\n| --- | --- |\n| Alice | Admin |\n| Bob | User |";
+    const b = parseOverviewMarkdown(md);
+    expect(b).toEqual([
+      {
+        t: "table",
+        headers: [[{ t: "text", v: "Name" }], [{ t: "text", v: "Role" }]],
+        rows: [
+          [[{ t: "text", v: "Alice" }], [{ t: "text", v: "Admin" }]],
+          [[{ t: "text", v: "Bob" }], [{ t: "text", v: "User" }]],
+        ],
+      },
+    ]);
+  });
+
+  it("does NOT parse a pipe-containing line without a delimiter row as a table (stays paragraph)", () => {
+    const md = "foo | bar | baz";
+    const b = parseOverviewMarkdown(md);
+    expect(b).toEqual([
+      { t: "paragraph", spans: [{ t: "text", v: "foo | bar | baz" }] },
+    ]);
+  });
+
+  // --- nested lists ---
+  it("parses a nested unordered list", () => {
+    const md = "- parent\n  - child one\n  - child two";
+    const b = parseOverviewMarkdown(md);
+    expect(b).toEqual([
+      {
+        t: "list",
+        ordered: false,
+        items: [
+          {
+            spans: [{ t: "text", v: "parent" }],
+            sub: {
+              ordered: false,
+              items: [
+                { spans: [{ t: "text", v: "child one" }], sub: null },
+                { spans: [{ t: "text", v: "child two" }], sub: null },
+              ],
+            },
+          },
+        ],
+      },
     ]);
   });
 });

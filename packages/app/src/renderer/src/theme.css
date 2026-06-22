@@ -3396,6 +3396,27 @@ textarea:focus-visible {
 .overview-md a:hover {
   text-decoration: underline;
 }
+.overview-md blockquote {
+  margin: 4px 0;
+  padding: 2px 8px;
+  border-left: 3px solid var(--accent, rgba(255, 255, 255, 0.3));
+  color: var(--fg-muted, rgba(255, 255, 255, 0.55));
+}
+.overview-md table {
+  border-collapse: collapse;
+  font-size: 11px;
+  margin: 4px 0;
+  width: 100%;
+}
+.overview-md th,
+.overview-md td {
+  padding: 3px 6px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  text-align: left;
+}
+.overview-md th {
+  font-weight: 600;
+}
 .overview-confirm {
   display: inline-flex;
   align-items: center;

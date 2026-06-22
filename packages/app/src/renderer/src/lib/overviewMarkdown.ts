@@ -9,15 +9,23 @@ export type Inline =
   | { t: "code"; v: string }
   | { t: "link"; href: string; text: string };
 
+// A list item with optional sub-list for nesting.
+export interface ListItem {
+  spans: Inline[];
+  sub: { ordered: boolean; items: ListItem[] } | null;
+}
+
 export type Block =
   | { t: "heading"; level: number; spans: Inline[] }
   | { t: "paragraph"; spans: Inline[] }
-  | { t: "list"; ordered: boolean; items: Inline[][] }
-  | { t: "code"; lang: string | null; v: string };
+  | { t: "list"; ordered: boolean; items: ListItem[] }
+  | { t: "code"; lang: string | null; v: string }
+  | { t: "quote"; spans: Inline[] }
+  | { t: "table"; headers: Inline[][]; rows: Inline[][][] };
 
 // Allow http(s) and scheme-less (relative path / #anchor) hrefs; reject any
 // other URI scheme (javascript:, data:, file:, vbscript:, …).
-function sanitizeHref(href: string): string | null {
+export function sanitizeHref(href: string): string | null {
   const h = href.trim();
   if (/^https?:\/\//i.test(h)) return h;
   if (/^[a-z][a-z0-9+.-]*:/i.test(h)) return null;
@@ -72,6 +80,102 @@ function parseInline(src: string): Inline[] {
   return out;
 }
 
+// Split a table row on `|`, drop empty cells from leading/trailing pipes, trim.
+function splitTableRow(line: string): string[] {
+  return line
+    .split("|")
+    .map((c) => c.trim())
+    .filter((_, idx, arr) => {
+      // Drop the first and last element if they are empty (caused by leading/trailing |)
+      if (idx === 0 && arr[0] === "") return false;
+      if (idx === arr.length - 1 && arr[arr.length - 1] === "") return false;
+      return true;
+    });
+}
+
+// A GFM delimiter row consists only of optional leading/trailing |, dashes, colons, spaces.
+function isDelimiterRow(line: string): boolean {
+  return /^\|? *:?-{1,}:? *(\| *:?-{1,}:? *)+\|?$/.test(line.trim());
+}
+
+// Determine the indentation level (number of leading spaces) for a list line.
+function listIndent(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
+// Check if a line is a list item; returns [marker, content] or null.
+function matchListItem(line: string): [string, string] | null {
+  const m = /^(\s*)([-*]|\d+\.)\s+(.*)$/.exec(line);
+  if (!m) return null;
+  return [m[2] ?? "", m[3] ?? ""];
+}
+
+// Recursive list parser.
+// lines: the full lines array.
+// start: index to begin from.
+// _baseIndent: the indent level of the parent list (reserved for future multi-level signaling).
+// Returns [{ ordered, items }, nextIdx].
+function parseList(
+  lines: string[],
+  start: number,
+  _baseIndent: number,
+): [{ ordered: boolean; items: ListItem[] }, number] {
+  const items: ListItem[] = [];
+  let i = start;
+
+  // Determine this list's indent from the first item.
+  const firstLine = lines[i] ?? "";
+  const thisIndent = listIndent(firstLine);
+  const firstMarker = matchListItem(firstLine);
+  if (!firstMarker) return [{ ordered: false, items: [] }, i];
+
+  const ordered = /\d+\./.test(firstMarker[0]);
+
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (line.trim() === "") break; // blank line ends list
+
+    const match = matchListItem(line);
+    if (!match) break; // non-list line ends list
+
+    const indent = listIndent(line);
+    const isOrdered = /\d+\./.test(match[0]);
+
+    if (indent < thisIndent) break; // dedent ends this sub-list
+
+    if (indent > thisIndent) {
+      // Deeper indent: attach as sub-list to the last item.
+      // (Should not happen without a preceding item at thisIndent, but guard defensively.)
+      if (items.length === 0) break;
+      const [sub, nextI] = parseList(lines, i, thisIndent);
+      const last = items[items.length - 1];
+      if (last) last.sub = sub;
+      i = nextI;
+      continue;
+    }
+
+    // Same indent: sibling item — but if type changes, end this list.
+    if (isOrdered !== ordered) break;
+
+    items.push({ spans: parseInline(match[1]), sub: null });
+    i += 1;
+
+    // Peek ahead: if the next line is a deeper-indented list item, recurse.
+    if (i < lines.length) {
+      const nextLine = lines[i] ?? "";
+      const nextMatch = matchListItem(nextLine);
+      if (nextMatch && listIndent(nextLine) > thisIndent) {
+        const [sub, nextI] = parseList(lines, i, thisIndent);
+        const last = items[items.length - 1];
+        if (last) last.sub = sub;
+        i = nextI;
+      }
+    }
+  }
+
+  return [{ ordered, items }, i];
+}
+
 export function parseOverviewMarkdown(md: string): Block[] {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const blocks: Block[] = [];
@@ -88,6 +192,7 @@ export function parseOverviewMarkdown(md: string): Block[] {
   while (i < lines.length) {
     const line = lines[i] ?? "";
 
+    // Fenced code block
     const fence = /^```(.*)$/.exec(line);
     if (fence) {
       flushPara();
@@ -104,6 +209,7 @@ export function parseOverviewMarkdown(md: string): Block[] {
       continue;
     }
 
+    // Heading
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) {
       flushPara();
@@ -116,21 +222,47 @@ export function parseOverviewMarkdown(md: string): Block[] {
       continue;
     }
 
-    const li = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(line);
-    if (li) {
+    // Blockquote: one or more consecutive `> …` lines
+    if (/^>\s?/.test(line)) {
       flushPara();
-      const ordered = /\d+\./.test(li[1] ?? "");
-      const items: Inline[][] = [];
-      while (i < lines.length) {
-        const m = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(lines[i] ?? "");
-        if (!m || /\d+\./.test(m[1] ?? "") !== ordered) break;
-        items.push(parseInline(m[2] ?? ""));
+      const quotedLines: string[] = [];
+      while (i < lines.length && /^>\s?/.test(lines[i] ?? "")) {
+        quotedLines.push((lines[i] ?? "").replace(/^>\s?/, ""));
         i += 1;
       }
-      blocks.push({ t: "list", ordered, items });
+      blocks.push({ t: "quote", spans: parseInline(quotedLines.join(" ")) });
       continue;
     }
 
+    // GFM table: header line with `|` followed immediately by delimiter row
+    if (line.includes("|") && i + 1 < lines.length) {
+      const delimLine = lines[i + 1] ?? "";
+      if (isDelimiterRow(delimLine)) {
+        flushPara();
+        const headers = splitTableRow(line).map((cell) => parseInline(cell));
+        i += 2; // skip header + delimiter
+        const rows: Inline[][][] = [];
+        while (i < lines.length && (lines[i] ?? "").includes("|")) {
+          rows.push(
+            splitTableRow(lines[i] ?? "").map((cell) => parseInline(cell)),
+          );
+          i += 1;
+        }
+        blocks.push({ t: "table", headers, rows });
+        continue;
+      }
+    }
+
+    // List (indent-aware, recursive)
+    if (matchListItem(line)) {
+      flushPara();
+      const [list, nextI] = parseList(lines, i, -1);
+      blocks.push({ t: "list", ordered: list.ordered, items: list.items });
+      i = nextI;
+      continue;
+    }
+
+    // Blank line
     if (line.trim() === "") {
       flushPara();
       i += 1;
