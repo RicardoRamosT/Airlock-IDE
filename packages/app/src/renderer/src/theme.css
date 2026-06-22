@@ -3391,3 +3391,18 @@ textarea:focus-visible {
 .overview-md a:hover {
   text-decoration: underline;
 }
+.overview-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-gap, 6px);
+}
+.overview-confirm-text {
+  font-size: 12px;
+  opacity: 0.85;
+  max-width: 380px;
+}
+.overview-staged {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-gap, 6px);
+}

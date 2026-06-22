@@ -4,8 +4,12 @@ import type {
   ProjectTech,
   TechCategory,
 } from "../../../shared/ipc";
+import { categoryGlyph } from "../lib/overviewGlyphs";
 import { logoUrl } from "../lib/overviewLogos";
+import { buildOverviewPrompt } from "../lib/overviewPrompt";
+import { planOverviewRun } from "../lib/overviewRun";
 import { useApp } from "../store";
+import { OverviewMarkdown } from "./OverviewMarkdown";
 
 const CATEGORY_LABEL: Partial<Record<TechCategory, string>> = {
   language: "Languages & Runtimes",
@@ -24,11 +28,6 @@ const CATEGORY_LABEL: Partial<Record<TechCategory, string>> = {
   other: "Other",
 };
 
-const GENERATE_PROMPT_HEAD =
-  "Analyze this project and write/update .airlock/overview.md: one short heading " +
-  "per area (workspace or top-level dir) with a 1-2 sentence description and key " +
-  "entry files. Keep it concise -- this is the IDE's Overview context.";
-
 function Tile({ tech }: { tech: ProjectTech }) {
   const url = logoUrl(tech.id);
   const title = `${tech.name}${tech.version ? ` ${tech.version}` : ""}\nvia ${tech.sources.join(", ")}`;
@@ -43,7 +42,7 @@ function Tile({ tech }: { tech: ProjectTech }) {
           height={20}
         />
       ) : (
-        <i className="codicon codicon-circle-large-outline" />
+        <i className={`codicon codicon-${categoryGlyph(tech.category)}`} />
       )}
       <span className="overview-tile-name">{tech.name}</span>
     </div>
@@ -80,8 +79,14 @@ export function OverviewTab({ root }: { root: string }) {
   const [data, setData] = useState<OverviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [staged, setStaged] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const activeTabId = useApp((s) => s.activeTabId);
+  const tabTerminals = useApp((s) => s.tabTerminals);
+  const sessionWorking = useApp((s) => s.sessionWorking);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current) {
@@ -100,20 +105,9 @@ export function OverviewTab({ root }: { root: string }) {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [root]);
 
-  // Ask the project's Claude to (re)write .airlock/overview.md, then poll until
-  // the file's mtime advances (or give up after ~2 min). A "start Claude" hint
-  // uses `notice` (NOT `error`) so it never blanks the dashboard.
-  const generate = useCallback(() => {
-    const seed =
-      data?.profile.areas.map((a) => a.path).join(", ") ||
-      "(infer from the tree)";
-    const prompt = `${GENERATE_PROMPT_HEAD} Areas to cover: ${seed}.\n`;
-    if (!useApp.getState().sendToClaudeTerminal(prompt)) {
-      setNotice(
-        "Start Claude in this project's terminal, then click Generate.",
-      );
-      return;
-    }
+  // Poll the file's mtime until it advances past the baseline (Claude has
+  // rewritten overview.md), or give up after ~2 min with a real message.
+  const startWatch = useCallback(() => {
     setNotice(null);
     setGenerating(true);
     const baseline = data?.summaryMtimeMs ?? 0;
@@ -134,12 +128,38 @@ export function OverviewTab({ root }: { root: string }) {
       if (tries >= 60) {
         setGenerating(false);
         stopPoll();
+        setNotice(
+          "Didn't detect an update — Claude may still be working. Reload to check.",
+        );
       }
     }, 2000);
   }, [data, root, stopPoll]);
 
+  const run = useCallback(() => {
+    setConfirming(false);
+    const seed = data?.profile.areas.map((a) => a.path) ?? [];
+    const prompt = buildOverviewPrompt(seed);
+    if (
+      useApp.getState().runOverviewPrompt(prompt, activeTabId) === "submitted"
+    ) {
+      startWatch();
+    } else {
+      setStaged(prompt); // spawning: wait for the user to send when Claude is ready
+    }
+  }, [data, activeTabId, startWatch]);
+
+  const sendStaged = useCallback(() => {
+    if (
+      staged &&
+      useApp.getState().sendOverviewPromptNow(staged, activeTabId)
+    ) {
+      setStaged(null);
+      startWatch();
+    }
+  }, [staged, activeTabId, startWatch]);
+
   useEffect(load, [load]);
-  useEffect(() => stopPoll, [stopPoll]); // clear the poll on unmount
+  useEffect(() => stopPoll, [stopPoll]);
 
   if (error)
     return (
@@ -150,26 +170,49 @@ export function OverviewTab({ root }: { root: string }) {
   const { profile, summary } = data;
   const techGroups = groupByCategory(profile.techs);
   const projectName = root.split("/").pop() ?? root;
+  const plan = planOverviewRun(tabTerminals[activeTabId], sessionWorking);
+  const confirmText =
+    plan.mode === "spawn"
+      ? "No Claude is running here — start one and run the summary?"
+      : plan.busy
+        ? "Run the summary in this project's Claude? It looks busy — it'll queue after the current turn."
+        : "Run the summary in this project's Claude? It'll be typed in and submitted.";
 
   return (
     <div className="overview">
       <div className="overview-header">
         <span className="overview-title">
-          <i className="codicon codicon-info" /> {projectName}
+          <i className="codicon codicon-book" /> {projectName}
         </span>
         <span className="overview-actions">
-          <button
-            type="button"
-            className="btn overview-generate"
-            disabled={generating}
-            onClick={generate}
-          >
-            {generating
-              ? "Generating…"
-              : summary
-                ? "Regenerate"
-                : "Generate summary"}
-          </button>
+          {confirming ? (
+            <span className="overview-confirm">
+              <span className="overview-confirm-text">{confirmText}</span>
+              <button type="button" className="btn" onClick={run}>
+                Run
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="btn overview-generate"
+              disabled={generating}
+              onClick={() => setConfirming(true)}
+            >
+              {generating
+                ? "Generating…"
+                : summary
+                  ? "Regenerate"
+                  : "Generate summary"}
+            </button>
+          )}
           <button type="button" className="btn overview-refresh" onClick={load}>
             <i className="codicon codicon-refresh" /> Reload
           </button>
@@ -184,7 +227,7 @@ export function OverviewTab({ root }: { root: string }) {
       <div className="overview-areas">
         <div className="overview-group-label">Areas</div>
         {summary ? (
-          <pre className="overview-summary">{summary}</pre>
+          <OverviewMarkdown md={summary} />
         ) : (
           <div className="overview-areas-skeleton">
             {profile.areas.map((a) => (
@@ -193,9 +236,22 @@ export function OverviewTab({ root }: { root: string }) {
               </div>
             ))}
             <div className="section-note">
-              No written summary yet — “Generate summary” has Claude describe
+              No written summary yet — "Generate summary" has Claude describe
               each area.
             </div>
+          </div>
+        )}
+        {generating && (
+          <div className="section-note">
+            Generating… watching Claude write .airlock/overview.md
+          </div>
+        )}
+        {staged && (
+          <div className="section-note overview-staged">
+            <span>Claude is starting here. When its prompt is ready:</span>
+            <button type="button" className="btn" onClick={sendStaged}>
+              Send to Claude
+            </button>
           </div>
         )}
         {notice && <div className="section-note">{notice}</div>}
