@@ -37,7 +37,7 @@ function parseInline(src: string): Inline[] {
     const rest = src.slice(i);
     const mCode = /^`([^`]+)`/.exec(rest);
     if (mCode) {
-      out.push({ t: "code", v: mCode[1] });
+      out.push({ t: "code", v: mCode[1] ?? "" });
       i += mCode[0].length;
       continue;
     }
@@ -48,25 +48,25 @@ function parseInline(src: string): Inline[] {
       rest,
     );
     if (mLink) {
-      const href = sanitizeHref(mLink[2]);
-      if (href) out.push({ t: "link", href, text: mLink[1] });
-      else pushText(out, mLink[1]);
+      const href = sanitizeHref(mLink[2] ?? "");
+      if (href) out.push({ t: "link", href, text: mLink[1] ?? "" });
+      else pushText(out, mLink[1] ?? "");
       i += mLink[0].length;
       continue;
     }
     const mStrong = /^\*\*([^*]+)\*\*/.exec(rest);
     if (mStrong) {
-      out.push({ t: "strong", v: mStrong[1] });
+      out.push({ t: "strong", v: mStrong[1] ?? "" });
       i += mStrong[0].length;
       continue;
     }
     const mEm = /^\*([^*]+)\*/.exec(rest) ?? /^_([^_]+)_/.exec(rest);
     if (mEm) {
-      out.push({ t: "em", v: mEm[1] });
+      out.push({ t: "em", v: mEm[1] ?? "" });
       i += mEm[0].length;
       continue;
     }
-    pushText(out, src[i]);
+    pushText(out, src[i] ?? "");
     i += 1;
   }
   return out;
@@ -86,18 +86,19 @@ export function parseOverviewMarkdown(md: string): Block[] {
   };
 
   while (i < lines.length) {
-    const line = lines[i];
+    const line = lines[i] ?? "";
 
     const fence = /^```(.*)$/.exec(line);
     if (fence) {
       flushPara();
       const buf: string[] = [];
       i += 1;
-      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      while (i < lines.length && !/^```/.test(lines[i] ?? ""))
+        buf.push(lines[i++] ?? "");
       i += 1; // skip closing fence
       blocks.push({
         t: "code",
-        lang: fence[1].trim() || null,
+        lang: (fence[1] ?? "").trim() || null,
         v: buf.join("\n"),
       });
       continue;
@@ -108,8 +109,8 @@ export function parseOverviewMarkdown(md: string): Block[] {
       flushPara();
       blocks.push({
         t: "heading",
-        level: h[1].length,
-        spans: parseInline(h[2].trim()),
+        level: (h[1] ?? "").length,
+        spans: parseInline((h[2] ?? "").trim()),
       });
       i += 1;
       continue;
@@ -118,12 +119,12 @@ export function parseOverviewMarkdown(md: string): Block[] {
     const li = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(line);
     if (li) {
       flushPara();
-      const ordered = /\d+\./.test(li[1]);
+      const ordered = /\d+\./.test(li[1] ?? "");
       const items: Inline[][] = [];
       while (i < lines.length) {
-        const m = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(lines[i]);
-        if (!m || /\d+\./.test(m[1]) !== ordered) break;
-        items.push(parseInline(m[2]));
+        const m = /^\s*([-*]|\d+\.)\s+(.*)$/.exec(lines[i] ?? "");
+        if (!m || /\d+\./.test(m[1] ?? "") !== ordered) break;
+        items.push(parseInline(m[2] ?? ""));
         i += 1;
       }
       blocks.push({ t: "list", ordered, items });
