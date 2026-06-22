@@ -18,4 +18,10 @@ describe("buildOverviewPrompt", () => {
   it("falls back when no areas are given", () => {
     expect(buildOverviewPrompt([])).toContain("(infer from the tree)");
   });
+  it("instructs Claude not to leak secrets/credentials into the file", () => {
+    const p = buildOverviewPrompt(["packages/app"]);
+    expect(p).toMatch(/never include secret/i);
+    expect(p).toMatch(/credential|token|connection string/i);
+    expect(p).not.toContain("\n"); // still single-line after the directive
+  });
 });
