@@ -114,6 +114,14 @@ export function OverviewTab({ root }: { root: string }) {
     let tries = 0;
     stopPoll();
     pollRef.current = setInterval(() => {
+      if (tries >= 60) {
+        setGenerating(false);
+        stopPoll();
+        setNotice(
+          "Didn't detect an update — Claude may still be working. Reload to check.",
+        );
+        return;
+      }
       tries += 1;
       window.airlock
         .overviewGet(root)
@@ -125,18 +133,12 @@ export function OverviewTab({ root }: { root: string }) {
           }
         })
         .catch(() => {});
-      if (tries >= 60) {
-        setGenerating(false);
-        stopPoll();
-        setNotice(
-          "Didn't detect an update — Claude may still be working. Reload to check.",
-        );
-      }
     }, 2000);
   }, [data, root, stopPoll]);
 
   const run = useCallback(() => {
     setConfirming(false);
+    setStaged(null);
     const seed = data?.profile.areas.map((a) => a.path) ?? [];
     const prompt = buildOverviewPrompt(seed);
     if (
