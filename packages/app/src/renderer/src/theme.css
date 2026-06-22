@@ -1189,29 +1189,42 @@ body,
 }
 
 /* Draggable splitter straddling the sidebar<->panes border. Absolutely placed
-   over the column boundary (the grid reads the same --sidebar-w), full height,
-   a hair wide with a generous grab cursor; a faint accent line on hover/drag. */
+   over the column boundary (the grid reads the same --sidebar-w), full height.
+   The hit area is a comfortable 12px (centered on the seam) and sits ABOVE the
+   sidebar/pane content so the resize cursor wins right at the edge; the visible
+   accent line is drawn by ::after so the resting look stays a clean 1px seam. */
 .sidebar-resizer {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 6px;
-  z-index: 5;
+  width: 12px;
+  z-index: 6;
   cursor: col-resize;
-  /* The visible hairline -- transparent until hovered/dragged. */
   background: transparent;
-  transition: background 90ms ease;
 }
 /* Left dock: the divider is the sidebar's RIGHT edge (rail + sidebar width). */
 .sidebar-resizer-left {
-  left: calc(44px + var(--sidebar-w, 230px) - 3px);
+  left: calc(44px + var(--sidebar-w, 230px) - 6px);
 }
 /* Right dock: the divider is the sidebar's LEFT edge, measured from the right. */
 .sidebar-resizer-right {
-  right: calc(44px + var(--sidebar-w, 230px) - 3px);
+  right: calc(44px + var(--sidebar-w, 230px) - 6px);
 }
-.sidebar-resizer:hover,
-body.resizing-col .sidebar-resizer {
+/* The visible line: a 2px bar centered in the hit area. Faint at rest so the
+   handle is discoverable, full accent on hover/drag. */
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background 90ms ease;
+}
+.sidebar-resizer:hover::after,
+body.resizing-col .sidebar-resizer::after {
   background: var(--accent);
 }
 
