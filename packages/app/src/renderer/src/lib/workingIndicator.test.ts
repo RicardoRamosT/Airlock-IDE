@@ -49,6 +49,21 @@ describe("hasWorkingIndicator", () => {
     expect(hasWorkingIndicator("∗ Cerebrating…\n  (7s · thinking)")).toBe(true);
   });
 
+  // v2.1.185: the spinner glyph rotated to frames OUTSIDE the old hard-coded set
+  // (captured live: "✦/+ Sautéing… (7s · thinking with xhigh effort)"; tab titles
+  // showed braille "⠂"), and the hint rotated to "thinking with xhigh effort"
+  // (no "esc to interrupt"). The dot must still light off the glyph-independent
+  // core ("<verb>… (<N>s"), regardless of which spinner frame is showing.
+  it("matches v2.1.185 footers regardless of the spinner glyph", () => {
+    expect(
+      hasWorkingIndicator("✦ Sautéing… (7s · thinking with xhigh effort)"),
+    ).toBe(true);
+    expect(
+      hasWorkingIndicator("+ Sautéing… (7s · thinking with xhigh effort)"),
+    ).toBe(true);
+    expect(hasWorkingIndicator("⠂ Frobnicating… (2s)")).toBe(true);
+  });
+
   it("does not match finished/idle lines that share the spinner glyphs", () => {
     // Finished summary: glyph + past-tense verb, but no "… (Ns" core.
     expect(hasWorkingIndicator("✳ Churned for 6s")).toBe(false);

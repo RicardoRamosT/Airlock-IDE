@@ -20,14 +20,15 @@
 //   3. ROTATION (Claude Code v2.1.x): the status line cycles its hint segment
 //      ("esc to interrupt" <-> "N tokens" <-> "thinking with xhigh effort"),
 //      so the esc hint is ABSENT for long stretches while Claude is plainly
-//      working ("· Burrowing… (3s · ↓ 45 tokens · ...)"). Match the stable
-//      core every rotation keeps: a spinner glyph, the gerund verb, then
-//      "… (" + the elapsed counter's digits. Finished summaries ("✳ Churned
-//      for 6s") and idle hints ("(shift+tab to cycle)") lack that exact core.
-const WORKING_PATTERNS: RegExp[] = [
-  /esc to inter/i,
-  /[·✢✳∗✻✽✶]\s?\S+…\s?\(\d+/u,
-];
+//      working ("✦ Sautéing… (7s · thinking with xhigh effort)").
+//   4. SPINNER FRAMES (v2.1.185): the leading spinner glyph rotates through a
+//      set that keeps changing across releases (braille "⠂", "✦", "+", … — well
+//      beyond any fixed class), so anchoring on the glyph is a losing game and
+//      silently broke the dot. Match the glyph-INDEPENDENT core every rotation
+//      keeps: the gerund verb, "…", then "(" + the elapsed-SECONDS counter
+//      ("(7s", "(83s"). Finished summaries ("✳ Churned for 6s") and idle hints
+//      ("(shift+tab to cycle)") lack that "…(<N>s" core, so they stay unlit.
+const WORKING_PATTERNS: RegExp[] = [/esc to inter/i, /\S+…\s*\(\d+s/u];
 
 // True if `terminalText` (the joined bottom rows of an xterm buffer) contains
 // Claude's working indicator, tolerant of wrapping, width truncation, and the
