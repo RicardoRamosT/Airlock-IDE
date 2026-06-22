@@ -15,6 +15,7 @@ import {
   dockerStart,
   dockerStop,
   duplicate,
+  ensureAirlockDir,
   filterDangerousEnv,
   getGlobalSecret,
   getSecretValue,
@@ -415,9 +416,14 @@ export function registerIpc(
     }
   });
 
-  ipcMain.handle("overview:get", (e, root: unknown) => {
+  ipcMain.handle("overview:get", async (e, root: unknown) => {
     if (typeof root !== "string" || !isOpenRoot(e, root))
       throw new Error("Invalid or unopened root");
+    // Drop the vault .gitignore before the Overview can prompt Claude to write
+    // .airlock/overview.md, so the generated file (and the whole vault) can never
+    // be accidentally committed in a project that has not yet triggered a
+    // secret/audit write. Idempotent + best-effort (never blocks the gather).
+    await ensureAirlockDir(root).catch(() => {});
     return gatherProfile(root);
   });
 

@@ -177,6 +177,7 @@ export {
   type NeonTransport,
   neonConnectionUri,
 } from "./neon/client";
+export { ensureAirlockDir } from "./project/airlockDir";
 export {
   type ProjectConfig,
   readProjectConfig,
