@@ -12,7 +12,10 @@ import {
   type SelectChord,
   terminalSelectChord,
 } from "../lib/terminalSelect";
-import { hasWorkingIndicator } from "../lib/workingIndicator";
+import {
+  hasReadyIndicator,
+  hasWorkingIndicator,
+} from "../lib/workingIndicator";
 import { CLAUDE_AUTO_COMMAND, useApp } from "../store";
 
 // xterm has no CSS-variable hook, so its palette must be supplied as a literal
@@ -49,6 +52,9 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   // Last working state pushed to the store, so the scan only calls applyPtyStatus
   // on a change (not every tick).
   const lastWorkingRef = useRef(false);
+  // Last ready state pushed to the store, so the scan only calls applyPtyReady
+  // on a change (not every tick).
+  const lastReadyRef = useRef(false);
   const selAnchorRef = useRef<number | null>(null);
   const selActiveRef = useRef<number | null>(null);
   const setTerminalPty = useApp((s) => s.setTerminalPty);
@@ -442,6 +448,11 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       if (working !== lastWorkingRef.current) {
         lastWorkingRef.current = working;
         useApp.getState().applyPtyStatus(ptyId, working);
+      }
+      const ready = hasReadyIndicator(text);
+      if (ready !== lastReadyRef.current) {
+        lastReadyRef.current = ready;
+        useApp.getState().applyPtyReady(ptyId, ready);
       }
     }, SCAN_MS);
     return () => clearInterval(timer);

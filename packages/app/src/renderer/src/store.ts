@@ -281,6 +281,7 @@ export interface AppState {
   tabState: Record<string, ProjectState>; // SOURCE OF TRUTH: per-project state for EVERY tab
   tabTerminals: Record<string, TabTerminals>; // per-tab terminals (active + inactive all mounted)
   sessionWorking: Record<string, boolean>; // ptyId -> claude actively working
+  sessionReady: Record<string, boolean>; // ptyId -> claude interactive footer visible
   tabGlow: Record<string, boolean>; // tabId -> finished-in-background, awaiting a look
   tabRenames: Record<string, string>; // tabId -> custom display label (display-only; never touches the folder on disk; session-scoped)
   pendingTerminalCommands: Record<string, string>; // terminalId -> one-shot command injected when its pty adopts (Install buttons)
@@ -354,6 +355,7 @@ export interface AppState {
   closeTab: (id: string) => void;
   renameTab: (tabId: string, name: string) => void; // set/clear (empty name) a tab's display label
   applyPtyStatus: (ptyId: string, working: boolean) => void;
+  applyPtyReady: (ptyId: string, ready: boolean) => void;
   setOpenProjectsAsTabs: (v: boolean) => void;
   setShowRunningProcessNotice: (v: boolean) => void;
 
@@ -717,6 +719,7 @@ export const useApp = create<AppState>((set) => ({
   tabState: { [INITIAL_TAB_ID]: freshProjectState(null) },
   tabTerminals: { [INITIAL_TAB_ID]: emptyTabTerminals() },
   sessionWorking: {},
+  sessionReady: {},
   tabGlow: {},
   tabRenames: {},
   pendingTerminalCommands: {},
@@ -1034,6 +1037,8 @@ export const useApp = create<AppState>((set) => ({
       }
       return { sessionWorking, tabGlow };
     }),
+  applyPtyReady: (ptyId, ready) =>
+    set((s) => ({ sessionReady: { ...s.sessionReady, [ptyId]: ready } })),
   setOpenProjectsAsTabs: (openProjectsAsTabs) => set({ openProjectsAsTabs }),
   setShowRunningProcessNotice: (showRunningProcessNotice) =>
     set({ showRunningProcessNotice }),

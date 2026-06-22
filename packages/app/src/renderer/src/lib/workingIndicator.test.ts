@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasWorkingIndicator } from "./workingIndicator";
+import { hasReadyIndicator, hasWorkingIndicator } from "./workingIndicator";
 
 describe("hasWorkingIndicator", () => {
   it("matches the full working footer (wide terminal)", () => {
@@ -76,5 +76,23 @@ describe("hasWorkingIndicator", () => {
     expect(hasWorkingIndicator("Image in clipboard · ctrl+v to paste")).toBe(
       false,
     );
+  });
+});
+
+describe("hasReadyIndicator", () => {
+  it("is true when the shift+tab cycling footer is on screen", () => {
+    expect(hasReadyIndicator("» auto mode on (shift+tab to cycle)")).toBe(true);
+  });
+
+  it("is true when the ? for shortcuts footer is on screen", () => {
+    expect(hasReadyIndicator("? for shortcuts")).toBe(true);
+  });
+
+  it("is false for a bare shell prompt", () => {
+    expect(hasReadyIndicator("ricardoramos@Mac ~ %")).toBe(false);
+  });
+
+  it("is false for an empty string", () => {
+    expect(hasReadyIndicator("")).toBe(false);
   });
 });

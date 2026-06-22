@@ -37,3 +37,17 @@ export function hasWorkingIndicator(terminalText: string): boolean {
   const t = terminalText.replace(/\s+/g, " ");
   return WORKING_PATTERNS.some((p) => p.test(t));
 }
+
+// Patterns that identify Claude Code's IDLE interactive footer (the input
+// prompt is showing). Either of these markers confirms Claude is running and
+// awaiting input — the caller additionally requires NOT-working before
+// auto-submitting.
+const READY_PATTERNS: RegExp[] = [/shift\+tab to cycle/i, /\? for shortcuts/i];
+
+// True if `terminalText` contains Claude Code's idle interactive footer,
+// meaning Claude is running and waiting for input. Uses the same whitespace-
+// collapse as hasWorkingIndicator to tolerate wrapped footers.
+export function hasReadyIndicator(terminalText: string): boolean {
+  const t = terminalText.replace(/\s+/g, " ");
+  return READY_PATTERNS.some((p) => p.test(t));
+}

@@ -85,6 +85,7 @@ export function OverviewTab({ root }: { root: string }) {
   const [staged, setStaged] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const readyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeTabId = useApp((s) => s.activeTabId);
   const tabTerminals = useApp((s) => s.tabTerminals);
@@ -161,6 +162,50 @@ export function OverviewTab({ root }: { root: string }) {
       startWatch();
     }
   }, [staged, activeTabId, startWatch]);
+
+  // Auto-submit the staged prompt when the newly-spawned Claude becomes ready.
+  // Runs only while `staged` is non-null. Reads FRESH state each tick (via
+  // useApp.getState()) to avoid stale closures. Stops on success or after ~30s
+  // (25 ticks × 1200ms); on timeout it leaves `staged` intact so the manual
+  // "Send to Claude" button remains as the fallback.
+  useEffect(() => {
+    if (!staged) return;
+    const TICK_MS = 1200;
+    const MAX_TICKS = 25;
+    let ticks = 0;
+    readyPollRef.current = setInterval(() => {
+      ticks += 1;
+      if (ticks > MAX_TICKS) {
+        if (readyPollRef.current) {
+          clearInterval(readyPollRef.current);
+          readyPollRef.current = null;
+        }
+        return;
+      }
+      const state = useApp.getState();
+      const plan = planOverviewRun(
+        state.tabTerminals[activeTabId],
+        state.sessionWorking,
+      );
+      if (
+        plan.mode === "reuse" &&
+        state.sessionReady[plan.ptyId] &&
+        !state.sessionWorking[plan.ptyId]
+      ) {
+        if (readyPollRef.current) {
+          clearInterval(readyPollRef.current);
+          readyPollRef.current = null;
+        }
+        sendStaged();
+      }
+    }, TICK_MS);
+    return () => {
+      if (readyPollRef.current) {
+        clearInterval(readyPollRef.current);
+        readyPollRef.current = null;
+      }
+    };
+  }, [staged, activeTabId, sendStaged]);
 
   useEffect(load, [load]);
   useEffect(() => stopPoll, [stopPoll]);
@@ -280,7 +325,10 @@ export function OverviewTab({ root }: { root: string }) {
         )}
         {staged && (
           <div className="section-note overview-staged">
-            <span>Claude is starting here. When its prompt is ready:</span>
+            <span>
+              Claude is starting — the summary will run automatically when
+              it&apos;s ready, or click Send to Claude.
+            </span>
             <button type="button" className="btn" onClick={sendStaged}>
               Send to Claude
             </button>
