@@ -5,6 +5,7 @@ import { useApp } from "../store";
 export function usePrefs(): void {
   const setSidebarVisible = useApp((s) => s.setSidebarVisible);
   const setSidebarPosition = useApp((s) => s.setSidebarPosition);
+  const setSidebarWidth = useApp((s) => s.setSidebarWidth);
   const setTheme = useApp((s) => s.setTheme);
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
   const setOpenProjectsAsTabs = useApp((s) => s.setOpenProjectsAsTabs);
@@ -33,6 +34,7 @@ export function usePrefs(): void {
         if (cancelled || useApp.getState().layoutHydrated) return;
         setSidebarVisible(p.sidebarVisible);
         setSidebarPosition(p.sidebarPosition);
+        setSidebarWidth(p.sidebarWidth);
         setTheme(p.theme);
         setClipboardClearSeconds(p.clipboardClearSeconds);
         setOpenProjectsAsTabs(p.openProjectsAsTabs);
@@ -52,6 +54,7 @@ export function usePrefs(): void {
   }, [
     setSidebarVisible,
     setSidebarPosition,
+    setSidebarWidth,
     setTheme,
     setClipboardClearSeconds,
     setOpenProjectsAsTabs,

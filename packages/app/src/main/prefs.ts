@@ -43,9 +43,16 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   audit: true,
 };
 
+// Persisted sidebar width clamp. Lenient bounds (the renderer's resizer commits
+// a tighter [160, 600], but a hand-edited prefs file must still land sane).
+export const SIDEBAR_WIDTH_DEFAULT = 230;
+const SIDEBAR_WIDTH_MIN = 120;
+const SIDEBAR_WIDTH_MAX = 1000;
+
 const DEFAULTS: AppPrefs = {
   sidebarVisible: true,
   sidebarPosition: "left",
+  sidebarWidth: SIDEBAR_WIDTH_DEFAULT,
   theme: "dark",
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
   activeView: "files",
@@ -157,6 +164,13 @@ function sanitize(raw: unknown): AppPrefs {
         ? r.sidebarVisible
         : DEFAULTS.sidebarVisible,
     sidebarPosition: r.sidebarPosition === "right" ? "right" : "left",
+    sidebarWidth:
+      typeof r.sidebarWidth === "number" && Number.isFinite(r.sidebarWidth)
+        ? Math.min(
+            SIDEBAR_WIDTH_MAX,
+            Math.max(SIDEBAR_WIDTH_MIN, Math.round(r.sidebarWidth)),
+          )
+        : DEFAULTS.sidebarWidth,
     theme: r.theme === "light" ? "light" : "dark",
     sectionVisibility: sanitizeSectionVisibility(r.sectionVisibility),
     activeView: SECTIONS.includes(r.activeView as Section)

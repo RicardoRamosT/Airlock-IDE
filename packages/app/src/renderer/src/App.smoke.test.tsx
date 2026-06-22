@@ -75,6 +75,7 @@ vi.mock("@xterm/addon-fit", () => {
 const DEFAULT_PREFS: AppPrefs = {
   sidebarVisible: true,
   sidebarPosition: "left",
+  sidebarWidth: 230,
   theme: "dark",
   sectionVisibility: {
     files: true,

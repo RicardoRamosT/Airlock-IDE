@@ -282,6 +282,7 @@ export interface AppState {
   // --- App-global (shared across tabs) ---
   sidebarVisible: boolean; // app-global (persisted), not per-project
   sidebarPosition: "left" | "right"; // app-global (persisted), not per-project
+  sidebarWidth: number; // app-global (persisted), px width of the shared sidebar
   theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
   clipboardClearSeconds: number; // app-global (persisted), seconds before clipboard auto-clears (0 = never)
   quota: QuotaStatus | null;
@@ -435,6 +436,7 @@ export interface AppState {
   toggleSidebar: () => void;
   setSidebarPosition: (p: "left" | "right") => void;
   toggleSidebarPosition: () => void;
+  setSidebarWidth: (w: number) => void;
   setTheme: (t: "dark" | "light") => void;
   setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
@@ -711,6 +713,7 @@ export const useApp = create<AppState>((set) => ({
   dbRefreshNonce: 0,
   sidebarVisible: true,
   sidebarPosition: "left",
+  sidebarWidth: 230,
   theme: "dark",
   clipboardClearSeconds: 30,
   quota: null,
@@ -1470,6 +1473,7 @@ export const useApp = create<AppState>((set) => ({
     set((s) => ({
       sidebarPosition: s.sidebarPosition === "left" ? "right" : "left",
     })),
+  setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
   setTheme: (theme) => set({ theme }),
   setClipboardClearSeconds: (clipboardClearSeconds) =>
     set({ clipboardClearSeconds }),

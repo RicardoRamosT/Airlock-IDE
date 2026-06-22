@@ -11,6 +11,7 @@ describe("app prefs", () => {
     expect(await loadPrefs(path.join(dir, "prefs.json"))).toEqual({
       sidebarVisible: true,
       sidebarPosition: "left",
+      sidebarWidth: 230,
       theme: "dark",
       sectionVisibility: {
         files: true,
@@ -69,6 +70,7 @@ describe("app prefs", () => {
     expect(await loadPrefs(file)).toEqual({
       sidebarVisible: true,
       sidebarPosition: "right",
+      sidebarWidth: 230,
       theme: "dark",
       sectionVisibility: {
         files: true,
@@ -148,6 +150,7 @@ describe("app prefs", () => {
     expect(await loadPrefs(file)).toEqual({
       sidebarVisible: true,
       sidebarPosition: "left",
+      sidebarWidth: 230,
       theme: "dark",
       sectionVisibility: {
         files: true,
@@ -184,6 +187,7 @@ describe("app prefs", () => {
     expect(await loadPrefs(file)).toEqual({
       sidebarVisible: true,
       sidebarPosition: "left",
+      sidebarWidth: 230,
       theme: "dark",
       sectionVisibility: {
         files: true,

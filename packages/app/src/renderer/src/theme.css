@@ -487,8 +487,10 @@ body,
    sidebar-right variant flips the reading order via `order`. */
 .workspace {
   display: grid;
-  grid-template-columns: 44px 230px minmax(0, 1fr);
+  grid-template-columns: 44px var(--sidebar-w, 230px) minmax(0, 1fr);
   min-height: 0;
+  /* Positioning context for the absolutely-placed .sidebar-resizer handle. */
+  position: relative;
   /* Pin to the app-shell's minmax(0,1fr) row. ProjectTabs renders null in
      windows mode (openProjectsAsTabs off); without explicit rows, positional
      grid placement shifts up so .workspace collapses into the `auto` row and
@@ -1147,7 +1149,7 @@ body,
    the sidebar (DOM child 1) renders in the right column and main in the left.
    The divider moves to the sidebar's left edge. */
 .workspace.sidebar-right {
-  grid-template-columns: minmax(0, 1fr) 230px 44px;
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-w, 230px) 44px;
 }
 
 .workspace.sidebar-right .activity-bar {
@@ -1184,6 +1186,40 @@ body,
 
 .workspace.sidebar-hidden .sidebar {
   display: none;
+}
+
+/* Draggable splitter straddling the sidebar<->panes border. Absolutely placed
+   over the column boundary (the grid reads the same --sidebar-w), full height,
+   a hair wide with a generous grab cursor; a faint accent line on hover/drag. */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 5;
+  cursor: col-resize;
+  /* The visible hairline -- transparent until hovered/dragged. */
+  background: transparent;
+  transition: background 90ms ease;
+}
+/* Left dock: the divider is the sidebar's RIGHT edge (rail + sidebar width). */
+.sidebar-resizer-left {
+  left: calc(44px + var(--sidebar-w, 230px) - 3px);
+}
+/* Right dock: the divider is the sidebar's LEFT edge, measured from the right. */
+.sidebar-resizer-right {
+  right: calc(44px + var(--sidebar-w, 230px) - 3px);
+}
+.sidebar-resizer:hover,
+body.resizing-col .sidebar-resizer {
+  background: var(--accent);
+}
+
+/* While dragging the splitter, force the resize cursor everywhere and suppress
+   selection so a fast drag over the panes/terminal doesn't select text. */
+body.resizing-col {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* Icon buttons at the activity bar's bottom (accounts + settings). */

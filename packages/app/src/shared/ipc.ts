@@ -392,6 +392,7 @@ export interface SessionSnapshot {
 export interface AppPrefs {
   sidebarVisible: boolean;
   sidebarPosition: "left" | "right";
+  sidebarWidth: number; // app-global; px width of the one shared sidebar column
   theme: "dark" | "light";
   sectionVisibility: SectionVisibility; // app-global; default all true
   activeView: Section; // app-global; the sidebar view the activity bar shows

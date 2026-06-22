@@ -1,3 +1,4 @@
+import type React from "react";
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
 import { NeonConnectModal } from "./components/NeonConnectModal";
@@ -11,6 +12,7 @@ import { SearchPanel } from "./components/SearchPanel";
 import { SecretModal } from "./components/SecretModal";
 import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
+import { SidebarResizer } from "./components/SidebarResizer";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalGrantModal } from "./components/TerminalGrantModal";
 import { TerminalManager } from "./components/TerminalManager";
@@ -46,6 +48,7 @@ export function App() {
   const split = useApp((s) => s.split);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const sidebarPosition = useApp((s) => s.sidebarPosition);
+  const sidebarWidth = useApp((s) => s.sidebarWidth);
   const appPage = useApp((s) => s.appPage);
   const overviewRoot = useApp((s) => s.overviewRoot);
   // Show the split ONLY when the focused tab is a member of the pair: switching
@@ -61,12 +64,16 @@ export function App() {
         <ProjectTabs />
         <div
           className={`workspace${sidebarPosition === "right" ? " sidebar-right" : ""}${sidebarVisible ? "" : " sidebar-hidden"}`}
+          style={{ "--sidebar-w": `${sidebarWidth}px` } as React.CSSProperties}
         >
           <ActivityBar />
           {/* One sidebar per window, bound to the focused pane: no pane
               provider wraps it, so useProjectTab() inside falls back to
               activeTabId. */}
           <Sidebar />
+          {/* Draggable splitter at the sidebar<->panes border (absolutely
+              positioned over it); only meaningful while the sidebar shows. */}
+          {sidebarVisible && <SidebarResizer />}
           {/* An IDE-level page (Settings/Usage, tabs in the project strip)
               replaces the panes area while shown; terminals relocate to the
               keep-alive (ptys survive, as with any layout change). */}
