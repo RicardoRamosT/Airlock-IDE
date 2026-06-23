@@ -15,11 +15,15 @@ function clearDebounce(id: number, root: string): void {
   debounces.delete(key);
 }
 
-// Exported for unit tests. Matches VCS/build dirs, the .airlock vault, and the
-// committed .airlock-order.json plus its atomic-write temp (.airlock-order.json
-// .tmp), so writing the order file never fires a debounced fs:changed re-list.
+// Exported for unit tests. Matches VCS/build dirs, the .airlock vault, the
+// committed .airlock-order.json plus its atomic-write temp, and .claude. The
+// last is critical: .claude holds agent infra (git worktrees, transcripts,
+// image-cache) that can be enormous -- recursively watching .claude/worktrees
+// scanned thousands of files and exhausted the process file descriptors
+// (EMFILE), which then broke pty spawn, the MCP socket, and DevTools. The file
+// TREE still lists .claude (lazily); only the recursive WATCHER skips it.
 export function isIgnored(p: string): boolean {
-  return /(^|[/\\])(\.git|node_modules|\.airlock|\.airlock-order\.json(\.tmp)?|dist|out|\.DS_Store)([/\\]|$)/.test(
+  return /(^|[/\\])(\.git|node_modules|\.claude|\.airlock|\.airlock-order\.json(\.tmp)?|dist|out|\.DS_Store)([/\\]|$)/.test(
     p,
   );
 }
@@ -62,7 +66,13 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
     w.on("add", fire)
       .on("addDir", fire)
       .on("unlink", fire)
-      .on("unlinkDir", fire);
+      .on("unlinkDir", fire)
+      // Never let a watcher error (EMFILE on a huge tree, EPERM, a dir that
+      // vanished mid-scan) escape as an uncaught exception and destabilize the
+      // main process. Log it and keep going.
+      .on("error", (err) => {
+        console.error(`[fsWatch] watcher error for ${root}:`, err);
+      });
     current.set(root, w);
   }
   watchers.set(id, current);
