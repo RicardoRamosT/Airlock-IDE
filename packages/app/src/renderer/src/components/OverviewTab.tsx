@@ -4,7 +4,7 @@ import type {
   ProjectTech,
   TechCategory,
 } from "../../../shared/ipc";
-import { openEditorFile } from "../lib/editorFiles";
+import { openFileInRoot } from "../lib/editorFiles";
 import { relativeTime, uncoveredAreaPaths } from "../lib/overviewFreshness";
 import { categoryGlyph } from "../lib/overviewGlyphs";
 import { logoUrl } from "../lib/overviewLogos";
@@ -302,7 +302,7 @@ export function OverviewTab({ root }: { root: string }) {
             ) : null}
             <OverviewMarkdown
               md={summary}
-              onOpenFile={(p) => void openEditorFile(activeTabId, p)}
+              onOpenFile={(p) => void openFileInRoot(root, p)}
             />
           </>
         ) : (
