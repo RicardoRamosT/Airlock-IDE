@@ -19,6 +19,7 @@
       "output": "release",
       "buildResources": "build"
     },
+    "afterPack": "build/afterPack.cjs",
     "files": [
       "out/**"
     ],
