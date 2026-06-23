@@ -97,6 +97,9 @@ export function useSessionRestore(): void {
     // marker and retry on the next tabTerminals change.
     if (s.sendToClaudeTerminal(CLAUDE_CONTINUE_COMMAND, activeTabId)) {
       s.consumePendingResume(activeTabId);
+      // Claim the resumed terminal as the tab's claudeAutoId so hadClaude stays
+      // true and the tab resumes again on the NEXT restart (not just once).
+      s.adoptResumedClaude(activeTabId);
     }
   }, [activeTabId, tabTerminals, pendingResume]);
 }

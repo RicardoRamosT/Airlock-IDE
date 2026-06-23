@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { restartActiveTerminal } from "./lib/restartActiveTerminal";
+import { buildSessionSnapshot } from "./lib/sessionSnapshot";
 import {
   CLAUDE_CONTINUE_COMMAND,
   type DbView,
@@ -42,6 +43,8 @@ beforeEach(() => {
       },
       // restartActiveTerminal kills the pane's active pty; no-op stub is enough.
       ptyKill: () => Promise.resolve(),
+      // sendToClaudeTerminal writes the resume command to the pty; no-op is enough.
+      ptyInput: () => {},
     },
   };
   setActiveCalls.length = 0;
@@ -1425,4 +1428,45 @@ it("claudeAutoDecision returns false for a tab pending resume (no fresh claude)"
   });
   useApp.getState().markPendingResume(["tp"]);
   expect(useApp.getState().claudeAutoDecision("ep")).toBe(false);
+});
+
+it("resume claims claudeAutoId so hadClaude survives the NEXT restart (regression)", () => {
+  // Same seed: a restored project tab marked for lazy resume, with a live
+  // (adopted) terminal but NO auto-start claim -- `claude --continue` never
+  // takes one.
+  const seedTabId = Object.keys(get().tabState)[0];
+  if (!seedTabId) throw new Error("no tabState to seed from");
+  const seedProjectState = get().tabState[seedTabId];
+  if (!seedProjectState) throw new Error("no ProjectState to seed from");
+  useApp.setState({
+    tabs: [{ id: "tp", root: "/p" }],
+    activeTabId: "tp",
+    stripOrder: ["tp"],
+    split: null,
+    tabState: { tp: seedProjectState },
+    tabTerminals: {
+      tp: {
+        terminals: [{ id: "ep", title: "zsh", renamed: false, ptyId: "pp" }],
+        activeTerminalId: "ep",
+        splitTerminalId: null,
+        claudeAutoId: null,
+      },
+    },
+    claudeAutoStart: "first",
+  });
+  useApp.getState().markPendingResume(["tp"]);
+
+  // Run the focus-gated resume effect's body (useSessionRestore effect 2).
+  expect(
+    useApp.getState().sendToClaudeTerminal(CLAUDE_CONTINUE_COMMAND, "tp"),
+  ).toBe(true);
+  useApp.getState().consumePendingResume("tp");
+  useApp.getState().adoptResumedClaude("tp");
+
+  // The resumed terminal is now the tab's claude claim...
+  expect(useApp.getState().tabTerminals.tp?.claudeAutoId).toBe("ep");
+  // ...so the persisted snapshot keeps hadClaude=true. The bug saved false here
+  // (resume never claimed claudeAutoId), which made the NEXT restore skip the
+  // tab and fresh-start `claude` instead of resuming.
+  expect(buildSessionSnapshot(useApp.getState()).tabs[0]?.hadClaude).toBe(true);
 });

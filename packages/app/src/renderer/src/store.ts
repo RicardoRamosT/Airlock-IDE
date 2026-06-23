@@ -318,6 +318,13 @@ export interface AppState {
   pendingResume: Set<string>;
   markPendingResume: (tabIds: string[]) => void;
   consumePendingResume: (tabId: string) => boolean;
+  // After a successful `claude --continue` resume, claim the resumed terminal as
+  // the tab's claudeAutoId. Resume never takes the auto-start claim, so without
+  // this claudeAutoId stays null -> hadClaude (= claudeAutoId != null) saves
+  // FALSE -> the NEXT restore skips that tab and fresh-starts claude instead of
+  // resuming. Claiming it makes a resumed tab indistinguishable from a
+  // fresh-started one, so hadClaude stays true across restarts.
+  adoptResumedClaude: (tabId: string) => void;
   modal:
     | "add-secret"
     | { update: string }
@@ -1619,6 +1626,22 @@ export const useApp = create<AppState>((set) => ({
     });
     return true;
   },
+  adoptResumedClaude: (tabId) =>
+    set((s) => {
+      const tt = s.tabTerminals[tabId];
+      // Already claimed (a fresh auto-start beat us) or no tab -> nothing to do.
+      if (!tt || tt.claudeAutoId !== null) return {};
+      // The terminal that received --continue is the one sendToClaudeTerminal
+      // resolved: claudeAutoId (null here) ?? activeTerminalId.
+      const termId = tt.activeTerminalId;
+      if (!termId) return {};
+      return {
+        tabTerminals: {
+          ...s.tabTerminals,
+          [tabId]: { ...tt, claudeAutoId: termId },
+        },
+      };
+    }),
   fsVersion: {},
   newFileRequest: null,
   // Bump the freshness counter for a root so FileTrees on it re-list. Driven by
