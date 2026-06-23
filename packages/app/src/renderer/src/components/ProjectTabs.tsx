@@ -296,19 +296,6 @@ export function ProjectTabs() {
         </button>
         <button
           type="button"
-          className="project-tab-overview"
-          title="Project overview"
-          onClick={(e) => {
-            e.stopPropagation();
-            const st = useApp.getState();
-            const r = st.tabState[pair.a]?.root;
-            if (r) st.openOverviewPage(r);
-          }}
-        >
-          <i className="codicon codicon-book" />
-        </button>
-        <button
-          type="button"
           className="project-tab-close"
           title="Close both tabs"
           onClick={(e) => {
@@ -371,19 +358,6 @@ export function ProjectTabs() {
             />
             <i className="codicon codicon-folder" />
             <span className="project-tab-title">{displayLabel(tab)}</span>
-          </button>
-        )}
-        {tab.root && (
-          <button
-            type="button"
-            className="project-tab-overview"
-            title="Project overview"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (tab.root) useApp.getState().openOverviewPage(tab.root);
-            }}
-          >
-            <i className="codicon codicon-book" />
           </button>
         )}
         <button
@@ -522,6 +496,19 @@ export function ProjectTabs() {
           <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
             {menu.kind === "tab" ? (
               <>
+                {tabs.find((t) => t.id === menu.tabId)?.root ? (
+                  <button
+                    type="button"
+                    className="menu-item"
+                    onClick={() => {
+                      const r = tabs.find((t) => t.id === menu.tabId)?.root;
+                      if (r) useApp.getState().openOverviewPage(r);
+                      setMenu(null);
+                    }}
+                  >
+                    <span>Overview</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="menu-item"
