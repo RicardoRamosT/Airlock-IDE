@@ -461,10 +461,17 @@ export interface SessionUsage {
 // Payload of the overview:get IPC. profile is always present (computed live);
 // summary is the .airlock/overview.md text or null; summaryMtimeMs is its mtime
 // (0 when absent) so the renderer can detect a fresh write while polling.
+export interface OverviewStats {
+  fileCount: number; // total source files (bounded walk; deps/build/caches skipped)
+  languages: { id: string; name: string; files: number }[]; // top langs + "Other"
+}
+
 export interface OverviewResult {
   profile: ProjectProfile;
   summary: string | null;
   summaryMtimeMs: number;
+  stats: OverviewStats;
+  readme: string | null; // project README.md content (capped), or null if absent
 }
 
 export interface FsChangedEvent {

@@ -1,8 +1,10 @@
+import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { buildProfile, type DetectInputs } from "@airlock/agent-core";
 import type { OverviewResult } from "../../shared/ipc";
 import { listSecretNames } from "../ide-state";
+import { languageBreakdown } from "./languages";
 
 const CONFIG_FILES = [
   "wrangler.toml",
@@ -76,6 +78,79 @@ function workspaceDirs(pkg: PkgLike | null): string[] | null {
   return arr.map((g) => g.replace(/\/?\*.*$/, "")).filter(Boolean);
 }
 
+// Dirs the file walk must never descend into (dependency/build/cache trees).
+// Broader than the top-level IGNORED_DIRS above so a Python venv / Rust target
+// does not dominate the language stats or stall the walk.
+const WALK_IGNORE = new Set([
+  ".git",
+  ".airlock",
+  "node_modules",
+  "dist",
+  "out",
+  "build",
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  ".turbo",
+  ".cache",
+  ".parcel-cache",
+  "coverage",
+  "venv",
+  ".venv",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".tox",
+  "target",
+  "vendor",
+  ".gradle",
+]);
+const WALK_CAP = 20000; // bound the walk so a huge tree cannot stall overviewGet
+
+// Bounded recursive walk: collect file basenames (enough for the language
+// breakdown) while skipping dependency/build/cache dirs and dot-directories.
+// Best-effort -- an unreadable dir is skipped, not fatal.
+async function walkFiles(root: string): Promise<string[]> {
+  const out: string[] = [];
+  const rec = async (dir: string): Promise<void> => {
+    if (out.length >= WALK_CAP) return;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (out.length >= WALK_CAP) return;
+      if (e.isDirectory()) {
+        if (WALK_IGNORE.has(e.name) || e.name.startsWith(".")) continue;
+        await rec(path.join(dir, e.name));
+      } else if (e.isFile()) {
+        out.push(e.name);
+      }
+    }
+  };
+  await rec(root);
+  return out;
+}
+
+const README_NAMES = ["README.md", "readme.md", "Readme.md", "README"];
+const README_CAP = 64 * 1024;
+
+// First existing README (capped). Best-effort -- null when none is present.
+async function readReadme(root: string): Promise<string | null> {
+  for (const name of README_NAMES) {
+    try {
+      const c = await readFile(path.join(root, name), "utf8");
+      return c.length > README_CAP ? c.slice(0, README_CAP) : c;
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return null;
+}
+
 export async function gatherProfile(root: string): Promise<OverviewResult> {
   const pkg = await readPkg(root);
   const [configFiles, otherManifests, lockfiles, secretMetas, entries] =
@@ -125,5 +200,13 @@ export async function gatherProfile(root: string): Promise<OverviewResult> {
   } catch {
     /* no summary yet */
   }
-  return { profile, summary, summaryMtimeMs };
+
+  // Richer-content extras: a bounded file walk for language stats + the README.
+  // Run concurrently; both are best-effort and never throw.
+  const [names, readme] = await Promise.all([walkFiles(root), readReadme(root)]);
+  const stats = {
+    fileCount: names.length,
+    languages: languageBreakdown(names),
+  };
+  return { profile, summary, summaryMtimeMs, stats, readme };
 }
