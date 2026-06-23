@@ -15,17 +15,55 @@ function clearDebounce(id: number, root: string): void {
   debounces.delete(key);
 }
 
-// Exported for unit tests. Matches VCS/build dirs, the .airlock vault, the
-// committed .airlock-order.json plus its atomic-write temp, and .claude. The
-// last is critical: .claude holds agent infra (git worktrees, transcripts,
-// image-cache) that can be enormous -- recursively watching .claude/worktrees
-// scanned thousands of files and exhausted the process file descriptors
-// (EMFILE), which then broke pty spawn, the MCP socket, and DevTools. The file
-// TREE still lists .claude (lazily); only the recursive WATCHER skips it.
+// Dependency, build, and cache dirs the recursive watcher must NEVER descend
+// into. Critical because chokidar v5 has no fsevents backend, so it opens ONE
+// fd PER WATCHED FILE; macOS caps a process at kern.maxfilesperproc (10240 on
+// this machine). A single big tree blows past that -> EMFILE -> the cascade
+// that breaks pty spawn, the MCP socket, and DevTools. Real offenders seen: a
+// project's Python virtualenv (venv, ~12.5k files) and .claude/worktrees (git
+// worktrees). The file TREE still lists these (lazily); only the recursive
+// WATCHER skips them. ASCII-only file (bundled into the Electron CJS main).
+const IGNORED_DIRS = new Set([
+  ".git",
+  ".claude", // agent infra: worktrees / transcripts / image-cache (huge)
+  ".airlock", // the secrets/audit vault
+  // JS/web deps, build output, caches
+  "node_modules",
+  "dist",
+  "out",
+  "build",
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  ".turbo",
+  ".cache",
+  ".parcel-cache",
+  "coverage",
+  // Python virtualenvs + caches (pdfextractor's venv was the EMFILE trigger)
+  "venv",
+  ".venv",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".tox",
+  // other ecosystems
+  "target", // Rust
+  "vendor", // Go / PHP vendored deps
+  ".gradle", // Java
+  ".DS_Store",
+]);
+
+// Exported for unit tests. True if any path segment is an ignored dep/build/
+// cache dir, or the committed .airlock-order.json (+ its atomic-write temp, so
+// writing it never fires a debounced fs:changed re-list).
 export function isIgnored(p: string): boolean {
-  return /(^|[/\\])(\.git|node_modules|\.claude|\.airlock|\.airlock-order\.json(\.tmp)?|dist|out|\.DS_Store)([/\\]|$)/.test(
-    p,
-  );
+  for (const seg of p.split(/[/\\]/)) {
+    if (IGNORED_DIRS.has(seg)) return true;
+    if (seg === ".airlock-order.json" || seg === ".airlock-order.json.tmp")
+      return true;
+  }
+  return false;
 }
 
 // Reconcile the set of watchers for one window to exactly `roots`.
