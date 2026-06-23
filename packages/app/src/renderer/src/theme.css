@@ -201,6 +201,22 @@ body,
   background: var(--selected);
 }
 
+/* IDE "view" tabs (Overview / Settings / Usage) are app chrome, not live
+   workspaces, so they read as flat GHOST CHIPS -- a hairline outline + faint
+   fill (no status dot) -- distinct from the plain project/split tabs. The inset
+   box-shadow outlines without changing the tab's box size. */
+.project-tab.page-tab {
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.project-tab.page-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.project-tab.page-tab.active {
+  background: var(--selected);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 /* Drag-to-reorder drop indicator: a vertical accent line on the edge where the
    dragged tab would land (before/after the hovered tab). Shared by the project
    strip and the main tab bar (both are position:relative in their base rules). */
@@ -351,7 +367,9 @@ body,
   color: #f85149;
 }
 
-/* "!" project-overview launchers */
+/* Project-overview launcher: hover-only (like the close button) so a resting
+   workspace tab is just [dot] [folder] [name] -- no book glyph competing with
+   the Overview VIEW tabs, which use the book as their PRIMARY icon. */
 .project-tab-overview {
   background: none;
   border: none;
@@ -359,6 +377,11 @@ body,
   cursor: pointer;
   padding: 0 4px;
   font-weight: 700;
+  opacity: 0;
+  transition: opacity 80ms linear;
+}
+.project-tab:hover .project-tab-overview,
+.project-tab:focus-within .project-tab-overview {
   opacity: 0.7;
 }
 .project-tab-overview:hover {

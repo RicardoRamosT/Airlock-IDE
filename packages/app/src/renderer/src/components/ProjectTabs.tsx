@@ -405,7 +405,7 @@ export function ProjectTabs() {
   // rendered separately (renderOverviewPage), one chip per open root.
   const PAGE_META = {
     settings: { icon: "gear", title: "Settings", label: "Settings" },
-    usage: { icon: "graph", title: "Usage", label: "Usage" },
+    usage: { icon: "dashboard", title: "Usage", label: "Usage" },
   } as const;
   const renderPage = (kind: "settings" | "usage") => {
     const m = PAGE_META[kind];
