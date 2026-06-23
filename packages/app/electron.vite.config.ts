@@ -16,6 +16,9 @@ export default defineConfig({
       rollupOptions: {
         external: [
           "node-pty",
+          // @parcel/watcher is native (an FSEvents .node binary): require it at
+          // runtime, never bundle it -- same treatment as node-pty.
+          "@parcel/watcher",
           "electron",
           "@modelcontextprotocol/sdk",
           /^@modelcontextprotocol\/sdk\/.+/,

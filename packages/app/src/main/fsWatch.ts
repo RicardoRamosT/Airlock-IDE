@@ -1,10 +1,20 @@
-import { type FSWatcher, watch } from "chokidar";
+import * as watcher from "@parcel/watcher";
 import { BrowserWindow, type WebContents } from "electron";
 
-// One watcher per (window, root). Emits a debounced "fs:changed" {root} to the
-// window so its FileTree re-lists. Single source of tree freshness: user ops,
-// the agent's terminal mv/rm, and git all surface here. ASCII-only file.
-const watchers = new Map<number, Map<string, FSWatcher>>();
+// One subscription per (window, root). Emits a debounced "fs:changed" {root} to
+// the window so its FileTree re-lists. Single source of tree freshness: user
+// ops, the agent's terminal mv/rm, and git all surface here. ASCII-only file
+// (bundled into the Electron CJS main).
+//
+// Backend: @parcel/watcher, NOT chokidar. chokidar v5 dropped the fsevents
+// backend, so on macOS it opened ONE fd PER WATCHED FILE; a big tree (a Python
+// venv, .claude/worktrees) blew past kern.maxfilesperproc (10240) -> EMFILE ->
+// a cascade that broke pty spawn, the MCP socket, and DevTools. @parcel/watcher
+// uses the OS recursive backend (FSEvents on macOS) = ONE handle per ROOT, so
+// fd use is O(open roots), not O(files in the tree). It is the same native
+// watcher VS Code uses, and it never re-emits the initial tree (change-only).
+type Subscription = Awaited<ReturnType<typeof watcher.subscribe>>;
+const watchers = new Map<number, Map<string, Promise<Subscription | null>>>();
 const debounces = new Map<string, ReturnType<typeof setTimeout>>();
 
 // Clear any pending debounce for a (window, root) being torn down, so a closed
@@ -15,14 +25,12 @@ function clearDebounce(id: number, root: string): void {
   debounces.delete(key);
 }
 
-// Dependency, build, and cache dirs the recursive watcher must NEVER descend
-// into. Critical because chokidar v5 has no fsevents backend, so it opens ONE
-// fd PER WATCHED FILE; macOS caps a process at kern.maxfilesperproc (10240 on
-// this machine). A single big tree blows past that -> EMFILE -> the cascade
-// that breaks pty spawn, the MCP socket, and DevTools. Real offenders seen: a
-// project's Python virtualenv (venv, ~12.5k files) and .claude/worktrees (git
-// worktrees). The file TREE still lists these (lazily); only the recursive
-// WATCHER skips them. ASCII-only file (bundled into the Electron CJS main).
+// Dependency, build, and cache dirs the watcher must NEVER surface events for.
+// With FSEvents the OS watches the whole tree regardless, so this list is no
+// longer about fd survival (it was, under chokidar) -- it is now about NOISE
+// and startup cost: the glob form (IGNORE_GLOBS) prunes @parcel/watcher's
+// initial recursive crawl, and isIgnored filters events (defense in depth), so
+// churn inside node_modules/venv/etc never fires a spurious re-list.
 const IGNORED_DIRS = new Set([
   ".git",
   ".claude", // agent infra: worktrees / transcripts / image-cache (huge)
@@ -39,7 +47,7 @@ const IGNORED_DIRS = new Set([
   ".cache",
   ".parcel-cache",
   "coverage",
-  // Python virtualenvs + caches (pdfextractor's venv was the EMFILE trigger)
+  // Python virtualenvs + caches (a project's venv was the EMFILE trigger)
   "venv",
   ".venv",
   "__pycache__",
@@ -54,6 +62,17 @@ const IGNORED_DIRS = new Set([
   ".DS_Store",
 ]);
 
+// Glob form of IGNORED_DIRS for @parcel/watcher's `ignore` option (prunes its
+// initial recursive crawl). Both `**/<dir>` (the dir entry itself) and
+// `**/<dir>/**` (its contents) so the whole subtree is skipped. Plus the
+// committed order file and its atomic-write temp.
+const IGNORE_GLOBS: string[] = [
+  ...[...IGNORED_DIRS].map((d) => `**/${d}`),
+  ...[...IGNORED_DIRS].map((d) => `**/${d}/**`),
+  "**/.airlock-order.json",
+  "**/.airlock-order.json.tmp",
+];
+
 // Exported for unit tests. True if any path segment is an ignored dep/build/
 // cache dir, or the committed .airlock-order.json (+ its atomic-write temp, so
 // writing it never fires a debounced fs:changed re-list).
@@ -66,7 +85,7 @@ export function isIgnored(p: string): boolean {
   return false;
 }
 
-// Reconcile the set of watchers for one window to exactly `roots`.
+// Reconcile the set of subscriptions for one window to exactly `roots`.
 export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
   // Key by BrowserWindow id, NOT WebContents id: disposeWindowWatchers is called
   // with the BrowserWindow id on window-close, so keying this map by wc.id would
@@ -74,23 +93,19 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
   // (audit PB-C4)
   const id = BrowserWindow.fromWebContents(wc)?.id;
   if (id === undefined) return;
-  const current = watchers.get(id) ?? new Map<string, FSWatcher>();
-  // Stop watchers for roots no longer open.
-  for (const [root, w] of current) {
+  const current =
+    watchers.get(id) ?? new Map<string, Promise<Subscription | null>>();
+  // Stop subscriptions for roots no longer open.
+  for (const [root, subP] of current) {
     if (!roots.includes(root)) {
-      void w.close();
+      void subP.then((s) => s?.unsubscribe()).catch(() => {});
       clearDebounce(id, root);
       current.delete(root);
     }
   }
-  // Start watchers for newly opened roots.
+  // Start subscriptions for newly opened roots.
   for (const root of roots) {
     if (current.has(root)) continue;
-    const w = watch(root, {
-      ignored: isIgnored,
-      ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 40 },
-    });
     const fire = () => {
       const key = `${id}:${root}`;
       clearTimeout(debounces.get(key));
@@ -101,27 +116,40 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
         }, 150),
       );
     };
-    w.on("add", fire)
-      .on("addDir", fire)
-      .on("unlink", fire)
-      .on("unlinkDir", fire)
-      // Never let a watcher error (EMFILE on a huge tree, EPERM, a dir that
-      // vanished mid-scan) escape as an uncaught exception and destabilize the
-      // main process. Log it and keep going.
-      .on("error", (err) => {
-        console.error(`[fsWatch] watcher error for ${root}:`, err);
+    // subscribe is async and can reject (root vanished, EPERM). Store the
+    // promise immediately so a same-tick remove can chain its unsubscribe;
+    // a failed subscribe resolves to null so dispose is a no-op for it.
+    const subP = watcher
+      .subscribe(
+        root,
+        (err, events) => {
+          // Never let a watch error (a dir that vanished mid-scan, EPERM)
+          // escape as an uncaught exception and destabilize main. Log it.
+          if (err) {
+            console.error(`[fsWatch] watch error for ${root}:`, err);
+            return;
+          }
+          // Re-list only when a NON-ignored path changed -- defense in depth vs
+          // the ignore globs, and it collapses a burst into one debounced send.
+          if (events.some((ev) => !isIgnored(ev.path))) fire();
+        },
+        { ignore: IGNORE_GLOBS },
+      )
+      .catch((err) => {
+        console.error(`[fsWatch] subscribe failed for ${root}:`, err);
+        return null;
       });
-    current.set(root, w);
+    current.set(root, subP);
   }
   watchers.set(id, current);
 }
 
-// Dispose every watcher for a window (call on window close).
+// Dispose every subscription for a window (call on window close).
 export function disposeWindowWatchers(id: number): void {
   const current = watchers.get(id);
   if (!current) return;
-  for (const [root, w] of current) {
-    void w.close();
+  for (const [root, subP] of current) {
+    void subP.then((s) => s?.unsubscribe()).catch(() => {});
     clearDebounce(id, root);
   }
   watchers.delete(id);
