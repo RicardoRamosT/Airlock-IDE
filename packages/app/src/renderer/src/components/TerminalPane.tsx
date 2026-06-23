@@ -134,22 +134,8 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
-    // Open xterm only once the host is VISIBLE. Opening inside the display:none
-    // keep-alive (e.g. a background tab reopened by session restore) leaves
-    // xterm unable to measure its cell size, so the renderer never initializes
-    // and the terminal stays blank even after the tab is shown. Defer to first
-    // visibility; the ResizeObserver below fires when the host is reparented
-    // into a visible pane slot. A visible tab (the active one) opens immediately.
-    let opened = false;
-    const openIfVisible = () => {
-      if (opened || host.clientWidth === 0 || host.clientHeight === 0) return;
-      term.open(host);
-      fit.fit();
-      opened = true;
-      if (idRef.current)
-        window.airlock.ptyResize(idRef.current, term.cols, term.rows);
-    };
-    openIfVisible();
+    term.open(host);
+    fit.fit();
 
     // Cmd+click file links: underline paths that resolve to an existing FILE
     // under the project root; Cmd+click opens them in the editor (revealing a
@@ -389,10 +375,6 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (host.clientWidth === 0 || host.clientHeight === 0) return; // hidden tab
-        if (!opened) {
-          openIfVisible(); // first time shown (e.g. a restored background tab)
-          return;
-        }
         fit.fit();
         if (idRef.current)
           window.airlock.ptyResize(idRef.current, term.cols, term.rows);
