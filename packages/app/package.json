@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "package": "electron-vite build && electron-builder --dir",
+    "package": "electron-vite build && electron-builder --dir && node build/sign-airlock.cjs",
     "dist:mac": "electron-vite build && electron-builder --mac"
   },
   "build": {
@@ -19,7 +19,6 @@
       "output": "release",
       "buildResources": "build"
     },
-    "afterPack": "build/afterPack.cjs",
     "files": [
       "out/**"
     ],
