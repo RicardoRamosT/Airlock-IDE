@@ -21,9 +21,12 @@ const DEFAULT_IDENTITY = "AirLock Dev Signing";
 
 function identityExists(name) {
   try {
+    // No -v: a self-signed dev cert is "not trusted" for Gatekeeper (so -v
+    // hides it) yet still signs fine and pins keychain trust by its stable
+    // cert hash. Match it by name among all code-signing identities.
     const out = execFileSync(
       "security",
-      ["find-identity", "-v", "-p", "codesigning"],
+      ["find-identity", "-p", "codesigning"],
       { encoding: "utf8" },
     );
     return out.includes(name);
