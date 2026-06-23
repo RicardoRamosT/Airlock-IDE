@@ -1352,23 +1352,35 @@ describe("showRunningProcessNotice", () => {
 
 // --- Overview page-tab ------------------------------------------------------
 
-it("openOverviewPage opens + shows the Overview page-tab, targeting the root", () => {
+it("openOverviewPage opens + shows an Overview tab, targeting the root", () => {
   const s = useApp.getState();
   s.openProject("/p"); // gives the active tab a real root
   s.openOverviewPage("/p");
   const st = useApp.getState();
   expect(st.appPage).toBe("overview");
-  expect(st.overviewTabOpen).toBe(true);
+  expect(st.openOverviews).toEqual(["/p"]);
   expect(st.overviewRoot).toBe("/p");
 });
 
-it("openOverviewPage retargets the singleton tab to a new project root", () => {
+it("openOverviewPage adds a SECOND overview tab (not retarget); re-opening dedupes + re-shows", () => {
   const s = useApp.getState();
   s.openOverviewPage("/a");
   s.openOverviewPage("/b");
+  expect(useApp.getState().openOverviews).toEqual(["/a", "/b"]);
+  expect(useApp.getState().overviewRoot).toBe("/b");
+  s.openOverviewPage("/a"); // already open -> no duplicate, and re-shows /a
+  expect(useApp.getState().openOverviews).toEqual(["/a", "/b"]);
+  expect(useApp.getState().overviewRoot).toBe("/a");
+});
+
+it("showOverview re-shows an already-open overview without duplicating it", () => {
+  const s = useApp.getState();
+  s.openOverviewPage("/a");
+  s.openOverviewPage("/b");
+  s.showOverview("/a");
   const st = useApp.getState();
-  expect(st.overviewRoot).toBe("/b");
-  expect(st.overviewTabOpen).toBe(true);
+  expect(st.overviewRoot).toBe("/a");
+  expect(st.openOverviews).toEqual(["/a", "/b"]);
 });
 
 it("showing another IDE page hides the Overview but keeps its tab open", () => {
@@ -1377,18 +1389,24 @@ it("showing another IDE page hides the Overview but keeps its tab open", () => {
   s.openAppPage("settings");
   const st = useApp.getState();
   expect(st.appPage).toBe("settings");
-  expect(st.overviewTabOpen).toBe(true); // chip persists
+  expect(st.openOverviews).toEqual(["/p"]); // chip persists
   expect(st.overviewRoot).toBe("/p");
 });
 
-it("closeAppPage('overview') closes the chip, clears the root, and hides the page", () => {
+it("closeOverview removes one; closing the shown one clears the page", () => {
   const s = useApp.getState();
-  s.openOverviewPage("/p");
-  s.closeAppPage("overview");
-  const st = useApp.getState();
-  expect(st.overviewTabOpen).toBe(false);
-  expect(st.overviewRoot).toBeNull();
+  s.openOverviewPage("/a");
+  s.openOverviewPage("/b"); // shown = /b
+  s.closeOverview("/a"); // not shown -> page intact
+  let st = useApp.getState();
+  expect(st.openOverviews).toEqual(["/b"]);
+  expect(st.appPage).toBe("overview");
+  expect(st.overviewRoot).toBe("/b");
+  s.closeOverview("/b"); // shown -> clears
+  st = useApp.getState();
+  expect(st.openOverviews).toEqual([]);
   expect(st.appPage).toBeNull();
+  expect(st.overviewRoot).toBeNull();
 });
 
 // --- Lazy-resume primitives (session restore) -------------------------------

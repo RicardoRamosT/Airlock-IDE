@@ -491,15 +491,18 @@ export interface AppState {
   appPage: "settings" | "usage" | "overview" | null;
   settingsTabOpen: boolean;
   usageTabOpen: boolean;
-  // The Overview is per-PROJECT (Settings/Usage are global), so it is a SINGLETON
-  // page-tab that RETARGETS to whichever project's "!" you click. overviewRoot is
-  // the project root it currently shows; null when the chip is closed.
-  overviewTabOpen: boolean;
+  // The Overview is per-PROJECT (Settings/Usage are global), so MULTIPLE can be
+  // open at once -- one page-tab per root. openOverviews holds those roots
+  // (insertion order, deduped); overviewRoot is the one currently SHOWN (valid
+  // only while appPage === "overview").
+  openOverviews: string[];
   overviewRoot: string | null;
   openAppPage: (p: "settings" | "usage") => void; // open the tab + show it
-  showAppPage: (p: "settings" | "usage" | "overview") => void; // click an already-open tab
-  closeAppPage: (p: "settings" | "usage" | "overview") => void; // the tab's X
-  openOverviewPage: (root: string) => void; // open/retarget the Overview page-tab + show it
+  showAppPage: (p: "settings" | "usage") => void; // click an already-open Settings/Usage tab
+  closeAppPage: (p: "settings" | "usage") => void; // the Settings/Usage tab's X
+  openOverviewPage: (root: string) => void; // add an Overview tab (dedupe) + show it
+  showOverview: (root: string) => void; // show an already-open Overview tab
+  closeOverview: (root: string) => void; // close one Overview tab
   setSearchResults: (query: string, results: SearchResults) => void;
   // A one-shot "scroll the editor to this line" signal, keyed by tabId+path and
   // consumed by EditorPane. nonce makes repeated clicks on the same line retrigger.
@@ -1657,7 +1660,7 @@ export const useApp = create<AppState>((set) => ({
   appPage: null,
   settingsTabOpen: false,
   usageTabOpen: false,
-  overviewTabOpen: false,
+  openOverviews: [],
   overviewRoot: null,
   openAppPage: (p) =>
     set((s) => ({
@@ -1666,16 +1669,32 @@ export const useApp = create<AppState>((set) => ({
       usageTabOpen: p === "usage" ? true : s.usageTabOpen,
     })),
   showAppPage: (p) => set({ appPage: p }),
-  // Open (or retarget) the per-project Overview page-tab and show it.
+  // Add an Overview tab for `root` (dedupe) and show it.
   openOverviewPage: (root) =>
-    set({ appPage: "overview", overviewTabOpen: true, overviewRoot: root }),
+    set((s) => ({
+      appPage: "overview",
+      overviewRoot: root,
+      openOverviews: s.openOverviews.includes(root)
+        ? s.openOverviews
+        : [...s.openOverviews, root],
+    })),
+  showOverview: (root) => set({ appPage: "overview", overviewRoot: root }),
+  closeOverview: (root) =>
+    set((s) => {
+      const wasShown = s.appPage === "overview" && s.overviewRoot === root;
+      return {
+        openOverviews: s.openOverviews.filter((r) => r !== root),
+        // Closing the SHOWN overview clears the page (falls back to the active
+        // project), matching closeAppPage's behavior for Settings/Usage.
+        appPage: wasShown ? null : s.appPage,
+        overviewRoot: wasShown ? null : s.overviewRoot,
+      };
+    }),
   closeAppPage: (p) =>
     set((s) => ({
       appPage: s.appPage === p ? null : s.appPage,
       settingsTabOpen: p === "settings" ? false : s.settingsTabOpen,
       usageTabOpen: p === "usage" ? false : s.usageTabOpen,
-      overviewTabOpen: p === "overview" ? false : s.overviewTabOpen,
-      overviewRoot: p === "overview" ? null : s.overviewRoot,
     })),
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),

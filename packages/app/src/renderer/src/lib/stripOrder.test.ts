@@ -22,14 +22,20 @@ it("reconcileOrder drops stale keys and appends new live keys at the end", () =>
   ]);
 });
 
-it("stripLiveKeys lists project tab ids then open page-tabs", () => {
+it("stripLiveKeys lists project tab ids then open page-tabs (one per overview root)", () => {
   expect(
     stripLiveKeys([{ id: "t1" }, { id: "t2" }], null, {
       settings: true,
       usage: false,
-      overview: true,
+      overviews: ["/a", "/b"],
     }),
-  ).toEqual(["t1", "t2", "page:settings", "page:overview"]);
+  ).toEqual([
+    "t1",
+    "t2",
+    "page:settings",
+    "page:overview:/a",
+    "page:overview:/b",
+  ]);
 });
 
 it("stripLiveKeys collapses a split pair to one 'pair' key at member a, omitting b", () => {
@@ -37,7 +43,7 @@ it("stripLiveKeys collapses a split pair to one 'pair' key at member a, omitting
     stripLiveKeys(
       [{ id: "t1" }, { id: "t2" }, { id: "t3" }],
       { a: "t2", b: "t3" },
-      { settings: false, usage: false, overview: false },
+      { settings: false, usage: false, overviews: [] },
     ),
   ).toEqual(["t1", "pair"]);
 });
