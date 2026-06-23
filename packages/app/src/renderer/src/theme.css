@@ -3262,6 +3262,7 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   gap: var(--sb-block-gap);
+  container-type: inline-size; /* drives the dashboard grid's responsive collapse */
 }
 .overview.empty {
   align-items: center;
@@ -3271,7 +3272,6 @@ textarea:focus-visible {
 .overview-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sb-gap);
 }
 .overview-title {
@@ -3279,6 +3279,44 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px;
   font-weight: 600;
+  flex: 0 0 auto;
+}
+/* Live-status chips sit between the title and the actions, filling the gap so
+   the action buttons stay pinned right. */
+.overview-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.overview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border, #333);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim, #aaa);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.overview-chip .codicon {
+  font-size: 12px;
+}
+.overview-chip-dirty {
+  font-style: normal;
+  color: #e2b341;
+}
+.overview-chip-link {
+  cursor: pointer;
+}
+.overview-chip-link:hover {
+  border-color: var(--accent, #4a9eff);
+  color: var(--text, #ddd);
 }
 .overview-actions {
   display: flex;
@@ -3287,6 +3325,75 @@ textarea:focus-visible {
   flex: 0 0 auto;
 }
 .overview-refresh {
+  flex: 0 0 auto;
+}
+/* Two-column dashboard: metadata aside + readable main column. */
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 264px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@container (max-width: 700px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.overview-aside,
+.overview-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-block-gap);
+  min-width: 0;
+}
+.overview-main {
+  max-width: 1040px; /* keep the narrative at a readable measure on wide panes */
+}
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-block-gap);
+  padding: 12px;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+/* Language stats bar */
+.overview-lang {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.overview-lang-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border, #333);
+}
+.overview-lang-seg {
+  height: 100%;
+}
+.overview-lang-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  font-size: 11px;
+  color: var(--text-dim, #aaa);
+}
+.overview-lang-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.overview-lang-item em {
+  font-style: normal;
+  opacity: 0.6;
+}
+.overview-lang-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
   flex: 0 0 auto;
 }
 .overview-group {

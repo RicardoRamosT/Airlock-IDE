@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  GitStatus,
   OverviewResult,
   ProjectTech,
   TechCategory,
@@ -77,6 +78,70 @@ function groupByCategory(
   return [...map.entries()];
 }
 
+// GitHub-ish per-language colors for the stats bar; unknowns fall back to Other.
+const LANG_COLORS: Record<string, string> = {
+  typescript: "#3178c6",
+  javascript: "#f1e05a",
+  python: "#3572a5",
+  rust: "#dea584",
+  go: "#00add8",
+  java: "#b07219",
+  kotlin: "#a97bff",
+  ruby: "#701516",
+  php: "#4f5d95",
+  csharp: "#178600",
+  c: "#828282",
+  cpp: "#f34b7d",
+  swift: "#f05138",
+  css: "#563d7c",
+  html: "#e34c26",
+  vue: "#41b883",
+  svelte: "#ff3e00",
+  json: "#cbcb41",
+  markdown: "#083fa1",
+  shell: "#89e051",
+  sql: "#e38c00",
+  yaml: "#cb171e",
+  toml: "#9c4221",
+  other: "#6b7280",
+};
+
+function LanguageBar({
+  languages,
+}: {
+  languages: { id: string; name: string; files: number }[];
+}) {
+  const total = languages.reduce((s, l) => s + l.files, 0) || 1;
+  return (
+    <div className="overview-lang">
+      <div className="overview-lang-bar">
+        {languages.map((l) => (
+          <span
+            key={l.id}
+            className="overview-lang-seg"
+            style={{
+              width: `${(l.files / total) * 100}%`,
+              background: LANG_COLORS[l.id] ?? LANG_COLORS.other,
+            }}
+            title={`${l.name} — ${l.files} files`}
+          />
+        ))}
+      </div>
+      <div className="overview-lang-legend">
+        {languages.map((l) => (
+          <span key={l.id} className="overview-lang-item">
+            <span
+              className="overview-lang-dot"
+              style={{ background: LANG_COLORS[l.id] ?? LANG_COLORS.other }}
+            />
+            {l.name} <em>{Math.round((l.files / total) * 100)}%</em>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function OverviewTab({ root }: { root: string }) {
   const [data, setData] = useState<OverviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +149,8 @@ export function OverviewTab({ root }: { root: string }) {
   const [confirming, setConfirming] = useState(false);
   const [staged, setStaged] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [git, setGit] = useState<GitStatus | null>(null);
+  const [devUrl, setDevUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const readyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -107,6 +174,24 @@ export function OverviewTab({ root }: { root: string }) {
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [root]);
+
+  // Live status (separate from the cached profile -- it changes as you work).
+  // Best-effort: a non-repo / no-dev-url project just shows no chip.
+  const loadStatus = useCallback(() => {
+    window.airlock
+      .gitStatus(root)
+      .then(setGit)
+      .catch(() => setGit(null));
+    window.airlock
+      .hostLocalUrl(root)
+      .then(setDevUrl)
+      .catch(() => setDevUrl(null));
+  }, [root]);
+
+  const reload = useCallback(() => {
+    load();
+    loadStatus();
+  }, [load, loadStatus]);
 
   // Poll the file's mtime until it advances past the baseline (Claude has
   // rewritten overview.md), or give up after ~2 min with a real message.
@@ -208,6 +293,7 @@ export function OverviewTab({ root }: { root: string }) {
   }, [staged, activeTabId, sendStaged]);
 
   useEffect(load, [load]);
+  useEffect(loadStatus, [loadStatus]);
   useEffect(() => stopPoll, [stopPoll]);
 
   if (error)
@@ -216,7 +302,7 @@ export function OverviewTab({ root }: { root: string }) {
     );
   if (!data) return <div className="overview empty">Loading…</div>;
 
-  const { profile, summary } = data;
+  const { profile, summary, stats, readme } = data;
   const generatedAgo =
     summary && data.summaryMtimeMs
       ? relativeTime(data.summaryMtimeMs, Date.now())
@@ -236,12 +322,43 @@ export function OverviewTab({ root }: { root: string }) {
       : plan.busy
         ? "Run the summary in this project's Claude? It looks busy — it'll queue after the current turn."
         : "Run the summary in this project's Claude? It'll be typed in and submitted.";
+  const dirty = git
+    ? git.staged.length + git.unstaged.length + git.untracked.length
+    : 0;
+  const devHost = devUrl ? devUrl.replace(/^https?:\/\//, "") : null;
 
   return (
     <div className="overview">
       <div className="overview-header">
         <span className="overview-title">
           <i className="codicon codicon-book" /> {projectName}
+        </span>
+        <span className="overview-status">
+          {git ? (
+            <span
+              className="overview-chip"
+              title={`${git.branch.head}${dirty ? ` · ${dirty} uncommitted` : " · clean"}${git.branch.ahead ? ` · ${git.branch.ahead} ahead` : ""}${git.branch.behind ? ` · ${git.branch.behind} behind` : ""}`}
+            >
+              <i className="codicon codicon-git-branch" />
+              {git.branch.head}
+              {dirty > 0 ? (
+                <em className="overview-chip-dirty">●{dirty}</em>
+              ) : null}
+              {git.branch.ahead > 0 ? <span>↑{git.branch.ahead}</span> : null}
+              {git.branch.behind > 0 ? <span>↓{git.branch.behind}</span> : null}
+            </span>
+          ) : null}
+          {devHost ? (
+            <button
+              type="button"
+              className="overview-chip overview-chip-link"
+              title={`Open ${devUrl}`}
+              onClick={() => devUrl && window.airlock.hostOpenExternal(devUrl)}
+            >
+              <i className="codicon codicon-link-external" />
+              {devHost}
+            </button>
+          ) : null}
         </span>
         <span className="overview-actions">
           {confirming ? (
@@ -272,69 +389,111 @@ export function OverviewTab({ root }: { root: string }) {
                   : "Generate summary"}
             </button>
           )}
-          <button type="button" className="btn overview-refresh" onClick={load}>
+          <button
+            type="button"
+            className="btn overview-refresh"
+            onClick={reload}
+          >
             <i className="codicon codicon-refresh" /> Reload
           </button>
         </span>
       </div>
 
-      {techGroups.map(([cat, items]) => (
-        <Group key={cat} label={CATEGORY_LABEL[cat] ?? cat} items={items} />
-      ))}
-      <Group label="Services" items={profile.services} />
-
-      <div className="overview-areas">
-        <div className="overview-group-label">
-          Areas
-          {generatedAgo ? (
-            <span className="overview-fresh"> · generated {generatedAgo}</span>
-          ) : null}
-        </div>
-        {summary ? (
-          <>
-            {uncovered.length > 0 ? (
-              <div className="section-note">
-                {uncovered.length === 1
-                  ? `1 area not covered (${uncovered[0]})`
-                  : `${uncovered.length} areas not covered (${uncovered.join(", ")})`}{" "}
-                — Regenerate to refresh.
-              </div>
-            ) : null}
-            <OverviewMarkdown
-              md={summary}
-              onOpenFile={(p) => void openFileInRoot(root, p)}
-            />
-          </>
-        ) : (
-          <div className="overview-areas-skeleton">
-            {profile.areas.map((a) => (
-              <div key={a.path} className="overview-area-row">
-                {a.name}
-              </div>
+      <div className="overview-grid">
+        <aside className="overview-aside">
+          <section className="overview-card">
+            {techGroups.map(([cat, items]) => (
+              <Group
+                key={cat}
+                label={CATEGORY_LABEL[cat] ?? cat}
+                items={items}
+              />
             ))}
-            <div className="section-note">
-              No written summary yet — "Generate summary" has Claude describe
-              each area.
+            <Group label="Services" items={profile.services} />
+          </section>
+
+          {stats.languages.length > 0 ? (
+            <section className="overview-card">
+              <div className="overview-group-label">
+                Code
+                <span className="overview-fresh">
+                  {" "}
+                  · {stats.fileCount.toLocaleString()} files
+                </span>
+              </div>
+              <LanguageBar languages={stats.languages} />
+            </section>
+          ) : null}
+        </aside>
+
+        <main className="overview-main">
+          <section className="overview-card overview-areas">
+            <div className="overview-group-label">
+              Areas
+              {generatedAgo ? (
+                <span className="overview-fresh">
+                  {" "}
+                  · generated {generatedAgo}
+                </span>
+              ) : null}
             </div>
-          </div>
-        )}
-        {generating && (
-          <div className="section-note">
-            Generating… watching Claude write .airlock/overview.md
-          </div>
-        )}
-        {staged && (
-          <div className="section-note overview-staged">
-            <span>
-              Claude is starting — the summary will run automatically when
-              it&apos;s ready, or click Send to Claude.
-            </span>
-            <button type="button" className="btn" onClick={sendStaged}>
-              Send to Claude
-            </button>
-          </div>
-        )}
-        {notice && <div className="section-note">{notice}</div>}
+            {summary ? (
+              <>
+                {uncovered.length > 0 ? (
+                  <div className="section-note">
+                    {uncovered.length === 1
+                      ? `1 area not covered (${uncovered[0]})`
+                      : `${uncovered.length} areas not covered (${uncovered.join(", ")})`}{" "}
+                    — Regenerate to refresh.
+                  </div>
+                ) : null}
+                <OverviewMarkdown
+                  md={summary}
+                  onOpenFile={(p) => void openFileInRoot(root, p)}
+                />
+              </>
+            ) : (
+              <div className="overview-areas-skeleton">
+                {profile.areas.map((a) => (
+                  <div key={a.path} className="overview-area-row">
+                    {a.name}
+                  </div>
+                ))}
+                <div className="section-note">
+                  No written summary yet — "Generate summary" has Claude
+                  describe each area.
+                </div>
+              </div>
+            )}
+            {generating && (
+              <div className="section-note">
+                Generating… watching Claude write .airlock/overview.md
+              </div>
+            )}
+            {staged && (
+              <div className="section-note overview-staged">
+                <span>
+                  Claude is starting — the summary will run automatically when
+                  it&apos;s ready, or click Send to Claude.
+                </span>
+                <button type="button" className="btn" onClick={sendStaged}>
+                  Send to Claude
+                </button>
+              </div>
+            )}
+            {notice && <div className="section-note">{notice}</div>}
+          </section>
+
+          {readme ? (
+            <section className="overview-card overview-readme">
+              <div className="overview-group-label">README</div>
+              <OverviewMarkdown
+                md={readme}
+                onOpenFile={(p) => void openFileInRoot(root, p)}
+              />
+            </section>
+          ) : null}
+        </main>
       </div>
     </div>
   );
