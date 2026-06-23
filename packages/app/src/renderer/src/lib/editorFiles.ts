@@ -28,10 +28,12 @@ export function resolveRootTabId(
   return tabs.find((t) => t.root === root)?.id ?? null;
 }
 
-// Open relPath in the project whose root is `root` (NOT the focused tab). The
-// Overview is shown for a specific project that may not be the active tab, so an
-// in-overview link must resolve against its OWN root. If that project's tab was
-// closed, reopen it first.
+// Open relPath in the project whose root is `root` (NOT the focused tab) and
+// NAVIGATE there. The Overview is shown as an IDE page-tab for a project that
+// may not be the active tab, so an in-overview link must (1) resolve against its
+// OWN root, and (2) switch to that project + hide the overview page so the file
+// is actually visible (switchTab/openProject both clear appPage). If the
+// project's tab was closed, reopen it first.
 export async function openFileInRoot(
   root: string,
   relPath: string,
@@ -39,8 +41,10 @@ export async function openFileInRoot(
 ): Promise<void> {
   let tabId = resolveRootTabId(useApp.getState().tabs, root);
   if (!tabId) {
-    useApp.getState().openProject(root);
+    useApp.getState().openProject(root); // new tab: active + appPage cleared
     tabId = useApp.getState().activeTabId;
+  } else {
+    useApp.getState().switchTab(tabId); // navigate to it + hide the overview page
   }
   await openEditorFile(tabId, relPath, line);
 }
