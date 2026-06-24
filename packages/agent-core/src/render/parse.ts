@@ -87,3 +87,17 @@ export function normalizeRepoUrl(url: string): string {
     .replace(/\/+$/, "");
   return s;
 }
+
+// Scope a list of services to the ones deployed from `originUrl` (the project's
+// git origin remote). A Render service always has a source repo, so an empty
+// origin or no match means this project simply isn't deployed on Render -> []
+// (show nothing), NOT every service in the account leaking into an unrelated
+// project. Matching is normalized (https/ssh/.git/case all compare equal).
+export function servicesForRepo<T extends { repo: string }>(
+  services: T[],
+  originUrl: string | null,
+): T[] {
+  const want = originUrl ? normalizeRepoUrl(originUrl) : "";
+  if (!want) return [];
+  return services.filter((s) => normalizeRepoUrl(s.repo) === want);
+}

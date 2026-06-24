@@ -227,7 +227,7 @@ export {
   renderFetchTransport,
   triggerDeploy as renderTriggerDeploy,
 } from "./render/client";
-export { normalizeRepoUrl } from "./render/parse";
+export { normalizeRepoUrl, servicesForRepo } from "./render/parse";
 export {
   detectInstalledTerminals,
   type ExternalTerminal,

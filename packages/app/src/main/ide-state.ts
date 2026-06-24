@@ -35,7 +35,6 @@ import {
   neonListBranches,
   neonListDatabases,
   neonListProjects,
-  normalizeRepoUrl,
   originRemoteUrl,
   type PortProber,
   parseConnString,
@@ -48,6 +47,7 @@ import {
   renderListDeploys,
   renderListServices,
   renderTriggerDeploy,
+  servicesForRepo,
   withDb,
 } from "@airlock/agent-core";
 import type { RenderServiceStatus, Section } from "../shared/ipc";
@@ -114,18 +114,16 @@ export async function renderServicesStatus(
 ): Promise<RenderServiceStatus[]> {
   const key = await getGlobalSecret(RENDER_KEY);
   if (!key) throw new Error("Render not connected");
-  let services = await renderListServices(key);
-  // Filter to THIS project's git repo when a workspace is open and its origin
-  // remote matches a service repo. If nothing matches, fall back to all
-  // services rather than hiding everything.
-  if (root) {
-    const origin = await originRemoteUrl(root);
-    if (origin) {
-      const want = normalizeRepoUrl(origin);
-      const matched = services.filter((s) => normalizeRepoUrl(s.repo) === want);
-      if (matched.length > 0) services = matched;
-    }
-  }
+  // Scope to THIS project's repo: a Render service always deploys from a git
+  // repo, so show only services whose repo matches the project's origin remote.
+  // No origin / no match => this project isn't deployed on Render => show none,
+  // rather than leaking every account service into an unrelated project.
+  const services = root
+    ? servicesForRepo(
+        await renderListServices(key),
+        await originRemoteUrl(root),
+      )
+    : [];
   // Local HEAD sha for the deployed-vs-HEAD comparison (best effort).
   let localSha = "";
   if (root) {

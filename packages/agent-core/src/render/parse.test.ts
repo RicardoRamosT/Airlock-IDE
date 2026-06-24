@@ -4,6 +4,7 @@ import {
   parseDeploys,
   parseLatestDeploy,
   parseServices,
+  servicesForRepo,
 } from "./parse";
 
 describe("parseServices", () => {
@@ -142,5 +143,27 @@ describe("normalizeRepoUrl", () => {
 
   it("returns empty string for empty input", () => {
     expect(normalizeRepoUrl("")).toBe("");
+  });
+});
+
+describe("servicesForRepo", () => {
+  const svcs = [
+    { repo: "https://github.com/x/xipa", name: "xipa" },
+    { repo: "git@github.com:x/other.git", name: "other" },
+  ];
+
+  it("keeps only services whose repo matches the origin (normalized forms)", () => {
+    expect(
+      servicesForRepo(svcs, "git@github.com:x/xipa.git").map((s) => s.name),
+    ).toEqual(["xipa"]);
+  });
+
+  it("returns [] when the origin matches no service (no fallback to all)", () => {
+    expect(servicesForRepo(svcs, "https://github.com/x/lendlogic")).toEqual([]);
+  });
+
+  it("returns [] when there is no origin remote", () => {
+    expect(servicesForRepo(svcs, null)).toEqual([]);
+    expect(servicesForRepo(svcs, "")).toEqual([]);
   });
 });
