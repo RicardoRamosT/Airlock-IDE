@@ -2398,6 +2398,23 @@ button.quota-meter:hover {
   gap: 8px;
 }
 
+/* Sync state: ahead in accent, behind in amber; each hidden when zero. */
+.git-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.git-ahead {
+  color: var(--accent, #4a9eff);
+}
+.git-behind {
+  color: #d29922;
+}
+
 .git-group-title {
   font-size: 10px;
   text-transform: uppercase;
@@ -2422,27 +2439,57 @@ button.quota-meter:hover {
 .git-letter {
   font-family: "SF Mono", Menlo, monospace;
   font-size: 11px;
-  color: #d29922;
-  width: 12px;
+  font-weight: 600;
+  text-align: center;
+  width: 14px;
   flex: none;
+  color: var(--fg-dim);
+}
+.git-letter--new,
+.git-letter--add {
+  color: #3fb950; /* untracked / staged-add: green */
+}
+.git-letter--mod {
+  color: #d29922; /* modified: amber */
+}
+.git-letter--del {
+  color: #f85149; /* deleted: red */
+}
+.git-letter--ren {
+  color: #58a6ff; /* renamed: blue */
 }
 
 .git-path {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   background: none;
   border: none;
-  color: var(--fg);
   font-size: 12px;
-  line-height: var(--row-h);
   font-family: "SF Mono", Menlo, monospace;
   cursor: pointer;
   padding: 0 2px;
+  height: var(--row-h);
   border-radius: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   text-align: left;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+/* Filename never shrinks (always visible); the directory dims + truncates. */
+.git-file {
+  color: var(--fg);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.git-dir {
+  color: var(--fg-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .git-path:hover {

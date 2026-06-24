@@ -9,6 +9,57 @@ import { useApp } from "../store";
 
 const NEW_BRANCH = "__new__";
 
+// One change row: a colored status letter, the FILENAME first with the
+// directory dimmed + truncated (so the filename is always visible and rows are
+// distinguishable), and a hover-revealed stage/unstage action.
+function ChangeRow({
+  status,
+  path,
+  actionIcon,
+  actionTitle,
+  onAction,
+  onDiff,
+}: {
+  status: string;
+  path: string;
+  actionIcon: string;
+  actionTitle: string;
+  onAction: () => void;
+  onDiff: () => void;
+}) {
+  const slash = path.lastIndexOf("/");
+  const base = slash >= 0 ? path.slice(slash + 1) : path;
+  const dir = slash >= 0 ? path.slice(0, slash) : "";
+  const ch = status.trim() || "•";
+  const mod =
+    ch === "?"
+      ? "new"
+      : ch === "A"
+        ? "add"
+        : ch === "D"
+          ? "del"
+          : ch.startsWith("R")
+            ? "ren"
+            : "mod";
+  return (
+    <div className="git-row">
+      <span className={`git-letter git-letter--${mod}`}>{ch}</span>
+      <button type="button" className="git-path" title={path} onClick={onDiff}>
+        <span className="git-file">{base}</span>
+        {dir && <span className="git-dir">{dir}</span>}
+      </button>
+      <button
+        type="button"
+        className="git-action"
+        title={actionTitle}
+        onClick={onAction}
+      >
+        <i className={`codicon codicon-${actionIcon}`} />
+      </button>
+    </div>
+  );
+}
+
 export function GitSection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
@@ -122,11 +173,17 @@ export function GitSection() {
           ))}
           <option value={NEW_BRANCH}>+ new branch…</option>
         </select>
-        {status.branch.upstream && (
-          <span className="badge dim-badge">
-            ↑{status.branch.ahead} ↓{status.branch.behind}
-          </span>
-        )}
+        {status.branch.upstream &&
+          (status.branch.ahead > 0 || status.branch.behind > 0) && (
+            <span className="git-sync">
+              {status.branch.ahead > 0 && (
+                <span className="git-ahead">↑{status.branch.ahead}</span>
+              )}
+              {status.branch.behind > 0 && (
+                <span className="git-behind">↓{status.branch.behind}</span>
+              )}
+            </span>
+          )}
       </div>
       {account && (
         <div className="git-account-row" title={`source: ${account.source}`}>
@@ -231,27 +288,17 @@ export function GitSection() {
         <div className="git-group">
           <div className="git-group-title">staged</div>
           {status.staged.map((c) => (
-            <div key={`s-${c.path}`} className="git-row">
-              <span className="git-letter">{c.index}</span>
-              <button
-                type="button"
-                className="git-path"
-                title="Show staged diff"
-                onClick={() => void showDiff(c.path, "staged")}
-              >
-                {c.path}
-              </button>
-              <button
-                type="button"
-                className="git-action"
-                title="Unstage"
-                onClick={() =>
-                  void run(() => window.airlock.gitUnstage(root, [c.path]))
-                }
-              >
-                <i className="codicon codicon-remove" />
-              </button>
-            </div>
+            <ChangeRow
+              key={`s-${c.path}`}
+              status={c.index}
+              path={c.path}
+              actionIcon="remove"
+              actionTitle="Unstage"
+              onAction={() =>
+                void run(() => window.airlock.gitUnstage(root, [c.path]))
+              }
+              onDiff={() => void showDiff(c.path, "staged")}
+            />
           ))}
         </div>
       )}
@@ -260,50 +307,30 @@ export function GitSection() {
         <div className="git-group">
           <div className="git-group-title">changes</div>
           {status.unstaged.map((c) => (
-            <div key={`u-${c.path}`} className="git-row">
-              <span className="git-letter">{c.worktree}</span>
-              <button
-                type="button"
-                className="git-path"
-                title="Show diff"
-                onClick={() => void showDiff(c.path, "unstaged")}
-              >
-                {c.path}
-              </button>
-              <button
-                type="button"
-                className="git-action"
-                title="Stage"
-                onClick={() =>
-                  void run(() => window.airlock.gitStage(root, [c.path]))
-                }
-              >
-                <i className="codicon codicon-add" />
-              </button>
-            </div>
+            <ChangeRow
+              key={`u-${c.path}`}
+              status={c.worktree}
+              path={c.path}
+              actionIcon="add"
+              actionTitle="Stage"
+              onAction={() =>
+                void run(() => window.airlock.gitStage(root, [c.path]))
+              }
+              onDiff={() => void showDiff(c.path, "unstaged")}
+            />
           ))}
           {status.untracked.map((p) => (
-            <div key={`n-${p}`} className="git-row">
-              <span className="git-letter">?</span>
-              <button
-                type="button"
-                className="git-path"
-                title="Show new file"
-                onClick={() => void showDiff(p, "unstaged")}
-              >
-                {p}
-              </button>
-              <button
-                type="button"
-                className="git-action"
-                title="Stage"
-                onClick={() =>
-                  void run(() => window.airlock.gitStage(root, [p]))
-                }
-              >
-                <i className="codicon codicon-add" />
-              </button>
-            </div>
+            <ChangeRow
+              key={`n-${p}`}
+              status="?"
+              path={p}
+              actionIcon="add"
+              actionTitle="Stage"
+              onAction={() =>
+                void run(() => window.airlock.gitStage(root, [p]))
+              }
+              onDiff={() => void showDiff(p, "unstaged")}
+            />
           ))}
         </div>
       )}
