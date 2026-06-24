@@ -59,6 +59,31 @@ export function steadyView(m: IntegrationManifest): string | null {
   return typeof m.surface === "object" ? m.surface.view : null;
 }
 
+// What a project offers for a relevance check: its vaulted secret NAMES (meta
+// only -- no keychain values, so no prompt) and the names in its root dir.
+export interface RelevanceContext {
+  secretNames: string[];
+  rootFiles: string[];
+}
+
+// Does this steady integration apply to the project described by ctx? A
+// manifest with no `relevance` is always relevant (account-global). Otherwise
+// it's relevant iff a vaulted secret name starts with `envPrefix`, OR the root
+// contains one of `files`. Pure -- the app layer gathers ctx and filters the
+// account-wide pollSteady result so e.g. Azure only shows in projects that use
+// Azure.
+export function isRelevant(
+  m: IntegrationManifest,
+  ctx: RelevanceContext,
+): boolean {
+  const r = m.relevance;
+  if (!r) return true;
+  const prefix = r.envPrefix;
+  if (prefix && ctx.secretNames.some((n) => n.startsWith(prefix))) return true;
+  if (r.files?.some((f) => ctx.rootFiles.includes(f))) return true;
+  return false;
+}
+
 // Run ONE manifest: detect (authCheck exit 0) -> poll -> JSON.parse -> map.
 // Any failure (tool missing, not authed, timeout, non-JSON) yields [] so the
 // feed degrades silently, exactly like the gh/render/docker blocks.

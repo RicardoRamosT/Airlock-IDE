@@ -1,6 +1,6 @@
 import { execFile, spawnSync } from "node:child_process";
 import { renameSync, writeFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -29,6 +29,7 @@ import {
   importExternal,
   injectInto,
   isGitRepo,
+  isRelevant,
   launchArgs,
   listBranches,
   listDirectory,
@@ -1174,10 +1175,29 @@ export function registerIpc(
   );
 
   // integrations:steady -> SteadyIntegration[] for the sidebar steady surface.
-  // Account-wide (a warehouse/service is not project-scoped), so no root.
-  ipcMain.handle("integrations:steady", () =>
-    pollSteady(INTEGRATIONS, null, Date.now(), steadyCache),
-  );
+  // The RESOURCE list is account-wide (a warehouse/web app isn't project-scoped)
+  // and cached per manifest, but a manifest may declare `relevance` so its
+  // section shows ONLY in projects that use the tool (e.g. Azure only where an
+  // AZURE_* secret is vaulted or an azd config exists). So: poll account-wide,
+  // then drop irrelevant integrations for the focused project. listSecrets reads
+  // names only (no keychain prompt).
+  ipcMain.handle("integrations:steady", async (e) => {
+    const root = rootForEvent(e);
+    const all = await pollSteady(INTEGRATIONS, root, Date.now(), steadyCache);
+    if (!root) return all; // no focused project -> nothing to disambiguate
+    const secretNames = (await listSecrets(root)).map((m) => m.name);
+    let rootFiles: string[] = [];
+    try {
+      rootFiles = await readdir(root);
+    } catch {
+      // unreadable root (deleted/permissions): fall back to no file signal
+    }
+    const byId = new Map(INTEGRATIONS.map((m) => [m.id, m]));
+    return all.filter((s) => {
+      const m = byId.get(s.id);
+      return m ? isRelevant(m, { secretNames, rootFiles }) : true;
+    });
+  });
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
   // so every window's ActivitySection refetches the filtered feed live. The same

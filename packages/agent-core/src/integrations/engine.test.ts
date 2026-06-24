@@ -4,6 +4,7 @@ import type { CliRunner } from "./engine";
 import {
   detectStatus,
   isCommandMissing,
+  isRelevant,
   type PollCache,
   pollIntegrations,
   pollSteady,
@@ -278,5 +279,49 @@ describe("pollSteady", () => {
     };
     const [s] = await pollSteady([steadyM], null, 1000, {}, run);
     expect(s).toMatchObject({ status: "unauthed", resources: [] });
+  });
+});
+
+describe("isRelevant", () => {
+  const base: IntegrationManifest = {
+    id: "az",
+    name: "Azure",
+    detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
+    poll: { everyMs: 1000, cli: { cmd: "az", args: ["webapp", "list"] } },
+    map: { title: "$.name", state: { from: "$.state" } },
+  };
+
+  it("is always relevant when no relevance spec is declared", () => {
+    expect(isRelevant(base, { secretNames: [], rootFiles: [] })).toBe(true);
+  });
+
+  it("is relevant when a vaulted secret name matches the env prefix", () => {
+    const m = { ...base, relevance: { envPrefix: "AZURE_" } };
+    expect(
+      isRelevant(m, {
+        secretNames: ["DATABASE_URL", "AZURE_STORAGE_KEY"],
+        rootFiles: [],
+      }),
+    ).toBe(true);
+  });
+
+  it("is relevant when the project root contains a declared file", () => {
+    const m = { ...base, relevance: { files: ["azure.yaml", ".azure"] } };
+    expect(
+      isRelevant(m, { secretNames: [], rootFiles: ["src", "azure.yaml"] }),
+    ).toBe(true);
+  });
+
+  it("is NOT relevant when neither the env prefix nor any file matches", () => {
+    const m = {
+      ...base,
+      relevance: { envPrefix: "AZURE_", files: ["azure.yaml"] },
+    };
+    expect(
+      isRelevant(m, {
+        secretNames: ["DATABASE_URL"],
+        rootFiles: ["src", "package.json"],
+      }),
+    ).toBe(false);
   });
 });

@@ -58,6 +58,17 @@ export interface MapSpec {
 // that sidebar view (e.g. "databases").
 export type Surface = "activity" | { view: string };
 
+// Gates a steady integration to projects that actually USE it. Account-wide
+// CLIs (`az webapp list`, `snow ... SHOW WAREHOUSES`) return the whole
+// subscription, so without this they surface in every project. A project is
+// relevant iff a vaulted secret NAME starts with `envPrefix`, or the project
+// root contains one of `files`. No relevance spec => always shown (a genuinely
+// account-global integration). See isRelevant in engine.ts.
+export interface RelevanceSpec {
+  envPrefix?: string;
+  files?: string[];
+}
+
 export interface IntegrationManifest {
   id: string; // stable; item ids are `int:<id>:<key>`
   name: string;
@@ -70,6 +81,8 @@ export interface IntegrationManifest {
   };
   map: MapSpec;
   surface?: Surface; // default "activity" (transient, Activity feed)
+  // Steady integrations only: limit the surface to projects that use the tool.
+  relevance?: RelevanceSpec;
   // How to install the CLI when it is absent. Surfaced as an "Install" button on
   // the absent row; clicking RUNS `command` in a new terminal (nothing auto-runs
   // -- the user chooses). `docsUrl` is an optional manual-install fallback.

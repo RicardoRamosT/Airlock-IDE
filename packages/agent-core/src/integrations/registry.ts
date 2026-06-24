@@ -36,6 +36,8 @@ export const SNOWFLAKE: IntegrationManifest = {
   id: "snowflake",
   name: "Snowflake",
   surface: { view: "databases" },
+  // Account-wide CLI: only surface in projects that use Snowflake.
+  relevance: { envPrefix: "SNOWFLAKE_" },
   detect: { authCheck: { cmd: "snow", args: ["connection", "test"] } },
   poll: {
     everyMs: 30000,
@@ -75,6 +77,12 @@ export const AZURE: IntegrationManifest = {
   id: "azure",
   name: "Azure",
   surface: { view: "host" },
+  // `az webapp list` is account-wide, so only surface Azure in projects that
+  // use it: a vaulted AZURE_* secret, or an Azure Developer CLI config in root.
+  relevance: {
+    envPrefix: "AZURE_",
+    files: ["azure.yaml", "azure.yml", ".azure"],
+  },
   detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
   poll: {
     everyMs: 30000,
