@@ -181,10 +181,12 @@ export {
   // different signature; this is the Neon REST one.
   listBranches as neonListBranches,
   listDatabases as neonListDatabases,
+  listOrganizations as neonListOrganizations,
   listProjects as neonListProjects,
   type NeonBranch,
   type NeonDatabase,
   type NeonOptions,
+  type NeonOrg,
   type NeonProject,
   type NeonTransport,
   neonConnectionUri,

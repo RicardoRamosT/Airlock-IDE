@@ -31,9 +31,11 @@ import {
   listSecrets,
   type NeonBranch,
   type NeonDatabase,
+  type NeonOrg,
   type NeonProject,
   neonListBranches,
   neonListDatabases,
+  neonListOrganizations,
   neonListProjects,
   originRemoteUrl,
   type PortProber,
@@ -82,11 +84,20 @@ export async function neonStatus(): Promise<{ connected: boolean }> {
   return { connected: (await getGlobalSecret(NEON_KEY)) !== null };
 }
 
-// Neon projects (metadata only). The API key stays main-only.
-export async function neonProjects(): Promise<NeonProject[]> {
+// Neon organizations the key's user belongs to (metadata only). Requires a
+// personal API key; a project-scoped key 404s here (surfaced to the user).
+export async function neonOrganizations(): Promise<NeonOrg[]> {
   const key = await getGlobalSecret(NEON_KEY);
   if (!key) throw new Error("Neon not connected");
-  return neonListProjects(key);
+  return neonListOrganizations(key);
+}
+
+// Neon projects within an organization (metadata only). The API key stays
+// main-only.
+export async function neonProjects(orgId: string): Promise<NeonProject[]> {
+  const key = await getGlobalSecret(NEON_KEY);
+  if (!key) throw new Error("Neon not connected");
+  return neonListProjects(key, orgId);
 }
 
 // Neon branches for a project (metadata only).

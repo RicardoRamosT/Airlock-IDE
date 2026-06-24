@@ -3,8 +3,37 @@ import {
   parseBranches,
   parseConnectionUri,
   parseDatabases,
+  parseOrganizations,
   parseProjects,
 } from "./parse";
+
+describe("parseOrganizations", () => {
+  it("maps id and name from a wrapped { organizations } payload", () => {
+    expect(
+      parseOrganizations({
+        organizations: [
+          { id: "org-1", name: "GDL Motors", handle: "gdl", plan: "launch" },
+          { id: "org-2", name: "Ezlis" },
+        ],
+      }),
+    ).toEqual([
+      { id: "org-1", name: "GDL Motors" },
+      { id: "org-2", name: "Ezlis" },
+    ]);
+  });
+
+  it("also tolerates a bare array payload", () => {
+    expect(parseOrganizations([{ id: "org-1", name: "GDL Motors" }])).toEqual([
+      { id: "org-1", name: "GDL Motors" },
+    ]);
+  });
+
+  it("returns [] for missing/empty/null", () => {
+    expect(parseOrganizations({})).toEqual([]);
+    expect(parseOrganizations({ organizations: [] })).toEqual([]);
+    expect(parseOrganizations(null)).toEqual([]);
+  });
+});
 
 describe("parseProjects", () => {
   it("maps id and name from the projects array", () => {

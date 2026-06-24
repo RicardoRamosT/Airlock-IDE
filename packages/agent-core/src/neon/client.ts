@@ -2,11 +2,16 @@ import {
   parseBranches,
   parseConnectionUri,
   parseDatabases,
+  parseOrganizations,
   parseProjects,
 } from "./parse";
 
 const NEON_API_BASE = "https://console.neon.tech/api/v2";
 
+export interface NeonOrg {
+  id: string;
+  name: string;
+}
 export interface NeonProject {
   id: string;
   name: string;
@@ -41,12 +46,26 @@ export const fetchTransport: NeonTransport = {
 
 const enc = encodeURIComponent;
 
+// The organizations the API key's user belongs to. Requires a PERSONAL API key
+// (a project-scoped key has no access to this and 404s). Neon migrated all
+// accounts to organizations, so projects are enumerated per org.
+export async function listOrganizations(
+  key: string,
+  opts: NeonOptions = {},
+): Promise<NeonOrg[]> {
+  const t = opts.transport ?? fetchTransport;
+  return parseOrganizations(await t.get("/users/me/organizations", key));
+}
+
+// Projects within an organization. A personal key must scope by org_id (without
+// it, `/projects` does not enumerate an org-based account's projects).
 export async function listProjects(
   key: string,
+  orgId: string,
   opts: NeonOptions = {},
 ): Promise<NeonProject[]> {
   const t = opts.transport ?? fetchTransport;
-  return parseProjects(await t.get("/projects", key));
+  return parseProjects(await t.get(`/projects?org_id=${enc(orgId)}`, key));
 }
 export async function listBranches(
   key: string,

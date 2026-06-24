@@ -88,6 +88,7 @@ import {
   gitStatusFor,
   neonBranches,
   neonDatabases,
+  neonOrganizations,
   neonProjects,
   neonStatus,
   renderDeployService,
@@ -1059,7 +1060,11 @@ export function registerIpc(
     await deleteGlobalSecret(NEON_KEY, { auditLog: globalAuditLog });
     return { connected: false };
   });
-  ipcMain.handle("neon:projects", () => neonProjects());
+  ipcMain.handle("neon:orgs", () => neonOrganizations());
+  ipcMain.handle("neon:projects", (_e, orgId: unknown) => {
+    if (typeof orgId !== "string") throw new Error("Invalid payload");
+    return neonProjects(orgId);
+  });
   ipcMain.handle("neon:branches", (_e, p: unknown) => {
     if (typeof p !== "string") throw new Error("Invalid payload");
     return neonBranches(p);

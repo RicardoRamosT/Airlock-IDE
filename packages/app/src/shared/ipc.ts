@@ -16,6 +16,7 @@ import type {
   ImportResult,
   NeonBranch,
   NeonDatabase,
+  NeonOrg,
   NeonProject,
   ProjectArea,
   ProjectConfig,
@@ -57,6 +58,7 @@ export type {
   ImportResult,
   NeonBranch,
   NeonDatabase,
+  NeonOrg,
   NeonProject,
   ProjectArea,
   ProjectConfig,
@@ -654,7 +656,9 @@ export interface AirlockApi {
   neonStatus(): Promise<{ connected: boolean }>;
   neonConnect(key: string): Promise<{ connected: boolean }>;
   neonDisconnect(): Promise<{ connected: boolean }>;
-  neonProjects(): Promise<NeonProject[]>;
+  // Organizations the personal API key belongs to (the top tree level).
+  neonOrgs(): Promise<NeonOrg[]>;
+  neonProjects(orgId: string): Promise<NeonProject[]>;
   neonBranches(projectId: string): Promise<NeonBranch[]>;
   neonDatabases(projectId: string, branchId: string): Promise<NeonDatabase[]>;
   neonPing(

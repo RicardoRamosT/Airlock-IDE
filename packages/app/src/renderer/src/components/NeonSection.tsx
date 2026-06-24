@@ -3,26 +3,42 @@ import type {
   DbTable,
   NeonBranch,
   NeonDatabase,
+  NeonOrg,
   NeonProject,
 } from "../../../shared/ipc";
 import { useApp } from "../store";
 
 type PingState = "checking" | "ok" | "fail";
 
+// Turn a failed orgs/projects fetch into actionable guidance. The most common
+// cause is a PROJECT-SCOPED API key, which can't enumerate orgs/projects and
+// returns 404 — so we tell the user to use a personal key rather than show the
+// raw "Neon API 404".
+function listErrorHint(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/\b40[34]\b|not found|forbidden/i.test(msg))
+    return "Couldn't list your Neon organizations — this usually means a project-scoped API key. Create a personal API key (Neon → Account settings → API keys) and reconnect.";
+  return msg;
+}
+
 // A lazy Neon tree mirroring DatabasesSection's fetch-on-expand + status-dot
-// patterns. Four levels, each fetched only when its parent expands and cached
-// in a keyed Record so re-expanding is free:
-//   projects                          neonProjects()
+// patterns. Neon migrated all accounts to organizations, so the tree is rooted
+// at the org level; each level is fetched only when its parent expands and
+// cached in a keyed Record so re-expanding is free:
+//   organizations                     neonOrgs()
+//   -> projects    key: orgId         neonProjects(orgId)
 //   -> branches    key: projectId     neonBranches(projectId)
 //   -> databases   key: p/b           neonDatabases(projectId, branchId)
 //   -> tables      key: p/b/db        neonTables(projectId, branchId, db, role)
-// Each database also self-pings on first appearance for its status dot. The
-// database's `role` is its ownerName. Clicking a table sets dbView{kind:"neon"};
-// the existing DataGrid (Task 5) fetches rows reactively from that.
+// Project ids are globally unique, so branches/databases/tables stay keyed by
+// them regardless of org. Each database self-pings on first appearance for its
+// status dot; the database's `role` is its ownerName. Clicking a table sets
+// dbView{kind:"neon"}; the DataGrid fetches rows reactively from that.
 export function NeonSection() {
   const modal = useApp((s) => s.modal);
   const [connected, setConnected] = useState<boolean | null>(null);
-  const [projects, setProjects] = useState<NeonProject[]>([]);
+  const [orgs, setOrgs] = useState<NeonOrg[]>([]);
+  const [projects, setProjects] = useState<Record<string, NeonProject[]>>({});
   const [branches, setBranches] = useState<Record<string, NeonBranch[]>>({});
   const [databases, setDatabases] = useState<Record<string, NeonDatabase[]>>(
     {},
@@ -58,18 +74,21 @@ export function NeonSection() {
       });
   }, [modal]);
 
-  // Once connected, load the project list.
+  // Once connected, load the organization list (the top of the tree).
   useEffect(() => {
     if (connected !== true) return;
     window.airlock
-      .neonProjects()
-      .then((p) => {
-        if (mounted.current) setProjects(p);
+      .neonOrgs()
+      .then((o) => {
+        if (mounted.current) {
+          setOrgs(o);
+          setError(null);
+        }
       })
       .catch((e: unknown) => {
         if (mounted.current) {
-          console.error("neonProjects failed", e);
-          setError(e instanceof Error ? e.message : String(e));
+          console.error("neonOrgs failed", e);
+          setError(listErrorHint(e));
         }
       });
   }, [connected]);
@@ -97,6 +116,22 @@ export function NeonSection() {
 
   const toggle = (key: string) => {
     setExpanded((e) => ({ ...e, [key]: !e[key] }));
+  };
+
+  const expandOrg = (orgId: string) => {
+    const wasOpen = !!expanded[orgId];
+    toggle(orgId);
+    if (wasOpen || projects[orgId]) return;
+    window.airlock
+      .neonProjects(orgId)
+      .then((p) => {
+        if (mounted.current) setProjects((m) => ({ ...m, [orgId]: p }));
+      })
+      .catch((e: unknown) => {
+        console.error("neonProjects failed", orgId, e);
+        if (mounted.current)
+          setError(e instanceof Error ? e.message : String(e));
+      });
   };
 
   const expandProject = (projectId: string) => {
@@ -183,7 +218,8 @@ export function NeonSection() {
     }
     if (mounted.current) {
       setConnected(false);
-      setProjects([]);
+      setOrgs([]);
+      setProjects({});
       setError(null);
     }
   };
@@ -217,106 +253,153 @@ export function NeonSection() {
         </button>
       </div>
       {error && <div className="modal-error">{error}</div>}
-      {projects.length === 0 ? (
-        <div className="section-note">No Neon projects.</div>
+      {!error && orgs.length === 0 ? (
+        <div className="section-note">No Neon organizations.</div>
       ) : (
-        projects.map((proj) => {
-          const projOpen = !!expanded[proj.id];
+        orgs.map((org) => {
+          const orgOpen = !!expanded[org.id];
           return (
-            <div key={proj.id} className="db-entry">
+            <div key={org.id} className="db-entry">
               <button
                 type="button"
                 className="db-row"
-                onClick={() => expandProject(proj.id)}
-                title={proj.name}
+                onClick={() => expandOrg(org.id)}
+                title={org.name}
               >
                 <i
-                  className={`codicon codicon-chevron-${projOpen ? "down" : "right"}`}
+                  className={`codicon codicon-chevron-${orgOpen ? "down" : "right"}`}
                 />
-                <span className="db-name">{proj.name}</span>
+                <i className="codicon codicon-organization" />
+                <span className="db-name">{org.name}</span>
               </button>
-              {projOpen && (
+              {orgOpen && (
                 <div className="neon-children">
-                  {branches[proj.id]?.length === 0 ? (
-                    <div className="section-note">no branches</div>
+                  {projects[org.id]?.length === 0 ? (
+                    <div className="section-note">no projects</div>
                   ) : (
-                    branches[proj.id]?.map((br) => {
-                      const bKey = `${proj.id}/${br.id}`;
-                      const brOpen = !!expanded[bKey];
+                    projects[org.id]?.map((proj) => {
+                      const projOpen = !!expanded[proj.id];
                       return (
-                        <div key={br.id} className="db-entry">
+                        <div key={proj.id} className="db-entry">
                           <button
                             type="button"
                             className="db-row"
-                            onClick={() => expandBranch(proj.id, br.id)}
-                            title={br.name}
+                            onClick={() => expandProject(proj.id)}
+                            title={proj.name}
                           >
                             <i
-                              className={`codicon codicon-chevron-${brOpen ? "down" : "right"}`}
+                              className={`codicon codicon-chevron-${projOpen ? "down" : "right"}`}
                             />
-                            <span className="db-name">{br.name}</span>
+                            <span className="db-name">{proj.name}</span>
                           </button>
-                          {brOpen && (
+                          {projOpen && (
                             <div className="neon-children">
-                              {databases[bKey]?.length === 0 ? (
-                                <div className="section-note">no databases</div>
+                              {branches[proj.id]?.length === 0 ? (
+                                <div className="section-note">no branches</div>
                               ) : (
-                                databases[bKey]?.map((db) => {
-                                  const dKey = `${bKey}/${db.name}`;
-                                  const dbOpen = !!expanded[dKey];
-                                  const state = pings[dKey] ?? "checking";
-                                  const dotClass =
-                                    state === "ok"
-                                      ? "status-dot on"
-                                      : state === "fail"
-                                        ? "status-dot fail"
-                                        : "status-dot";
+                                branches[proj.id]?.map((br) => {
+                                  const bKey = `${proj.id}/${br.id}`;
+                                  const brOpen = !!expanded[bKey];
                                   return (
-                                    <div key={db.name} className="db-entry">
+                                    <div key={br.id} className="db-entry">
                                       <button
                                         type="button"
                                         className="db-row"
                                         onClick={() =>
-                                          expandDatabase(proj.id, br.id, db)
+                                          expandBranch(proj.id, br.id)
                                         }
-                                        title={`${db.name} (${db.ownerName})`}
+                                        title={br.name}
                                       >
                                         <i
-                                          className={`codicon codicon-chevron-${dbOpen ? "down" : "right"}`}
+                                          className={`codicon codicon-chevron-${brOpen ? "down" : "right"}`}
                                         />
-                                        <span className={dotClass} />
                                         <span className="db-name">
-                                          {db.name}
+                                          {br.name}
                                         </span>
                                       </button>
-                                      {dbOpen && (
-                                        <div className="db-tables">
-                                          {tables[dKey]?.length === 0 ? (
+                                      {brOpen && (
+                                        <div className="neon-children">
+                                          {databases[bKey]?.length === 0 ? (
                                             <div className="section-note">
-                                              no tables
+                                              no databases
                                             </div>
                                           ) : (
-                                            tables[dKey]?.map((t) => (
-                                              <button
-                                                key={`${t.schema}.${t.name}`}
-                                                type="button"
-                                                className="db-table-row"
-                                                onClick={() =>
-                                                  openTable(
-                                                    proj.id,
-                                                    br.id,
-                                                    db,
-                                                    t,
-                                                  )
-                                                }
-                                                title={`Browse ${t.schema}.${t.name}`}
-                                              >
-                                                <i className="codicon codicon-table" />
-                                                <span className="db-table-name">
-                                                  {t.schema}.{t.name}
-                                                </span>
-                                              </button>
-                                            ))
+                                            databases[bKey]?.map((db) => {
+                                              const dKey = `${bKey}/${db.name}`;
+                                              const dbOpen = !!expanded[dKey];
+                                              const state =
+                                                pings[dKey] ?? "checking";
+                                              const dotClass =
+                                                state === "ok"
+                                                  ? "status-dot on"
+                                                  : state === "fail"
+                                                    ? "status-dot fail"
+                                                    : "status-dot";
+                                              return (
+                                                <div
+                                                  key={db.name}
+                                                  className="db-entry"
+                                                >
+                                                  <button
+                                                    type="button"
+                                                    className="db-row"
+                                                    onClick={() =>
+                                                      expandDatabase(
+                                                        proj.id,
+                                                        br.id,
+                                                        db,
+                                                      )
+                                                    }
+                                                    title={`${db.name} (${db.ownerName})`}
+                                                  >
+                                                    <i
+                                                      className={`codicon codicon-chevron-${dbOpen ? "down" : "right"}`}
+                                                    />
+                                                    <span
+                                                      className={dotClass}
+                                                    />
+                                                    <span className="db-name">
+                                                      {db.name}
+                                                    </span>
+                                                  </button>
+                                                  {dbOpen && (
+                                                    <div className="db-tables">
+                                                      {tables[dKey]?.length ===
+                                                      0 ? (
+                                                        <div className="section-note">
+                                                          no tables
+                                                        </div>
+                                                      ) : (
+                                                        tables[dKey]?.map(
+                                                          (t) => (
+                                                            <button
+                                                              key={`${t.schema}.${t.name}`}
+                                                              type="button"
+                                                              className="db-table-row"
+                                                              onClick={() =>
+                                                                openTable(
+                                                                  proj.id,
+                                                                  br.id,
+                                                                  db,
+                                                                  t,
+                                                                )
+                                                              }
+                                                              title={`Browse ${t.schema}.${t.name}`}
+                                                            >
+                                                              <i className="codicon codicon-table" />
+                                                              <span className="db-table-name">
+                                                                {t.schema}.
+                                                                {t.name}
+                                                              </span>
+                                                            </button>
+                                                          ),
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })
                                           )}
                                         </div>
                                       )}

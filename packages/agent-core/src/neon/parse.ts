@@ -1,4 +1,4 @@
-import type { NeonBranch, NeonDatabase, NeonProject } from "./client";
+import type { NeonBranch, NeonDatabase, NeonOrg, NeonProject } from "./client";
 
 // Pure response parsers for the Neon REST API. These never touch fetch so they
 // unit-test without network. Tolerant of missing/empty arrays and missing
@@ -13,6 +13,14 @@ function arr(json: unknown, key: string): Record<string, unknown>[] {
 const str = (o: Record<string, unknown>, k: string): string =>
   typeof o[k] === "string" ? (o[k] as string) : "";
 
+// Tolerant of both a bare array and the wrapped { organizations: [...] } shape
+// (the endpoint's exact envelope varies); either way pull id + name.
+export function parseOrganizations(json: unknown): NeonOrg[] {
+  const list = Array.isArray(json)
+    ? (json as Record<string, unknown>[])
+    : arr(json, "organizations");
+  return list.map((o) => ({ id: str(o, "id"), name: str(o, "name") }));
+}
 export function parseProjects(json: unknown): NeonProject[] {
   return arr(json, "projects").map((p) => ({
     id: str(p, "id"),
