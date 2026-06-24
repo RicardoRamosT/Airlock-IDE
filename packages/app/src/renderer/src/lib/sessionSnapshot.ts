@@ -8,6 +8,12 @@ interface SnapshotInput {
   split: { a: string; b: string } | null;
   stripOrder: string[];
   tabTerminals: Record<string, { claudeAutoId: string | null } | undefined>;
+  // Tabs awaiting a lazy `claude --continue` on first focus. A pending tab HAD a
+  // Claude session (that is why it is pending) but has not been resumed yet, so
+  // its claudeAutoId is still null -- count it as hadClaude or the snapshot drops
+  // it and the next restore fresh-starts claude. Optional so callers/tests that
+  // do not track it default to "nothing pending".
+  pendingResume?: ReadonlySet<string>;
 }
 
 // Build the restorable snapshot: project tabs (root != null) in strip order,
@@ -31,7 +37,11 @@ export function buildSessionSnapshot(s: SnapshotInput): SessionSnapshot {
 
   const tabs = ordered.map((t) => ({
     root: t.root as string,
-    hadClaude: s.tabTerminals[t.id]?.claudeAutoId != null,
+    // claudeAutoId covers a started/resumed tab; pendingResume covers a restored
+    // tab not yet switched to (still pending its lazy --continue).
+    hadClaude:
+      s.tabTerminals[t.id]?.claudeAutoId != null ||
+      (s.pendingResume?.has(t.id) ?? false),
   }));
   const rootOf = (id: string): string | null => byId.get(id)?.root ?? null;
   const activeRoot = rootOf(s.activeTabId);

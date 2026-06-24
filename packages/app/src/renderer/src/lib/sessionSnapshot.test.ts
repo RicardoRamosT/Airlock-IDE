@@ -32,6 +32,22 @@ describe("buildSessionSnapshot", () => {
     });
   });
 
+  it("treats a pending-resume tab as hadClaude even before it has a terminal", () => {
+    // A restored tab you have not switched to yet is pending resume: no terminal,
+    // claudeAutoId still null. It MUST persist hadClaude=true or the next restore
+    // drops it and fresh-starts claude instead of resuming. (Regression: only the
+    // active tab resumed because the others saved hadClaude=false.)
+    const state = {
+      tabs: [{ id: "t1", root: "/a" }],
+      activeTabId: "t1",
+      split: null,
+      stripOrder: ["t1"],
+      tabTerminals: { t1: tt(null) }, // not visited/resumed yet
+      pendingResume: new Set(["t1"]),
+    };
+    expect(buildSessionSnapshot(state).tabs[0]?.hadClaude).toBe(true);
+  });
+
   it("maps the split pair from tab ids to roots", () => {
     const state = {
       tabs: [
