@@ -90,10 +90,25 @@ describe("VERCEL manifest", () => {
   });
 });
 
-// Captured shape of `az webapp list --output json` (trimmed).
+// Captured shape of `az webapp list --output json` (trimmed to the fields the
+// manifest maps).
 const WEBAPPS = [
-  { name: "api-prod", state: "Running", resourceGroup: "rg-prod" },
-  { name: "web-staging", state: "Stopped", resourceGroup: "rg-staging" },
+  {
+    name: "api-prod",
+    state: "Running",
+    resourceGroup: "rg-prod",
+    location: "East US",
+    defaultHostName: "api-prod.azurewebsites.net",
+    id: "/subscriptions/sub/resourceGroups/rg-prod/providers/Microsoft.Web/sites/api-prod",
+  },
+  {
+    name: "web-staging",
+    state: "Stopped",
+    resourceGroup: "rg-staging",
+    location: "East US",
+    defaultHostName: "web-staging.azurewebsites.net",
+    id: "/subscriptions/sub/resourceGroups/rg-staging/providers/Microsoft.Web/sites/web-staging",
+  },
 ];
 
 describe("AZURE manifest", () => {
@@ -102,20 +117,43 @@ describe("AZURE manifest", () => {
     expect(AZURE.surface).toEqual({ view: "host" });
   });
   it("maps each web app to a row, running for Running, idle for Stopped", () => {
-    expect(mapToItems(AZURE, WEBAPPS)).toEqual([
-      {
-        id: "int:azure:api-prod",
-        title: "api-prod",
-        subtitle: "rg-prod",
-        state: "running",
-      },
-      {
-        id: "int:azure:web-staging",
-        title: "web-staging",
-        subtitle: "rg-staging",
-        state: "idle",
-      },
+    const [prod, staging] = mapToItems(AZURE, WEBAPPS);
+    expect(prod).toMatchObject({
+      id: "int:azure:api-prod",
+      title: "api-prod",
+      subtitle: "rg-prod",
+      state: "running",
+    });
+    expect(staging).toMatchObject({
+      id: "int:azure:web-staging",
+      state: "idle",
+    });
+  });
+  it("surfaces State/Region/URL as expandable details", () => {
+    const [prod] = mapToItems(AZURE, WEBAPPS);
+    expect(prod?.details).toEqual([
+      { label: "State", value: "Running" },
+      { label: "Region", value: "East US" },
+      { label: "URL", value: "api-prod.azurewebsites.net" },
     ]);
+  });
+  it("offers a Portal link and state-gated Start/Stop with safe commands", () => {
+    const [prod] = mapToItems(AZURE, WEBAPPS);
+    expect(prod?.actions?.find((a) => a.label === "Portal")).toEqual({
+      label: "Portal",
+      icon: "link-external",
+      kind: "url",
+      target:
+        "https://portal.azure.com/#@/resource/subscriptions/sub/resourceGroups/rg-prod/providers/Microsoft.Web/sites/api-prod/overview",
+    });
+    expect(prod?.actions?.find((a) => a.label === "Stop")).toMatchObject({
+      kind: "command",
+      target: "az webapp stop --name 'api-prod' --resource-group 'rg-prod'",
+      when: ["running"],
+    });
+    expect(prod?.actions?.find((a) => a.label === "Start")).toMatchObject({
+      when: ["idle"],
+    });
   });
 });
 

@@ -32,7 +32,12 @@ import type {
   TechCategory,
 } from "@airlock/agent-core";
 
-export type { IntegrationItem, SteadyIntegration } from "@airlock/agent-core";
+export type {
+  IntegrationItem,
+  ItemAction,
+  ItemDetail,
+  SteadyIntegration,
+} from "@airlock/agent-core";
 export type {
   AgentCommandPolicy,
   AnthropicIndicator,

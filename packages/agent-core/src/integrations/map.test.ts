@@ -112,3 +112,129 @@ describe("mapToItems", () => {
     ]);
   });
 });
+
+const AZ: IntegrationManifest = {
+  id: "az",
+  name: "Azure",
+  detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
+  poll: { everyMs: 1000, cli: { cmd: "az", args: ["webapp", "list"] } },
+  map: {
+    items: "$",
+    key: "$.name",
+    title: "$.name",
+    subtitle: "$.resourceGroup",
+    state: { from: "$.state", running: ["Running"], default: "idle" },
+    show: ["running", "idle"],
+    details: [
+      { label: "State", value: "$.state" },
+      { label: "Region", value: "$.location" },
+      { label: "URL", value: "$.defaultHostName" },
+    ],
+    actions: [
+      {
+        label: "Portal",
+        icon: "link-external",
+        kind: "url",
+        template: "https://portal.azure.com/#@/resource{{$.id}}/overview",
+      },
+      {
+        label: "Stop",
+        icon: "debug-stop",
+        kind: "command",
+        template:
+          "az webapp stop --name {{$.name}} --resource-group {{$.resourceGroup}}",
+        when: ["running"],
+      },
+    ],
+  },
+};
+
+describe("mapToItems details and actions", () => {
+  it("resolves detail exprs and skips empty ones", () => {
+    const [item] = mapToItems(AZ, [
+      {
+        name: "app",
+        resourceGroup: "rg",
+        state: "Running",
+        location: "eastus",
+        id: "/x",
+        defaultHostName: "", // empty -> URL detail omitted
+      },
+    ]);
+    expect(item?.details).toEqual([
+      { label: "State", value: "Running" },
+      { label: "Region", value: "eastus" },
+    ]);
+  });
+
+  it("resolves a url action template by raw substitution", () => {
+    const [item] = mapToItems(AZ, [
+      {
+        name: "app",
+        resourceGroup: "rg",
+        state: "Running",
+        id: "/subscriptions/s/rg/sites/app",
+      },
+    ]);
+    expect(item?.actions?.find((a) => a.label === "Portal")).toEqual({
+      label: "Portal",
+      icon: "link-external",
+      kind: "url",
+      target:
+        "https://portal.azure.com/#@/resource/subscriptions/s/rg/sites/app/overview",
+    });
+  });
+
+  it("resolves a command action, shell-quotes args, and carries `when`", () => {
+    const [item] = mapToItems(AZ, [
+      { name: "app", resourceGroup: "rg", state: "Running", id: "/x" },
+    ]);
+    expect(item?.actions?.find((a) => a.label === "Stop")).toEqual({
+      label: "Stop",
+      icon: "debug-stop",
+      kind: "command",
+      target: "az webapp stop --name 'app' --resource-group 'rg'",
+      when: ["running"],
+    });
+  });
+
+  it("escapes a malicious name so it cannot break out of the command", () => {
+    const [item] = mapToItems(AZ, [
+      {
+        name: "a'; rm -rf ~ #",
+        resourceGroup: "rg",
+        state: "Running",
+        id: "/x",
+      },
+    ]);
+    // The single quote becomes '\'' so the whole name stays one literal arg.
+    expect(item?.actions?.find((a) => a.label === "Stop")?.target).toBe(
+      "az webapp stop --name 'a'\\''; rm -rf ~ #' --resource-group 'rg'",
+    );
+  });
+
+  it("drops an action whose template placeholder resolves to nothing", () => {
+    const [item] = mapToItems(AZ, [
+      { name: "app", resourceGroup: "rg", state: "Running" /* no id */ },
+    ]);
+    // Portal needs {{$.id}}; absent -> dropped, not rendered broken.
+    expect(item?.actions?.some((a) => a.label === "Portal")).toBe(false);
+    expect(item?.actions?.some((a) => a.label === "Stop")).toBe(true);
+  });
+
+  it("omits details/actions entirely when the manifest defines none", () => {
+    const items = mapToItems(M, {
+      deployments: [
+        {
+          uid: "d1",
+          name: "web",
+          url: "u1",
+          readyState: "BUILDING",
+          meta: { branch: "main" },
+        },
+      ],
+    });
+    expect("details" in (items[0] ?? {})).toBe(false);
+    expect("actions" in (items[0] ?? {})).toBe(false);
+  });
+});

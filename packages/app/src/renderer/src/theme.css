@@ -2829,6 +2829,56 @@ textarea:focus-visible {
   max-width: 110px;
 }
 
+/* Expandable steady-integration resource (e.g. an Azure web app): a click-to-
+   expand .db-row over a details + actions body. */
+.int-resource {
+  display: flex;
+  flex-direction: column;
+}
+
+.int-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  /* Indent under the row name, past the chevron + status dot. */
+  padding: 3px 4px 6px 22px;
+}
+
+.int-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.int-detail-label {
+  flex: none;
+  min-width: 46px;
+  color: var(--fg-dim);
+}
+
+.int-detail-value {
+  overflow: hidden;
+  font-family: "SF Mono", Menlo, monospace;
+  color: var(--fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Action buttons (Portal / Start / Stop) share the standard toolbar grammar;
+   each carries an icon beside its label. */
+.int-body .section-toolbar {
+  margin-top: 4px;
+}
+
+.int-body .section-toolbar .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
 .db-tables {
   display: flex;
   flex-direction: column;

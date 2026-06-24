@@ -144,16 +144,25 @@ export {
 } from "./integrations/engine";
 export { evalExpr } from "./integrations/expr";
 export type {
+  ActionSpec,
   Command,
+  DetailSpec,
   IntegrationItem,
   IntegrationManifest,
   IntegrationState,
+  ItemAction,
+  ItemDetail,
   MapSpec,
   StateSpec,
   Surface,
 } from "./integrations/manifest";
 export { applyState, mapToItems } from "./integrations/map";
-export { INTEGRATIONS, SNOWFLAKE, VERCEL } from "./integrations/registry";
+export {
+  AZURE,
+  INTEGRATIONS,
+  SNOWFLAKE,
+  VERCEL,
+} from "./integrations/registry";
 export {
   type ClaudeRunner,
   type McpRegisterInput,

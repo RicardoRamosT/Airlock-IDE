@@ -17,6 +17,30 @@ export interface StateSpec {
   default?: IntegrationState; // when no list matches; default "idle"
 }
 
+// One labeled detail line shown when a resource row is expanded. `value` is an
+// expr into the item (e.g. "$.location").
+export interface DetailSpec {
+  label: string;
+  value: string;
+}
+
+// A per-resource action button. `template` is resolved per item at map time by
+// substituting {{$.path}} placeholders (see resolveAction in map.ts):
+//   - kind "url": the resolved string is opened externally; it MUST be http(s)
+//     (the renderer validates before opening).
+//   - kind "command": the resolved string is RUN in a new terminal on click.
+//     Every substituted value is single-quote-escaped, since it comes from the
+//     polled CLI's JSON -- a resource name can never break out of the command.
+// `when` limits the button to those item states (e.g. Stop only when running);
+// omit to always show.
+export interface ActionSpec {
+  label: string;
+  icon: string; // codicon name
+  kind: "command" | "url";
+  template: string;
+  when?: IntegrationState[];
+}
+
 export interface MapSpec {
   items?: string; // expr selecting an array; omit => the whole doc is one item
   key?: string; // per-item stable id expr; default = the title's value
@@ -25,6 +49,8 @@ export interface MapSpec {
   href?: string;
   state: StateSpec;
   show?: IntegrationState[]; // surface only these; default ["running","failed"]
+  details?: DetailSpec[];
+  actions?: ActionSpec[];
 }
 
 // Where a manifest's items render. Absent or "activity" = the transient
@@ -55,6 +81,23 @@ export interface IntegrationManifest {
   connect?: { command: string; docsUrl?: string };
 }
 
+// A resolved detail line on an item (the DetailSpec after expr evaluation).
+export interface ItemDetail {
+  label: string;
+  value: string;
+}
+
+// A resolved action on an item: `target` is the fully-substituted command line
+// (kind "command") or url (kind "url"). `when` is carried through so the
+// renderer can show it only in the matching item states.
+export interface ItemAction {
+  label: string;
+  icon: string;
+  kind: "command" | "url";
+  target: string;
+  when?: IntegrationState[];
+}
+
 // Neutral, UI-agnostic result. app/main maps this to the renderer's
 // ActivityItem (see activity.ts), keeping agent-core free of UI types.
 export interface IntegrationItem {
@@ -63,4 +106,6 @@ export interface IntegrationItem {
   subtitle: string;
   state: IntegrationState;
   href?: string;
+  details?: ItemDetail[];
+  actions?: ItemAction[];
 }

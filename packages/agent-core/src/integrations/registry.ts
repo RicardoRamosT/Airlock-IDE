@@ -87,6 +87,39 @@ export const AZURE: IntegrationManifest = {
     subtitle: "$.resourceGroup",
     state: { from: "$.state", running: ["Running"], default: "idle" },
     show: ["running", "idle", "done", "failed"], // steady: show every web app
+    // Shown when a row is expanded.
+    details: [
+      { label: "State", value: "$.state" },
+      { label: "Region", value: "$.location" },
+      { label: "URL", value: "$.defaultHostName" },
+    ],
+    // Row actions. Portal opens the resource page; Start/Stop run the az CLI in
+    // a terminal and are gated to the state where they make sense. Substituted
+    // {{...}} values are shell-quoted for command actions (see map.ts).
+    actions: [
+      {
+        label: "Portal",
+        icon: "link-external",
+        kind: "url",
+        template: "https://portal.azure.com/#@/resource{{$.id}}/overview",
+      },
+      {
+        label: "Start",
+        icon: "play",
+        kind: "command",
+        template:
+          "az webapp start --name {{$.name}} --resource-group {{$.resourceGroup}}",
+        when: ["idle"],
+      },
+      {
+        label: "Stop",
+        icon: "debug-stop",
+        kind: "command",
+        template:
+          "az webapp stop --name {{$.name}} --resource-group {{$.resourceGroup}}",
+        when: ["running"],
+      },
+    ],
   },
   install: { command: "brew install azure-cli" },
   connect: { command: "az login" }, // opens a browser, but only on user click (not polled)
