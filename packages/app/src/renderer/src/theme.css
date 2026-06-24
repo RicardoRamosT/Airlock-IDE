@@ -1496,6 +1496,19 @@ button.quota-meter:hover {
   gap: 4px;
   color: var(--fg-dim);
 }
+.quota-reset .codicon {
+  flex: none;
+}
+/* Truncate the countdown rather than wrapping it: a narrow sidebar must not grow
+   the meter's height (it would break the dock alignment with the activity bar).
+   The full text is still in the Usage page and at wider widths. */
+.quota-reset-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 .quota-waiting {
   color: var(--fg-dim);

@@ -121,7 +121,8 @@ export function QuotaMeter() {
       {quota.sevenDay && <Row label="7d" pct={quota.sevenDay.usedPercentage} />}
       {resets.length > 0 && (
         <div className="quota-reset">
-          <i className="codicon codicon-history" /> {resets.join(" · ")}
+          <i className="codicon codicon-history" />
+          <span className="quota-reset-text">{resets.join(" · ")}</span>
         </div>
       )}
     </button>
