@@ -77,9 +77,15 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
   claudeAutoId: null,
 };
 
-// The exact bytes the "Start Claude here" notice writes: run claude INSIDE the
-// shell so exiting it returns to the prompt.
-export const CLAUDE_AUTO_COMMAND = "claude\n";
+// The `claude` AirLock auto-runs in a project terminal. A project may inject its
+// own ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN into that terminal (its app code
+// needs them) -- but those env vars make `claude` bypass your claude.ai
+// subscription and warn "Both claude.ai and ANTHROPIC_API_KEY set". So strip them
+// FOR THE claude PROCESS ONLY via `env -u`: the keys stay in the shell for the
+// project's own commands; only claude falls back to the subscription. Still run
+// inside the shell so exiting claude returns to the prompt.
+export const CLAUDE_AUTO_COMMAND =
+  "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude\n";
 
 // Auto-submit into Claude's TUI: the prompt is written as one paste, then a
 // SEPARATE Enter keystroke a beat later. Enter in a raw-mode TUI is "\r" (not
@@ -89,8 +95,9 @@ export const OVERVIEW_SUBMIT_KEY = "\r";
 export const OVERVIEW_SUBMIT_DELAY_MS = 120;
 
 // Resume a project's most recent Claude conversation (session restore). Same
-// shape as CLAUDE_AUTO_COMMAND -- typed into the shell at the restored tab.
-export const CLAUDE_CONTINUE_COMMAND = "claude --continue\n";
+// shape + auth env-strip as CLAUDE_AUTO_COMMAND -- typed into the restored tab.
+export const CLAUDE_CONTINUE_COMMAND =
+  "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude --continue\n";
 
 // The full non-terminal per-project state for ONE tab. `tabState` keeps one of
 // these for EVERY tab (the source of truth); the top-level per-project fields

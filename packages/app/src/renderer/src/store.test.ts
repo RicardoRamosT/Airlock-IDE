@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { restartActiveTerminal } from "./lib/restartActiveTerminal";
 import { buildSessionSnapshot } from "./lib/sessionSnapshot";
 import {
+  CLAUDE_AUTO_COMMAND,
   CLAUDE_CONTINUE_COMMAND,
   type DbView,
   type TabTerminals,
@@ -1412,7 +1413,9 @@ it("closeOverview removes one; closing the shown one clears the page", () => {
 // --- Lazy-resume primitives (session restore) -------------------------------
 
 it("CLAUDE_CONTINUE_COMMAND resumes the project's last chat", () => {
-  expect(CLAUDE_CONTINUE_COMMAND).toBe("claude --continue\n");
+  expect(CLAUDE_CONTINUE_COMMAND).toBe(
+    "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude --continue\n",
+  );
 });
 
 it("consumePendingResume returns true once then false; mark sets it", () => {
@@ -1487,4 +1490,18 @@ it("resume claims claudeAutoId so hadClaude survives the NEXT restart (regressio
   // (resume never claimed claudeAutoId), which made the NEXT restore skip the
   // tab and fresh-start `claude` instead of resuming.
   expect(buildSessionSnapshot(useApp.getState()).tabs[0]?.hadClaude).toBe(true);
+});
+
+it("auto + resume claude commands strip Anthropic API auth so claude uses claude.ai", () => {
+  // A project that injects its own ANTHROPIC_API_KEY/AUTH_TOKEN must still let
+  // AirLock's auto-claude fall back to the claude.ai subscription -- strip the
+  // keys for the claude process only (env -u), leaving them in the shell.
+  for (const cmd of [CLAUDE_AUTO_COMMAND, CLAUDE_CONTINUE_COMMAND]) {
+    expect(cmd).toContain("env -u ANTHROPIC_API_KEY");
+    expect(cmd).toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(cmd.trimEnd().endsWith("claude") || cmd.includes("claude ")).toBe(
+      true,
+    );
+  }
+  expect(CLAUDE_CONTINUE_COMMAND).toContain("--continue");
 });

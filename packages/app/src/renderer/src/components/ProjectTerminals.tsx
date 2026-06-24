@@ -1,6 +1,11 @@
 import { useEffect, useRef } from "react";
 import { TERMINAL_DISPLAY_NAMES } from "../../../shared/ipc";
-import { EMPTY_TAB_TERMINALS, isVisibleTab, useApp } from "../store";
+import {
+  CLAUDE_AUTO_COMMAND,
+  EMPTY_TAB_TERMINALS,
+  isVisibleTab,
+  useApp,
+} from "../store";
 import { TerminalPane } from "./TerminalPane";
 
 // One project's terminal subtree (the old TerminalManager body), scoped to a
@@ -103,7 +108,7 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   };
   const startClaudeHere = () => {
     if (noticeTerminal?.ptyId) {
-      window.airlock.ptyInput(noticeTerminal.ptyId, "claude\n");
+      window.airlock.ptyInput(noticeTerminal.ptyId, CLAUDE_AUTO_COMMAND);
     }
     useApp.getState().setRunningNotice(null);
   };

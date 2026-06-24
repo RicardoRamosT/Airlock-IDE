@@ -20,7 +20,11 @@ const openProjectTab = (root: string): string => {
 };
 
 it("exports the exact command the Start-Claude-here button uses", () => {
-  expect(CLAUDE_AUTO_COMMAND).toBe("claude\n");
+  // env -u strips a project-injected ANTHROPIC_API_KEY/AUTH_TOKEN for the claude
+  // process only, so AirLock's auto-claude uses the claude.ai subscription.
+  expect(CLAUDE_AUTO_COMMAND).toBe(
+    "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude\n",
+  );
 });
 
 it("off mode never grants", () => {
