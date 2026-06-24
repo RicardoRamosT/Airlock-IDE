@@ -14,6 +14,8 @@
 //
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
+
+import type { RenderDeploy } from "@airlock/agent-core";
 import {
   COMMON_DEV_PORTS,
   type DockerStatus,
@@ -43,7 +45,9 @@ import {
   readProjectConfig,
   readWorkspaceFile,
   renderLatestDeploy,
+  renderListDeploys,
   renderListServices,
+  renderTriggerDeploy,
   withDb,
 } from "@airlock/agent-core";
 import type { RenderServiceStatus, Section } from "../shared/ipc";
@@ -131,25 +135,27 @@ export async function renderServicesStatus(
       localSha = "";
     }
   }
-  const out = [];
+  const out: RenderServiceStatus[] = [];
   for (const s of services) {
     let deployStatus = "";
     let deployed: boolean | null = null;
+    let lastDeploy: RenderDeploy | null = null;
     try {
-      const dep = await renderLatestDeploy(key, s.id);
-      if (dep) {
-        deployStatus = dep.status;
+      lastDeploy = await renderLatestDeploy(key, s.id);
+      if (lastDeploy) {
+        deployStatus = lastDeploy.status;
         // Compare with prefix tolerance: Render may report a short or full
         // commit sha vs the local full HEAD. null when either side is empty.
         deployed =
-          localSha && dep.commit
-            ? dep.commit === localSha ||
-              dep.commit.startsWith(localSha) ||
-              localSha.startsWith(dep.commit)
+          localSha && lastDeploy.commit
+            ? lastDeploy.commit === localSha ||
+              lastDeploy.commit.startsWith(localSha) ||
+              localSha.startsWith(lastDeploy.commit)
             : null;
       }
     } catch {
       deployStatus = "";
+      lastDeploy = null;
     }
     out.push({
       id: s.id,
@@ -158,9 +164,32 @@ export async function renderServicesStatus(
       branch: s.branch,
       deployStatus,
       deployed,
+      type: s.type,
+      region: s.region,
+      plan: s.plan,
+      autoDeploy: s.autoDeploy,
+      dashboardUrl: s.dashboardUrl,
+      lastDeploy,
     });
   }
   return out;
+}
+
+// Recent deploys for one service (lazy, fetched when a row is expanded).
+export async function renderServiceDeploys(
+  serviceId: string,
+): Promise<RenderDeploy[]> {
+  const key = await getGlobalSecret(RENDER_KEY);
+  if (!key) throw new Error("Render not connected");
+  return renderListDeploys(key, serviceId, 5);
+}
+
+// Trigger a new deploy of a service. Owner-initiated (the UI confirms first);
+// the API key stays main-only.
+export async function renderDeployService(serviceId: string): Promise<void> {
+  const key = await getGlobalSecret(RENDER_KEY);
+  if (!key) throw new Error("Render not connected");
+  await renderTriggerDeploy(key, serviceId);
 }
 
 // Working-tree git status for a workspace.

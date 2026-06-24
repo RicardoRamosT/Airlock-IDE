@@ -2879,6 +2879,59 @@ textarea:focus-visible {
   gap: 4px;
 }
 
+/* The Render service row head is a <button> (expand toggle); strip native
+   chrome so it reads like the other expandable rows, and dim its chevron. */
+button.docker-row {
+  background: none;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.docker-row .codicon-chevron-down,
+button.docker-row .codicon-chevron-right {
+  flex: none;
+  color: var(--fg-dim);
+}
+
+/* Recent-deploys list inside an expanded Render service row. */
+.render-deploys {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  margin-top: 2px;
+}
+
+.render-deploy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.render-deploy-status {
+  color: var(--fg);
+}
+
+.render-deploy-at {
+  color: var(--fg-dim);
+}
+
+.render-deploy-sha {
+  margin-left: auto;
+  font-family: "SF Mono", Menlo, monospace;
+  color: var(--fg-dim);
+}
+
+.render-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
 .db-tables {
   display: flex;
   flex-direction: column;

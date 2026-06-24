@@ -90,6 +90,8 @@ import {
   neonDatabases,
   neonProjects,
   neonStatus,
+  renderDeployService,
+  renderServiceDeploys,
   renderServicesStatus,
   resolveDevUrl,
 } from "./ide-state";
@@ -1132,6 +1134,16 @@ export function registerIpc(
   ipcMain.handle("render:services", (e) =>
     renderServicesStatus(rootForEvent(e)),
   );
+  ipcMain.handle("render:deploys", (_e, serviceId: unknown) => {
+    if (typeof serviceId !== "string" || !serviceId)
+      throw new Error("Invalid payload");
+    return renderServiceDeploys(serviceId);
+  });
+  ipcMain.handle("render:deploy", (_e, serviceId: unknown) => {
+    if (typeof serviceId !== "string" || !serviceId)
+      throw new Error("Invalid payload");
+    return renderDeployService(serviceId);
+  });
 
   // Host/local dev server: host:probe + host:openExternal are global (NOT
   // requireRoot-gated). host:localUrl resolves the per-project dev URL so it IS

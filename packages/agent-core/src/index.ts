@@ -218,12 +218,14 @@ export {
   // Aliased (same precedent as the Neon block): the Render REST functions are
   // render-prefixed to avoid clashing with other agent-core exports.
   latestDeploy as renderLatestDeploy,
+  listDeploys as renderListDeploys,
   listServices as renderListServices,
   type RenderDeploy,
   type RenderOptions,
   type RenderService,
   type RenderTransport,
   renderFetchTransport,
+  triggerDeploy as renderTriggerDeploy,
 } from "./render/client";
 export { normalizeRepoUrl } from "./render/parse";
 export {

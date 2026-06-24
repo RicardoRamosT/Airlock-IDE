@@ -22,6 +22,7 @@ import type {
   ProjectProfile,
   ProjectTech,
   QueryResult,
+  RenderDeploy,
   RiskAction,
   RiskCategory,
   SearchFileResult,
@@ -62,6 +63,7 @@ export type {
   ProjectProfile,
   ProjectTech,
   QueryResult,
+  RenderDeploy,
   RiskAction,
   RiskCategory,
   SearchFileResult,
@@ -168,6 +170,13 @@ export interface RenderServiceStatus {
   branch: string;
   deployStatus: string;
   deployed: boolean | null;
+  // Expandable details (all best-effort; "" / null when Render omits them).
+  type: string; // "web_service" | "static_site" | ...
+  region: string;
+  plan: string;
+  autoDeploy: boolean | null;
+  dashboardUrl: string;
+  lastDeploy: RenderDeploy | null;
 }
 
 /** One CI step (job) projected for the Activity panel's expandable step list. */
@@ -675,6 +684,10 @@ export interface AirlockApi {
   renderStatus(): Promise<{ connected: boolean }>;
   renderConnect(key: string): Promise<{ connected: boolean }>;
   renderServices(): Promise<RenderServiceStatus[]>;
+  // Recent deploys for one service (lazy, on row expand). Carries no secrets.
+  renderDeploys(serviceId: string): Promise<RenderDeploy[]>;
+  // Trigger a new deploy of a service (owner-initiated; the UI confirms first).
+  renderDeploy(serviceId: string): Promise<void>;
   // Activity: aggregated in-progress operations (CI + Render + Docker) for the
   // Activity panel. NOT root-gated; CI is skipped when no folder is open.
   // activityDismiss hides an entry by id (app-global, in-memory) and broadcasts
