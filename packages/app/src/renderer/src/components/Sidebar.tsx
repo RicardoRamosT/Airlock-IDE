@@ -113,7 +113,7 @@ export function Sidebar() {
               </span>
             )}
             {view === "host" && (
-              <span className="section-actions">
+              <span className="section-actions persistent">
                 <button
                   type="button"
                   className="row-action"

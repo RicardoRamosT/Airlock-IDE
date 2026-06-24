@@ -612,6 +612,12 @@ body,
   opacity: 1;
 }
 
+/* A persistent header action (the single HOST Refresh) stays visible instead of
+   revealing on header hover like the FILES new-file/new-folder actions. */
+.sidebar-view-header .section-actions.persistent {
+  opacity: 1;
+}
+
 .sidebar-view-body {
   flex: 1;
   min-height: 0;
