@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RenderDeploy, RenderServiceStatus } from "../../../shared/ipc";
 import { relativeTime } from "../lib/overviewFreshness";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 // Maps a Render deploy status string to one of the three shared status-dot
@@ -228,6 +229,10 @@ function ServiceRow({
 export function RenderSection() {
   const modal = useApp((s) => s.modal);
   const hostRefreshNonce = useApp((s) => s.hostRefreshNonce);
+  // The focused project's root. render:services is scoped to it main-side, so we
+  // re-fetch (and drop the old project's services first) whenever it changes.
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [services, setServices] = useState<RenderServiceStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -270,13 +275,21 @@ export function RenderSection() {
     }
   }, []);
 
-  // Once connected, (re)load the service list — also when the single HOST-header
-  // Refresh bumps hostRefreshNonce.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce is not read in the body but intentionally included as a trigger dep.
+  // Switching projects: drop the previous project's services immediately so they
+  // never linger while the new fetch is in flight.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: root is the trigger; we intentionally reset state on its change only.
+  useEffect(() => {
+    setServices([]);
+    setError(null);
+  }, [root]);
+
+  // Once connected, (re)load the service list — on connect, on project switch
+  // (root), and when the single HOST-header Refresh bumps hostRefreshNonce.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce and root are not read in the body but are intentional trigger deps.
   useEffect(() => {
     if (connected !== true) return;
     void loadServices();
-  }, [connected, loadServices, hostRefreshNonce]);
+  }, [connected, loadServices, hostRefreshNonce, root]);
 
   if (connected === null) return <div className="section-note">checking…</div>;
 

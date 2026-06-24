@@ -4,6 +4,7 @@ import type {
   ItemAction,
   SteadyIntegration,
 } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 // Per the per-section convention, each section owns its dot mapping.
@@ -94,8 +95,17 @@ function ResourceRow({ r }: { r: IntegrationItem }) {
 export function IntegrationsSteadySection({ view }: { view: string }) {
   const [items, setItems] = useState<SteadyIntegration[]>([]);
   const hostRefreshNonce = useApp((s) => s.hostRefreshNonce);
+  // Relevance + resources are scoped to the focused project main-side, so reload
+  // (and drop the old project's rows first) when it changes.
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce is not read in the body but intentionally included as a trigger dep — the single HOST-header Refresh bumps it to reload immediately (and re-arm the poll).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: root is the trigger; reset rows on project switch so the previous project's never linger.
+  useEffect(() => {
+    setItems([]);
+  }, [root]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce and root are not read in the body but are intentional trigger deps — refetch on the HOST-header Refresh and on project switch (and re-arm the poll).
   useEffect(() => {
     let cancelled = false;
     const load = () =>
@@ -111,7 +121,7 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [view, hostRefreshNonce]);
+  }, [view, hostRefreshNonce, root]);
 
   // Absent/unauthed integrations are shown (rather than hidden) as a full-width
   // action button -- matching the "Connect Neon"/"Connect Render" buttons -- so a
