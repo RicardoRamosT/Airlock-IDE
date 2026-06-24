@@ -18,8 +18,81 @@ export interface BrokerOptions {
   actor?: "user" | "agent";
 }
 
+// LEGACY per-secret account: "<projectId>:<name>". Before vault consolidation
+// each secret was its own keychain item under this account. Kept ONLY to read
+// (and migrate away) pre-consolidation items; new writes go to the vault below.
 async function accountFor(root: string, name: string): Promise<string> {
   return `${await projectIdFor(root)}:${name}`;
+}
+
+// The single per-project "vault" account that holds ALL of a project's secret
+// values as one JSON blob: "@vault/<projectId>". macOS authorizes keychain
+// access per code-signature and AirLock's signature churns on every rebuild,
+// so the OS re-prompts once PER ITEM -- collapsing N items into one turns N
+// prompts into one. The "@" prefix collides with neither a legacy
+// "<id>:<name>" account nor "@global/<name>": a projectId is "<basename>-<8hex>"
+// (never starts with "@", never contains "/").
+async function vaultAccountFor(root: string): Promise<string> {
+  return `@vault/${await projectIdFor(root)}`;
+}
+
+const VAULT_CORRUPT_MSG =
+  "secret vault is corrupt (invalid JSON) -- refusing to overwrite, which would lose the other secrets";
+
+// Parse a vault blob into { name: value }. A present-but-malformed blob is
+// CORRUPTION, not "empty": fail loud (like meta.ts's secrets.json guard) so a
+// later write can't silently overwrite it and lose every secret in the project.
+function parseVault(raw: string): Record<string, string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(VAULT_CORRUPT_MSG);
+  }
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    !Object.values(parsed).every((v) => typeof v === "string")
+  ) {
+    throw new Error(VAULT_CORRUPT_MSG);
+  }
+  return parsed as Record<string, string>;
+}
+
+// Return the project's { name: value } map, migrating any legacy per-secret
+// items into the single vault item on first access. Idempotent; called at the
+// top of every value path. keychain.get RETHROWS locked/denied (so inject still
+// surfaces that distinctly, never as "missing"); a genuinely absent vault is
+// null -> {}.
+//
+// No-loss order: read legacy values -> write the consolidated blob (now
+// redundant in both places) -> delete legacy items. A crash after the write
+// leaves the blob complete and the legacy items as harmless dead entries
+// (nothing reads "<id>:<name>" once the vault exists, so they never re-prompt).
+// Step 4 deletes only names that made it into the blob, so a value that is not
+// in the blob is never deleted.
+async function ensureMigrated(
+  root: string,
+  keychain: KeychainStore,
+): Promise<Record<string, string>> {
+  const vaultAccount = await vaultAccountFor(root);
+  const raw = keychain.get(SERVICE, vaultAccount);
+  if (raw !== null) return parseVault(raw);
+  const metas = await readMeta(root);
+  const map: Record<string, string> = {};
+  for (const m of metas) {
+    const v = keychain.get(SERVICE, await accountFor(root, m.name));
+    if (v !== null) map[m.name] = v;
+  }
+  if (Object.keys(map).length > 0) {
+    keychain.set(SERVICE, vaultAccount, JSON.stringify(map));
+    for (const m of metas) {
+      if (m.name in map)
+        keychain.delete(SERVICE, await accountFor(root, m.name));
+    }
+  }
+  return map;
 }
 
 export async function setSecret(
@@ -43,6 +116,9 @@ export async function setSecret(
   if (isDangerousEnvName(name))
     throw new Error(`Reserved env name cannot be vaulted: ${name}`);
   const validation = validateSecret(name, value);
+  // Migrate any pre-consolidation items into the vault FIRST, so the blob we
+  // write below carries this project's existing secrets, not just the new one.
+  const map = await ensureMigrated(root, keychain);
   const existing = (await readMeta(root)).find((m) => m.name === name);
   const now = new Date().toISOString();
   const meta: SecretMeta = {
@@ -58,7 +134,8 @@ export async function setSecret(
   // than a silent keychain orphan with no meta. If keychain.set throws here,
   // the meta is already persisted - an acceptable degrade for the same reason.
   await upsertMeta(root, meta);
-  keychain.set(SERVICE, await accountFor(root, name), value);
+  map[name] = value;
+  keychain.set(SERVICE, await vaultAccountFor(root), JSON.stringify(map));
   await appendAudit(root, opts.actor ?? "user", "secret.set", {
     name,
     provider: validation.provider,
@@ -73,16 +150,36 @@ export async function deleteSecret(
   opts: BrokerOptions = {},
 ): Promise<void> {
   const keychain = opts.keychain ?? systemKeychain;
-  // Capture whether the OS delete actually removed a credential. We still
-  // remove the meta entry regardless (the user wants it gone from the list),
-  // but record the truth: keychainDeleted:false means a value may linger in
-  // the OS keychain (locked store, or it was already absent). The audit stays
-  // honest instead of always claiming a clean delete.
-  const deleted = keychain.delete(SERVICE, await accountFor(root, name));
+  // Remove the name from the project's vault blob: deleting the LAST secret
+  // removes the whole keychain item; otherwise rewrite the blob without it. We
+  // still remove the meta entry regardless, and record the truth --
+  // keychainDeleted:false means the value may linger (locked store, or it was
+  // never in the vault) -- so the audit stays honest instead of always claiming
+  // a clean delete.
+  const map = await ensureMigrated(root, keychain);
+  let keychainDeleted: boolean;
+  if (name in map) {
+    delete map[name];
+    try {
+      if (Object.keys(map).length === 0) {
+        keychainDeleted = keychain.delete(SERVICE, await vaultAccountFor(root));
+      } else {
+        keychain.set(SERVICE, await vaultAccountFor(root), JSON.stringify(map));
+        keychainDeleted = true; // value overwritten out of the blob
+      }
+    } catch {
+      keychainDeleted = false; // locked store: the value lingers in the blob
+    }
+  } else {
+    // Not in the vault: a pre-consolidation orphan whose value never migrated
+    // (e.g. its original set failed), or already gone. Best-effort legacy
+    // delete so an un-migrated value doesn't linger.
+    keychainDeleted = keychain.delete(SERVICE, await accountFor(root, name));
+  }
   await removeMeta(root, name);
   await appendAudit(root, opts.actor ?? "user", "secret.delete", {
     name,
-    keychainDeleted: deleted,
+    keychainDeleted,
   });
 }
 
@@ -116,7 +213,8 @@ export async function getSecretValue(
   opts: BrokerOptions = {},
 ): Promise<string | null> {
   const keychain = opts.keychain ?? systemKeychain;
-  return keychain.get(SERVICE, await accountFor(root, name));
+  const map = await ensureMigrated(root, keychain);
+  return map[name] ?? null;
 }
 
 // Gather every vaulted secret as { name, value } pairs (main-only; reads the
@@ -125,18 +223,20 @@ export async function vaultedSecrets(
   root: string,
   opts: BrokerOptions = {},
 ): Promise<{ name: string; value: string }[]> {
-  const metas = await listSecrets(root);
+  const keychain = opts.keychain ?? systemKeychain;
+  const map = await ensureMigrated(root, keychain);
   const out: { name: string; value: string }[] = [];
-  for (const m of metas) {
-    const v = await getSecretValue(root, m.name, opts);
+  for (const m of await listSecrets(root)) {
+    const v = map[m.name];
     if (v) out.push({ name: m.name, value: v });
   }
   return out;
 }
 
-// Reserved app-global keychain namespace. accountFor() yields "<id>:<name>"
-// where id is "<basename>-<8hex>" -- never starts with "@" nor contains "/",
-// so "@global/<name>" can never collide with a project secret account.
+// Reserved app-global keychain namespace. Project accounts are "<id>:<name>"
+// (legacy per-secret) and "@vault/<id>" (the consolidated vault); a projectId
+// is "<basename>-<8hex>" -- never starts with "@", never contains "/" -- so
+// "@global/<name>" can collide with none of them.
 function globalAccountFor(name: string): string {
   return `@global/${name}`;
 }
@@ -222,9 +322,13 @@ export async function injectInto(
   const env = { ...base };
   const injected: string[] = [];
   const missing: string[] = [];
+  // One keychain read for the whole project (migrating legacy items if needed),
+  // then resolve each meta name against the in-memory map -- so a project with
+  // N secrets prompts once, not N times.
+  const map = await ensureMigrated(root, keychain);
   for (const meta of await readMeta(root)) {
-    const value = keychain.get(SERVICE, await accountFor(root, meta.name));
-    if (value === null) {
+    const value = map[meta.name];
+    if (value === undefined) {
       missing.push(meta.name);
       continue;
     }

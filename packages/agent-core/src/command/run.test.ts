@@ -179,11 +179,12 @@ describe("runCommand", () => {
 
   it("filters a dangerous injected name out of the env but keeps it in the redaction set", async () => {
     // PATH cannot be vaulted via setSecret (reserved-name guard), so seed the
-    // fake keychain directly with the account the broker would compute, to
-    // exercise the inject-time dangerous-name filter in isolation.
+    // project's vault blob directly (the single keychain item the broker now
+    // uses) with a no-meta PATH entry, to exercise the inject-time
+    // dangerous-name filter in isolation.
     const { projectIdFor } = await import("../project/id");
     const id = await projectIdFor(root);
-    store.set(`airlock|${id}:PATH`, "/evil/bin");
+    store.set(`airlock|@vault/${id}`, JSON.stringify({ PATH: "/evil/bin" }));
     const runner = makeRunner({ stdout: "resolved /evil/bin here" });
     const res = await runCommand(root, "echo $PATH", {
       injectSecrets: ["PATH"],

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { readAudit } from "../audit/audit";
+import { projectIdFor } from "../project/id";
 import {
   deleteGlobalSecret,
   deleteSecret,
@@ -16,6 +17,7 @@ import {
   setSecret,
 } from "./broker";
 import type { KeychainStore } from "./keychain";
+import { upsertMeta } from "./meta";
 
 let root: string;
 let store: Map<string, string>;
@@ -43,7 +45,10 @@ describe("broker", () => {
     );
     expect(meta.provider).toBe("postgres-url");
     expect(meta.valid).toBe(true);
-    expect([...store.values()]).toContain("postgresql://u:hunter2@h/db");
+    // The value lives in the keychain (read it back by name), never in meta.
+    expect(await getSecretValue(root, "DATABASE_URL", { keychain: fake })).toBe(
+      "postgresql://u:hunter2@h/db",
+    );
     const metaText = await readFile(
       path.join(root, ".airlock", "secrets.json"),
       "utf8",
@@ -165,7 +170,9 @@ describe("broker", () => {
     // A normal name still works and is unaffected by the reserved-name guard.
     const meta = await setSecret(root, "NORMAL_KEY", "ok", { keychain: fake });
     expect(meta.name).toBe("NORMAL_KEY");
-    expect([...store.values()]).toContain("ok");
+    expect(await getSecretValue(root, "NORMAL_KEY", { keychain: fake })).toBe(
+      "ok",
+    );
   });
 
   it("propagates a non-not-found keychain get error on inject", async () => {
@@ -191,7 +198,10 @@ describe("broker", () => {
     const throwOnB: KeychainStore = {
       ...fake,
       set: (s, a, v) => {
-        if (a.endsWith(":B"))
+        // Single-item storage: each setSecret rewrites the project's vault
+        // blob. Fail the write whose blob first carries key "B" (B's import
+        // iteration); the loop must record B as failed and continue to C.
+        if (v.includes('"B"'))
           throw new Error(
             "Platform secure storage failure: keychain is locked",
           );
@@ -227,6 +237,72 @@ describe("broker", () => {
     expect(
       await getSecretValue(root, "MISSING", { keychain: fake }),
     ).toBeNull();
+  });
+
+  it("stores all of a project's secrets in ONE keychain item", async () => {
+    await setSecret(root, "A", "va", { keychain: fake });
+    await setSecret(root, "B", "vb", { keychain: fake });
+    await setSecret(root, "C", "vc", { keychain: fake });
+    // One vault item holds the whole project -- not one item per secret. This
+    // is what turns N keychain prompts (one per item, per rebuild) into one.
+    expect(store.size).toBe(1);
+    const [blob] = [...store.values()];
+    expect(JSON.parse(blob ?? "")).toEqual({ A: "va", B: "vb", C: "vc" });
+    // ...and every value still reads back by name.
+    expect(await getSecretValue(root, "B", { keychain: fake })).toBe("vb");
+  });
+
+  it("migrates legacy per-secret keychain items into one vault on first read", async () => {
+    // Simulate the pre-consolidation layout: a meta index plus one keychain
+    // item PER secret, keyed "<projectId>:<name>".
+    const id = await projectIdFor(root);
+    const now = new Date().toISOString();
+    for (const name of ["X", "Y"]) {
+      await upsertMeta(root, {
+        name,
+        provider: null,
+        valid: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      store.set(`airlock|${id}:${name}`, `val-${name}`);
+    }
+    expect(store.size).toBe(2);
+    // First value-path read folds them into a single "@vault/<id>" item...
+    const r = await injectInto(root, {}, { keychain: fake });
+    expect(r.env).toEqual({ X: "val-X", Y: "val-Y" });
+    // ...and the legacy per-secret items are gone, replaced by one vault item.
+    expect(store.has(`airlock|@vault/${id}`)).toBe(true);
+    expect(store.has(`airlock|${id}:X`)).toBe(false);
+    expect(store.has(`airlock|${id}:Y`)).toBe(false);
+    expect(store.size).toBe(1);
+  });
+
+  it("fails loud on a corrupt vault blob instead of silently dropping secrets", async () => {
+    const id = await projectIdFor(root);
+    await upsertMeta(root, {
+      name: "Z",
+      provider: null,
+      valid: false,
+      createdAt: "t",
+      updatedAt: "t",
+    });
+    store.set(`airlock|@vault/${id}`, "{ not json");
+    // A corrupt blob must reject (fail closed): a silent {} would let the next
+    // write overwrite the blob and lose the other secrets -- same philosophy
+    // as the corrupt-secrets.json guard in meta.ts.
+    await expect(injectInto(root, {}, { keychain: fake })).rejects.toThrow(
+      /corrupt/i,
+    );
+  });
+
+  it("removes the vault item when the last secret is deleted", async () => {
+    await setSecret(root, "ONLY", "v", { keychain: fake });
+    expect(store.size).toBe(1);
+    await deleteSecret(root, "ONLY", { keychain: fake });
+    // No empty blob left behind -- the whole keychain item is removed.
+    expect(store.size).toBe(0);
+    expect(await listSecrets(root)).toEqual([]);
   });
 
   it("records keychainDeleted:false when the OS delete reports no removal", async () => {
