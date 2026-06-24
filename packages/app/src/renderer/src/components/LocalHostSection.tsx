@@ -27,11 +27,11 @@ export function LocalHostSection() {
   // probe so a future second pane re-probes when ITS project changes.
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const hostRefreshNonce = useApp((s) => s.hostRefreshNonce);
   const [url, setUrl] = useState<string | null>(null);
   const [up, setUp] = useState<boolean | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
 
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
@@ -48,7 +48,6 @@ export function LocalHostSection() {
       setUp(null);
       return;
     }
-    setBusy(true);
     try {
       const u = await window.airlock.hostLocalUrl(root);
       if (!mounted.current) return;
@@ -61,8 +60,6 @@ export function LocalHostSection() {
       }
     } catch (err) {
       console.error("host refresh failed", err);
-    } finally {
-      if (mounted.current) setBusy(false);
     }
   }, [root]);
 
@@ -71,6 +68,7 @@ export function LocalHostSection() {
   // startFocusPolling: re-probe every HOST_POLL_MS while focused (the dev server
   // may be started/stopped outside the app, e.g. Ctrl-C'd in a terminal pane,
   // which never blurs the window) and pause when backgrounded. See focusPolling.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce is not read in the body but intentionally included as a trigger dep — the single HOST-header Refresh bumps it to re-probe the dev server.
   useEffect(() => {
     void refresh();
     return startFocusPolling(() => void refresh(), HOST_POLL_MS, {
@@ -80,7 +78,7 @@ export function LocalHostSection() {
       addEventListener: (type, fn) => window.addEventListener(type, fn),
       removeEventListener: (type, fn) => window.removeEventListener(type, fn),
     });
-  }, [refresh]);
+  }, [refresh, hostRefreshNonce]);
 
   const save = async () => {
     const next = draft.trim();
@@ -103,17 +101,6 @@ export function LocalHostSection() {
 
   return (
     <div className="docker">
-      <div className="section-toolbar">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void refresh()}
-          disabled={busy}
-          title="Re-probe the dev server"
-        >
-          <i className="codicon codicon-refresh" /> Refresh
-        </button>
-      </div>
       {editing ? (
         <div className="docker-row">
           <input

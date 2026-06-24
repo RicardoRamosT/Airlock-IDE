@@ -427,6 +427,12 @@ export interface AppState {
   dbRefreshNonce: number;
   bumpDbRefresh: () => void;
 
+  // Bumped by the single HOST-view header Refresh to re-run every host section
+  // at once (LocalHostSection probe + RenderSection services + Azure). Each
+  // section re-runs its own loader on change. Renderer-only.
+  hostRefreshNonce: number;
+  bumpHostRefresh: () => void;
+
   // --- Terminal setters ---
   // addTerminal/setActiveTerminal/setSplit take the PANE's tabId (the terminal-
   // tabs UI passes ITS tabId) so they hit the right pane even in a project split;
@@ -746,6 +752,7 @@ export const useApp = create<AppState>((set) => ({
   // app-global
   modal: null,
   dbRefreshNonce: 0,
+  hostRefreshNonce: 0,
   sidebarVisible: true,
   sidebarPosition: "left",
   sidebarWidth: 230,
@@ -1297,6 +1304,8 @@ export const useApp = create<AppState>((set) => ({
     set((s) => patchTab(s, tabId ?? s.activeTabId, { gitStatus })),
   setModal: (modal) => set({ modal }),
   bumpDbRefresh: () => set((s) => ({ dbRefreshNonce: s.dbRefreshNonce + 1 })),
+  bumpHostRefresh: () =>
+    set((s) => ({ hostRefreshNonce: s.hostRefreshNonce + 1 })),
   setRunningNotice: (runningNotice) => set({ runningNotice }),
 
   // --- Terminal setters ---

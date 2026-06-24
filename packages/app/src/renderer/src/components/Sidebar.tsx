@@ -112,6 +112,18 @@ export function Sidebar() {
                 </button>
               </span>
             )}
+            {view === "host" && (
+              <span className="section-actions">
+                <button
+                  type="button"
+                  className="row-action"
+                  title="Refresh dev server, Render & Azure"
+                  onClick={() => useApp.getState().bumpHostRefresh()}
+                >
+                  <i className="codicon codicon-refresh" />
+                </button>
+              </span>
+            )}
           </div>
           <div className="sidebar-view-body">{body}</div>
         </>

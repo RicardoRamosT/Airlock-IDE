@@ -93,7 +93,9 @@ function ResourceRow({ r }: { r: IntegrationItem }) {
 // plus one row per resource.
 export function IntegrationsSteadySection({ view }: { view: string }) {
   const [items, setItems] = useState<SteadyIntegration[]>([]);
+  const hostRefreshNonce = useApp((s) => s.hostRefreshNonce);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce is not read in the body but intentionally included as a trigger dep — the single HOST-header Refresh bumps it to reload immediately (and re-arm the poll).
   useEffect(() => {
     let cancelled = false;
     const load = () =>
@@ -109,7 +111,7 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [view]);
+  }, [view, hostRefreshNonce]);
 
   // Absent/unauthed integrations are shown (rather than hidden) as a full-width
   // action button -- matching the "Connect Neon"/"Connect Render" buttons -- so a

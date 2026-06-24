@@ -2912,6 +2912,8 @@ button.docker-row .codicon-chevron-right {
 }
 
 .render-deploy-status {
+  /* Fixed column so the time lines up across rows ("live" vs "deactivated"). */
+  min-width: 78px;
   color: var(--fg);
 }
 

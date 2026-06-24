@@ -10,8 +10,9 @@ import { useApp } from "../store";
 function dotClass(deployStatus: string): string {
   const s = deployStatus.toLowerCase();
   if (s === "live") return "status-dot on";
-  if (s.includes("fail") || s.includes("cancel") || s.includes("deactiv"))
-    return "status-dot fail";
+  // Only genuine failures are red. "deactivated" is the NORMAL state of a
+  // superseded (older) deploy, not a failure -> neutral grey, like in-progress.
+  if (s.includes("fail") || s.includes("cancel")) return "status-dot fail";
   return "status-dot";
 }
 
@@ -226,10 +227,10 @@ function ServiceRow({
 //   connected===true  -> the per-project service list (one expandable row each)
 export function RenderSection() {
   const modal = useApp((s) => s.modal);
+  const hostRefreshNonce = useApp((s) => s.hostRefreshNonce);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [services, setServices] = useState<RenderServiceStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
@@ -259,7 +260,6 @@ export function RenderSection() {
   }, [modal]);
 
   const loadServices = useCallback(async () => {
-    setBusy(true);
     setError(null);
     try {
       const list = await window.airlock.renderServices();
@@ -267,16 +267,16 @@ export function RenderSection() {
     } catch (e) {
       console.error("renderServices failed", e);
       if (mounted.current) setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      if (mounted.current) setBusy(false);
     }
   }, []);
 
-  // Once connected, load the project's service list.
+  // Once connected, (re)load the service list — also when the single HOST-header
+  // Refresh bumps hostRefreshNonce.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hostRefreshNonce is not read in the body but intentionally included as a trigger dep.
   useEffect(() => {
     if (connected !== true) return;
     void loadServices();
-  }, [connected, loadServices]);
+  }, [connected, loadServices, hostRefreshNonce]);
 
   if (connected === null) return <div className="section-note">checking…</div>;
 
@@ -298,17 +298,6 @@ export function RenderSection() {
 
   return (
     <div className="docker">
-      <div className="section-toolbar">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void loadServices()}
-          disabled={busy}
-          title="Refresh services"
-        >
-          <i className="codicon codicon-refresh" /> Refresh
-        </button>
-      </div>
       {error && <div className="modal-error">{error}</div>}
       {services.length === 0 ? (
         <div className="section-note">No services for this project</div>
