@@ -203,7 +203,10 @@ export async function gatherProfile(root: string): Promise<OverviewResult> {
 
   // Richer-content extras: a bounded file walk for language stats + the README.
   // Run concurrently; both are best-effort and never throw.
-  const [names, readme] = await Promise.all([walkFiles(root), readReadme(root)]);
+  const [names, readme] = await Promise.all([
+    walkFiles(root),
+    readReadme(root),
+  ]);
   const stats = {
     fileCount: names.length,
     languages: languageBreakdown(names),

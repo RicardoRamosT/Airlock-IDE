@@ -53,10 +53,7 @@ export interface LanguageStat {
 // Summarize file names into a language breakdown, sorted by file count desc.
 // The top `topN` languages are kept; everything else (extra languages +
 // unrecognized extensions) folds into a single "Other" bucket appended last.
-export function languageBreakdown(
-  names: string[],
-  topN = 6,
-): LanguageStat[] {
+export function languageBreakdown(names: string[], topN = 6): LanguageStat[] {
   const counts = new Map<string, { name: string; files: number }>();
   let other = 0;
   for (const n of names) {
