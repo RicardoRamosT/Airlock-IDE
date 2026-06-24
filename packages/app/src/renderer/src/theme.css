@@ -1245,6 +1245,10 @@ body.resizing-col {
   border: none;
   color: var(--fg-dim);
   cursor: pointer;
+  /* Fixed height so the 3 stacked icons fit inside --sidebar-dock-h (88px):
+     3*22 + 2*2 gap + 2*6 pad = 88. Without it they inherit line-height, overflow
+     the dock, and the activity-bar divider rises above the quota meter's. */
+  height: 22px;
   padding: 4px 6px;
   border-radius: 4px;
   display: flex;
