@@ -57,15 +57,17 @@ export async function listOrganizations(
   return parseOrganizations(await t.get("/users/me/organizations", key));
 }
 
-// Projects within an organization. A personal key must scope by org_id (without
-// it, `/projects` does not enumerate an org-based account's projects).
+// Projects within an organization. A personal key must scope by org_id; an
+// organization key infers its org, so pass "" to omit the filter and list via
+// plain `/projects` (the inferred-org path).
 export async function listProjects(
   key: string,
   orgId: string,
   opts: NeonOptions = {},
 ): Promise<NeonProject[]> {
   const t = opts.transport ?? fetchTransport;
-  return parseProjects(await t.get(`/projects?org_id=${enc(orgId)}`, key));
+  const path = orgId ? `/projects?org_id=${enc(orgId)}` : "/projects";
+  return parseProjects(await t.get(path, key));
 }
 export async function listBranches(
   key: string,

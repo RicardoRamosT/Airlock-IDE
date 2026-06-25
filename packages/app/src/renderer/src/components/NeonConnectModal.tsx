@@ -34,10 +34,10 @@ export function NeonConnectModal() {
       <div className="modal">
         <div className="modal-title">Connect Neon</div>
         <div className="modal-caption">
-          Paste a <strong>personal</strong> Neon API key (Neon Console → Account
-          settings → API keys). A <em>project-scoped</em> key won't work —
-          AirLock lists your organizations and projects, which only an
-          account-level key can do.
+          Paste a <strong>personal</strong> or <strong>organization</strong>
+          Neon API key (Neon Console → Account settings → API keys). A{" "}
+          <em>project-scoped</em> key won't work — AirLock lists your projects,
+          which a scoped key can't do.
         </div>
         <textarea
           className={`modal-input modal-value${show ? "" : " masked"}`}

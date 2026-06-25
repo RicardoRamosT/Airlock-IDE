@@ -84,12 +84,26 @@ export async function neonStatus(): Promise<{ connected: boolean }> {
   return { connected: (await getGlobalSecret(NEON_KEY)) !== null };
 }
 
-// Neon organizations the key's user belongs to (metadata only). Requires a
-// personal API key; a project-scoped key 404s here (surfaced to the user).
+// The organizations to root the Neon tree at. Handles all three key types:
+//   - personal key  -> /users/me/organizations lists the user's orgs.
+//   - organization key -> that endpoint 404s (not a user endpoint), but the
+//     org's projects list via the inferred /projects, so surface ONE synthetic
+//     org node ("Your projects", id "") whose projects come from /projects.
+//   - project-scoped key -> can't list either, so the probe below rethrows and
+//     the UI shows the scoped-key hint instead of a raw 404.
 export async function neonOrganizations(): Promise<NeonOrg[]> {
   const key = await getGlobalSecret(NEON_KEY);
   if (!key) throw new Error("Neon not connected");
-  return neonListOrganizations(key);
+  try {
+    const orgs = await neonListOrganizations(key);
+    if (orgs.length > 0) return orgs;
+  } catch {
+    // Not a personal key; fall through to the organization-key path.
+  }
+  // Probe the inferred-org project list. Succeeds for an org key (-> synthetic
+  // org); throws for a project-scoped key (-> propagates to the scoped hint).
+  await neonListProjects(key, "");
+  return [{ id: "", name: "Your projects" }];
 }
 
 // Neon projects within an organization (metadata only). The API key stays

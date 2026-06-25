@@ -40,6 +40,12 @@ describe("neon client", () => {
     expect(projects).toEqual([{ id: "p1", name: "prod" }]);
   });
 
+  it("listProjects with empty orgId lists via inferred /projects (org key)", async () => {
+    const { t, gets } = fake();
+    await listProjects("k", "", { transport: t });
+    expect(gets[0]).toBe("/projects");
+  });
+
   it("listBranches still targets the project's branches path", async () => {
     const { t, gets } = fake();
     await listBranches("k", "p1", { transport: t });

@@ -10,14 +10,14 @@ import { useApp } from "../store";
 
 type PingState = "checking" | "ok" | "fail";
 
-// Turn a failed orgs/projects fetch into actionable guidance. The most common
-// cause is a PROJECT-SCOPED API key, which can't enumerate orgs/projects and
-// returns 404 — so we tell the user to use a personal key rather than show the
-// raw "Neon API 404".
+// Turn a failed orgs/projects fetch into actionable guidance. Personal and
+// organization keys both work (main resolves either); only a PROJECT-SCOPED key
+// can't enumerate projects and 404s — so point the user at a non-scoped key
+// rather than showing the raw "Neon API 404".
 function listErrorHint(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (/\b40[34]\b|not found|forbidden/i.test(msg))
-    return "Couldn't list your Neon organizations — this usually means a project-scoped API key. Create a personal API key (Neon → Account settings → API keys) and reconnect.";
+    return "Couldn't list your Neon projects — this usually means a project-scoped API key, which can't browse projects. Use a personal or organization API key (Neon → Account settings → API keys) and reconnect.";
   return msg;
 }
 
