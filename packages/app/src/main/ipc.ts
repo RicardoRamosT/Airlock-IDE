@@ -119,6 +119,7 @@ import {
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { guardedCommit } from "./secrets/commit";
+import { sectionStatuses } from "./sectionStatus";
 import { readSession, writeSession } from "./session-store";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
@@ -1175,6 +1176,14 @@ export function registerIpc(
     if (typeof url !== "string" || !/^https?:\/\//.test(url))
       throw new Error("Invalid payload");
     return shell.openExternal(url);
+  });
+
+  // Activity-rail status dots: one aggregate read fanning out to docker/db/host/
+  // git/activity for the renderer-supplied project root (null = blank tab).
+  ipcMain.handle("section:statuses", (_e, root: unknown) => {
+    if (root !== null && typeof root !== "string")
+      throw new Error("Invalid payload");
+    return sectionStatuses(root);
   });
 
   // Docker: machine-global, so NOT requireRoot-gated.

@@ -181,6 +181,21 @@ export interface RenderServiceStatus {
   lastDeploy: RenderDeploy | null;
 }
 
+// A traffic-light level for an activity-bar section icon: green = connected/up,
+// yellow = available but off/unreachable, red = a failure, grey = nothing
+// configured/available.
+export type DotLevel = "green" | "yellow" | "red" | "grey";
+
+// Per-section status dots for the activity rail. Only the connection/work
+// sections report; Files/Secrets/Audit have no service status.
+export interface SectionStatuses {
+  host: DotLevel;
+  databases: DotLevel;
+  docker: DotLevel;
+  git: DotLevel;
+  activity: DotLevel;
+}
+
 /** One CI step (job) projected for the Activity panel's expandable step list. */
 export interface ActivityStep {
   name: string;
@@ -716,6 +731,9 @@ export interface AirlockApi {
   }>;
   dockerStart(id: string): Promise<void>;
   dockerStop(id: string): Promise<void>;
+  // Traffic-light status per service section for the activity-rail dots. One
+  // aggregate read (main fans out to docker/db/host/git/activity).
+  sectionStatuses(root: string | null): Promise<SectionStatuses>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;
   listExternalTerminals(): Promise<ExternalTerminalInfo[]>;

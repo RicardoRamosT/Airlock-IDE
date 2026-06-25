@@ -133,6 +133,7 @@ const api: AirlockApi = {
   hostProbe: (url) => ipcRenderer.invoke("host:probe", url),
   hostOpenExternal: (url) => ipcRenderer.invoke("host:openExternal", url),
   dockerList: () => ipcRenderer.invoke("docker:list"),
+  sectionStatuses: (root) => ipcRenderer.invoke("section:statuses", root),
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),

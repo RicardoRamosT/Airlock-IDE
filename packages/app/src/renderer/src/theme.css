@@ -545,6 +545,41 @@ body,
   font-size: 20px;
 }
 
+/* Service status dot, anchored to the icon glyph's lower-right corner. The ring
+   (rail-colored border) keeps it legible against the icon. green = connected,
+   yellow = available but off, red = error, grey = not connected. */
+.activity-icon-glyph {
+  position: relative;
+  display: inline-flex;
+}
+
+.activity-dot {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-panel);
+}
+
+.activity-dot.green {
+  background: #3fb950;
+}
+
+.activity-dot.yellow {
+  background: #d29922;
+}
+
+.activity-dot.red {
+  background: #f85149;
+}
+
+.activity-dot.grey {
+  background: var(--fg-dim);
+  opacity: 0.5;
+}
+
 /* Active-view indicator: the standard left-edge bar. */
 .activity-icon.active::before {
   content: "";

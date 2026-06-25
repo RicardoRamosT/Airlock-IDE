@@ -1,9 +1,36 @@
 import { useEffect, useState } from "react";
-import type { Section } from "../../../shared/ipc";
+import type { DotLevel, Section, SectionStatuses } from "../../../shared/ipc";
 import { effectiveView, SECTION_META } from "../lib/sections";
+import { useSectionStatuses } from "../lib/useSectionStatuses";
 import { useApp } from "../store";
 import { AccountsPopover } from "./AccountsPopover";
 import { SettingsMenu } from "./SettingsMenu";
+
+// The sections that report a connection/work status dot (the others are local
+// views with no service to be "connected" to).
+const DOTTED: ReadonlySet<string> = new Set([
+  "host",
+  "databases",
+  "docker",
+  "git",
+  "activity",
+]);
+
+// Hover text for a dot level, so the rail explains itself.
+const DOT_TITLE: Record<DotLevel, string> = {
+  green: "connected",
+  yellow: "available, not running",
+  red: "error",
+  grey: "not connected",
+};
+
+function levelFor(
+  statuses: SectionStatuses | null,
+  id: Section,
+): DotLevel | null {
+  if (!statuses || !DOTTED.has(id)) return null;
+  return statuses[id as keyof SectionStatuses];
+}
 
 // Where the suggestions button sends people: the repo's new-issue page with the
 // suggestion template preselected. A fixed https URL through the validated
@@ -22,6 +49,7 @@ export function ActivityBar() {
   const vis = useApp((s) => s.sectionVisibility);
   const activeView = useApp((s) => s.activeView);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
+  const statuses = useSectionStatuses();
   const [open, setOpen] = useState<"accounts" | "settings" | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
@@ -59,21 +87,32 @@ export function ActivityBar() {
   return (
     <nav className="activity-bar">
       <div className="activity-bar-icons">
-        {SECTION_META.filter((m) => vis[m.id]).map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            className={`activity-icon${m.id === view && sidebarVisible ? " active" : ""}`}
-            title={m.label}
-            onClick={() => onIcon(m.id)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenu({ x: e.clientX, y: e.clientY, id: m.id, label: m.label });
-            }}
-          >
-            <i className={`codicon codicon-${m.icon}`} />
-          </button>
-        ))}
+        {SECTION_META.filter((m) => vis[m.id]).map((m) => {
+          const level = levelFor(statuses, m.id);
+          return (
+            <button
+              key={m.id}
+              type="button"
+              className={`activity-icon${m.id === view && sidebarVisible ? " active" : ""}`}
+              title={level ? `${m.label} — ${DOT_TITLE[level]}` : m.label}
+              onClick={() => onIcon(m.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  id: m.id,
+                  label: m.label,
+                });
+              }}
+            >
+              <span className="activity-icon-glyph">
+                <i className={`codicon codicon-${m.icon}`} />
+                {level && <span className={`activity-dot ${level}`} />}
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div className="activity-bar-bottom">
         {open !== null && (
