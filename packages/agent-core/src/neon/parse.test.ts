@@ -3,10 +3,32 @@ import {
   parseBranches,
   parseConnectionUri,
   parseDatabases,
+  parseFirstProjectOrgId,
+  parseOrg,
   parseOrganizations,
   parseProjects,
   parseUser,
 } from "./parse";
+
+describe("parseFirstProjectOrgId / parseOrg", () => {
+  it("reads org_id from the first project (or '' when none)", () => {
+    expect(
+      parseFirstProjectOrgId({ projects: [{ id: "p", org_id: "org-1" }] }),
+    ).toBe("org-1");
+    expect(parseFirstProjectOrgId({ projects: [] })).toBe("");
+  });
+  it("parseOrg reads id+name, tolerating a wrapper, null when no id", () => {
+    expect(parseOrg({ id: "org-1", name: "GDL" })).toEqual({
+      id: "org-1",
+      name: "GDL",
+    });
+    expect(parseOrg({ organization: { id: "org-1", name: "GDL" } })).toEqual({
+      id: "org-1",
+      name: "GDL",
+    });
+    expect(parseOrg({})).toBeNull();
+  });
+});
 
 describe("parseUser", () => {
   it("reads id/email and joins name + last_name", () => {

@@ -180,6 +180,7 @@ export {
 export {
   fetchTransport,
   getCurrentUser as neonGetCurrentUser,
+  getInferredOrg as neonGetInferredOrg,
   // Aliased: agent-core already exports a git listBranches (./git/ops) with a
   // different signature; this is the Neon REST one.
   listBranches as neonListBranches,

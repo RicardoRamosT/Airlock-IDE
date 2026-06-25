@@ -19,6 +19,24 @@ function arr(json: unknown, key: string): Record<string, unknown>[] {
 const str = (o: Record<string, unknown>, k: string): string =>
   typeof o[k] === "string" ? (o[k] as string) : "";
 
+// The org_id of the first project in a /projects response — used to identify an
+// ORGANIZATION key (which can't hit /users/me) by the org it's scoped to.
+export function parseFirstProjectOrgId(json: unknown): string {
+  const first = arr(json, "projects")[0];
+  return first ? str(first, "org_id") : "";
+}
+
+// A single organization (GET /organizations/{id}). Tolerant of a bare object or
+// an { organization: {...} } wrapper.
+export function parseOrg(json: unknown): NeonOrg | null {
+  let o: Record<string, unknown> =
+    json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  if (o.organization && typeof o.organization === "object")
+    o = o.organization as Record<string, unknown>;
+  const id = str(o, "id");
+  return id ? { id, name: str(o, "name") } : null;
+}
+
 // The current user (GET /users/me). Tolerant of a bare object or a { user: {...} }
 // wrapper. name joins first + last when present.
 export function parseUser(json: unknown): NeonUser {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getCurrentUser,
+  getInferredOrg,
   listBranches,
   listOrganizations,
   listProjects,
@@ -8,6 +9,32 @@ import {
   neonAccountLabel,
   resolveNeonAccountId,
 } from "./client";
+
+describe("getInferredOrg", () => {
+  it("infers the org from the first project, then names it", async () => {
+    const t: NeonTransport = {
+      async get(path) {
+        if (path.startsWith("/projects"))
+          return { projects: [{ id: "p", org_id: "org-1" }] };
+        if (path === "/organizations/org-1")
+          return { id: "org-1", name: "GDL Motors" };
+        return {};
+      },
+    };
+    expect(await getInferredOrg("k", { transport: t })).toEqual({
+      id: "org-1",
+      name: "GDL Motors",
+    });
+  });
+  it("returns null when projects can't be listed (project-scoped key)", async () => {
+    const t: NeonTransport = {
+      async get() {
+        throw new Error("Neon API 404 Not Found");
+      },
+    };
+    expect(await getInferredOrg("k", { transport: t })).toBeNull();
+  });
+});
 
 describe("resolveNeonAccountId", () => {
   const accts = [

@@ -14,6 +14,7 @@ import {
   type NeonAccountRef,
   neonAccountLabel,
   neonGetCurrentUser,
+  neonGetInferredOrg,
   readProjectConfig,
   resolveNeonAccountId,
   setGlobalSecret,
@@ -52,6 +53,27 @@ async function writeRegistry(refs: NeonAccountRef[]): Promise<void> {
   });
 }
 
+// Identify the account a key belongs to, for the pool. A personal key resolves
+// via /users/me; an organization key (which 404s there) resolves via its
+// inferred org; a project-scoped key resolves to neither -> null (can't be a
+// pool account, since it can't enumerate). The id is stable per account so
+// re-adding the same key dedupes and bindings persist.
+async function identify(key: string): Promise<NeonAccountRef | null> {
+  try {
+    const user = await neonGetCurrentUser(key);
+    if (user.id) return { id: user.id, label: neonAccountLabel(user) };
+  } catch {
+    // not a personal key -> try the org path
+  }
+  try {
+    const org = await neonGetInferredOrg(key);
+    if (org?.id) return { id: org.id, label: org.name || org.id };
+  } catch {
+    // not identifiable as an org either
+  }
+  return null;
+}
+
 // One-time fold of the legacy single NEON_API_KEY into the pool, when the
 // registry is empty. If the key identifies (personal/org), it becomes a labeled
 // account; if it can't (e.g. project-scoped 404), it's kept under a synthetic
@@ -63,13 +85,10 @@ async function migrateLegacy(): Promise<void> {
   if ((await readRegistry()).length > 0) return;
   const legacy = await getGlobalSecret(LEGACY_KEY);
   if (!legacy) return;
-  let ref: NeonAccountRef;
-  try {
-    const user = await neonGetCurrentUser(legacy);
-    ref = { id: user.id || "legacy", label: neonAccountLabel(user) };
-  } catch {
-    ref = { id: "legacy", label: "Neon (existing key)" };
-  }
+  const ref = (await identify(legacy)) ?? {
+    id: "legacy",
+    label: "Neon (existing key)",
+  };
   await setGlobalSecret(keyName(ref.id), legacy, { auditLog: auditLog() });
   await writeRegistry([ref]);
   await deleteGlobalSecret(LEGACY_KEY, { auditLog: auditLog() });
@@ -80,21 +99,16 @@ export async function listNeonAccounts(): Promise<NeonAccountRef[]> {
   return readRegistry();
 }
 
-// Add a key to the pool, identifying its account via /users/me. A project-scoped
-// key can't identify itself (404) and isn't a valid pool account -> clear error.
+// Add a key to the pool, identifying its account (personal via /users/me or
+// organization via the inferred org). A project-scoped key can't identify
+// itself and isn't a valid pool account -> clear error.
 export async function addNeonAccount(key: string): Promise<NeonAccountRef> {
   await migrateLegacy();
-  let user: Awaited<ReturnType<typeof neonGetCurrentUser>>;
-  try {
-    user = await neonGetCurrentUser(key);
-  } catch {
+  const ref = await identify(key.trim());
+  if (!ref)
     throw new Error(
       "Couldn't identify this key's Neon account — use a personal or organization API key (a project-scoped key can't be added).",
     );
-  }
-  if (!user.id)
-    throw new Error("Neon did not return an account id for this key.");
-  const ref: NeonAccountRef = { id: user.id, label: neonAccountLabel(user) };
   await setGlobalSecret(keyName(ref.id), key.trim(), { auditLog: auditLog() });
   const refs = (await readRegistry()).filter((a) => a.id !== ref.id);
   refs.push(ref);

@@ -2,6 +2,8 @@ import {
   parseBranches,
   parseConnectionUri,
   parseDatabases,
+  parseFirstProjectOrgId,
+  parseOrg,
   parseOrganizations,
   parseProjects,
   parseUser,
@@ -91,6 +93,32 @@ export function neonAccountLabel(u: NeonUser): string {
   return (
     u.email || u.name || (u.id ? `Neon ${u.id.slice(0, 8)}` : "Neon account")
   );
+}
+
+// Identify an ORGANIZATION key (which 404s on /users/me): its org is inferred
+// from the first project's org_id, then named via the org details. Returns null
+// when the key can't list projects (project-scoped) or has none. The org
+// details call is best-effort — on failure the org_id stands in as the name.
+export async function getInferredOrg(
+  key: string,
+  opts: NeonOptions = {},
+): Promise<NeonOrg | null> {
+  const t = opts.transport ?? fetchTransport;
+  let orgId: string;
+  try {
+    orgId = parseFirstProjectOrgId(await t.get("/projects?limit=1", key));
+  } catch {
+    return null; // can't list projects -> not an org key we can identify
+  }
+  if (!orgId) return null;
+  let name = "";
+  try {
+    name =
+      parseOrg(await t.get(`/organizations/${enc(orgId)}`, key))?.name ?? "";
+  } catch {
+    // best-effort name; the id stands in below
+  }
+  return { id: orgId, name };
 }
 
 // The organizations the API key's user belongs to. Requires a PERSONAL API key
