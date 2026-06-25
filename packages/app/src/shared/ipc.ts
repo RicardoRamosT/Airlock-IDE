@@ -631,6 +631,11 @@ export interface AirlockApi {
   gitStage(root: string, paths: string[]): Promise<void>;
   gitUnstage(root: string, paths: string[]): Promise<void>;
   gitCommit(root: string, message: string): Promise<CommitOutcome>;
+  // Discard local changes: untracked=true removes the files, else restores them
+  // to HEAD (index + worktree). Destructive; the UI confirms first.
+  gitDiscard(root: string, paths: string[], untracked: boolean): Promise<void>;
+  // Undo the last commit, keeping its changes staged (soft reset).
+  gitUncommit(root: string): Promise<void>;
   gitBranches(root: string): Promise<string[]>;
   gitFetch(root: string): Promise<void>;
   gitPull(root: string): Promise<void>;

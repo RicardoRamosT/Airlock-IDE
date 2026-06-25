@@ -83,6 +83,7 @@ export { ensureCommitIdentity, type GitIdentity } from "./git/identity";
 export {
   commitStaged,
   createBranch,
+  discardChanges,
   gitFetch,
   gitPull,
   gitPush,
@@ -91,6 +92,7 @@ export {
   originRemoteUrl,
   stageFiles,
   switchBranch,
+  undoLastCommit,
   unstageFiles,
 } from "./git/ops";
 export { getOrigin, type ParsedRemote, parseRemote } from "./git/remote";

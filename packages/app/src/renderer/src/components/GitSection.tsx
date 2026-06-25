@@ -4,14 +4,20 @@ import type {
   ResolvedGithubAccount,
   SecretLeak,
 } from "../../../shared/ipc";
+import { openFileInRoot } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 const NEW_BRANCH = "__new__";
 
+// Which change list a row belongs to. Drives its context-menu actions (a staged
+// row unstages; an untracked row's discard deletes it rather than restoring).
+type Bucket = "staged" | "unstaged" | "untracked";
+
 // One change row: a colored status letter, the FILENAME first with the
 // directory dimmed + truncated (so the filename is always visible and rows are
-// distinguishable), and a hover-revealed stage/unstage action.
+// distinguishable), a hover-revealed stage/unstage action, and a right-click
+// context menu (via onMenu) for the fuller per-file actions.
 function ChangeRow({
   status,
   path,
@@ -19,6 +25,7 @@ function ChangeRow({
   actionTitle,
   onAction,
   onDiff,
+  onMenu,
 }: {
   status: string;
   path: string;
@@ -26,6 +33,7 @@ function ChangeRow({
   actionTitle: string;
   onAction: () => void;
   onDiff: () => void;
+  onMenu: (e: React.MouseEvent) => void;
 }) {
   const slash = path.lastIndexOf("/");
   const base = slash >= 0 ? path.slice(slash + 1) : path;
@@ -42,7 +50,8 @@ function ChangeRow({
             ? "ren"
             : "mod";
   return (
-    <div className="git-row">
+    // biome-ignore lint/a11y/noStaticElementInteractions: right-click affordance for the per-file menu; the row's own controls are real buttons.
+    <div className="git-row" onContextMenu={onMenu}>
       <span className={`git-letter git-letter--${mod}`}>{ch}</span>
       <button type="button" className="git-path" title={path} onClick={onDiff}>
         <span className="git-file">{base}</span>
@@ -75,6 +84,19 @@ export function GitSection() {
   const [leaks, setLeaks] = useState<SecretLeak[]>([]);
   const [account, setAccount] = useState<ResolvedGithubAccount | null>(null);
   const [accountList, setAccountList] = useState<string[]>([]);
+  // Right-click change-row menu + the destructive-action confirm (discard /
+  // uncommit) it can open.
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+    bucket: Bucket;
+  } | null>(null);
+  const [confirm, setConfirm] = useState<
+    | { kind: "discard"; path: string; untracked: boolean }
+    | { kind: "uncommit" }
+    | null
+  >(null);
 
   const refresh = useCallback(async () => {
     if (!root) return;
@@ -105,6 +127,19 @@ export function GitSection() {
   useEffect(() => {
     refresh().catch(console.error);
   }, [refresh]);
+
+  // Dismiss the row menu / confirm on Escape.
+  useEffect(() => {
+    if (!menu && !confirm) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(null);
+        setConfirm(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu, confirm]);
 
   if (!root) return <div className="section-note">open a folder first</div>;
   if (!isRepo) return <div className="section-note">not a git repository</div>;
@@ -147,6 +182,23 @@ export function GitSection() {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  const openMenu = (e: React.MouseEvent, path: string, bucket: Bucket) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, path, bucket });
+  };
+
+  const copyPath = (path: string) => void navigator.clipboard?.writeText(path);
+
+  const doDiscard = (path: string, untracked: boolean) =>
+    void run(() => window.airlock.gitDiscard(root, [path], untracked));
+
+  const doUncommit = () => void run(() => window.airlock.gitUncommit(root));
+
+  // The last commit looks already-pushed when an upstream exists and HEAD is not
+  // ahead of it; uncommitting then diverges from the remote, so the confirm warns.
+  const lastCommitPushed =
+    status.branch.upstream !== null && status.branch.ahead === 0;
 
   const switchTo = (value: string) => {
     if (value === NEW_BRANCH) {
@@ -298,6 +350,7 @@ export function GitSection() {
                 void run(() => window.airlock.gitUnstage(root, [c.path]))
               }
               onDiff={() => void showDiff(c.path, "staged")}
+              onMenu={(e) => openMenu(e, c.path, "staged")}
             />
           ))}
         </div>
@@ -317,6 +370,7 @@ export function GitSection() {
                 void run(() => window.airlock.gitStage(root, [c.path]))
               }
               onDiff={() => void showDiff(c.path, "unstaged")}
+              onMenu={(e) => openMenu(e, c.path, "unstaged")}
             />
           ))}
           {status.untracked.map((p) => (
@@ -330,6 +384,7 @@ export function GitSection() {
                 void run(() => window.airlock.gitStage(root, [p]))
               }
               onDiff={() => void showDiff(p, "unstaged")}
+              onMenu={(e) => openMenu(e, p, "untracked")}
             />
           ))}
         </div>
@@ -370,6 +425,140 @@ export function GitSection() {
         </div>
       )}
       {error && <div className="modal-error">{error}</div>}
+
+      {menu && (
+        <>
+          <button
+            type="button"
+            className="popover-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenu(null)}
+          />
+          <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                void showDiff(
+                  menu.path,
+                  menu.bucket === "staged" ? "staged" : "unstaged",
+                );
+                setMenu(null);
+              }}
+            >
+              <span>View diff</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                void openFileInRoot(root, menu.path);
+                setMenu(null);
+              }}
+            >
+              <span>Open file</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                const p = menu.path;
+                void run(() =>
+                  menu.bucket === "staged"
+                    ? window.airlock.gitUnstage(root, [p])
+                    : window.airlock.gitStage(root, [p]),
+                );
+                setMenu(null);
+              }}
+            >
+              <span>{menu.bucket === "staged" ? "Unstage" : "Stage"}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                copyPath(menu.path);
+                setMenu(null);
+              }}
+            >
+              <span>Copy path</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item danger"
+              onClick={() => {
+                setConfirm({
+                  kind: "discard",
+                  path: menu.path,
+                  untracked: menu.bucket === "untracked",
+                });
+                setMenu(null);
+              }}
+            >
+              <span>Discard changes…</span>
+            </button>
+            <div className="menu-sep" />
+            <button
+              type="button"
+              className="menu-item danger"
+              onClick={() => {
+                setConfirm({ kind: "uncommit" });
+                setMenu(null);
+              }}
+            >
+              <span>Undo last commit…</span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {confirm && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            {confirm.kind === "discard" ? (
+              <>
+                <div className="modal-title">Discard changes?</div>
+                <div className="modal-caption">
+                  {confirm.untracked
+                    ? `Delete the untracked file ${confirm.path}? This can't be undone.`
+                    : `Discard all changes to ${confirm.path} and restore it to the last commit? This can't be undone.`}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="modal-title">Undo last commit?</div>
+                <div className="modal-caption">
+                  The commit is removed but its changes are kept (staged), so
+                  you can re-commit.
+                  {lastCommitPushed &&
+                    " This commit appears to be pushed already — undoing it will diverge from the remote."}
+                </div>
+              </>
+            )}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                onClick={() => {
+                  if (confirm.kind === "discard")
+                    doDiscard(confirm.path, confirm.untracked);
+                  else doUncommit();
+                  setConfirm(null);
+                }}
+              >
+                {confirm.kind === "discard" ? "Discard" : "Undo commit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

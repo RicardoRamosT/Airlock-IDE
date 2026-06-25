@@ -1708,6 +1708,14 @@ button.quota-meter:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
+/* Divider between groups of context-menu items (per-file actions vs the
+   repo-level Undo last commit). */
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
 /* Hint shown when every sidebar section is hidden, pointing users to the
    View -> Sidebar menu as the way to bring sections back. */
 .sidebar-empty {
@@ -2106,6 +2114,19 @@ button.quota-meter:hover {
 .btn.primary:hover:not(:disabled) {
   background: var(--accent);
   border-color: var(--accent);
+  filter: brightness(1.1);
+}
+
+/* Destructive confirm action (e.g. Discard / Undo commit). The literal red is
+   the same #f85149 used by .modal-error / .status-dot.fail. */
+.btn.danger {
+  background: #f85149;
+  border-color: #f85149;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn.danger:hover:not(:disabled) {
   filter: brightness(1.1);
 }
 

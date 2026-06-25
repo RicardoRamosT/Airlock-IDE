@@ -12,6 +12,7 @@ import {
   deleteGlobalSecret,
   deleteSecret,
   detectInstalledTerminals,
+  discardChanges,
   dockerStart,
   dockerStop,
   duplicate,
@@ -63,6 +64,7 @@ import {
   switchBranch,
   switchGhAccount,
   targetsVault,
+  undoLastCommit,
   unstageFiles,
   vaultedSecrets,
   withDb,
@@ -832,6 +834,24 @@ export function registerIpc(
     await ensureIdentityFor(resolved); // author commits as the project's account
     return guardedCommit(resolved, message, { gated: false });
   });
+
+  ipcMain.handle(
+    "git:discard",
+    (e, root: unknown, paths: unknown, untracked: unknown) => {
+      if (
+        !Array.isArray(paths) ||
+        paths.some((p) => typeof p !== "string") ||
+        typeof untracked !== "boolean"
+      ) {
+        throw new Error("Invalid payload");
+      }
+      return discardChanges(resolveRoot(e, root), paths as string[], untracked);
+    },
+  );
+
+  ipcMain.handle("git:uncommit", (e, root: unknown) =>
+    undoLastCommit(resolveRoot(e, root)),
+  );
 
   ipcMain.handle("git:branches", (e, root: unknown) =>
     listBranches(resolveRoot(e, root)),

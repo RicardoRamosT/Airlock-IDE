@@ -1,10 +1,11 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   commitStaged,
   createBranch,
+  discardChanges,
   gitFetch,
   gitPull,
   gitPush,
@@ -13,6 +14,7 @@ import {
   originRemoteUrl,
   stageFiles,
   switchBranch,
+  undoLastCommit,
   unstageFiles,
 } from "./ops";
 import { runGit } from "./run";
@@ -51,6 +53,41 @@ describe("git ops", () => {
     const root = await makeRepo();
     await expect(commitStaged(root, "   ")).rejects.toThrow(/message/i);
     await expect(stageFiles(root, [])).rejects.toThrow(/paths/i);
+  });
+
+  it("discards a tracked file's changes back to HEAD (staged + worktree)", async () => {
+    const root = await makeRepo();
+    await writeFile(path.join(root, "a.txt"), "changed\n");
+    await stageFiles(root, ["a.txt"]); // stage the change too
+    await discardChanges(root, ["a.txt"], false);
+    const s = await gitStatus(root);
+    expect(s.staged).toEqual([]);
+    expect(s.unstaged).toEqual([]);
+    expect(await readFile(path.join(root, "a.txt"), "utf8")).toBe("one\n");
+  });
+
+  it("discards an untracked file by removing it from disk", async () => {
+    const root = await makeRepo();
+    await writeFile(path.join(root, "new.txt"), "x\n");
+    expect((await gitStatus(root)).untracked).toEqual(["new.txt"]);
+    await discardChanges(root, ["new.txt"], true);
+    expect((await gitStatus(root)).untracked).toEqual([]);
+    await expect(stat(path.join(root, "new.txt"))).rejects.toThrow();
+  });
+
+  it("undoes the last commit but keeps its changes staged", async () => {
+    const root = await makeRepo();
+    await writeFile(path.join(root, "a.txt"), "two\n");
+    await stageFiles(root, ["a.txt"]);
+    const before = await headSha(root);
+    await commitStaged(root, "feat: second");
+    expect(await headSha(root)).not.toBe(before);
+    await undoLastCommit(root);
+    expect(await headSha(root)).toBe(before); // back to the prior commit
+    // The change is preserved and still staged (soft reset).
+    expect((await gitStatus(root)).staged.map((c) => c.path)).toEqual([
+      "a.txt",
+    ]);
   });
 
   it("lists, creates, and switches branches", async () => {

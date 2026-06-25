@@ -57,6 +57,32 @@ export async function unstageFiles(
   }
 }
 
+// Discard local changes. Tracked paths are restored to HEAD (both the index and
+// the working tree); untracked paths are removed from disk. DESTRUCTIVE -- the
+// modifications / new files are gone. The caller groups rows by status and sets
+// `untracked` accordingly (an untracked path has no HEAD version to restore).
+export async function discardChanges(
+  root: string,
+  paths: string[],
+  untracked: boolean,
+): Promise<void> {
+  assertPaths(paths);
+  if (untracked) {
+    await runGit(root, ["clean", "-fd", "--", ...paths]);
+  } else {
+    await runGit(root, ["restore", "--staged", "--worktree", "--", ...paths]);
+  }
+}
+
+// Undo the most recent commit, keeping its changes STAGED (a soft reset). The
+// commit leaves the branch but nothing in the working tree is lost, so you can
+// re-commit (fix the message, add a file, ...). Throws when there is no prior
+// commit. The caller warns when the commit was already pushed, since
+// uncommitting a pushed commit diverges from the remote.
+export async function undoLastCommit(root: string): Promise<void> {
+  await runGit(root, ["reset", "--soft", "HEAD~1"]);
+}
+
 export async function commitStaged(
   root: string,
   message: string,

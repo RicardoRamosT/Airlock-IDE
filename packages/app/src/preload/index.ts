@@ -86,6 +86,9 @@ const api: AirlockApi = {
   gitStage: (root, paths) => ipcRenderer.invoke("git:stage", root, paths),
   gitUnstage: (root, paths) => ipcRenderer.invoke("git:unstage", root, paths),
   gitCommit: (root, message) => ipcRenderer.invoke("git:commit", root, message),
+  gitDiscard: (root, paths, untracked) =>
+    ipcRenderer.invoke("git:discard", root, paths, untracked),
+  gitUncommit: (root) => ipcRenderer.invoke("git:uncommit", root),
   gitBranches: (root) => ipcRenderer.invoke("git:branches", root),
   gitFetch: (root) => ipcRenderer.invoke("git:fetch", root),
   gitPull: (root) => ipcRenderer.invoke("git:pull", root),
