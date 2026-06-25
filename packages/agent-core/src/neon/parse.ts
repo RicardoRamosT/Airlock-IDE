@@ -1,4 +1,10 @@
-import type { NeonBranch, NeonDatabase, NeonOrg, NeonProject } from "./client";
+import type {
+  NeonBranch,
+  NeonDatabase,
+  NeonOrg,
+  NeonProject,
+  NeonUser,
+} from "./client";
 
 // Pure response parsers for the Neon REST API. These never touch fetch so they
 // unit-test without network. Tolerant of missing/empty arrays and missing
@@ -12,6 +18,17 @@ function arr(json: unknown, key: string): Record<string, unknown>[] {
 }
 const str = (o: Record<string, unknown>, k: string): string =>
   typeof o[k] === "string" ? (o[k] as string) : "";
+
+// The current user (GET /users/me). Tolerant of a bare object or a { user: {...} }
+// wrapper. name joins first + last when present.
+export function parseUser(json: unknown): NeonUser {
+  let o: Record<string, unknown> =
+    json && typeof json === "object" ? (json as Record<string, unknown>) : {};
+  if (o.user && typeof o.user === "object")
+    o = o.user as Record<string, unknown>;
+  const name = [str(o, "name"), str(o, "last_name")].filter(Boolean).join(" ");
+  return { id: str(o, "id"), email: str(o, "email"), name };
+}
 
 // Tolerant of both a bare array and the wrapped { organizations: [...] } shape
 // (the endpoint's exact envelope varies); either way pull id + name.

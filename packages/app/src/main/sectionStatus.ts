@@ -36,7 +36,7 @@ export async function sectionStatuses(
   const [docker, pg, neon, host, render, git, activity] = await Promise.all([
     safe(dockerStatus(), { installed: false, running: false, containers: [] }),
     root ? safe(databaseStatus(root), []) : [],
-    safe(neonStatus(), { connected: false }),
+    safe(neonStatus(root), { connected: false }),
     root
       ? safe(hostStatus(root), { url: null, up: null })
       : { url: null, up: null },

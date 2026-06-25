@@ -9,7 +9,6 @@ import {
   createDir,
   createFile,
   createPtySession,
-  deleteGlobalSecret,
   deleteSecret,
   detectInstalledTerminals,
   discardChanges,
@@ -110,6 +109,13 @@ import {
   syncLspServers,
 } from "./lsp/client";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
+import {
+  addNeonAccount,
+  keyForProject,
+  listNeonAccounts,
+  removeNeonAccount,
+  resolveProjectAccountId,
+} from "./neon/accounts";
 import { gatherProfile } from "./overview/gather";
 import {
   loadPrefs,
@@ -220,19 +226,19 @@ export function broadcastActivityChanged(): void {
   }
 }
 
-const NEON_KEY = "NEON_API_KEY";
 const RENDER_KEY = "RENDER_API_KEY";
 
-// MAIN-ONLY: resolve a Neon branch/db connection URI (carries a password).
-// NEVER returned over IPC -- only fed to withDb here.
+// MAIN-ONLY: resolve a Neon branch/db connection URI (carries a password) using
+// the project's bound account key. NEVER returned over IPC -- only fed to withDb.
 async function neonUri(
+  root: string | null,
   p: string,
   b: string,
   db: string,
   role: string,
 ): Promise<string> {
-  const key = await getGlobalSecret(NEON_KEY);
-  if (!key) throw new Error("Neon not connected");
+  const key = await keyForProject(root);
+  if (!key) throw new Error("No Neon account selected for this project");
   return neonConnectionUri(key, p, b, db, role);
 }
 const allStr = (xs: unknown[]): boolean =>
@@ -1067,37 +1073,56 @@ export function registerIpc(
 
   // Neon: app-global (account-level), so NOT requireRoot-gated. The API key
   // and any fetched connection URI stay main-only; only metadata/rows cross.
-  ipcMain.handle("neon:status", () => neonStatus());
-  ipcMain.handle("neon:connect", async (_e, key: unknown) => {
+  // Multi-account Neon. The pool (id+label only) and the per-project binding are
+  // app-global/config; the keys stay main-only. Data reads resolve the FOCUSED
+  // project's account via rootForEvent, so each project shows only its account.
+  ipcMain.handle("neon:status", (e) => neonStatus(rootForEvent(e)));
+  ipcMain.handle("neon:accounts", () => listNeonAccounts());
+  ipcMain.handle("neon:resolveAccount", async (e) => {
+    const id = await resolveProjectAccountId(rootForEvent(e));
+    if (!id) return null;
+    return (await listNeonAccounts()).find((a) => a.id === id) ?? null;
+  });
+  // Add a key to the pool AND bind it to the focused project.
+  ipcMain.handle("neon:addAccount", async (e, key: unknown) => {
     if (typeof key !== "string" || !key.trim())
       throw new Error("Invalid payload");
-    await setGlobalSecret(NEON_KEY, key.trim(), { auditLog: globalAuditLog });
-    return { connected: true };
+    const ref = await addNeonAccount(key.trim());
+    const root = rootForEvent(e);
+    if (root) await writeProjectConfig(root, { neonAccountId: ref.id });
+    return ref;
   });
-  ipcMain.handle("neon:disconnect", async () => {
-    // Clears the stored Neon API key (the global keychain entry). Lets the user
-    // recover from a bad/stale key -- e.g. a connection string mistakenly
-    // pasted here, which then 401s forever with no other way to clear it.
-    await deleteGlobalSecret(NEON_KEY, { auditLog: globalAuditLog });
-    return { connected: false };
+  // Bind the focused project to an already-connected account.
+  ipcMain.handle("neon:setProjectAccount", async (e, id: unknown) => {
+    if (typeof id !== "string" || !id) throw new Error("Invalid payload");
+    const root = requireRoot(e);
+    await writeProjectConfig(root, { neonAccountId: id });
   });
-  ipcMain.handle("neon:orgs", () => neonOrganizations());
-  ipcMain.handle("neon:projects", (_e, orgId: unknown) => {
+  // Remove an account from the pool entirely (clears its key). Projects bound to
+  // it fall back to the picker (resolve returns null).
+  ipcMain.handle("neon:removeAccount", async (_e, id: unknown) => {
+    if (typeof id !== "string" || !id) throw new Error("Invalid payload");
+    await removeNeonAccount(id);
+  });
+  ipcMain.handle("neon:orgs", (e) => neonOrganizations(rootForEvent(e)));
+  ipcMain.handle("neon:projects", (e, orgId: unknown) => {
     if (typeof orgId !== "string") throw new Error("Invalid payload");
-    return neonProjects(orgId);
+    return neonProjects(rootForEvent(e), orgId);
   });
-  ipcMain.handle("neon:branches", (_e, p: unknown) => {
+  ipcMain.handle("neon:branches", (e, p: unknown) => {
     if (typeof p !== "string") throw new Error("Invalid payload");
-    return neonBranches(p);
+    return neonBranches(rootForEvent(e), p);
   });
-  ipcMain.handle("neon:databases", (_e, p: unknown, b: unknown) => {
+  ipcMain.handle("neon:databases", (e, p: unknown, b: unknown) => {
     if (!allStr([p, b])) throw new Error("Invalid payload");
-    return neonDatabases(p as string, b as string);
+    return neonDatabases(rootForEvent(e), p as string, b as string);
   });
-  ipcMain.handle("neon:ping", async (_e, p, b, db, role) => {
+  ipcMain.handle("neon:ping", async (e, p, b, db, role) => {
     if (!allStr([p, b, db, role])) throw new Error("Invalid payload");
     try {
-      await withDb(await neonUri(p, b, db, role), (run) => pingDb(run));
+      await withDb(await neonUri(rootForEvent(e), p, b, db, role), (run) =>
+        pingDb(run),
+      );
       return { ok: true };
     } catch (err) {
       // Message-only, scrubbed: a Neon connection URI carries a password, so
@@ -1111,11 +1136,12 @@ export function registerIpc(
       };
     }
   });
-  ipcMain.handle("neon:tables", async (_e, p, b, db, role) => {
+  ipcMain.handle("neon:tables", async (e, p, b, db, role) => {
     if (!allStr([p, b, db, role])) throw new Error("Invalid payload");
     try {
-      return await withDb(await neonUri(p, b, db, role), (run) =>
-        listTables(run),
+      return await withDb(
+        await neonUri(rootForEvent(e), p, b, db, role),
+        (run) => listTables(run),
       );
     } catch (err) {
       // Fresh Error, NO `cause`: the raw error object (which could carry the
@@ -1127,13 +1153,14 @@ export function registerIpc(
   });
   ipcMain.handle(
     "neon:rows",
-    async (_e, p, b, db, role, schema, table, limit) => {
+    async (e, p, b, db, role, schema, table, limit) => {
       if (!allStr([p, b, db, role, schema, table]))
         throw new Error("Invalid payload");
       const lim = typeof limit === "number" ? limit : 100;
       try {
-        return await withDb(await neonUri(p, b, db, role), (run) =>
-          readRows(run, schema as string, table as string, lim),
+        return await withDb(
+          await neonUri(rootForEvent(e), p, b, db, role),
+          (run) => readRows(run, schema as string, table as string, lim),
         );
       } catch (err) {
         // Fresh Error, NO `cause` (mirrors db:rows): scrubbed message only.

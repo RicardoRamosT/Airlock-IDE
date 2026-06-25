@@ -14,6 +14,7 @@ import type {
   GitStatus,
   ImportExternalResult,
   ImportResult,
+  NeonAccountRef,
   NeonBranch,
   NeonDatabase,
   NeonOrg,
@@ -56,6 +57,7 @@ export type {
   GitStatus,
   ImportExternalResult,
   ImportResult,
+  NeonAccountRef,
   NeonBranch,
   NeonDatabase,
   NeonOrg,
@@ -669,14 +671,18 @@ export interface AirlockApi {
     table: string,
     limit: number,
   ): Promise<QueryResult>;
-  // Neon: REST-backed control plane (status/connect) + branch-scoped data
-  // access. The API key crosses only on neonConnect; thereafter projects are
-  // addressed by id. ping/tables/rows mirror the db* shape but are keyed by
-  // (projectId, branchId, database, role) instead of a vaulted secret name.
+  // Neon: REST-backed, MULTI-ACCOUNT. A pool of accounts (each an API key, keyed
+  // by Neon user id) lives main-side; each project binds to one. Data reads
+  // resolve the focused project's account, so a project shows only its account's
+  // orgs/projects. Keys cross IPC only on neonAddAccount; everything else is
+  // ids/labels/metadata. status/resolveAccount reflect the FOCUSED project.
   neonStatus(): Promise<{ connected: boolean }>;
-  neonConnect(key: string): Promise<{ connected: boolean }>;
-  neonDisconnect(): Promise<{ connected: boolean }>;
-  // Organizations the personal API key belongs to (the top tree level).
+  neonAccounts(): Promise<NeonAccountRef[]>;
+  neonResolveAccount(): Promise<NeonAccountRef | null>;
+  neonAddAccount(key: string): Promise<NeonAccountRef>;
+  neonSetProjectAccount(id: string): Promise<void>;
+  neonRemoveAccount(id: string): Promise<void>;
+  // Organizations the resolved account belongs to (the top tree level).
   neonOrgs(): Promise<NeonOrg[]>;
   neonProjects(orgId: string): Promise<NeonProject[]>;
   neonBranches(projectId: string): Promise<NeonBranch[]>;

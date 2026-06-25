@@ -5,7 +5,29 @@ import {
   parseDatabases,
   parseOrganizations,
   parseProjects,
+  parseUser,
 } from "./parse";
+
+describe("parseUser", () => {
+  it("reads id/email and joins name + last_name", () => {
+    expect(
+      parseUser({
+        id: "u-1",
+        email: "a@b.com",
+        name: "Ada",
+        last_name: "Lovelace",
+      }),
+    ).toEqual({ id: "u-1", email: "a@b.com", name: "Ada Lovelace" });
+  });
+  it("tolerates a { user } wrapper and missing fields", () => {
+    expect(parseUser({ user: { id: "u-2", email: "x@y.com" } })).toEqual({
+      id: "u-2",
+      email: "x@y.com",
+      name: "",
+    });
+    expect(parseUser(null)).toEqual({ id: "", email: "", name: "" });
+  });
+});
 
 describe("parseOrganizations", () => {
   it("maps id and name from a wrapped { organizations } payload", () => {

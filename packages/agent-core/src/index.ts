@@ -179,19 +179,24 @@ export {
 } from "./mcp/register";
 export {
   fetchTransport,
+  getCurrentUser as neonGetCurrentUser,
   // Aliased: agent-core already exports a git listBranches (./git/ops) with a
   // different signature; this is the Neon REST one.
   listBranches as neonListBranches,
   listDatabases as neonListDatabases,
   listOrganizations as neonListOrganizations,
   listProjects as neonListProjects,
+  type NeonAccountRef,
   type NeonBranch,
   type NeonDatabase,
   type NeonOptions,
   type NeonOrg,
   type NeonProject,
   type NeonTransport,
+  type NeonUser,
+  neonAccountLabel,
   neonConnectionUri,
+  resolveNeonAccountId,
 } from "./neon/client";
 export { ensureAirlockDir } from "./project/airlockDir";
 export {

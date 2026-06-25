@@ -54,9 +54,9 @@ import {
 } from "@airlock/agent-core";
 import type { RenderServiceStatus, Section } from "../shared/ipc";
 import { SECTION_LABELS } from "./menu";
+import { keyForProject } from "./neon/accounts";
 import { loadPrefs, SECTIONS } from "./prefs";
 
-const NEON_KEY = "NEON_API_KEY";
 const RENDER_KEY = "RENDER_API_KEY";
 
 // Sidebar sections with their app-global visibility, projected for display.
@@ -78,22 +78,35 @@ export function dockerStatus(): Promise<DockerStatus> {
   return dockerContainers();
 }
 
-// Whether a Neon API key is connected. Returns only a boolean; the key itself
-// never leaves main.
-export async function neonStatus(): Promise<{ connected: boolean }> {
-  return { connected: (await getGlobalSecret(NEON_KEY)) !== null };
+// Resolve the API key for the project's bound Neon account; throw if none
+// resolves (no account, or unbound with multiple). All Neon reads go through
+// this so each project uses ITS OWN account, never another project's.
+async function neonKey(root: string | null): Promise<string> {
+  const key = await keyForProject(root);
+  if (!key) throw new Error("No Neon account selected for this project");
+  return key;
 }
 
-// The organizations to root the Neon tree at. Handles all three key types:
+// Whether the project resolves to a Neon account (with a key). Returns only a
+// boolean; the key never leaves main.
+export async function neonStatus(
+  root: string | null,
+): Promise<{ connected: boolean }> {
+  return { connected: (await keyForProject(root)) !== null };
+}
+
+// The organizations to root the Neon tree at, for the project's account. Handles
+// all three key types:
 //   - personal key  -> /users/me/organizations lists the user's orgs.
 //   - organization key -> that endpoint 404s (not a user endpoint), but the
 //     org's projects list via the inferred /projects, so surface ONE synthetic
 //     org node ("Your projects", id "") whose projects come from /projects.
 //   - project-scoped key -> can't list either, so the probe below rethrows and
 //     the UI shows the scoped-key hint instead of a raw 404.
-export async function neonOrganizations(): Promise<NeonOrg[]> {
-  const key = await getGlobalSecret(NEON_KEY);
-  if (!key) throw new Error("Neon not connected");
+export async function neonOrganizations(
+  root: string | null,
+): Promise<NeonOrg[]> {
+  const key = await neonKey(root);
   try {
     const orgs = await neonListOrganizations(key);
     if (orgs.length > 0) return orgs;
@@ -106,29 +119,30 @@ export async function neonOrganizations(): Promise<NeonOrg[]> {
   return [{ id: "", name: "Your projects" }];
 }
 
-// Neon projects within an organization (metadata only). The API key stays
-// main-only.
-export async function neonProjects(orgId: string): Promise<NeonProject[]> {
-  const key = await getGlobalSecret(NEON_KEY);
-  if (!key) throw new Error("Neon not connected");
-  return neonListProjects(key, orgId);
+// Neon projects within an organization (metadata only), for the project's
+// account. The API key stays main-only.
+export async function neonProjects(
+  root: string | null,
+  orgId: string,
+): Promise<NeonProject[]> {
+  return neonListProjects(await neonKey(root), orgId);
 }
 
 // Neon branches for a project (metadata only).
-export async function neonBranches(p: string): Promise<NeonBranch[]> {
-  const key = await getGlobalSecret(NEON_KEY);
-  if (!key) throw new Error("Neon not connected");
-  return neonListBranches(key, p);
+export async function neonBranches(
+  root: string | null,
+  p: string,
+): Promise<NeonBranch[]> {
+  return neonListBranches(await neonKey(root), p);
 }
 
 // Neon databases for a project/branch (metadata only).
 export async function neonDatabases(
+  root: string | null,
   p: string,
   b: string,
 ): Promise<NeonDatabase[]> {
-  const key = await getGlobalSecret(NEON_KEY);
-  if (!key) throw new Error("Neon not connected");
-  return neonListDatabases(key, p, b);
+  return neonListDatabases(await neonKey(root), p, b);
 }
 
 // Render services enriched with deploy state, filtered to this project's repo.

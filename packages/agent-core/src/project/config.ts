@@ -12,6 +12,10 @@ export interface ProjectConfig {
   // Absent => auto-detect from the repo's origin owner. Stores only a reference
   // (host + username), never a credential.
   githubAccount?: { host: string; username: string };
+  // Which Neon account (from the multi-account pool) this project uses. Absent
+  // => the sole account if there's exactly one, else the user picks. Stores only
+  // the account id (a reference); the API key lives in the keychain.
+  neonAccountId?: string;
 }
 
 const DEFAULTS: ProjectConfig = { injectSecretsIntoTerminal: false };

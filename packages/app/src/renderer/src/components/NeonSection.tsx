@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type {
   DbTable,
+  NeonAccountRef,
   NeonBranch,
   NeonDatabase,
   NeonOrg,
   NeonProject,
 } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 type PingState = "checking" | "ok" | "fail";
@@ -36,7 +38,12 @@ function listErrorHint(e: unknown): string {
 // dbView{kind:"neon"}; the DataGrid fetches rows reactively from that.
 export function NeonSection() {
   const modal = useApp((s) => s.modal);
-  const [connected, setConnected] = useState<boolean | null>(null);
+  // Multi-account: this project's resolved account + the full pool (switcher).
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  const [resolved, setResolved] = useState(false);
+  const [account, setAccount] = useState<NeonAccountRef | null>(null);
+  const [accounts, setAccounts] = useState<NeonAccountRef[]>([]);
   const [orgs, setOrgs] = useState<NeonOrg[]>([]);
   const [projects, setProjects] = useState<Record<string, NeonProject[]>>({});
   const [branches, setBranches] = useState<Record<string, NeonBranch[]>>({});
@@ -57,26 +64,46 @@ export function NeonSection() {
     };
   }, []);
 
-  // Status on mount, and again whenever the modal closes (modal === null) so
-  // the tree appears the moment the user finishes the Connect Neon modal.
+  // Resolve THIS project's Neon account + the pool: on mount, whenever the
+  // modal closes (so the tree appears right after picking/adding), and on
+  // project switch (root changes) so airlock and Xipa show their own account.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: root is a trigger (resolution is main-side via rootForEvent); re-resolve on project switch.
   useEffect(() => {
     if (modal !== null) return;
-    window.airlock
-      .neonStatus()
-      .then((s) => {
-        if (mounted.current) setConnected(s.connected);
+    let cancelled = false;
+    Promise.all([
+      window.airlock.neonResolveAccount(),
+      window.airlock.neonAccounts(),
+    ])
+      .then(([acct, pool]) => {
+        if (cancelled || !mounted.current) return;
+        setAccount(acct);
+        setAccounts(pool);
+        setResolved(true);
       })
-      .catch((e: unknown) => {
-        if (mounted.current) {
-          console.error("neonStatus failed", e);
-          setConnected(false);
-        }
+      .catch(() => {
+        if (mounted.current) setResolved(true);
       });
-  }, [modal]);
+    return () => {
+      cancelled = true;
+    };
+  }, [modal, root]);
 
-  // Once connected, load the organization list (the top of the tree).
+  // Drop the previous project's tree immediately on switch so it never lingers.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: root is the trigger; reset the lazy tree on project switch.
   useEffect(() => {
-    if (connected !== true) return;
+    setOrgs([]);
+    setProjects({});
+    setBranches({});
+    setDatabases({});
+    setTables({});
+    setExpanded({});
+    setError(null);
+  }, [root]);
+
+  // Once an account resolves, load its organization list (the top of the tree).
+  useEffect(() => {
+    if (!account) return;
     window.airlock
       .neonOrgs()
       .then((o) => {
@@ -91,7 +118,7 @@ export function NeonSection() {
           setError(listErrorHint(e));
         }
       });
-  }, [connected]);
+  }, [account]);
 
   // Ping a database the first time it appears in the tree. Runs independently
   // so one slow/unreachable DB never blocks the others from going green.
@@ -208,25 +235,30 @@ export function NeonSection() {
     });
   };
 
-  // Clear the stored Neon API key. Recovers from a bad/stale key (e.g. a
-  // connection string pasted into the API-key modal, which 401s forever).
-  const disconnect = async () => {
-    try {
-      await window.airlock.neonDisconnect();
-    } catch (e) {
-      console.error("neonDisconnect failed", e);
+  // Switch this project to another connected account, or open the manager (add /
+  // remove keys) via the Connect-Neon modal.
+  const pickAccount = (value: string) => {
+    if (value === "__manage__") {
+      useApp.getState().setModal("connect-neon");
+      return;
     }
-    if (mounted.current) {
-      setConnected(false);
-      setOrgs([]);
-      setProjects({});
-      setError(null);
-    }
+    if (value === account?.id) return;
+    void window.airlock.neonSetProjectAccount(value).then(() => {
+      void window.airlock.neonResolveAccount().then((a) => {
+        if (!mounted.current) return;
+        setAccount(a);
+        setOrgs([]);
+        setExpanded({});
+        setError(null);
+      });
+    });
   };
 
-  if (connected === null) return <div className="section-note">checking…</div>;
+  if (!resolved) return <div className="section-note">checking…</div>;
 
-  if (connected === false) {
+  // No account resolves for this project (none bound, or unbound with several).
+  // Open the picker: choose an existing account or add a new key for it.
+  if (!account) {
     return (
       <div className="databases">
         <button
@@ -234,7 +266,7 @@ export function NeonSection() {
           className="btn"
           onClick={() => useApp.getState().setModal("connect-neon")}
         >
-          Connect Neon
+          {accounts.length > 0 ? "Pick a Neon account" : "Connect Neon"}
         </button>
       </div>
     );
@@ -242,15 +274,23 @@ export function NeonSection() {
 
   return (
     <div className="databases">
-      <div className="section-toolbar">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void disconnect()}
-          title="Disconnect Neon and clear the stored API key"
+      <div
+        className="neon-account-row"
+        title={`Neon account: ${account.label}`}
+      >
+        <i className="codicon codicon-account" />
+        <select
+          className="sb-control"
+          value={account.id}
+          onChange={(e) => pickAccount(e.target.value)}
         >
-          Disconnect Neon
-        </button>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+          <option value="__manage__">Manage accounts…</option>
+        </select>
       </div>
       {error && <div className="modal-error">{error}</div>}
       {!error && orgs.length === 0 ? (

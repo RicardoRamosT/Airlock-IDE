@@ -191,16 +191,19 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
         "Report Neon connection state and its projects when connected.",
     },
     async () => {
-      const connected = (await ide.neonStatus()).connected;
+      // Resolve the focused project's Neon account (multi-account: each project
+      // binds its own key).
+      const root = deps.getWorkspaceRoot();
+      const connected = (await ide.neonStatus(root)).connected;
       if (!connected) return ok({ connected, projects: [] });
       // Org-based account: aggregate projects across every org the key can see.
       // A project-scoped key can't list orgs (404) -> report connected, no
       // projects, rather than failing the tool.
       let projects: Awaited<ReturnType<typeof ide.neonProjects>> = [];
       try {
-        const orgs = await ide.neonOrganizations();
+        const orgs = await ide.neonOrganizations(root);
         projects = (
-          await Promise.all(orgs.map((o) => ide.neonProjects(o.id)))
+          await Promise.all(orgs.map((o) => ide.neonProjects(root, o.id)))
         ).flat();
       } catch {
         projects = [];

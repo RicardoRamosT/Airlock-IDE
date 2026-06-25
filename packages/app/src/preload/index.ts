@@ -112,8 +112,12 @@ const api: AirlockApi = {
   dbRows: (root, id, schema, table, limit) =>
     ipcRenderer.invoke("db:rows", root, id, schema, table, limit),
   neonStatus: () => ipcRenderer.invoke("neon:status"),
-  neonConnect: (key) => ipcRenderer.invoke("neon:connect", key),
-  neonDisconnect: () => ipcRenderer.invoke("neon:disconnect"),
+  neonAccounts: () => ipcRenderer.invoke("neon:accounts"),
+  neonResolveAccount: () => ipcRenderer.invoke("neon:resolveAccount"),
+  neonAddAccount: (key) => ipcRenderer.invoke("neon:addAccount", key),
+  neonSetProjectAccount: (id) =>
+    ipcRenderer.invoke("neon:setProjectAccount", id),
+  neonRemoveAccount: (id) => ipcRenderer.invoke("neon:removeAccount", id),
   neonOrgs: () => ipcRenderer.invoke("neon:orgs"),
   neonProjects: (orgId) => ipcRenderer.invoke("neon:projects", orgId),
   neonBranches: (p) => ipcRenderer.invoke("neon:branches", p),

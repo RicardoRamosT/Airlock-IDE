@@ -4,9 +4,38 @@ import {
   parseDatabases,
   parseOrganizations,
   parseProjects,
+  parseUser,
 } from "./parse";
 
 const NEON_API_BASE = "https://console.neon.tech/api/v2";
+
+// The account a Neon API key authenticates as. `id` is the stable Neon user id
+// (used as the account key in AirLock's multi-account pool); email/name are for
+// a human-readable label.
+export interface NeonUser {
+  id: string;
+  email: string;
+  name: string;
+}
+// A connected Neon account in AirLock's pool: a stable id + a display label.
+// The API key itself lives in the keychain, keyed by id; this is the non-secret
+// reference the UI lists and that projects bind to.
+export interface NeonAccountRef {
+  id: string;
+  label: string;
+}
+
+// Which account a project uses: its explicit binding when that account still
+// exists, else the sole account when exactly one is connected (so a
+// single-account setup needs no per-project choice), else null (user must pick).
+export function resolveNeonAccountId(
+  boundId: string | null,
+  accounts: NeonAccountRef[],
+): string | null {
+  if (boundId && accounts.some((a) => a.id === boundId)) return boundId;
+  if (accounts.length === 1) return accounts[0]?.id ?? null;
+  return null;
+}
 
 export interface NeonOrg {
   id: string;
@@ -45,6 +74,24 @@ export const fetchTransport: NeonTransport = {
 };
 
 const enc = encodeURIComponent;
+
+// The account a key authenticates as (GET /users/me). Used to label the key in
+// the multi-account pool. A project-scoped key may 404 here; callers handle it.
+export async function getCurrentUser(
+  key: string,
+  opts: NeonOptions = {},
+): Promise<NeonUser> {
+  const t = opts.transport ?? fetchTransport;
+  return parseUser(await t.get("/users/me", key));
+}
+
+// A human-readable label for a Neon account: email, else full name, else a
+// short id fragment, else a generic fallback. Pure.
+export function neonAccountLabel(u: NeonUser): string {
+  return (
+    u.email || u.name || (u.id ? `Neon ${u.id.slice(0, 8)}` : "Neon account")
+  );
+}
 
 // The organizations the API key's user belongs to. Requires a PERSONAL API key
 // (a project-scoped key has no access to this and 404s). Neon migrated all

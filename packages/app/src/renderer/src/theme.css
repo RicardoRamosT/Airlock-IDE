@@ -3011,6 +3011,38 @@ button.docker-row .codicon-chevron-right {
   padding-left: 14px;
 }
 
+/* Per-project Neon account switcher (the icon + account select at the top of the
+   Neon section), and the account list inside the Connect-Neon picker modal. */
+.neon-account-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-gap);
+  margin-bottom: var(--sb-block-gap);
+}
+
+.neon-account-row .codicon {
+  flex: none;
+  color: var(--fg-dim);
+}
+
+.neon-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  margin: 8px 0;
+}
+
+.neon-account-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.neon-account-item .btn {
+  flex: 1;
+  justify-content: flex-start;
+}
+
 .db-table-row {
   display: flex;
   align-items: center;
