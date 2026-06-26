@@ -36,7 +36,7 @@ and glows when Claude finishes in a tab you aren't watching. A plan-usage meter
 sits in the sidebar (your 5-hour and 7-day windows, with session/weekly reset
 countdowns) and clicks through to a full per-session usage dashboard. And
 through a local MCP bridge, the Claude in your terminal can **see and drive
-the IDE itself**: 25 tools and a built-in manual (see below).
+the IDE itself**: 28 tools and a built-in manual (see below).
 
 **Your secrets stay yours.** Credentials are vaulted in the macOS Keychain and
 injected into terminals at spawn, so no `.env` ever sits on disk. The agent can
@@ -77,7 +77,11 @@ running. The **split** button puts two projects side by side, each a full
 project view; the focused pane is what Claude and the menus act on (**one
 agent at a time**, always on what you're looking at). Blank tabs (`⌘T`) give
 you a shell with no folder; opening a folder into one keeps any running
-session alive. Prefer separate OS windows per project? Flip one setting.
+session alive. Prefer separate OS windows per project? Flip one setting. Turn on
+**session restore** and your projects, tabs, and splits come back on relaunch,
+each tab's Claude session resuming when you focus it. Right-click a project tab
+for a generated **Overview** dashboard of its language/tech mix, README, and
+live status.
 
 ### Claude integration
 
@@ -93,15 +97,17 @@ session alive. Prefer separate OS windows per project? Flip one setting.
 
 AirLock runs a local MCP server (loopback-only, bearer-token-guarded) that the
 Claude Code in its terminal connects to automatically. No extra setup, no
-second API key. **25 tools**, and a built-in manual so the agent understands
+second API key. **28 tools**, and a built-in manual so the agent understands
 the IDE without you explaining it:
 
 - **See every status:** git, databases (reachability, never passwords), Neon,
-  Docker, Render deploys, local dev-server health, the live Activity feed, your
-  secret *names*, and its own **plan usage** (`plan_usage`).
+  Docker, Render deploys, Azure Web Apps, local dev-server health, the live
+  Activity feed, your secret *names*, a project profile (`project_info`), and its
+  own **plan usage** (`plan_usage`).
 - **Drive the layout:** open/close/switch project tabs, split views, spawn or
-  kill terminals, open the Settings/Usage pages. Ask "set up my workspace for
-  this repo" and watch it happen.
+  kill terminals, type into a terminal (with your approval), and open the
+  Settings/Usage pages. Ask "set up my workspace for this repo" and watch it
+  happen.
 - **Curate the sidebar:** show or hide sections to fit the project; dismiss
   finished Activity entries.
 - **Act with your secrets, blindly:** `run_command` injects named vaulted
@@ -128,16 +134,20 @@ broker operation lands in a hash-chained audit log
 ### Everything else in the sidebar
 
 - **Git:** branch switcher, one-click stage/unstage, commit box, click-through
-  unified diffs. Push/pull/merge: the terminal is right there.
+  unified diffs, right-click a change to stage/discard/open/copy, and undo the
+  last commit. Push/pull/merge: the terminal is right there.
 - **Databases:** every `postgres-url` secret becomes a live connection (status
   dot via `SELECT 1`), expandable to tables, browsable in a read-only grid.
   Passwords never cross into the UI. A **Neon** group browses
-  projects → branches → databases with a keychain-stored API key.
+  organizations → projects → branches → databases → tables, with a separate
+  keychain-stored API key per project.
 - **Docker:** machine-wide container list with live status and one-click
   start/stop.
 - **Host:** your dev server's URL (configured or guessed from `package.json`)
-  with a live up/down probe, plus **Render** deploy status including whether
-  your latest commit is the one that's live.
+  with a live up/down probe, plus **Render** and **Azure** service panels:
+  Render deploy status and history with one-click redeploy (including whether
+  your latest commit is the one that's live), and Azure Web App start/stop and
+  Open in Portal.
 - **Activity:** a live feed of in-progress work: GitHub Actions runs (with a
   real step checklist, via `gh`), Render deploys mid-build, containers
   starting. Honest progress only; nothing fakes a percentage.
@@ -145,7 +155,8 @@ broker operation lands in a hash-chained audit log
   when the active account doesn't match the repo's commit identity.
 
 Each section shows only when you want it (right-click → Hide, or
-**View ▸ Sidebar**), and Claude can curate this for you. Dark and light
+**View ▸ Sidebar**), and Claude can curate this for you. An activity-bar rail
+switches sections and shows a per-section health dot at a glance. Dark and light
 themes; sidebar left or right.
 
 ## Building from source
