@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-black)](#install)
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-v0.1.1-orange)](../../releases)
+[![Release](https://img.shields.io/badge/release-v0.4.0-orange)](../../releases)
 
 <img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage meter in the sidebar" width="800"/>
 
@@ -165,9 +165,9 @@ macOS only, by design.
 
 ## Status
 
-Early and moving fast: v0.1, built and dogfooded daily (AirLock is developed
+Early and moving fast: v0.4, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
-invariants are the part that's tested hardest (690+ unit tests, including
+invariants are the part that's tested hardest (1,100+ unit tests, including
 source-level guards on the no-secret-value rule).
 
 ## Credits

@@ -2,6 +2,70 @@
 
 All notable user-facing changes to AirLock. Dates are when the version was cut.
 
+## 0.4.0
+
+### Added
+- **Project Overview dashboard.** A new per-project dashboard tab with live
+  status, a language/tech bar (monochrome tech-logo tiles), and your rendered
+  README. A "Generate / Refresh" button asks the project's Claude to write an
+  `overview.md` (and is instructed to keep secrets out of it); the result is
+  rendered as safe, HTML-inert markdown where in-repo links open the file in the
+  editor. Multiple project overviews can be open at once.
+- **Session restore.** Opt in (Settings) to have AirLock reopen the projects,
+  tabs, and splits you had on quit — and resume each tab's Claude session
+  (`claude --continue`) when you focus it. Survives restarts.
+- **Control your hosting from the sidebar.** Azure Web App rows expand to show
+  State / Region / URL with Start / Stop and Open-in-Portal actions; Render
+  service rows show type / region / plan / branch / last deploy, recent deploy
+  history, and Site / Dashboard / Manual-Deploy buttons (with confirm).
+- **Neon org tree + multiple accounts.** Browse Neon as Org → Project → Branch →
+  Database → Table, and connect a different API key per project (personal or
+  organization keys), gh-style — pick an existing account or add/remove one.
+- **Activity-bar status dots.** Each section (Host, Databases, Docker, Git,
+  Activity) shows a green / yellow / red / grey health dot at a glance.
+- **Git change context menu.** Right-click a changed file to view its diff, open
+  it, stage / unstage, copy its path, or discard it — plus **Undo last commit**.
+- **Cmd+click a file path in any terminal** to open it in the editor.
+- **Drag to reorder tabs** in both the project strip and the main tab bar.
+- **Resize the sidebar** by dragging its border (the collapse button is gone —
+  the activity bar covers it).
+- **Gated terminal input for Claude (MCP).** A new `send_terminal_input` tool
+  lets the agent type into a terminal only after you approve it in a grant modal.
+
+### Changed
+- **A project's secrets are stored as a single Keychain item** (instead of one
+  per secret), cutting Keychain access prompts from many to one per project. A
+  one-time migration folds existing secrets in with no loss.
+- **Host sections are scoped to the current project and auto-reload when you
+  switch projects** — you no longer briefly see another project's Render / Azure
+  / database resources. Account-wide integrations (Azure, Snowflake, Vercel) only
+  appear under the projects that use them; Render is matched strictly to the
+  project's repo.
+- **One Refresh button for the whole HOST view**, always visible.
+- **The Audit log now records git, file, and integration actions** — not just
+  secret access — in a live, readable feed with per-entry actor badges (you vs.
+  Claude), friendly labels, and a one-line summary.
+
+### Fixed
+- **File-watcher file-descriptor exhaustion (EMFILE)** that could show up as
+  blank terminals and dropped MCP connections: the watcher now uses FSEvents and
+  ignores dependency/build/cache directories (`node_modules`, `venv`,
+  `__pycache__`, `target`, `.claude`, …).
+- **Keychain re-prompt loop**: a session read-cache and denial backoff stop the
+  repeated access prompts.
+- Neon: a project-scoped key now shows a clear "use a personal/org key" hint
+  instead of a raw 404, and organization keys are identified correctly.
+- Render: deactivated services no longer show a red status dot.
+- Claude auto-start no longer inherits a project's injected `ANTHROPIC_API_KEY`.
+- The tab "working" dot matches Claude Code v2.1.185's footer again.
+
+### Internal
+- Migrated the file watcher from chokidar to `@parcel/watcher` (FSEvents,
+  O(roots) file descriptors).
+- macOS signing reworked so local rebuilds re-sign with a stable identity
+  (fewer Keychain re-prompts); added the microphone entitlement so Claude
+  Code `/voice` works inside AirLock.
+
 ## 0.3.0
 
 ### Added
