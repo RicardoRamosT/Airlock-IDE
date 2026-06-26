@@ -191,6 +191,18 @@ function resolveRoot(
   return requireRoot(e);
 }
 
+// Fire-and-forget audit of a user-initiated UI action (git op, file op,
+// integration change). Serialized internally (withAppendLock) so the unawaited
+// write can't fork the hash chain; the Audit panel polls to surface it. Never
+// blocks or fails the action it records. Call it only AFTER the action succeeds.
+function auditUser(
+  root: string,
+  op: string,
+  detail: Record<string, unknown> = {},
+): void {
+  void appendAudit(root, "user", op, detail).catch(() => {});
+}
+
 // Reject any path whose first segment is the .airlock vault dir (metadata; never
 // mutated from the UI). Defense in depth -- the FileTree never shows .airlock.
 function assertNotVault(relPath: string): void {
@@ -464,30 +476,42 @@ export function registerIpc(
     },
   );
 
-  ipcMain.handle("fs:create", (e, root: unknown, relPath: unknown) => {
+  ipcMain.handle("fs:create", async (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
-    return createFile(resolveRoot(e, root), relPath);
+    const resolved = resolveRoot(e, root);
+    const r = await createFile(resolved, relPath);
+    auditUser(resolved, "file.create", { path: relPath });
+    return r;
   });
-  ipcMain.handle("fs:mkdir", (e, root: unknown, relPath: unknown) => {
+  ipcMain.handle("fs:mkdir", async (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
-    return createDir(resolveRoot(e, root), relPath);
+    const resolved = resolveRoot(e, root);
+    const r = await createDir(resolved, relPath);
+    auditUser(resolved, "folder.create", { path: relPath });
+    return r;
   });
   ipcMain.handle(
     "fs:move",
-    (e, root: unknown, fromRel: unknown, toRel: unknown) => {
+    async (e, root: unknown, fromRel: unknown, toRel: unknown) => {
       if (typeof fromRel !== "string" || typeof toRel !== "string")
         throw new Error("Invalid payload");
       assertNotVault(fromRel);
       assertNotVault(toRel);
-      return move(resolveRoot(e, root), fromRel, toRel);
+      const resolved = resolveRoot(e, root);
+      const r = await move(resolved, fromRel, toRel);
+      auditUser(resolved, "file.move", { from: fromRel, to: toRel });
+      return r;
     },
   );
-  ipcMain.handle("fs:duplicate", (e, root: unknown, relPath: unknown) => {
+  ipcMain.handle("fs:duplicate", async (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
-    return duplicate(resolveRoot(e, root), relPath);
+    const resolved = resolveRoot(e, root);
+    const r = await duplicate(resolved, relPath);
+    auditUser(resolved, "file.duplicate", { path: relPath });
+    return r;
   });
   ipcMain.handle(
     "fs:importExternal",
@@ -505,9 +529,11 @@ export function registerIpc(
   ipcMain.handle("fs:trash", async (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
+    const resolved = resolveRoot(e, root);
     // resolveWithin returns the absolute, root-confined path for shell.trashItem.
-    const abs = await resolveWithin(resolveRoot(e, root), relPath);
+    const abs = await resolveWithin(resolved, relPath);
     await shell.trashItem(abs);
+    auditUser(resolved, "file.delete", { path: relPath });
   });
 
   ipcMain.handle("fileOrder:get", (e, root: unknown) =>
@@ -820,18 +846,22 @@ export function registerIpc(
     gitStatusFor(resolveRoot(e, root)),
   );
 
-  ipcMain.handle("git:stage", (e, root: unknown, paths: unknown) => {
+  ipcMain.handle("git:stage", async (e, root: unknown, paths: unknown) => {
     if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
       throw new Error("Invalid payload");
     }
-    return stageFiles(resolveRoot(e, root), paths as string[]);
+    const resolved = resolveRoot(e, root);
+    await stageFiles(resolved, paths as string[]);
+    auditUser(resolved, "git.stage", { count: paths.length });
   });
 
-  ipcMain.handle("git:unstage", (e, root: unknown, paths: unknown) => {
+  ipcMain.handle("git:unstage", async (e, root: unknown, paths: unknown) => {
     if (!Array.isArray(paths) || paths.some((p) => typeof p !== "string")) {
       throw new Error("Invalid payload");
     }
-    return unstageFiles(resolveRoot(e, root), paths as string[]);
+    const resolved = resolveRoot(e, root);
+    await unstageFiles(resolved, paths as string[]);
+    auditUser(resolved, "git.unstage", { count: paths.length });
   });
 
   ipcMain.handle("git:commit", async (e, root: unknown, message: unknown) => {
@@ -843,7 +873,7 @@ export function registerIpc(
 
   ipcMain.handle(
     "git:discard",
-    (e, root: unknown, paths: unknown, untracked: unknown) => {
+    async (e, root: unknown, paths: unknown, untracked: unknown) => {
       if (
         !Array.isArray(paths) ||
         paths.some((p) => typeof p !== "string") ||
@@ -851,13 +881,17 @@ export function registerIpc(
       ) {
         throw new Error("Invalid payload");
       }
-      return discardChanges(resolveRoot(e, root), paths as string[], untracked);
+      const resolved = resolveRoot(e, root);
+      await discardChanges(resolved, paths as string[], untracked);
+      auditUser(resolved, "git.discard", { paths, untracked });
     },
   );
 
-  ipcMain.handle("git:uncommit", (e, root: unknown) =>
-    undoLastCommit(resolveRoot(e, root)),
-  );
+  ipcMain.handle("git:uncommit", async (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    await undoLastCommit(resolved);
+    auditUser(resolved, "git.uncommit", {});
+  });
 
   ipcMain.handle("git:branches", (e, root: unknown) =>
     listBranches(resolveRoot(e, root)),
@@ -865,26 +899,42 @@ export function registerIpc(
 
   ipcMain.handle("git:fetch", async (e, root: unknown) => {
     const resolved = resolveRoot(e, root);
-    return gitFetch(resolved, await tokenFor(resolved));
+    const r = await gitFetch(resolved, await tokenFor(resolved));
+    auditUser(resolved, "git.fetch", {});
+    return r;
   });
   ipcMain.handle("git:pull", async (e, root: unknown) => {
     const resolved = resolveRoot(e, root);
-    return gitPull(resolved, await tokenFor(resolved));
+    const r = await gitPull(resolved, await tokenFor(resolved));
+    auditUser(resolved, "git.pull", {});
+    return r;
   });
   ipcMain.handle("git:push", async (e, root: unknown) => {
     const resolved = resolveRoot(e, root);
-    return gitPush(resolved, await tokenFor(resolved));
+    const r = await gitPush(resolved, await tokenFor(resolved));
+    auditUser(resolved, "git.push", {});
+    return r;
   });
 
-  ipcMain.handle("git:switchBranch", (e, root: unknown, name: unknown) => {
-    if (typeof name !== "string") throw new Error("Invalid payload");
-    return switchBranch(resolveRoot(e, root), name);
-  });
+  ipcMain.handle(
+    "git:switchBranch",
+    async (e, root: unknown, name: unknown) => {
+      if (typeof name !== "string") throw new Error("Invalid payload");
+      const resolved = resolveRoot(e, root);
+      await switchBranch(resolved, name);
+      auditUser(resolved, "git.branch.switch", { to: name });
+    },
+  );
 
-  ipcMain.handle("git:createBranch", (e, root: unknown, name: unknown) => {
-    if (typeof name !== "string") throw new Error("Invalid payload");
-    return createBranch(resolveRoot(e, root), name);
-  });
+  ipcMain.handle(
+    "git:createBranch",
+    async (e, root: unknown, name: unknown) => {
+      if (typeof name !== "string") throw new Error("Invalid payload");
+      const resolved = resolveRoot(e, root);
+      await createBranch(resolved, name);
+      auditUser(resolved, "git.branch.create", { name });
+    },
+  );
 
   ipcMain.handle(
     "git:fileVersions",
@@ -1089,7 +1139,10 @@ export function registerIpc(
       throw new Error("Invalid payload");
     const ref = await addNeonAccount(key.trim());
     const root = rootForEvent(e);
-    if (root) await writeProjectConfig(root, { neonAccountId: ref.id });
+    if (root) {
+      await writeProjectConfig(root, { neonAccountId: ref.id });
+      auditUser(root, "neon.account.add", { label: ref.label });
+    }
     return ref;
   });
   // Bind the focused project to an already-connected account.
@@ -1097,12 +1150,17 @@ export function registerIpc(
     if (typeof id !== "string" || !id) throw new Error("Invalid payload");
     const root = requireRoot(e);
     await writeProjectConfig(root, { neonAccountId: id });
+    const label = (await listNeonAccounts()).find((a) => a.id === id)?.label;
+    auditUser(root, "neon.account.bind", { label: label ?? id });
   });
   // Remove an account from the pool entirely (clears its key). Projects bound to
   // it fall back to the picker (resolve returns null).
-  ipcMain.handle("neon:removeAccount", async (_e, id: unknown) => {
+  ipcMain.handle("neon:removeAccount", async (e, id: unknown) => {
     if (typeof id !== "string" || !id) throw new Error("Invalid payload");
+    const label = (await listNeonAccounts()).find((a) => a.id === id)?.label;
     await removeNeonAccount(id);
+    const root = rootForEvent(e);
+    if (root) auditUser(root, "neon.account.remove", { label: label ?? id });
   });
   ipcMain.handle("neon:orgs", (e) => neonOrganizations(rootForEvent(e)));
   ipcMain.handle("neon:projects", (e, orgId: unknown) => {
@@ -1178,10 +1236,12 @@ export function registerIpc(
   ipcMain.handle("render:status", async () => ({
     connected: (await getGlobalSecret(RENDER_KEY)) !== null,
   }));
-  ipcMain.handle("render:connect", async (_e, key: unknown) => {
+  ipcMain.handle("render:connect", async (e, key: unknown) => {
     if (typeof key !== "string" || !key.trim())
       throw new Error("Invalid payload");
     await setGlobalSecret(RENDER_KEY, key.trim(), { auditLog: globalAuditLog });
+    const root = rootForEvent(e);
+    if (root) auditUser(root, "render.connect", {});
     return { connected: true };
   });
   ipcMain.handle("render:services", (e) =>
@@ -1192,10 +1252,12 @@ export function registerIpc(
       throw new Error("Invalid payload");
     return renderServiceDeploys(serviceId);
   });
-  ipcMain.handle("render:deploy", (_e, serviceId: unknown) => {
+  ipcMain.handle("render:deploy", async (e, serviceId: unknown) => {
     if (typeof serviceId !== "string" || !serviceId)
       throw new Error("Invalid payload");
-    return renderDeployService(serviceId);
+    await renderDeployService(serviceId);
+    const root = rootForEvent(e);
+    if (root) auditUser(root, "render.deploy", { service: serviceId });
   });
 
   // Host/local dev server: host:probe + host:openExternal are global (NOT

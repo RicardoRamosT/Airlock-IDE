@@ -2423,17 +2423,52 @@ button.quota-meter:hover {
 
 .audit-row {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
-  font-family: "SF Mono", Menlo, monospace;
+  height: var(--row-h);
 }
 
-.audit-time {
+/* Who did it: dim person icon for the user, accented robot for the agent. */
+.audit-actor {
+  flex: none;
+  font-size: 13px;
+}
+.audit-actor--user {
+  color: var(--fg-dim);
+}
+.audit-actor--agent {
+  color: var(--accent);
+}
+
+.audit-icon {
+  flex: none;
+  font-size: 13px;
   color: var(--fg-dim);
 }
 
 .audit-op {
+  flex: none;
   color: var(--fg);
+}
+
+/* The notable detail (secret name, branch, path, ...), ellipsized; yields its
+   space to the time on the right. */
+.audit-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: "SF Mono", Menlo, monospace;
+  color: var(--fg-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-time {
+  flex: none;
+  margin-left: auto;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .viewer-host .cm-deletedChunk {
