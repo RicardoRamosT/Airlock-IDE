@@ -144,4 +144,106 @@ describe("parseOverviewMarkdown", () => {
       },
     ]);
   });
+
+  // --- embedded HTML (inert) ---
+  it("drops standalone HTML tag lines instead of printing them as text", () => {
+    const md = '<div align="center">\n\n# AirLock\n\n</div>';
+    expect(parseOverviewMarkdown(md)).toEqual([
+      { t: "heading", level: 1, spans: [{ t: "text", v: "AirLock" }] },
+    ]);
+  });
+
+  it("drops a standalone self-closing <img> HTML tag line", () => {
+    const md = '<img src="docs/assets/hero.png" alt="hero" width="800"/>';
+    expect(parseOverviewMarkdown(md)).toEqual([]);
+  });
+
+  it("does NOT mistake an autolink-style <https://…> line for an HTML tag", () => {
+    // No autolink support, so it stays literal text — but it must NOT be dropped.
+    expect(parseOverviewMarkdown("<https://example.com>")).toEqual([
+      { t: "paragraph", spans: [{ t: "text", v: "<https://example.com>" }] },
+    ]);
+  });
+
+  // --- images ---
+  it("parses a standalone data: image", () => {
+    expect(
+      parseOverviewMarkdown("![logo](data:image/png;base64,AAAA)"),
+    ).toEqual([
+      {
+        t: "paragraph",
+        spans: [{ t: "image", src: "data:image/png;base64,AAAA", alt: "logo" }],
+      },
+    ]);
+  });
+
+  it("keeps a relative image path as an image", () => {
+    expect(parseOverviewMarkdown("![hero](docs/assets/hero.png)")).toEqual([
+      {
+        t: "paragraph",
+        spans: [{ t: "image", src: "docs/assets/hero.png", alt: "hero" }],
+      },
+    ]);
+  });
+
+  it("drops a javascript: image src but keeps its alt text", () => {
+    expect(parseOverviewMarkdown("![x](javascript:alert(1))")).toEqual([
+      { t: "paragraph", spans: [{ t: "text", v: "x" }] },
+    ]);
+  });
+
+  // --- image-links (badges) ---
+  it("parses a badge (image wrapped in a link) into an imageLink", () => {
+    const md =
+      "[![Platform](https://img.shields.io/badge/platform-macOS-black)](#install)";
+    expect(parseOverviewMarkdown(md)).toEqual([
+      {
+        t: "paragraph",
+        spans: [
+          {
+            t: "imageLink",
+            href: "#install",
+            src: "https://img.shields.io/badge/platform-macOS-black",
+            alt: "Platform",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses an image-link whose src contains balanced parens", () => {
+    const md =
+      "[![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-black)](#install)";
+    expect(parseOverviewMarkdown(md)).toEqual([
+      {
+        t: "paragraph",
+        spans: [
+          {
+            t: "imageLink",
+            href: "#install",
+            src: "https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-black",
+            alt: "Platform",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps a relative-path link in an image-link (e.g. badge -> LICENSE.md)", () => {
+    const md =
+      "[![License](https://img.shields.io/badge/license-x-blue)](LICENSE.md)";
+    expect(parseOverviewMarkdown(md)).toEqual([
+      {
+        t: "paragraph",
+        spans: [
+          {
+            t: "imageLink",
+            href: "LICENSE.md",
+            src: "https://img.shields.io/badge/license-x-blue",
+            alt: "License",
+          },
+        ],
+      },
+    ]);
+  });
 });

@@ -6,6 +6,14 @@ import {
   parseOverviewMarkdown,
 } from "../lib/overviewMarkdown";
 
+// Only data:image/* is guaranteed loadable under the renderer CSP
+// (`img-src 'self' data:`). Remote (e.g. shields.io badges) and repo-relative
+// srcs would CSP-block or 404, so the component shows their alt text instead of
+// a broken-image icon.
+function isRenderableImg(src: string): boolean {
+  return /^data:image\//i.test(src.trim());
+}
+
 function Spans({
   spans,
   onOpenFile,
@@ -13,6 +21,20 @@ function Spans({
   spans: Inline[];
   onOpenFile?: (rootRelPath: string) => void;
 }) {
+  // Anchor click handler shared by `link` + `imageLink`: never navigate the
+  // renderer (a relative href would break the SPA). External http(s) opens in
+  // the default browser; an in-repo href opens the file in the editor.
+  const openHref =
+    (href: string) =>
+    (e: React.MouseEvent<HTMLAnchorElement>): void => {
+      e.preventDefault();
+      if (/^https?:\/\//i.test(href)) {
+        window.open(href, "_blank", "noopener");
+        return;
+      }
+      const rel = resolveOverviewLink(href);
+      if (rel) onOpenFile?.(rel);
+    };
   return (
     <>
       {spans.map((s, i) => {
@@ -29,27 +51,53 @@ function Spans({
           case "code":
             // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
             return <code key={i}>{s.v}</code>;
-          case "link": {
-            // Never let a click navigate the renderer (relative hrefs would
-            // break the SPA). External links open in the default browser.
-            const external = /^https?:\/\//i.test(s.href);
-            const handleClick = (
-              e: React.MouseEvent<HTMLAnchorElement>,
-            ): void => {
-              e.preventDefault();
-              if (external) {
-                window.open(s.href, "_blank", "noopener");
-                return;
-              }
-              // In-repo link -> open the file in the editor (resolved against
-              // .airlock/, where overview.md lives). Non-openable -> no-op.
-              const rel = resolveOverviewLink(s.href);
-              if (rel) onOpenFile?.(rel);
-            };
+          case "link":
             return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
-              <a key={i} href={s.href} title={s.href} onClick={handleClick}>
+              <a
+                // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
+                key={i}
+                href={s.href}
+                title={s.href}
+                onClick={openHref(s.href)}
+              >
                 {s.text}
+              </a>
+            );
+          case "image": {
+            if (isRenderableImg(s.src))
+              return (
+                <img
+                  // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
+                  key={i}
+                  className="overview-md-img"
+                  src={s.src}
+                  alt={s.alt}
+                />
+              );
+            // CSP can't load remote/relative images here -> alt text, not a
+            // broken-image icon.
+            return s.alt ? (
+              // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
+              <span key={i} className="overview-md-img-alt">
+                {s.alt}
+              </span>
+            ) : null;
+          }
+          case "imageLink": {
+            const inner = isRenderableImg(s.src) ? (
+              <img className="overview-md-img" src={s.src} alt={s.alt} />
+            ) : (
+              s.alt || s.href
+            );
+            return (
+              <a
+                // biome-ignore lint/suspicious/noArrayIndexKey: inline spans in a static markdown block are positionally stable
+                key={i}
+                href={s.href}
+                title={s.href}
+                onClick={openHref(s.href)}
+              >
+                {inner}
               </a>
             );
           }

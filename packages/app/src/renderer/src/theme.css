@@ -3805,6 +3805,15 @@ button.docker-row .codicon-chevron-right {
 .overview-md a:hover {
   text-decoration: underline;
 }
+.overview-md-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.overview-md-img-alt {
+  color: var(--muted, rgba(255, 255, 255, 0.6));
+}
 .overview-md blockquote {
   margin: 4px 0;
   padding: 2px 8px;

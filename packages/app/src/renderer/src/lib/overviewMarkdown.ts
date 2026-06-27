@@ -7,7 +7,9 @@ export type Inline =
   | { t: "strong"; v: string }
   | { t: "em"; v: string }
   | { t: "code"; v: string }
-  | { t: "link"; href: string; text: string };
+  | { t: "link"; href: string; text: string }
+  | { t: "image"; src: string; alt: string }
+  | { t: "imageLink"; href: string; src: string; alt: string };
 
 // A list item with optional sub-list for nesting.
 export interface ListItem {
@@ -32,6 +34,19 @@ export function sanitizeHref(href: string): string | null {
   return h;
 }
 
+// Image sources. The renderer CSP is `img-src 'self' data:`, so http(s) and
+// data:image/* are the schemes worth keeping (data: actually renders; remote
+// degrades to alt text in the component); scheme-less paths stay as relative
+// repo paths. Reject any other scheme (javascript:, file:, vbscript:, and any
+// non-image data:) — same security posture as sanitizeHref.
+export function sanitizeImageSrc(src: string): string | null {
+  const s = src.trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^data:image\//i.test(s)) return s;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return null;
+  return s;
+}
+
 function pushText(out: Inline[], s: string): void {
   const last = out[out.length - 1];
   if (last && last.t === "text") last.v += s;
@@ -47,6 +62,36 @@ function parseInline(src: string): Inline[] {
     if (mCode) {
       out.push({ t: "code", v: mCode[1] ?? "" });
       i += mCode[0].length;
+      continue;
+    }
+    // Image-link: a markdown image wrapped in a link, e.g. a shields.io badge
+    // `[![alt](src)](href)`. MUST be tried before the plain-link branch, whose
+    // regex would otherwise grab `![alt` as the link text and leave `](href)`
+    // as stray text. src and href each allow one level of balanced parens.
+    const mImageLink =
+      /^\[!\[([^\]]*)\]\(([^\s()]*(?:\([^\s()]*\)[^\s()]*)*)\)\]\(([^\s()]*(?:\([^\s()]*\)[^\s()]*)*)\)/.exec(
+        rest,
+      );
+    if (mImageLink) {
+      const alt = mImageLink[1] ?? "";
+      const src = sanitizeImageSrc(mImageLink[2] ?? "");
+      const href = sanitizeHref(mImageLink[3] ?? "");
+      if (href && src) out.push({ t: "imageLink", href, src, alt });
+      else if (href) out.push({ t: "link", href, text: alt });
+      else pushText(out, alt);
+      i += mImageLink[0].length;
+      continue;
+    }
+    // Standalone image `![alt](src)`. A rejected src degrades to its alt text.
+    const mImage = /^!\[([^\]]*)\]\(([^\s()]*(?:\([^\s()]*\)[^\s()]*)*)\)/.exec(
+      rest,
+    );
+    if (mImage) {
+      const alt = mImage[1] ?? "";
+      const src = sanitizeImageSrc(mImage[2] ?? "");
+      if (src) out.push({ t: "image", src, alt });
+      else pushText(out, alt);
+      i += mImage[0].length;
       continue;
     }
     // Link regex matches one level of balanced parens in the href; deeper nesting
@@ -264,6 +309,17 @@ export function parseOverviewMarkdown(md: string): Block[] {
 
     // Blank line
     if (line.trim() === "") {
+      flushPara();
+      i += 1;
+      continue;
+    }
+
+    // Standalone block-level HTML tag line (e.g. `<div align="center">`,
+    // `</div>`, a self-closing `<img .../>`). This renderer has no HTML support,
+    // so treat such a line as inert and drop it rather than printing the raw tag
+    // as literal text. The alphanumeric tag-name guard keeps autolink-style
+    // `<https://…>` lines (no HTML support either, but they must stay visible).
+    if (/^<\/?[a-zA-Z][a-zA-Z0-9-]*(\s[^>]*)?>$/.test(line.trim())) {
       flushPara();
       i += 1;
       continue;
