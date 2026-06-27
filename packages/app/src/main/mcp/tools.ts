@@ -174,7 +174,7 @@ export async function eventsToolHandler(args: {
   project?: string;
   since?: string;
   limit?: number;
-}) {
+}): Promise<{ content: [{ type: "text"; text: string }] }> {
   const events = await queryEvents(args as Parameters<typeof queryEvents>[0]);
   return { content: [{ type: "text" as const, text: JSON.stringify(events) }] };
 }
