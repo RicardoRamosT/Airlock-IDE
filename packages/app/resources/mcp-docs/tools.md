@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 28 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 29 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -54,6 +54,15 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   is the freshness signal (an old stamp means no live session is feeding it); `meterEnabled`
   false means the human turned the quota meter off in Settings, so the data may be absent or
   stale. Account-wide — no folder needed. Usage metadata only, never a secret value.
+
+## Debugging — query the event log
+
+- **`read_events`** — query AirLock's debugging event log (lifecycle, integration calls,
+  agent commands, IPC, and errors). Secret-free by construction (values are stripped at
+  capture time). Optional filters: `level` (minimum severity: `"debug"`, `"info"`,
+  `"warn"`, `"error"`), `category` (exact match), `op` (prefix match), `project` (project
+  root path), `since` (ISO timestamp — only events after this time), `limit` (return the
+  last N events). Returns an array of log events. App-global — no workspace required.
 
 ## Status reads — workspace-rooted (need an open folder)
 

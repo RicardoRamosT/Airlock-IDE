@@ -33,6 +33,7 @@ import type {
   SessionUsage,
   TerminalInputResult,
 } from "../../shared/ipc";
+import { queryEvents } from "../eventlog/wire";
 import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
@@ -76,6 +77,7 @@ export const TOOL_NAMES: string[] = [
   "open_app_page",
   "close_app_page",
   "project_info",
+  "read_events",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -162,6 +164,20 @@ function err(message: string) {
 }
 
 const NO_WORKSPACE = "No workspace open";
+
+// Exported so tools.events.test.ts can unit-test the mapping without standing
+// up the MCP server. Delegates entirely to queryEvents; no business logic here.
+export async function eventsToolHandler(args: {
+  level?: string;
+  category?: string;
+  op?: string;
+  project?: string;
+  since?: string;
+  limit?: number;
+}) {
+  const events = await queryEvents(args as Parameters<typeof queryEvents>[0]);
+  return { content: [{ type: "text" as const, text: JSON.stringify(events) }] };
+}
 
 // Register the v1 tools onto the live McpServer. Called once at startup from
 // startMcpServer. Each handler forwards to an ide-state read, the visibility
@@ -313,6 +329,27 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       if (!root) return err(NO_WORKSPACE);
       return ok(await ide.databaseStatus(root));
     },
+  );
+
+  // Query the AirLock event log: lifecycle, integration calls, agent commands,
+  // IPC, and errors. Secret-free by construction (Task 4 / capture.ts strips
+  // values); this handler returns the result as-is. App-global (no workspace
+  // gate): events span the entire app process, not just one project.
+  mcp.registerTool(
+    "read_events",
+    {
+      description:
+        "Query AirLock's debugging event log (lifecycle, integration calls, agent commands, IPC, errors). Secret-free. Filters: level (min), category, op (prefix), project, since (ISO), limit (last N).",
+      inputSchema: {
+        level: z.enum(["debug", "info", "warn", "error"]).optional(),
+        category: z.string().optional(),
+        op: z.string().optional(),
+        project: z.string().optional(),
+        since: z.string().optional(),
+        limit: z.number().int().positive().optional(),
+      },
+    },
+    async (args) => eventsToolHandler(args),
   );
 
   mcp.registerTool(

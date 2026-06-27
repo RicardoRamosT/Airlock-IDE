@@ -114,16 +114,16 @@ const baseDeps = {
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-eight allowlisted tools (nineteen read/curate/run/commit + the nine
+  // twenty-nine allowlisted tools (twenty read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the twenty-eight allowlisted tools and nothing else", () => {
+  it("registers exactly the twenty-nine allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(28);
+    expect(registered).toHaveLength(29);
     expect(registered).toContain("project_info");
     expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
