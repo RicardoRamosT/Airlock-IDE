@@ -51,6 +51,7 @@ export function App() {
   const sidebarWidth = useApp((s) => s.sidebarWidth);
   const appPage = useApp((s) => s.appPage);
   const overviewRoot = useApp((s) => s.overviewRoot);
+  const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
   // Show the split ONLY when the focused tab is a member of the pair: switching
   // to a non-pair tab hides the split (the pair persists in `split`), switching
   // back to a member shows it again. Left = a (primary), right = b (secondary);
@@ -87,6 +88,22 @@ export function App() {
             </div>
           ) : appPage === "overview" && overviewRoot ? (
             <div className="app-page">
+              {/* Tabs OFF: the Overview is a chip-less sub-page, so give it a
+                  Back button home (tabs ON has the chip to close instead). */}
+              {!openProjectsAsTabs && (
+                <div className="app-page-bar">
+                  <button
+                    type="button"
+                    className="app-page-back"
+                    onClick={() =>
+                      useApp.getState().closeOverview(overviewRoot)
+                    }
+                  >
+                    <i className="codicon codicon-arrow-left" />
+                    Back
+                  </button>
+                </div>
+              )}
               <OverviewTab root={overviewRoot} />
             </div>
           ) : showSplit && split ? (

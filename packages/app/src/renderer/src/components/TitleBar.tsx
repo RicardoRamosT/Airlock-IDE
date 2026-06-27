@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useApp } from "../store";
 import { LayoutControls } from "./LayoutControls";
 
@@ -31,9 +32,29 @@ export function TitleBar() {
   const stripHidden =
     !openProjectsAsTabs && tabsLen <= 1 && !settingsTabOpen && !usageTabOpen;
   const activeRoot = tabState[activeTabId]?.root ?? null;
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const openOverview = (): void => {
+    if (!activeRoot) return;
+    const s = useApp.getState();
+    // Tabs ON: open the Overview as a tab (a chip in the project strip).
+    // Tabs OFF: just SHOW it as a sub-page (no chip) — App renders a Back
+    // button so there's a way home without a tab to close.
+    if (openProjectsAsTabs) s.openOverviewPage(activeRoot);
+    else s.showOverview(activeRoot);
+  };
   return (
     <header className="titlebar">
-      <span className="titlebar-title">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: right-click affordance on the passive project-name label to open the Overview; not a focusable control (the titlebar book button + project-tab menu are the real controls) */}
+      <span
+        className={`titlebar-title${activeRoot ? " interactive" : ""}`}
+        onContextMenu={(e) => {
+          // Right-click the project name -> project-level actions (Overview).
+          // The title bar is always present, so this works with zero tabs.
+          if (!activeRoot) return;
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
         {project ? `AirLock - ${project}` : "AirLock"}
       </span>
       {stripHidden && activeRoot && (
@@ -41,14 +62,34 @@ export function TitleBar() {
           type="button"
           className="titlebar-overview"
           title="Project overview"
-          onClick={() =>
-            activeRoot && useApp.getState().openOverviewPage(activeRoot)
-          }
+          onClick={openOverview}
         >
           <i className="codicon codicon-book" />
         </button>
       )}
       <LayoutControls />
+      {menu && activeRoot && (
+        <>
+          <button
+            type="button"
+            className="popover-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenu(null)}
+          />
+          <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                openOverview();
+                setMenu(null);
+              }}
+            >
+              <span>Overview</span>
+            </button>
+          </div>
+        </>
+      )}
     </header>
   );
 }

@@ -140,6 +140,19 @@ body,
   font-size: 12px;
   color: var(--fg-dim);
 }
+/* When a project is active the name is right-clickable (project menu); the
+   hover pill + context-menu cursor signal that. no-drag so the hover/click are
+   reliable inside the draggable bar. */
+.titlebar-title.interactive {
+  -webkit-app-region: no-drag;
+  cursor: context-menu;
+  padding: 1px 8px;
+  border-radius: 5px;
+}
+.titlebar-title.interactive:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fg);
+}
 
 .layout-controls {
   display: flex;
@@ -1328,6 +1341,31 @@ body.resizing-col {
 .app-page > * {
   flex: 1;
   min-height: 0;
+}
+/* Back bar for a chip-less sub-page (Overview with project-tabs off). Fixed
+   height — override the flex:1 that .app-page > * gives every child. */
+.app-page-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.app-page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.app-page-back:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--fg);
 }
 
 .usage-body {
