@@ -22,7 +22,7 @@ import {
   installProcessHandlers,
   wrapIpcHandle,
 } from "./eventlog/capture";
-import { flushEventLog, startEventLog } from "./eventlog/wire";
+import { emitEvent, flushEventLog, startEventLog } from "./eventlog/wire";
 import {
   broadcastActivityChanged,
   flushSession,
@@ -129,6 +129,7 @@ function bootstrap(): void {
     // Event log: start the writer now that we know whether it's enabled and at
     // what level. emitEvent() is a no-op until this is called (writer is null).
     startEventLog(prefs.eventLog);
+    emitEvent({ level: "info", category: "lifecycle", op: "app.ready" });
     // Quota meter: install/uninstall the chained Claude statusLine to match the
     // saved pref, then start watching the side-channel file. Best-effort -- a
     // failure to touch ~/.claude/settings.json must never break startup.
@@ -256,6 +257,7 @@ function bootstrap(): void {
     stopUpdateCheck();
   });
   app.on("before-quit", () => {
+    emitEvent({ level: "info", category: "lifecycle", op: "app.quit" });
     void flushEventLog();
   });
 

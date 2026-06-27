@@ -83,7 +83,7 @@ import {
 import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
-import { queryEvents } from "./eventlog/wire";
+import { emitEvent, queryEvents } from "./eventlog/wire";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -1073,12 +1073,32 @@ export function registerIpc(
 
   ipcMain.handle("db:ping", async (e, root: unknown, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
+    const startedAt = Date.now();
     try {
-      await withDb(await dbConnString(resolveRoot(e, root), id), (run) =>
-        pingDb(run),
-      );
+      const resolved = resolveRoot(e, root);
+      const connStr = await dbConnString(resolved, id);
+      // Parse host/database identifiers BEFORE connecting (identifier-only, no password).
+      const info = parseConnString(connStr);
+      await withDb(connStr, (run) => pingDb(run));
+      emitEvent({
+        level: "info",
+        category: "db",
+        op: "db.ping",
+        outcome: "ok",
+        durationMs: Date.now() - startedAt,
+        detail: { id, host: info?.host ?? "", database: info?.database ?? "" },
+      });
       return { ok: true };
     } catch (err) {
+      emitEvent({
+        level: "error",
+        category: "db",
+        op: "db.ping",
+        outcome: "error",
+        durationMs: Date.now() - startedAt,
+        detail: { id },
+        error: { message: err instanceof Error ? err.message : String(err) },
+      });
       // Message-only: never the connection string / stack / error object.
       // redactConnStrings is the enforcing layer: even if a pg upgrade or a
       // DNS/driver error echoes the full connstr, the password is scrubbed
@@ -1201,12 +1221,31 @@ export function registerIpc(
   });
   ipcMain.handle("neon:ping", async (e, p, b, db, role) => {
     if (!allStr([p, b, db, role])) throw new Error("Invalid payload");
+    const startedAt = Date.now();
     try {
       await withDb(await neonUri(rootForEvent(e), p, b, db, role), (run) =>
         pingDb(run),
       );
+      emitEvent({
+        level: "info",
+        category: "neon",
+        op: "neon.ping",
+        outcome: "ok",
+        durationMs: Date.now() - startedAt,
+        // p = neon project id, b = branch id, db = database name: identifiers only
+        detail: { project: p, branch: b, database: db },
+      });
       return { ok: true };
     } catch (err) {
+      emitEvent({
+        level: "error",
+        category: "neon",
+        op: "neon.ping",
+        outcome: "error",
+        durationMs: Date.now() - startedAt,
+        detail: { project: p, branch: b, database: db },
+        error: { message: err instanceof Error ? err.message : String(err) },
+      });
       // Message-only, scrubbed: a Neon connection URI carries a password, so
       // redactConnStrings is the enforcing layer even if a driver/DNS error
       // echoes the full URI before it crosses IPC.
@@ -1268,9 +1307,32 @@ export function registerIpc(
     if (root) auditUser(root, "render.connect", {});
     return { connected: true };
   });
-  ipcMain.handle("render:services", (e) =>
-    renderServicesStatus(rootForEvent(e)),
-  );
+  ipcMain.handle("render:services", async (e) => {
+    const startedAt = Date.now();
+    try {
+      const result = await renderServicesStatus(rootForEvent(e));
+      emitEvent({
+        level: "info",
+        category: "render",
+        op: "render.listServices",
+        outcome: "ok",
+        durationMs: Date.now() - startedAt,
+        // count of service ids returned (identifiers, not values)
+        detail: { count: result.length },
+      });
+      return result;
+    } catch (err) {
+      emitEvent({
+        level: "error",
+        category: "render",
+        op: "render.listServices",
+        outcome: "error",
+        durationMs: Date.now() - startedAt,
+        error: { message: err instanceof Error ? err.message : String(err) },
+      });
+      throw err;
+    }
+  });
   ipcMain.handle("render:deploys", (_e, serviceId: unknown) => {
     if (typeof serviceId !== "string" || !serviceId)
       throw new Error("Invalid payload");
@@ -1302,7 +1364,18 @@ export function registerIpc(
       return { up: false };
     }
     const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
-    return { up: await probePort(u.hostname, port) };
+    const startedAt = Date.now();
+    const up = await probePort(u.hostname, port);
+    emitEvent({
+      level: "info",
+      category: "host",
+      op: "host.probe",
+      outcome: up ? "ok" : "error",
+      durationMs: Date.now() - startedAt,
+      // hostname + port are connection identifiers, not secret values
+      detail: { hostname: u.hostname, port, up },
+    });
+    return { up };
   });
   // Validate http(s) BEFORE opening: never file:// or a custom scheme.
   ipcMain.handle("host:openExternal", (_e, url: unknown) => {
@@ -1320,7 +1393,35 @@ export function registerIpc(
   });
 
   // Docker: machine-global, so NOT requireRoot-gated.
-  ipcMain.handle("docker:list", () => dockerStatus());
+  ipcMain.handle("docker:list", async () => {
+    const startedAt = Date.now();
+    try {
+      const result = await dockerStatus();
+      emitEvent({
+        level: "info",
+        category: "docker",
+        op: "docker.list",
+        outcome: "ok",
+        durationMs: Date.now() - startedAt,
+        // container count + engine state: identifiers/booleans, not values
+        detail: {
+          count: result.containers.length,
+          engineRunning: result.running,
+        },
+      });
+      return result;
+    } catch (err) {
+      emitEvent({
+        level: "error",
+        category: "docker",
+        op: "docker.list",
+        outcome: "error",
+        durationMs: Date.now() - startedAt,
+        error: { message: err instanceof Error ? err.message : String(err) },
+      });
+      throw err;
+    }
+  });
 
   // activity:status -> ActivityItem[]; NOT requireRoot-gated (render/docker work
   // with no folder; activityStatus skips CI itself when there is no root). The

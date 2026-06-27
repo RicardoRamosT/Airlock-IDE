@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ipcMain } from "electron";
 import type { AgentCommand, AgentCommandResult } from "../shared/ipc";
+import { emitEvent } from "./eventlog/wire";
 import { lastFocusedWindow } from "./window";
 
 // MAIN-ONLY resolver: the IDE-control MCP tools (list_tabs/open_tab/close_tab/
@@ -43,16 +44,60 @@ export function runAgentCommand(
   cmd: AgentCommand,
 ): Promise<AgentCommandResult> {
   const win = lastFocusedWindow();
+  // command type is the safe identifier: never carries secret values
+  emitEvent({
+    level: "info",
+    category: "command",
+    op: "command.start",
+    actor: "agent",
+    detail: { type: cmd.type },
+  });
+  const startedAt = Date.now();
   if (!win || win.isDestroyed()) {
+    emitEvent({
+      level: "warn",
+      category: "command",
+      op: "command.exit",
+      actor: "agent",
+      outcome: "error",
+      durationMs: Date.now() - startedAt,
+      detail: { type: cmd.type },
+      error: { message: "No airlock window" },
+    });
     return Promise.resolve({ ok: false, error: "No airlock window" });
   }
   const id = randomUUID();
   return new Promise<AgentCommandResult>((resolve) => {
     const timer = setTimeout(() => {
       pending.delete(id);
+      emitEvent({
+        level: "warn",
+        category: "command",
+        op: "command.exit",
+        actor: "agent",
+        outcome: "error",
+        durationMs: Date.now() - startedAt,
+        detail: { type: cmd.type },
+        error: { message: "timed out" },
+      });
       resolve({ ok: false, error: "timed out" });
     }, COMMAND_TIMEOUT_MS);
-    pending.set(id, { resolve, timer });
+    pending.set(id, {
+      resolve: (result) => {
+        emitEvent({
+          level: result.ok ? "info" : "warn",
+          category: "command",
+          op: "command.exit",
+          actor: "agent",
+          outcome: result.ok ? "ok" : "error",
+          durationMs: Date.now() - startedAt,
+          detail: { type: cmd.type },
+          ...(!result.ok && { error: { message: result.error } }),
+        });
+        resolve(result);
+      },
+      timer,
+    });
     try {
       win.webContents.send("agent:command", { id, cmd });
     } catch {
@@ -62,6 +107,16 @@ export function runAgentCommand(
       // (which would reject the promise). (audit PB-H14)
       clearTimeout(timer);
       pending.delete(id);
+      emitEvent({
+        level: "warn",
+        category: "command",
+        op: "command.exit",
+        actor: "agent",
+        outcome: "error",
+        durationMs: Date.now() - startedAt,
+        detail: { type: cmd.type },
+        error: { message: "window closed" },
+      });
       resolve({ ok: false, error: "window closed" });
     }
   });
