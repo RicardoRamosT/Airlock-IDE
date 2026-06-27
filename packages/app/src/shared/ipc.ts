@@ -14,6 +14,7 @@ import type {
   GitStatus,
   ImportExternalResult,
   ImportResult,
+  Level,
   NeonAccountRef,
   NeonBranch,
   NeonDatabase,
@@ -438,6 +439,9 @@ export interface AppPrefs {
   // Code statusLine that AirLock reads (set enabled:false to turn it off and
   // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
+  // Event log display. ON by default at "debug" level (shows all events).
+  // minLevel filters which events are shown; "error" = only errors. App-global.
+  eventLog: { enabled: boolean; minLevel: Level };
   // Auto-run `claude` in newly created PROJECT terminals. "first" = only when
   // no other terminal in the tab holds the auto-Claude claim; blank tabs are
   // always exempt. App-global.

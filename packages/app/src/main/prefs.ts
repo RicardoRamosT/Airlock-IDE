@@ -13,6 +13,7 @@ import {
   type AgentCommandPolicy,
   DEFAULT_AGENT_POLICY,
   KNOWN_TERMINALS,
+  type Level,
 } from "@airlock/agent-core";
 import type {
   AppPrefs,
@@ -62,6 +63,7 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
+  eventLog: { enabled: true, minLevel: "debug" as Level },
   claudeAutoStart: "first",
   defaultTerminal: "airlock",
   restoreSession: true,
@@ -146,6 +148,22 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
   return { enabled: true };
 }
 
+const EVENT_LEVELS: readonly Level[] = ["debug", "info", "warn", "error"];
+function sanitizeEventLog(raw: unknown): { enabled: boolean; minLevel: Level } {
+  const def = { enabled: true, minLevel: "debug" as Level };
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    const enabled = typeof r.enabled === "boolean" ? r.enabled : def.enabled;
+    const minLevel =
+      typeof r.minLevel === "string" &&
+      EVENT_LEVELS.includes(r.minLevel as Level)
+        ? (r.minLevel as Level)
+        : def.minLevel;
+    return { enabled, minLevel };
+  }
+  return def;
+}
+
 const TERMINAL_IDS = new Set(["airlock", ...KNOWN_TERMINALS.map((t) => t.id)]);
 
 // defaultTerminal must be "airlock" or a known terminal id; anything else
@@ -192,6 +210,7 @@ function sanitize(raw: unknown): AppPrefs {
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
+    eventLog: sanitizeEventLog(r.eventLog),
     claudeAutoStart: CLAUDE_AUTO_MODES.includes(
       r.claudeAutoStart as ClaudeAutoStart,
     )

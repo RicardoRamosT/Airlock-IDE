@@ -36,6 +36,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
     });
@@ -95,6 +96,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
     });
@@ -175,6 +177,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
     });
@@ -212,6 +215,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
+      eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
     });
@@ -384,6 +388,37 @@ describe("quotaMeter", () => {
       quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean },
     });
     expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
+  });
+});
+
+describe("eventLog", () => {
+  it("defaults eventLog to enabled at debug level", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-eventlog-"));
+    const f = path.join(dir, "prefs.json");
+    expect((await loadPrefs(f)).eventLog).toEqual({
+      enabled: true,
+      minLevel: "debug",
+    });
+  });
+
+  it("keeps a valid eventLog override and rejects a bad minLevel", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-eventlog-"));
+    const f = path.join(dir, "prefs.json");
+    await savePrefs(f, { eventLog: { enabled: false, minLevel: "warn" } });
+    expect((await loadPrefs(f)).eventLog).toEqual({
+      enabled: false,
+      minLevel: "warn",
+    });
+    // bogus minLevel -> falls back to default "debug"
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(
+      wrong,
+      JSON.stringify({ eventLog: { enabled: true, minLevel: "bogus" } }),
+    );
+    expect((await loadPrefs(wrong)).eventLog).toEqual({
+      enabled: true,
+      minLevel: "debug",
+    });
   });
 });
 
