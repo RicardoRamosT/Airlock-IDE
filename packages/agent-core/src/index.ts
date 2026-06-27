@@ -78,6 +78,25 @@ export {
   dockerStop,
   parseDockerPs,
 } from "./docker/docker";
+export { createFileSink, type FileSinkOpts } from "./events/fileSink";
+export {
+  type EventFilter,
+  filterEvents,
+  parseEventLog,
+} from "./events/query";
+export { redactEvent } from "./events/redactEvent";
+export {
+  type EmitInput,
+  LEVELS,
+  type Level,
+  type LogEvent,
+  levelAtLeast,
+} from "./events/types";
+export {
+  EventWriter,
+  type Sink,
+  type WriterOpts,
+} from "./events/writer";
 export { buildAuthedArgs, runGitAuthed } from "./git/auth";
 export { ensureCommitIdentity, type GitIdentity } from "./git/identity";
 export {
