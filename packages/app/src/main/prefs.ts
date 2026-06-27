@@ -31,6 +31,7 @@ export const SECTIONS: Section[] = [
   "docker",
   "host",
   "audit",
+  "events",
 ];
 
 const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
@@ -42,6 +43,7 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   docker: true,
   host: true,
   audit: true,
+  events: true,
 };
 
 // Persisted sidebar width clamp. Lenient bounds (the renderer's resizer commits

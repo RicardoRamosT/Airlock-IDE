@@ -16,10 +16,11 @@ const ALL_VISIBLE: SectionVisibility = {
   docker: true,
   host: true,
   audit: true,
+  events: true,
 };
 
 describe("sectionSubmenuItems", () => {
-  it("returns the eight sections in order as labelled checkboxes", () => {
+  it("returns the nine sections in order as labelled checkboxes", () => {
     const items = sectionSubmenuItems(ALL_VISIBLE, () => {});
     expect(items.map((i) => i.label)).toEqual([
       "Files",
@@ -30,6 +31,7 @@ describe("sectionSubmenuItems", () => {
       "Docker",
       "Host",
       "Audit",
+      "Events",
     ]);
     expect(items.every((i) => i.type === "checkbox")).toBe(true);
   });

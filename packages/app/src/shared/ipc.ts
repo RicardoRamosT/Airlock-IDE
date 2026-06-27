@@ -262,7 +262,8 @@ export type Section =
   | "databases"
   | "docker"
   | "host"
-  | "audit";
+  | "audit"
+  | "events";
 export type SectionVisibility = Record<Section, boolean>;
 
 // Auto-run `claude` in new project terminals: never / once per tab / always.

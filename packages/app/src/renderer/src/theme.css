@@ -2509,6 +2509,44 @@ button.quota-meter:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+}
+.events-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-h);
+  font-size: 11px;
+}
+.events-op {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.events-level {
+  text-transform: uppercase;
+  font-size: 9px;
+  opacity: 0.8;
+}
+.events-level--error,
+.events-row--error .events-op {
+  color: var(--danger, #e06c75);
+}
+.events-level--warn {
+  color: var(--warn, #d19a66);
+}
+.events-time {
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+.events-outcome {
+  color: var(--fg-dim);
+}
+
 .viewer-host .cm-deletedChunk {
   background: rgba(248, 81, 73, 0.12);
 }

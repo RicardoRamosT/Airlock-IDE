@@ -777,6 +777,7 @@ export const useApp = create<AppState>((set) => ({
     docker: true,
     host: true,
     audit: true,
+    events: true,
   },
   activeView: "files",
   claudeAutoStart: "first",

@@ -12,6 +12,7 @@ export const SECTION_META: { id: Section; label: string; icon: string }[] = [
   { id: "docker", label: "Docker", icon: "vm" },
   { id: "host", label: "Host", icon: "globe" },
   { id: "audit", label: "Audit", icon: "shield" },
+  { id: "events", label: "Events", icon: "list-flat" },
 ];
 
 // The view the sidebar actually shows: the chosen view while visible, else the

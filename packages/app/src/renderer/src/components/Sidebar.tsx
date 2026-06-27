@@ -7,6 +7,7 @@ import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
+import { EventsSection } from "./EventsSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
 import { IntegrationsSteadySection } from "./IntegrationsSteadySection";
@@ -80,6 +81,7 @@ export function Sidebar() {
       </>
     );
   else if (view === "audit") body = <AuditSection />;
+  else if (view === "events") body = <EventsSection />;
 
   return (
     <aside className="sidebar">

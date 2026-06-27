@@ -22,6 +22,7 @@ describe("app prefs", () => {
         docker: true,
         host: true,
         audit: true,
+        events: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -82,6 +83,7 @@ describe("app prefs", () => {
         docker: true,
         host: true,
         audit: true,
+        events: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -163,6 +165,7 @@ describe("app prefs", () => {
         docker: true,
         host: true,
         audit: true,
+        events: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -201,6 +204,7 @@ describe("app prefs", () => {
         docker: true,
         host: true,
         audit: true,
+        events: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -233,7 +237,7 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).theme).toBe("dark");
   });
 
-  it("defaults sectionVisibility to all eight sections visible", async () => {
+  it("defaults sectionVisibility to all nine sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -246,6 +250,7 @@ describe("app prefs", () => {
       docker: true,
       host: true,
       audit: true,
+      events: true,
     });
   });
 
@@ -265,6 +270,7 @@ describe("app prefs", () => {
       docker: false,
       host: true,
       audit: true,
+      events: true,
     });
     expect((await loadPrefs(file)).sectionVisibility).toEqual({
       files: true,
@@ -275,6 +281,7 @@ describe("app prefs", () => {
       docker: false,
       host: true,
       audit: true,
+      events: true,
     });
   });
 
@@ -291,6 +298,7 @@ describe("app prefs", () => {
       docker: true,
       host: true,
       audit: true,
+      events: true,
     });
   });
 
@@ -310,6 +318,7 @@ describe("app prefs", () => {
       docker: true,
       host: true,
       audit: true,
+      events: true,
     });
   });
 });

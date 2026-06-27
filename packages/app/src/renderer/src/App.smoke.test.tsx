@@ -86,6 +86,7 @@ const DEFAULT_PREFS: AppPrefs = {
     docker: true,
     host: true,
     audit: true,
+    events: true,
   },
   activeView: "files",
   claudeAutoStart: "off",

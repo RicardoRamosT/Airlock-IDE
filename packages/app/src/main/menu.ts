@@ -18,6 +18,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   docker: "Docker",
   host: "Host",
   audit: "Audit",
+  events: "Events",
 };
 
 // Pure: the View -> Sidebar checkbox rows. Tested without Electron.
