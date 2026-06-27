@@ -7,6 +7,7 @@ import type {
   DiffSide,
   DirEntry,
   EnvFileImport,
+  EventFilter,
   FileContent,
   FileVersions,
   GhAccount,
@@ -15,6 +16,7 @@ import type {
   ImportExternalResult,
   ImportResult,
   Level,
+  LogEvent,
   NeonAccountRef,
   NeonBranch,
   NeonDatabase,
@@ -51,6 +53,7 @@ export type {
   DiffSide,
   DirEntry,
   EnvFileImport,
+  EventFilter,
   FileContent,
   FileVersions,
   GhAccount,
@@ -58,6 +61,7 @@ export type {
   GitStatus,
   ImportExternalResult,
   ImportResult,
+  LogEvent,
   NeonAccountRef,
   NeonBranch,
   NeonDatabase,
@@ -632,6 +636,7 @@ export interface AirlockApi {
     patch: Partial<ProjectConfig>,
   ): Promise<ProjectConfig>;
   auditRead(root: string, limit: number): Promise<AuditEntry[]>;
+  eventsQuery(filter: EventFilter): Promise<LogEvent[]>;
   gitIsRepo(root: string): Promise<boolean>;
   gitStatus(root: string): Promise<GitStatus>;
   gitStage(root: string, paths: string[]): Promise<void>;

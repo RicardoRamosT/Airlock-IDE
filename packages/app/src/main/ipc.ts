@@ -15,6 +15,7 @@ import {
   dockerStart,
   dockerStop,
   duplicate,
+  type EventFilter,
   ensureAirlockDir,
   filterDangerousEnv,
   getGlobalSecret,
@@ -82,6 +83,7 @@ import {
 import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
+import { queryEvents } from "./eventlog/wire";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -280,6 +282,24 @@ export function flushSession(): void {
   } catch (err) {
     console.error("[airlock] session flush failed", err);
   }
+}
+
+const EVENT_LEVELS = ["debug", "info", "warn", "error"];
+
+// The renderer is untrusted: keep only known fields with valid shapes.
+export function sanitizeEventFilter(raw: unknown): EventFilter {
+  if (!raw || typeof raw !== "object") return {};
+  const r = raw as Record<string, unknown>;
+  const out: EventFilter = {};
+  if (typeof r.level === "string" && EVENT_LEVELS.includes(r.level))
+    out.level = r.level as EventFilter["level"];
+  if (typeof r.category === "string") out.category = r.category;
+  if (typeof r.op === "string") out.op = r.op;
+  if (typeof r.project === "string") out.project = r.project;
+  if (typeof r.since === "string") out.since = r.since;
+  if (typeof r.limit === "number" && Number.isFinite(r.limit) && r.limit > 0)
+    out.limit = Math.floor(r.limit);
+  return out;
 }
 
 // getBaseEnv supplies the login-shell env captured once at startup (real
@@ -836,6 +856,10 @@ export function registerIpc(
         ? Math.floor(limit)
         : 50,
     ),
+  );
+
+  ipcMain.handle("events:query", (_e, filter: unknown) =>
+    queryEvents(sanitizeEventFilter(filter)),
   );
 
   ipcMain.handle("git:isRepo", (e, root: unknown) =>
