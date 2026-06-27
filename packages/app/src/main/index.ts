@@ -5,7 +5,7 @@ import {
   registerMcpServer,
   unregisterMcpServer,
 } from "@airlock/agent-core";
-import { app, BrowserWindow, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, nativeImage } from "electron";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { registerAgentCommandIpc, runAgentCommand } from "./agent-commands";
 import {
@@ -17,6 +17,12 @@ import {
   startAnthropicStatusWatch,
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
+import {
+  installConsoleFunnel,
+  installProcessHandlers,
+  wrapIpcHandle,
+} from "./eventlog/capture";
+import { flushEventLog, startEventLog } from "./eventlog/wire";
 import {
   broadcastActivityChanged,
   flushSession,
@@ -103,6 +109,12 @@ function bootstrap(): void {
     // before registerIpc so the onFolderOpen callback below can close over it.
     const { port, token } = await ensureMcpConfig(prefsFile);
 
+    // Event log capture: instrument ipcMain BEFORE any handler registers so the
+    // wrapper is in place for every subsequent ipcMain.handle() call. Process
+    // handlers and console funnel don't need prefs and are safe to start early.
+    installProcessHandlers();
+    installConsoleFunnel();
+    wrapIpcHandle(ipcMain);
     registerIpc(() => loginEnv, prefsFile);
     // Register the agent-request resolver IPC (renderer reports the user's
     // save/cancel for a request_secret prompt). The MCP tool that drives this
@@ -114,6 +126,9 @@ function bootstrap(): void {
     registerAgentCommandIpc();
     createWindow();
     const prefs = await loadPrefs(prefsFile);
+    // Event log: start the writer now that we know whether it's enabled and at
+    // what level. emitEvent() is a no-op until this is called (writer is null).
+    startEventLog(prefs.eventLog);
     // Quota meter: install/uninstall the chained Claude statusLine to match the
     // saved pref, then start watching the side-channel file. Best-effort -- a
     // failure to touch ~/.claude/settings.json must never break startup.
@@ -239,6 +254,9 @@ function bootstrap(): void {
   app.on("before-quit", () => {
     stopAnthropicStatusWatch();
     stopUpdateCheck();
+  });
+  app.on("before-quit", () => {
+    void flushEventLog();
   });
 
   // macOS lifecycle (#12): on darwin the app stays alive when all windows close
