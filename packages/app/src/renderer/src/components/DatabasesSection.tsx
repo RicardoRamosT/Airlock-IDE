@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { DbEntry, DbTable } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { OpenFolderEmpty } from "./OpenFolderEmpty";
 
 type PingState = "checking" | "ok" | "fail";
 
@@ -53,7 +54,7 @@ export function DatabasesSection() {
     refresh().catch(console.error);
   }, [refresh]);
 
-  if (!root) return <div className="section-note">open a folder first</div>;
+  if (!root) return <OpenFolderEmpty />;
 
   const toggle = async (id: string) => {
     const next = !expanded[id];

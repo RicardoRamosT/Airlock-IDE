@@ -1023,8 +1023,9 @@ body,
   padding: 2px 4px 0;
 }
 
-/* Empty-state of the Files view: a quiet note over a flat, full-width
-   primary action (VS Code welcome-view style; no pill shapes). */
+/* Shared no-folder empty state (Files, Secrets, Databases, Git, Audit): a
+   quiet note over a flat, full-width primary action (VS Code welcome-view
+   style; no pill shapes). */
 .open-folder-empty {
   display: flex;
   flex-direction: column;

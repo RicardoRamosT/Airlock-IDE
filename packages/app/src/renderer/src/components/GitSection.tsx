@@ -7,6 +7,7 @@ import type {
 import { openFileInRoot } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { OpenFolderEmpty } from "./OpenFolderEmpty";
 
 const NEW_BRANCH = "__new__";
 
@@ -141,7 +142,7 @@ export function GitSection() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menu, confirm]);
 
-  if (!root) return <div className="section-note">open a folder first</div>;
+  if (!root) return <OpenFolderEmpty />;
   if (!isRepo) return <div className="section-note">not a git repository</div>;
   if (!status) return <div className="section-note">loading…</div>;
 

@@ -3,6 +3,7 @@ import { formatEnvImportSummary } from "../lib/envImportSummary";
 import { useProjectTab } from "../lib/projectPane";
 import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
+import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { RenderEnvSection } from "./RenderEnvSection";
 
 export function SecretsSection() {
@@ -74,7 +75,7 @@ export function SecretsSection() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
 
-  if (!root) return <div className="section-note">open a folder first</div>;
+  if (!root) return <OpenFolderEmpty />;
 
   const toggleInject = async () => {
     const next = await window.airlock.configSet(root, {

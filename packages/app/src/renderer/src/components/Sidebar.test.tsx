@@ -32,7 +32,9 @@ it("shows the active view's title and only that view", () => {
   useApp.getState().setActiveView("secrets");
   render(<Sidebar />);
   expect(screen.getByText("Secrets")).toBeTruthy();
-  expect(screen.queryByText("Open Folder…")).toBeNull(); // files view absent
+  // The "Open Folder…" button is now shared by every no-root section, so assert
+  // on the Files view's distinct empty message to prove only Secrets is shown.
+  expect(screen.queryByText("No folder is open in this tab.")).toBeNull();
 });
 
 it("files view without a root offers Open Folder", () => {

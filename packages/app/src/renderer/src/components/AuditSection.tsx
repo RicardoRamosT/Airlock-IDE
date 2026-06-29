@@ -4,6 +4,7 @@ import { auditLabel, auditSummary } from "../lib/auditLabels";
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { OpenFolderEmpty } from "./OpenFolderEmpty";
 
 // Re-read cadence. Most actions (git, files, integrations) have no store signal
 // to react to, so the panel polls — gently, and paused when backgrounded — so
@@ -42,7 +43,7 @@ export function AuditSection() {
     });
   }, [load]);
 
-  if (!root) return <div className="section-note">open a folder first</div>;
+  if (!root) return <OpenFolderEmpty />;
   if (entries.length === 0)
     return <div className="section-note">no operations yet</div>;
 

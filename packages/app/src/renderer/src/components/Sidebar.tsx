@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { openPickedFolder } from "../lib/openFolder";
 import { useProjectTab } from "../lib/projectPane";
 import { effectiveView, SECTION_META } from "../lib/sections";
 import { useApp } from "../store";
@@ -13,6 +12,7 @@ import { GitSection } from "./GitSection";
 import { IntegrationsSteadySection } from "./IntegrationsSteadySection";
 import { LocalHostSection } from "./LocalHostSection";
 import { NeonSection } from "./NeonSection";
+import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { QuotaMeter } from "./QuotaMeter";
 import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
@@ -38,27 +38,12 @@ export function Sidebar() {
   const splitShowing =
     split !== null && (activeTabId === split.a || activeTabId === split.b);
 
-  const openFolder = async () => {
-    try {
-      const picked = await window.airlock.openFolder();
-      if (picked) await openPickedFolder(picked);
-    } catch (err) {
-      console.error("openFolder failed", err);
-    }
-  };
-
   let body: ReactNode = null;
   if (view === "files") {
     body = root ? (
       <FileTree />
     ) : (
-      <div className="open-folder-empty">
-        <p className="section-note">No folder is open in this tab.</p>
-        <button type="button" className="open-folder" onClick={openFolder}>
-          <i className="codicon codicon-folder-opened" />
-          Open Folder…
-        </button>
-      </div>
+      <OpenFolderEmpty message="No folder is open in this tab." />
     );
   } else if (view === "secrets") body = <SecretsSection />;
   else if (view === "git") body = <GitSection />;
