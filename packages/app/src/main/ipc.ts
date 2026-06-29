@@ -82,6 +82,7 @@ import {
 } from "electron";
 import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
+import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
 import {
   detectUnmanaged,
@@ -1619,10 +1620,10 @@ export function registerIpc(
         cwd: root ?? undefined,
         cols,
         rows,
-        // Captured login-shell env (legitimate PATH/locale) is the base; it is
-        // NOT run through filterDangerousEnv. Injected secrets (already filtered
-        // above) are the per-call env and still win over baseEnv.
-        baseEnv: getBaseEnv(),
+        // Captured login-shell env + the AIRLOCK_IDE marker so a Claude session
+        // here knows it is inside AirLock. Injected secrets (already filtered)
+        // remain the per-call `env` and still win over baseEnv.
+        baseEnv: stampAirlockEnv(getBaseEnv()),
         env: secretEnv,
       });
       sessions.set(s.id, s);
