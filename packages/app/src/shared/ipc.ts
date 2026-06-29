@@ -6,6 +6,7 @@ import type {
   DbTable,
   DiffSide,
   DirEntry,
+  EnvDiffEntry,
   EnvFileImport,
   EventFilter,
   FileContent,
@@ -735,6 +736,15 @@ export interface AirlockApi {
   renderDeploys(serviceId: string): Promise<RenderDeploy[]>;
   // Trigger a new deploy of a service (owner-initiated; the UI confirms first).
   renderDeploy(serviceId: string): Promise<void>;
+  // Env vars of one Render service: KEYS only (no values). Refetches live.
+  renderEnvKeys(serviceId: string): Promise<string[]>;
+  // OWNER-ONLY single value, audited. Agent has no equivalent tool.
+  renderEnvReveal(serviceId: string, key: string): Promise<string | null>;
+  // Value-free dev↔prod diff (equal/differs/only-a/only-b; no values).
+  renderEnvCompare(
+    serviceIdA: string,
+    serviceIdB: string,
+  ): Promise<EnvDiffEntry[]>;
   // Activity: aggregated in-progress operations (CI + Render + Docker) for the
   // Activity panel. NOT root-gated; CI is skipped when no folder is open.
   // activityDismiss hides an entry by id (app-global, in-memory) and broadcasts

@@ -96,6 +96,9 @@ import {
   neonStatus,
   renderDeployService,
   renderServiceDeploys,
+  renderServiceEnvCompare,
+  renderServiceEnvKeys,
+  renderServiceEnvReveal,
   renderServicesStatus,
   resolveDevUrl,
 } from "./ide-state";
@@ -1349,6 +1352,41 @@ export function registerIpc(
     await renderDeployService(serviceId);
     const root = rootForEvent(e);
     if (root) auditUser(root, "render.deploy", { service: serviceId });
+  });
+  ipcMain.handle("render:envKeys", async (_e, serviceId: unknown) => {
+    if (typeof serviceId !== "string" || !serviceId)
+      throw new Error("Invalid payload");
+    const startedAt = Date.now();
+    const keys = await renderServiceEnvKeys(serviceId);
+    emitEvent({
+      level: "info",
+      category: "render",
+      op: "render.envKeys",
+      outcome: "ok",
+      durationMs: Date.now() - startedAt,
+      detail: { service: serviceId, count: keys.length }, // identifiers only
+    });
+    return keys;
+  });
+  // OWNER-ONLY value path. The renderer is the human's surface; the agent (over
+  // MCP) cannot call this IPC and is given no env-var tool. Audited (service +
+  // key only — never the value).
+  ipcMain.handle(
+    "render:envReveal",
+    async (e, serviceId: unknown, key: unknown) => {
+      if (typeof serviceId !== "string" || !serviceId)
+        throw new Error("Invalid payload");
+      if (typeof key !== "string" || !key) throw new Error("Invalid payload");
+      const root = rootForEvent(e);
+      if (root)
+        auditUser(root, "render.env.reveal", { service: serviceId, key });
+      return renderServiceEnvReveal(serviceId, key);
+    },
+  );
+  ipcMain.handle("render:envCompare", async (_e, a: unknown, b: unknown) => {
+    if (typeof a !== "string" || !a || typeof b !== "string" || !b)
+      throw new Error("Invalid payload");
+    return renderServiceEnvCompare(a, b);
   });
 
   // Host/local dev server: host:probe + host:openExternal are global (NOT

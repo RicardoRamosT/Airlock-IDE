@@ -133,6 +133,10 @@ const api: AirlockApi = {
   renderServices: () => ipcRenderer.invoke("render:services"),
   renderDeploys: (serviceId) => ipcRenderer.invoke("render:deploys", serviceId),
   renderDeploy: (serviceId) => ipcRenderer.invoke("render:deploy", serviceId),
+  renderEnvKeys: (serviceId) => ipcRenderer.invoke("render:envKeys", serviceId),
+  renderEnvReveal: (serviceId, key) =>
+    ipcRenderer.invoke("render:envReveal", serviceId, key),
+  renderEnvCompare: (a, b) => ipcRenderer.invoke("render:envCompare", a, b),
   activityStatus: (root) => ipcRenderer.invoke("activity:status", root),
   activityDismiss: (id) => ipcRenderer.invoke("activity:dismiss", id),
   integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
