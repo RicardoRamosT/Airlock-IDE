@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { AgentCommand, TabsSnapshot } from "../../../shared/ipc";
 import { useApp } from "../store";
+import { startManagedDevTerminal } from "./devServer";
 
 // Renderer-side handler for the agent IDE-control commands (the main->renderer
 // round-trip in main/agent-commands.ts, mirroring useMenuActions). Mounted once
@@ -106,6 +107,9 @@ async function applyCommand(cmd: AgentCommand): Promise<void> {
     case "close_app_page":
       // Closing a not-open page is a clean no-op in the store.
       s.closeAppPage(cmd.page);
+      break;
+    case "start_dev_server":
+      await startManagedDevTerminal(cmd.command, cmd.startedBy);
       break;
   }
 }

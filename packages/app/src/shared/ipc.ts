@@ -4,6 +4,7 @@ import type {
   AuditEntry,
   Container,
   DbTable,
+  DevServerState,
   DiffSide,
   DirEntry,
   EnvDiffEntry,
@@ -38,6 +39,13 @@ import type {
   SteadyIntegration,
   TechCategory,
 } from "@airlock/agent-core";
+
+// DevServerState re-exported via import type only (erased at build — never a
+// value import; only npm run package catches a violation).
+export type { DevServerState } from "@airlock/agent-core";
+export type DevServerStartResult =
+  | { ok: true; state: DevServerState }
+  | { ok: false; needsCommand: true; guess: string | null };
 
 export type {
   IntegrationItem,
@@ -310,7 +318,8 @@ export type AgentCommand =
   | { type: "open_terminal"; tabId?: string }
   | { type: "close_terminal"; terminalId: string }
   | { type: "open_app_page"; page: AppPage }
-  | { type: "close_app_page"; page: AppPage };
+  | { type: "close_app_page"; page: AppPage }
+  | { type: "start_dev_server"; command: string; startedBy: "user" | "agent" };
 
 /**
  * The layout metadata an IDE-control command returns: one entry per open tab
@@ -762,6 +771,29 @@ export interface AirlockApi {
   hostLocalUrl(root: string): Promise<string | null>;
   hostProbe(url: string): Promise<{ up: boolean }>;
   hostOpenExternal(url: string): Promise<void>;
+  // Managed dev server: main-side manager owns lifecycle (start/stop/register).
+  // devServerStart is the primary entry: it either starts or returns needsCommand
+  // (unset cfg.devCommand). devServerSetCommand persists a chosen command then
+  // starts. devServerRegister is called by the renderer AFTER the dev terminal's
+  // pty adopts -- it moves state from pre-start to "starting".
+  devServerStatus(root: string): Promise<DevServerState>;
+  devServerStart(root: string): Promise<DevServerStartResult>;
+  devServerSetCommand(
+    root: string,
+    command: string,
+  ): Promise<DevServerStartResult>;
+  devServerStop(root: string): Promise<DevServerState>;
+  // Called by the renderer AFTER it opens the dev terminal and its pty adopts.
+  devServerRegister(
+    root: string,
+    terminalId: string,
+    ptyId: string,
+    command: string,
+    startedBy: "user" | "agent",
+  ): Promise<DevServerState>;
+  onDevServerChanged(
+    cb: (e: { root: string; state: DevServerState }) => void,
+  ): () => void;
   // Docker: machine-global (NOT root-gated); ids are opaque container ids.
   dockerList(): Promise<{
     installed: boolean;

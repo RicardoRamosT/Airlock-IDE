@@ -83,6 +83,14 @@ import {
 import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
+import {
+  getDevServerState,
+  onPtyExitForDevServer,
+  registerDevServer,
+  setDevServerCommand,
+  startDevServer,
+  stopDevServer,
+} from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
@@ -1427,6 +1435,48 @@ export function registerIpc(
     return shell.openExternal(url);
   });
 
+  // Managed dev server: lifecycle handlers. Root-gated via resolveRoot.
+  ipcMain.handle("devserver:status", (e, root: unknown) =>
+    getDevServerState(resolveRoot(e, root)),
+  );
+  ipcMain.handle("devserver:start", (e, root: unknown) =>
+    startDevServer(resolveRoot(e, root), "user"),
+  );
+  ipcMain.handle(
+    "devserver:setCommand",
+    (e, root: unknown, command: unknown) => {
+      if (typeof command !== "string") throw new Error("Invalid payload");
+      return setDevServerCommand(resolveRoot(e, root), command);
+    },
+  );
+  ipcMain.handle("devserver:stop", (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    auditUser(resolved, "host.devserver.stop", {});
+    return stopDevServer(resolved);
+  });
+  ipcMain.handle(
+    "devserver:register",
+    (
+      e,
+      root: unknown,
+      terminalId: unknown,
+      ptyId: unknown,
+      command: unknown,
+      startedBy: unknown,
+    ) => {
+      if (
+        typeof terminalId !== "string" ||
+        typeof ptyId !== "string" ||
+        typeof command !== "string" ||
+        (startedBy !== "user" && startedBy !== "agent")
+      )
+        throw new Error("Invalid payload");
+      const resolved = resolveRoot(e, root);
+      auditUser(resolved, "host.devserver.start", { startedBy, command });
+      return registerDevServer(resolved, terminalId, ptyId, command, startedBy);
+    },
+  );
+
   // Activity-rail status dots: one aggregate read fanning out to docker/db/host/
   // git/activity for the renderer-supplied project root (null = blank tab).
   ipcMain.handle("section:statuses", (_e, root: unknown) => {
@@ -1596,6 +1646,7 @@ export function registerIpc(
         sessionWindows.delete(s.id);
         sessionRoots.delete(s.id);
         if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
+        onPtyExitForDevServer(s.id); // managed dev server: terminal closed -> reset
         // Release the listeners explicitly. node-pty has no destroy(); kill()
         // is teardown, but the onData/onExit subscriptions are IDisposables
         // that should be disposed once the session has exited.
@@ -1703,6 +1754,12 @@ export function writeTerminalInput(ptyId: string, data: string): boolean {
   if (!s) return false;
   s.write(data);
   return true;
+}
+
+// The OS pid of a pty's shell (or null if unknown), so the dev-server manager
+// can scope port discovery to that terminal's process subtree.
+export function ptyPid(ptyId: string): number | null {
+  return sessions.get(ptyId)?.pid ?? null;
 }
 
 // A short human label for the grant modal: the owning project's folder name (or

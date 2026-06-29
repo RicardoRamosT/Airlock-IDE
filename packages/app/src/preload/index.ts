@@ -4,6 +4,7 @@ import type {
   AgentCommandResult,
   AirlockApi,
   AnthropicStatus,
+  DevServerState,
   FsChangedEvent,
   LspDiagnostic,
   MenuAction,
@@ -144,6 +145,22 @@ const api: AirlockApi = {
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostProbe: (url) => ipcRenderer.invoke("host:probe", url),
   hostOpenExternal: (url) => ipcRenderer.invoke("host:openExternal", url),
+  devServerStatus: (root) => ipcRenderer.invoke("devserver:status", root),
+  devServerStart: (root) => ipcRenderer.invoke("devserver:start", root),
+  devServerSetCommand: (root, command) =>
+    ipcRenderer.invoke("devserver:setCommand", root, command),
+  devServerStop: (root) => ipcRenderer.invoke("devserver:stop", root),
+  devServerRegister: (root, terminalId, ptyId, command, startedBy) =>
+    ipcRenderer.invoke(
+      "devserver:register",
+      root,
+      terminalId,
+      ptyId,
+      command,
+      startedBy,
+    ),
+  onDevServerChanged: (cb) =>
+    subscribe<{ root: string; state: DevServerState }>("devserver:changed", cb),
   dockerList: () => ipcRenderer.invoke("docker:list"),
   sectionStatuses: (root) => ipcRenderer.invoke("section:statuses", root),
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
