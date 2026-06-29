@@ -3,6 +3,7 @@ import {
   devServerNextState,
   IDLE_DEV_SERVER,
   pickListeningPortFromSubtree,
+  pickUnmanagedServer,
   resolveDevCommand,
 } from "./devserver";
 
@@ -114,5 +115,32 @@ describe("devServerNextState", () => {
     expect(devServerNextState(IDLE_DEV_SERVER, { type: "exit", code: 0 })).toBe(
       IDLE_DEV_SERVER,
     );
+  });
+});
+
+describe("pickUnmanagedServer", () => {
+  const ports = [
+    { pid: 999, port: 5173 }, // unrelated (e.g. AirLock's own server)
+    { pid: 222, port: 5001 }, // owned by terminal B's subtree
+  ];
+  it("returns the first terminal whose subtree owns a listening port, with its ptyId", () => {
+    const terminals = [
+      { ptyId: "pty-A", pids: new Set([10, 11]) }, // owns nothing listening
+      { ptyId: "pty-B", pids: new Set([200, 222]) }, // owns :5001
+    ];
+    expect(pickUnmanagedServer(terminals, ports)).toEqual({
+      port: 5001,
+      ptyId: "pty-B",
+    });
+  });
+  it("ignores ports owned by pids outside every terminal subtree (the false-positive guard)", () => {
+    const terminals = [{ ptyId: "pty-A", pids: new Set([10, 11]) }];
+    expect(pickUnmanagedServer(terminals, ports)).toBeNull();
+  });
+  it("returns null when there are no terminals or no listening ports", () => {
+    expect(pickUnmanagedServer([], ports)).toBeNull();
+    expect(
+      pickUnmanagedServer([{ ptyId: "pty-A", pids: new Set([222]) }], []),
+    ).toBeNull();
   });
 });

@@ -158,6 +158,7 @@ export {
   devServerNextState,
   IDLE_DEV_SERVER,
   pickListeningPortFromSubtree,
+  pickUnmanagedServer,
   resolveDevCommand,
 } from "./host/devserver";
 export { type PortProber, probePort } from "./host/probe";

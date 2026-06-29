@@ -82,6 +82,23 @@ export function pickListeningPortFromSubtree(
   return null;
 }
 
+// Attribute an UNMANAGED dev server: the first LISTEN port owned by a pid in one
+// of the given terminals' subtrees, paired with that terminal's pty id. Pure —
+// the caller supplies each terminal's precomputed subtree pids + the lsof ports.
+// Returns null when no terminal subtree owns a listening port (so a port owned
+// by an unrelated process — another project, or AirLock's own server — is never
+// attributed here).
+export function pickUnmanagedServer(
+  terminals: Array<{ ptyId: string; pids: Set<number> }>,
+  ports: Array<{ pid: number; port: number }>,
+): { port: number; ptyId: string } | null {
+  for (const t of terminals) {
+    const port = pickListeningPortFromSubtree(ports, t.pids);
+    if (port !== null) return { port, ptyId: t.ptyId };
+  }
+  return null;
+}
+
 // Lifecycle FSM. start is idempotent while active; port only advances from
 // starting/running; exit records the code (keeping url for display); stop
 // resets to idle.
