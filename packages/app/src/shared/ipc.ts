@@ -367,6 +367,13 @@ export type UpdateProgress =
   | { phase: "revealed" }
   | { phase: "error"; message: string };
 
+// At-a-glance app info for the Settings → About tab. Read-only; never carries
+// the MCP bearer token (only the loopback port, which is not a secret).
+export interface AppInfo {
+  version: string;
+  mcpPort: number | null;
+}
+
 // IPC-safe projection of agent-core's ExternalTerminal (which carries a non-serializable launch fn).
 export interface ExternalTerminalInfo {
   id: string;
@@ -769,6 +776,7 @@ export interface AirlockApi {
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   anthropicStatusGet(): Promise<AnthropicStatus | null>;
   onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;
+  appInfo(): Promise<AppInfo>;
   updateGet(): Promise<UpdateStatus | null>;
   onUpdateChanged(cb: (s: UpdateStatus) => void): () => void;
   updateApply(): Promise<void>;

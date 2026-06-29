@@ -156,6 +156,7 @@ const api: AirlockApi = {
   anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
   onAnthropicStatusChanged: (cb) =>
     subscribe<AnthropicStatus>("anthropicStatus:changed", cb),
+  appInfo: () => ipcRenderer.invoke("app:info"),
   updateGet: () => ipcRenderer.invoke("update:get"),
   onUpdateChanged: (cb) => subscribe<UpdateStatus>("update:changed", cb),
   updateApply: () => ipcRenderer.invoke("update:apply"),

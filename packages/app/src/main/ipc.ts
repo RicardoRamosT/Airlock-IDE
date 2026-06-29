@@ -110,6 +110,7 @@ import {
   onLspDiagnostics,
   syncLspServers,
 } from "./lsp/client";
+import { getMcpPort } from "./mcp/server";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import {
   addNeonAccount,
@@ -781,6 +782,10 @@ export function registerIpc(
 
   ipcMain.handle("quota:get", () => getQuota());
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
+  ipcMain.handle("app:info", () => ({
+    version: app.getVersion(),
+    mcpPort: getMcpPort(),
+  }));
   ipcMain.handle("update:get", () => getUpdate());
   ipcMain.handle("update:apply", () => applyUpdate());
 

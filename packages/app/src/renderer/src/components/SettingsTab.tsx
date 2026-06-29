@@ -1,8 +1,24 @@
 import { useEffect, useState } from "react";
-import type { ClaudeAutoStart } from "../../../shared/ipc";
+import type { ClaudeAutoStart, Section } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
+import { SECTION_META } from "../lib/sections";
 import { useApp } from "../store";
+import { AboutSection } from "./AboutSection";
 import { AgentSection } from "./AgentSection";
+
+// Settings categories shown as a left nav rail; the content pane renders only
+// the selected one (no more one-long-scroll). Module-level so the union type is
+// derivable and the array isn't rebuilt per render.
+const CATEGORIES = [
+  { id: "appearance", label: "Appearance", icon: "symbol-color" },
+  { id: "layout", label: "Layout", icon: "layout" },
+  { id: "terminal", label: "Terminal", icon: "terminal" },
+  { id: "claude", label: "Claude", icon: "hubot" },
+  { id: "secrets", label: "Secrets", icon: "lock" },
+  { id: "agent", label: "Agent", icon: "law" },
+  { id: "about", label: "About", icon: "info" },
+] as const;
+type SettingsCategory = (typeof CATEGORIES)[number]["id"];
 
 // The Settings tab opens in the viewer-pane slot (mutually exclusive with a
 // file or diff). It surfaces airlock's existing, real settings in one place;
@@ -17,6 +33,8 @@ export function SettingsTab() {
   const setSidebarPosition = useApp((s) => s.setSidebarPosition);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const setSidebarVisible = useApp((s) => s.setSidebarVisible);
+  const sectionVisibility = useApp((s) => s.sectionVisibility);
+  const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const clipboardClearSeconds = useApp((s) => s.clipboardClearSeconds);
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
   const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
@@ -34,12 +52,13 @@ export function SettingsTab() {
   const defaultTerminal = useApp((s) => s.defaultTerminal);
   const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   // Per-project bits are scoped to the pane's tab; the app-global controls above
-  // (theme, sidebar, clipboard, openProjectsAsTabs, showRunningProcessNotice)
   // stay app-global and are deliberately NOT tied to a tab.
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const config = useApp((s) => s.tabState[tabId]?.config ?? null);
   const setConfig = useApp((s) => s.setConfig);
+
+  const [category, setCategory] = useState<SettingsCategory>("appearance");
 
   // Populate config when a folder is open but the store has not loaded it yet
   // (e.g. the user never opened the secrets section). No-op when already set.
@@ -85,6 +104,13 @@ export function SettingsTab() {
     void window.airlock.prefsSet({ sidebarVisible: next });
   };
 
+  const toggleSection = (id: Section) => {
+    useApp.getState().setLayoutHydrated(true);
+    const next = { ...sectionVisibility, [id]: !sectionVisibility[id] };
+    setSectionVisibility(next);
+    void window.airlock.prefsSet({ sectionVisibility: next });
+  };
+
   const toggleInject = async () => {
     if (!root) return;
     const next = await window.airlock.configSet(root, {
@@ -107,254 +133,305 @@ export function SettingsTab() {
         </button>
       </div>
 
-      <div className="settings-body">
-        <section className="settings-section">
-          <h3>Appearance</h3>
-          <label className="settings-row">
-            <input
-              type="radio"
-              name="theme"
-              checked={theme === "dark"}
-              onChange={() => chooseTheme("dark")}
-            />
-            Dark
-          </label>
-          <label className="settings-row">
-            <input
-              type="radio"
-              name="theme"
-              checked={theme === "light"}
-              onChange={() => chooseTheme("light")}
-            />
-            Light
-          </label>
-        </section>
+      <div className="settings-main">
+        <nav className="settings-nav">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`settings-nav-item${category === c.id ? " active" : ""}`}
+              onClick={() => setCategory(c.id)}
+            >
+              <i className={`codicon codicon-${c.icon}`} />
+              {c.label}
+            </button>
+          ))}
+        </nav>
 
-        <section className="settings-section">
-          <h3>Layout</h3>
-          <div className="settings-row">
-            <label htmlFor="open-as-tabs">Open projects as tabs</label>
-            <input
-              id="open-as-tabs"
-              type="checkbox"
-              checked={openProjectsAsTabs}
-              onChange={(e) => {
-                const v = e.target.checked;
-                useApp.getState().setLayoutHydrated(true);
-                setOpenProjectsAsTabs(v);
-                void window.airlock.prefsSet({ openProjectsAsTabs: v });
-              }}
-            />
-          </div>
-          <p className="settings-note">
-            On: opening a folder adds it as a tab in this window, so you can
-            switch between projects without juggling windows. Off: each project
-            opens on its own and "New Window" gives you a separate window per
-            project. The agent always operates on the project you are currently
-            viewing.
-          </p>
-          <div className="settings-row">
-            <label htmlFor="show-running-notice">
-              Show running-process notice
-            </label>
-            <input
-              id="show-running-notice"
-              type="checkbox"
-              checked={showRunningProcessNotice}
-              onChange={(e) => {
-                const v = e.target.checked;
-                useApp.getState().setLayoutHydrated(true);
-                setShowRunningProcessNotice(v);
-                void window.airlock.prefsSet({ showRunningProcessNotice: v });
-              }}
-            />
-          </div>
-          <p className="settings-note">
-            When opening a folder keeps a terminal that has a running session
-            (e.g. <code>claude</code>), show a reminder that the session stays
-            in its old directory and must be restarted in the new folder to get
-            its context.
-          </p>
-          <div className="settings-sublabel">Sidebar position</div>
-          <label className="settings-row">
-            <input
-              type="radio"
-              name="sidebar-position"
-              checked={sidebarPosition === "left"}
-              onChange={() => choosePosition("left")}
-            />
-            Left
-          </label>
-          <label className="settings-row">
-            <input
-              type="radio"
-              name="sidebar-position"
-              checked={sidebarPosition === "right"}
-              onChange={() => choosePosition("right")}
-            />
-            Right
-          </label>
-          <label className="settings-row">
-            <input
-              type="checkbox"
-              checked={sidebarVisible}
-              onChange={toggleSidebarVisible}
-            />
-            Sidebar visible
-          </label>
-        </section>
-
-        <section className="settings-section">
-          <h3>Secrets</h3>
-          {root ? (
-            <label className="settings-row">
-              <input
-                type="checkbox"
-                checked={config?.injectSecretsIntoTerminal ?? false}
-                onChange={toggleInject}
-              />
-              Make secrets available in new terminals
-            </label>
-          ) : (
-            <div className="settings-note">
-              Open a folder to manage secrets.
-            </div>
+        <div className="settings-content">
+          {category === "appearance" && (
+            <section className="settings-section">
+              <h3>Appearance</h3>
+              <label className="settings-row">
+                <input
+                  type="radio"
+                  name="theme"
+                  checked={theme === "dark"}
+                  onChange={() => chooseTheme("dark")}
+                />
+                Dark
+              </label>
+              <label className="settings-row">
+                <input
+                  type="radio"
+                  name="theme"
+                  checked={theme === "light"}
+                  onChange={() => chooseTheme("light")}
+                />
+                Light
+              </label>
+            </section>
           )}
-          <div className="settings-row">
-            <label htmlFor="clip-clear">
-              Clipboard auto-clear (seconds, 0 = never)
-            </label>
-            <input
-              id="clip-clear"
-              type="number"
-              min={0}
-              max={3600}
-              value={clipboardClearSeconds}
-              onChange={(e) => {
-                const n = Math.min(
-                  3600,
-                  Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                );
-                useApp.getState().setLayoutHydrated(true);
-                setClipboardClearSeconds(n);
-                void window.airlock.prefsSet({ clipboardClearSeconds: n });
-              }}
-            />
-          </div>
-          <p className="settings-note">
-            When you copy a secret, it goes to the system clipboard, which other
-            apps — and the terminal agent via <code>pbpaste</code> — can read
-            while it is there. airlock clears it after this delay (only if the
-            clipboard still holds that secret). A longer delay, or{" "}
-            <strong>0 (never)</strong>, is more convenient but leaves the value
-            readable for longer. airlock cannot purge a third-party clipboard
-            manager's history.
-          </p>
-        </section>
 
-        <section className="settings-section">
-          <h3>Claude</h3>
-          <div className="settings-row">
-            <label htmlFor="quota-meter">Show Claude usage meter</label>
-            <input
-              id="quota-meter"
-              type="checkbox"
-              checked={quotaMeterEnabled}
-              onChange={(e) => {
-                const v = e.target.checked;
-                useApp.getState().setLayoutHydrated(true);
-                setQuotaMeterEnabled(v);
-                // Drop any cached usage when turning off so re-enabling shows
-                // "waiting" rather than flashing stale numbers (main stops the
-                // watcher; this clears the renderer's copy).
-                if (!v) useApp.setState({ quota: null });
-                void window.airlock.prefsSet({ quotaMeter: { enabled: v } });
-              }}
-            />
-          </div>
-          <p className="settings-note">
-            Shows your Claude subscription usage (5-hour and 7-day limits) and a
-            reset countdown in the sidebar. Enabling installs a Claude Code
-            status line that AirLock reads; if you already have a custom status
-            line, AirLock chains it so your footer is unchanged. Turning this
-            off removes it completely.
-          </p>
-          <div className="settings-row">
-            <label htmlFor="claude-auto-start">
-              Auto-start Claude in terminals
-            </label>
-            <select
-              id="claude-auto-start"
-              value={claudeAutoStart}
-              onChange={(e) => {
-                const v = e.target.value as ClaudeAutoStart;
-                useApp.getState().setLayoutHydrated(true);
-                setClaudeAutoStart(v);
-                void window.airlock.prefsSet({ claudeAutoStart: v });
-              }}
-            >
-              <option value="first">First terminal per tab</option>
-              <option value="every">Every terminal</option>
-              <option value="off">Off</option>
-            </select>
-          </div>
-          <p className="settings-note">
-            Runs `claude` automatically in new terminals of project tabs. "First
-            terminal per tab" starts one session per project; extra terminals
-            open as plain shells. Blank tabs are never auto-started.
-          </p>
-          <div className="settings-row">
-            <label htmlFor="restore-session">Restore previous session</label>
-            <input
-              id="restore-session"
-              type="checkbox"
-              checked={restoreSession}
-              onChange={(e) => {
-                const v = e.target.checked;
-                useApp.getState().setLayoutHydrated(true);
-                setRestoreSession(v);
-                void window.airlock.prefsSet({ restoreSession: v });
-              }}
-            />
-          </div>
-          <p className="settings-note">
-            Reopens your projects and resumes each one's Claude chat (claude
-            --continue) when AirLock starts.
-          </p>
-          <div className="settings-row">
-            <label htmlFor="default-terminal">Default terminal</label>
-            <select
-              id="default-terminal"
-              value={defaultTerminal}
-              onChange={(e) => {
-                const v = e.target.value;
-                useApp.getState().setLayoutHydrated(true);
-                setDefaultTerminal(v);
-                void window.airlock.prefsSet({ defaultTerminal: v });
-              }}
-            >
-              <option value="airlock">AirLock integrated terminal</option>
-              {externalTerminals.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
+          {category === "layout" && (
+            <section className="settings-section">
+              <h3>Layout</h3>
+              <div className="settings-row">
+                <label htmlFor="open-as-tabs">Open projects as tabs</label>
+                <input
+                  id="open-as-tabs"
+                  type="checkbox"
+                  checked={openProjectsAsTabs}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setOpenProjectsAsTabs(v);
+                    void window.airlock.prefsSet({ openProjectsAsTabs: v });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                On: opening a folder adds it as a tab in this window, so you can
+                switch between projects without juggling windows. Off: each
+                project opens on its own and "New Window" gives you a separate
+                window per project. The agent always operates on the project you
+                are currently viewing.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="show-running-notice">
+                  Show running-process notice
+                </label>
+                <input
+                  id="show-running-notice"
+                  type="checkbox"
+                  checked={showRunningProcessNotice}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setShowRunningProcessNotice(v);
+                    void window.airlock.prefsSet({
+                      showRunningProcessNotice: v,
+                    });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                When opening a folder keeps a terminal that has a running
+                session (e.g. <code>claude</code>), show a reminder that the
+                session stays in its old directory and must be restarted in the
+                new folder to get its context.
+              </p>
+              <div className="settings-sublabel">Sidebar position</div>
+              <label className="settings-row">
+                <input
+                  type="radio"
+                  name="sidebar-position"
+                  checked={sidebarPosition === "left"}
+                  onChange={() => choosePosition("left")}
+                />
+                Left
+              </label>
+              <label className="settings-row">
+                <input
+                  type="radio"
+                  name="sidebar-position"
+                  checked={sidebarPosition === "right"}
+                  onChange={() => choosePosition("right")}
+                />
+                Right
+              </label>
+              <label className="settings-row">
+                <input
+                  type="checkbox"
+                  checked={sidebarVisible}
+                  onChange={toggleSidebarVisible}
+                />
+                Sidebar visible
+              </label>
+              <div className="settings-sublabel">Sidebar sections</div>
+              <p className="settings-note">
+                Choose which sections appear in the sidebar's activity bar.
+              </p>
+              {SECTION_META.map((s) => (
+                <label key={s.id} className="settings-row">
+                  <input
+                    type="checkbox"
+                    checked={!!sectionVisibility[s.id]}
+                    onChange={() => toggleSection(s.id)}
+                  />
+                  {s.label}
+                </label>
               ))}
-            </select>
-          </div>
-          <p className="settings-note">
-            Choose where new terminals open. An external app launches at the
-            project folder; note that Claude auto-start, in-app tabs/splits, and
-            terminal-tail tools only apply to the integrated terminal.
-          </p>
-        </section>
+            </section>
+          )}
 
-        <section className="settings-section">
-          <h3>Agent</h3>
-          <AgentSection />
-        </section>
+          {category === "terminal" && (
+            <section className="settings-section">
+              <h3>Terminal</h3>
+              <div className="settings-row">
+                <label htmlFor="default-terminal">Default terminal</label>
+                <select
+                  id="default-terminal"
+                  value={defaultTerminal}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    useApp.getState().setLayoutHydrated(true);
+                    setDefaultTerminal(v);
+                    void window.airlock.prefsSet({ defaultTerminal: v });
+                  }}
+                >
+                  <option value="airlock">AirLock integrated terminal</option>
+                  {externalTerminals.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="settings-note">
+                Choose where new terminals open. An external app launches at the
+                project folder; note that Claude auto-start, in-app tabs/splits,
+                and terminal-tail tools only apply to the integrated terminal.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="claude-auto-start">
+                  Auto-start Claude in terminals
+                </label>
+                <select
+                  id="claude-auto-start"
+                  value={claudeAutoStart}
+                  onChange={(e) => {
+                    const v = e.target.value as ClaudeAutoStart;
+                    useApp.getState().setLayoutHydrated(true);
+                    setClaudeAutoStart(v);
+                    void window.airlock.prefsSet({ claudeAutoStart: v });
+                  }}
+                >
+                  <option value="first">First terminal per tab</option>
+                  <option value="every">Every terminal</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <p className="settings-note">
+                Runs `claude` automatically in new terminals of project tabs.
+                "First terminal per tab" starts one session per project; extra
+                terminals open as plain shells. Blank tabs are never
+                auto-started.
+              </p>
+            </section>
+          )}
 
-        <div className="settings-footer-note">
-          More settings arrive with the agent (model, redaction).
+          {category === "claude" && (
+            <section className="settings-section">
+              <h3>Claude</h3>
+              <div className="settings-row">
+                <label htmlFor="quota-meter">Show Claude usage meter</label>
+                <input
+                  id="quota-meter"
+                  type="checkbox"
+                  checked={quotaMeterEnabled}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setQuotaMeterEnabled(v);
+                    // Drop any cached usage when turning off so re-enabling shows
+                    // "waiting" rather than flashing stale numbers (main stops
+                    // the watcher; this clears the renderer's copy).
+                    if (!v) useApp.setState({ quota: null });
+                    void window.airlock.prefsSet({
+                      quotaMeter: { enabled: v },
+                    });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Shows your Claude subscription usage (5-hour and 7-day limits)
+                and a reset countdown in the sidebar. Enabling installs a Claude
+                Code status line that AirLock reads; if you already have a
+                custom status line, AirLock chains it so your footer is
+                unchanged. Turning this off removes it completely.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="restore-session">
+                  Restore previous session
+                </label>
+                <input
+                  id="restore-session"
+                  type="checkbox"
+                  checked={restoreSession}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setRestoreSession(v);
+                    void window.airlock.prefsSet({ restoreSession: v });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Reopens your projects and resumes each one's Claude chat (claude
+                --continue) when AirLock starts.
+              </p>
+            </section>
+          )}
+
+          {category === "secrets" && (
+            <section className="settings-section">
+              <h3>Secrets</h3>
+              {root ? (
+                <label className="settings-row">
+                  <input
+                    type="checkbox"
+                    checked={config?.injectSecretsIntoTerminal ?? false}
+                    onChange={toggleInject}
+                  />
+                  Make secrets available in new terminals
+                </label>
+              ) : (
+                <div className="settings-note">
+                  Open a folder to manage secrets.
+                </div>
+              )}
+              <div className="settings-row">
+                <label htmlFor="clip-clear">
+                  Clipboard auto-clear (seconds, 0 = never)
+                </label>
+                <input
+                  id="clip-clear"
+                  type="number"
+                  min={0}
+                  max={3600}
+                  value={clipboardClearSeconds}
+                  onChange={(e) => {
+                    const n = Math.min(
+                      3600,
+                      Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                    );
+                    useApp.getState().setLayoutHydrated(true);
+                    setClipboardClearSeconds(n);
+                    void window.airlock.prefsSet({ clipboardClearSeconds: n });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                When you copy a secret, it goes to the system clipboard, which
+                other apps — and the terminal agent via <code>pbpaste</code> —
+                can read while it is there. airlock clears it after this delay
+                (only if the clipboard still holds that secret). A longer delay,
+                or <strong>0 (never)</strong>, is more convenient but leaves the
+                value readable for longer. airlock cannot purge a third-party
+                clipboard manager's history.
+              </p>
+            </section>
+          )}
+
+          {category === "agent" && (
+            <section className="settings-section">
+              <h3>Agent</h3>
+              <AgentSection />
+            </section>
+          )}
+
+          {category === "about" && <AboutSection />}
         </div>
       </div>
     </div>
