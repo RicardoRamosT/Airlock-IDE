@@ -35,6 +35,10 @@ export function excludeReservedPorts(
   return ports.filter((p) => !reserved.has(p));
 }
 
+// NOTE: no longer used by the Host auto-surface path (resolveDevUrl stopped
+// guessing — identity over guessing). Retained as pure, unit-tested port
+// utilities; the managed dev server discovers its port from its own subtree.
+
 // Guess a dev-server port from ONE package.json's contents: an explicit
 // --port flag in any script wins, else the framework default by dependency.
 // Returns null when nothing recognizable (or the content is not JSON). Pure.

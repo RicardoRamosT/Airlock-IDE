@@ -16,18 +16,14 @@
 // and Electron's cjs_lexer crashes on multibyte characters.
 
 import {
-  COMMON_DEV_PORTS,
   type DockerStatus,
   diffEnvVars,
   dockerContainers,
   type EnvDiffEntry,
-  excludeReservedPorts,
-  FRONTEND_SUBDIRS,
   type GitStatus,
   getGlobalSecret,
   getSecretValue,
   gitStatus,
-  guessDevPort,
   headSha,
   listSecrets,
   type NeonBranch,
@@ -39,15 +35,12 @@ import {
   neonListOrganizations,
   neonListProjects,
   originRemoteUrl,
-  type PortProber,
   parseConnString,
-  pickListeningPort,
   pingDb,
   probePort,
   type RenderDeploy,
   type RenderEnvVar,
   readProjectConfig,
-  readWorkspaceFile,
   renderLatestDeploy,
   renderListDeploys,
   renderListEnvVars,
@@ -291,34 +284,13 @@ export function gitStatusFor(root: string): Promise<GitStatus> {
 // both false negatives -- a frontend in a subdir -- and false positives -- a
 // guessed port occupied by an unrelated server). Shared by host:localUrl and
 // hostStatus. The prober is injectable; defaults to the real TCP probe.
-export async function resolveDevUrl(
-  root: string,
-  probe: PortProber = probePort,
-): Promise<string | null> {
-  const cfg = await readProjectConfig(root);
-  if (cfg.devUrl) return cfg.devUrl;
-  const guessed: number[] = [];
-  for (const sub of FRONTEND_SUBDIRS) {
-    const rel = sub ? `${sub}/package.json` : "package.json";
-    try {
-      const { content } = await readWorkspaceFile(root, rel);
-      const port = guessDevPort(content);
-      if (port && !guessed.includes(port)) guessed.push(port);
-    } catch {
-      // no package.json at this path -- skip
-    }
-  }
-  // Never auto-surface an OS-reserved port: macOS runs the AirPlay Receiver /
-  // Control Center on 5000/7000, so a TCP connect there succeeds with no dev
-  // server -- which would show the OS as a phantom "host up" (the reported
-  // http://localhost:5000 false positive). Filter both guessed and common
-  // candidates; an explicit cfg.devUrl above bypasses detection entirely.
-  const port = await pickListeningPort(
-    excludeReservedPorts(guessed, process.platform),
-    probe,
-    excludeReservedPorts(COMMON_DEV_PORTS, process.platform),
-  );
-  return port ? `http://localhost:${port}` : null;
+// Identity over guessing: surface ONLY an explicitly configured dev URL. The
+// managed dev server (see main/devserver/manager) is the authoritative source
+// for servers AirLock launched; we never probe guessed/common ports, which
+// could attribute ANOTHER project's server (e.g. a shared :5173) to this one
+// (the bug this fixes). hostStatus still probes the explicit URL for its dot.
+export async function resolveDevUrl(root: string): Promise<string | null> {
+  return (await readProjectConfig(root)).devUrl ?? null;
 }
 
 // Local dev server status: the resolved dev URL plus whether its host/port is
