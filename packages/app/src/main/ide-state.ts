@@ -15,11 +15,12 @@
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
 
-import type { RenderDeploy } from "@airlock/agent-core";
 import {
   COMMON_DEV_PORTS,
   type DockerStatus,
+  diffEnvVars,
   dockerContainers,
+  type EnvDiffEntry,
   excludeReservedPorts,
   FRONTEND_SUBDIRS,
   type GitStatus,
@@ -43,10 +44,13 @@ import {
   pickListeningPort,
   pingDb,
   probePort,
+  type RenderDeploy,
+  type RenderEnvVar,
   readProjectConfig,
   readWorkspaceFile,
   renderLatestDeploy,
   renderListDeploys,
+  renderListEnvVars,
   renderListServices,
   renderTriggerDeploy,
   servicesForRepo,
@@ -219,6 +223,50 @@ export async function renderServiceDeploys(
   const key = await getGlobalSecret(RENDER_KEY);
   if (!key) throw new Error("Render not connected");
   return renderListDeploys(key, serviceId, 5);
+}
+
+// Ephemeral, main-only cache of a service's env vars. Values live ONLY here and
+// in the renderer's transient reveal -- never persisted, never sent to the agent.
+const renderEnvCache = new Map<string, RenderEnvVar[]>();
+
+async function fetchRenderEnv(serviceId: string): Promise<RenderEnvVar[]> {
+  const key = await getGlobalSecret(RENDER_KEY);
+  if (!key) throw new Error("Render not connected");
+  const vars = await renderListEnvVars(key, serviceId);
+  renderEnvCache.set(serviceId, vars);
+  return vars;
+}
+
+// Live: always refetch (and refresh the cache), return KEYS only (no values).
+export async function renderServiceEnvKeys(
+  serviceId: string,
+): Promise<string[]> {
+  const vars = await fetchRenderEnv(serviceId);
+  return vars.map((v) => v.key).sort();
+}
+
+// Owner-only single value (the IPC layer audits the reveal). Uses the cache,
+// refetching if a key was never listed.
+export async function renderServiceEnvReveal(
+  serviceId: string,
+  envKey: string,
+): Promise<string | null> {
+  const vars =
+    renderEnvCache.get(serviceId) ?? (await fetchRenderEnv(serviceId));
+  return vars.find((v) => v.key === envKey)?.value ?? null;
+}
+
+// Value-free dev<>prod diff (ensures both are cached, then delegates to the
+// tested pure diffEnvVars).
+export async function renderServiceEnvCompare(
+  serviceIdA: string,
+  serviceIdB: string,
+): Promise<EnvDiffEntry[]> {
+  const a =
+    renderEnvCache.get(serviceIdA) ?? (await fetchRenderEnv(serviceIdA));
+  const b =
+    renderEnvCache.get(serviceIdB) ?? (await fetchRenderEnv(serviceIdB));
+  return diffEnvVars(a, b);
 }
 
 // Trigger a new deploy of a service. Owner-initiated (the UI confirms first);
