@@ -18,6 +18,7 @@ export function usePrefs(): void {
   const setRestoreSession = useApp((s) => s.setRestoreSession);
   const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
+  const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
   const theme = useApp((s) => s.theme);
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export function usePrefs(): void {
         setRestoreSession(p.restoreSession);
         setDefaultTerminal(p.defaultTerminal);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
+        setRunAppSkillEnabled(p.runAppSkill.enabled);
         useApp.getState().setLayoutHydrated(true);
       })
       .catch(console.error);
@@ -65,6 +67,7 @@ export function usePrefs(): void {
     setRestoreSession,
     setDefaultTerminal,
     setQuotaMeterEnabled,
+    setRunAppSkillEnabled,
   ]);
 
   // Runtime visibility changes (View menu or right-click) arrive as an

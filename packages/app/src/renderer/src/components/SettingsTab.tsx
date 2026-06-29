@@ -45,6 +45,8 @@ export function SettingsTab() {
   );
   const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
+  const runAppSkillEnabled = useApp((s) => s.runAppSkillEnabled);
+  const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
   const restoreSession = useApp((s) => s.restoreSession);
@@ -351,6 +353,24 @@ export function SettingsTab() {
                 custom status line, AirLock chains it so your footer is
                 unchanged. Turning this off removes it completely.
               </p>
+              <div className="settings-row">
+                <label htmlFor="run-app-skill">
+                  Route "run the app" to the managed dev server
+                </label>
+                <input
+                  id="run-app-skill"
+                  type="checkbox"
+                  checked={runAppSkillEnabled}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setRunAppSkillEnabled(v);
+                    void window.airlock.prefsSet({
+                      runAppSkill: { enabled: v },
+                    });
+                  }}
+                />
+              </div>
               <div className="settings-row">
                 <label htmlFor="restore-session">
                   Restore previous session
