@@ -759,7 +759,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "start_dev_server",
     {
       description:
-        "Start this project's local dev server THROUGH AirLock — prefer this over running `npm run dev` (or the dev command) yourself in a terminal, so the IDE shows and manages it (status, Stop/Restart). Runs only the project's configured dev command; returns dev-server status (status/url/port) — never a secret value. If it returns needsCommand, ask the user to set the dev command in the Host section rather than starting the server with a raw shell command. (A server started raw appears in Host only as 'detected (unmanaged)' until adopted.)",
+        "Start this project's local dev server — ALWAYS use this to run, boot, or \"turn on\" the app locally. Do NOT run `npm run dev` (or the dev command) yourself in a terminal, and do NOT detach/background it to keep it alive: this tool runs the command in a SEPARATE AirLock-owned terminal that already survives across turns (it is NOT a background task the environment will SIGTERM) and that the IDE shows and manages (status, Stop/Restart). A server you start by hand is invisible and unmanaged here, and a detached one cannot be detected at all. If a dev server is ALREADY running but was not started through this tool, offer to stop it and start it here so the IDE can manage it. Runs only the project's configured dev command; returns status metadata (status/url/port) — never a secret value. If it returns needsCommand, ask the user to set the dev command in the Host section (do not fall back to a raw shell command).",
     },
     async () => {
       const root = deps.getWorkspaceRoot();

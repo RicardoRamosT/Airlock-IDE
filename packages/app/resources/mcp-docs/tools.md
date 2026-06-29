@@ -132,16 +132,18 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 
 ## Acting — start or stop the project's dev server
 
-- **`start_dev_server`** — **preferred way to run/boot the app locally** — start the focused
-  project's local dev server through AirLock, so the IDE shows and manages it (status,
-  Stop/Restart). Runs only the project's **configured** dev command (set in the Host section
-  of the sidebar). Returns dev-server status metadata (`status`, `url`, `port`) — never a
-  secret value. If no command is configured yet, returns `needsCommand: true` with a `guess`
-  based on the project's package.json/lockfile; **ask the user to set the command in Host
-  rather than starting the server with a raw shell command**. A server started raw in a
-  terminal appears in Host only as "detected (unmanaged)" until adopted. Idempotent: calling
-  while already starting/running returns the current state. Workspace-rooted (needs an open
-  folder).
+- **`start_dev_server`** — **ALWAYS use this to run / boot / "turn on" the app locally.** It
+  runs the project's **configured** dev command (set in the Host section) in a **separate
+  AirLock-owned terminal** that the IDE shows and manages (status, Stop/Restart). Crucially,
+  that terminal **survives across turns** — it is NOT a background task the environment will
+  SIGTERM — so you do **not** need to (and must not) run `npm run dev` yourself or
+  detach/background it to keep it alive. A server you start by hand is invisible and unmanaged
+  here; a **detached** one (reparented away from its terminal) can't be detected at all. If a
+  dev server is **already running** but wasn't started through this tool, offer to stop it and
+  start it here so the IDE can manage it. Returns status metadata (`status`, `url`, `port`) —
+  never a secret value. If no command is configured, returns `needsCommand: true` with a
+  `guess`; **ask the user to set the command in Host** rather than starting it with a raw
+  shell. Idempotent; workspace-rooted (needs an open folder).
 
 - **`stop_dev_server`** — stop the focused project's managed dev server (sends Ctrl-C to
   the foreground dev process; the terminal survives so logs are visible). Returns dev-server
