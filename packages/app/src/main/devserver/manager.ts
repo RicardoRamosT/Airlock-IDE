@@ -50,6 +50,13 @@ export function _setDepsForTest(d: ManagerDeps): void {
   _deps = d;
 }
 
+// Reset module state between tests (clear states, rootToPty, and deps).
+export function _resetForTest(): void {
+  states.clear();
+  rootToPty.clear();
+  _deps = null;
+}
+
 function getDeps(): ManagerDeps {
   if (!_deps) _deps = makeRealDeps();
   return _deps;
@@ -144,6 +151,8 @@ export function registerDevServer(
   command: string,
   startedBy: "user" | "agent",
 ): DevServerState {
+  const cur = get(root);
+  if (cur.status === "starting" || cur.status === "running") return cur;
   rootToPty.set(root, ptyId);
   const state = apply(root, { type: "start", command, terminalId, startedBy });
   // Task 5: startPortDiscovery(root, ptyId);

@@ -1,7 +1,9 @@
 import type { DevServerState } from "@airlock/agent-core";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  _resetForTest,
   _setDepsForTest,
+  devServerPtyId,
   getDevServerState,
   onPtyExitForDevServer,
   registerDevServer,
@@ -31,7 +33,8 @@ const ROOT = "/fake/project";
 
 describe("manager container (smoke)", () => {
   beforeEach(() => {
-    // Reset deps so each test starts clean.
+    // Reset module state and deps so each test starts clean.
+    _resetForTest();
     makeFakeDeps();
   });
 
@@ -79,6 +82,14 @@ describe("manager container (smoke)", () => {
     // terminalId and startedBy remain from the FIRST call (FSM returned unchanged)
     expect(second.terminalId).toBe("term-1");
     expect(second.startedBy).toBe("agent");
+  });
+
+  it("second registerDevServer does not clobber pty mapping", () => {
+    registerDevServer(ROOT, "term-1", "pty-1", "npm run dev", "agent");
+    expect(devServerPtyId(ROOT)).toBe("pty-1");
+    // A second call while starting should NOT overwrite the pty mapping
+    registerDevServer(ROOT, "term-2", "pty-2", "npm run dev", "user");
+    expect(devServerPtyId(ROOT)).toBe("pty-1");
   });
 
   it("stopDevServer sends SIGINT to the managed pty", () => {
