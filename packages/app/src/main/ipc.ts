@@ -84,6 +84,7 @@ import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
 import {
+  detectUnmanaged,
   getDevServerState,
   onPtyExitForDevServer,
   registerDevServer,
@@ -1476,6 +1477,9 @@ export function registerIpc(
       return registerDevServer(resolved, terminalId, ptyId, command, startedBy);
     },
   );
+  ipcMain.handle("devserver:detectUnmanaged", (e, root: unknown) =>
+    detectUnmanaged(resolveRoot(e, root)),
+  );
 
   // Activity-rail status dots: one aggregate read fanning out to docker/db/host/
   // git/activity for the renderer-supplied project root (null = blank tab).
@@ -1770,6 +1774,19 @@ export function terminalLabel(ptyId: string): string | null {
   if (!sessions.has(ptyId)) return null;
   const root = sessionRoots.get(ptyId);
   return root ? (root.split("/").pop() ?? root) : "a terminal";
+}
+
+// The focused project's live terminal ptys (pty id + shell pid), so the
+// dev-server manager can attribute a listening port to a server running inside
+// THIS project's terminals (attributable-only detection). Value-free.
+export function terminalPidsForRoot(
+  root: string,
+): Array<{ ptyId: string; pid: number }> {
+  const out: Array<{ ptyId: string; pid: number }> = [];
+  for (const [id, s] of sessions) {
+    if (sessionRoots.get(id) === root) out.push({ ptyId: id, pid: s.pid });
+  }
+  return out;
 }
 
 // The redacted tail of one terminal's recent output. Root-gated + audited

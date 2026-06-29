@@ -161,6 +161,8 @@ const api: AirlockApi = {
     ),
   onDevServerChanged: (cb) =>
     subscribe<{ root: string; state: DevServerState }>("devserver:changed", cb),
+  devServerDetectUnmanaged: (root) =>
+    ipcRenderer.invoke("devserver:detectUnmanaged", root),
   dockerList: () => ipcRenderer.invoke("docker:list"),
   sectionStatuses: (root) => ipcRenderer.invoke("section:statuses", root),
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),

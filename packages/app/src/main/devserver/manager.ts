@@ -7,6 +7,7 @@ import {
   devServerNextState,
   IDLE_DEV_SERVER,
   pickListeningPortFromSubtree,
+  pickUnmanagedServer,
   readProjectConfig,
   resolveDevCommand,
   writeProjectConfig,
@@ -130,6 +131,23 @@ export function getDevServerState(root: string): DevServerState {
 
 export function devServerPtyId(root: string): string | null {
   return rootToPty.get(root) ?? null;
+}
+
+// Detect an UNMANAGED dev server attributable to this project: a LISTEN port
+// owned by a process in one of THIS project's AirLock terminals, excluding the
+// managed pty. Value-free ({ port, owning ptyId }); null when none. Because it
+// only inspects this project's terminal subtrees, it never reports another
+// project's — or AirLock's own — server (no cross-project false positive).
+export function detectUnmanaged(
+  root: string,
+): { port: number; ptyId: string } | null {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { terminalPidsForRoot } = require("../ipc") as typeof import("../ipc"); // lazy-require: keep electron/ipc out of the module top-level (same pattern as the poll's ptyPid)
+  const managed = rootToPty.get(root) ?? null;
+  const terminals = terminalPidsForRoot(root)
+    .filter((t) => t.ptyId !== managed)
+    .map((t) => ({ ptyId: t.ptyId, pids: subtreePids(t.pid) }));
+  return pickUnmanagedServer(terminals, listeningPorts());
 }
 
 // Resolve the dev command for a root: explicit cfg.devCommand, else a guess

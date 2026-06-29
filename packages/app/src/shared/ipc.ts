@@ -47,6 +47,13 @@ export type DevServerStartResult =
   | { ok: true; state: DevServerState }
   | { ok: false; needsCommand: true; guess: string | null };
 
+// A detected unmanaged (user-run) dev server: a LISTEN port owned by a process
+// in one of THIS project's terminals. Plain interface — no agent-core import.
+export interface DetectedDevServer {
+  port: number;
+  ptyId: string;
+}
+
 export type {
   IntegrationItem,
   ItemAction,
@@ -794,6 +801,9 @@ export interface AirlockApi {
   onDevServerChanged(
     cb: (e: { root: string; state: DevServerState }) => void,
   ): () => void;
+  // Detect an unmanaged (user-run) dev server attributable to this project's
+  // terminals. Returns port + owning ptyId, or null if none detected.
+  devServerDetectUnmanaged(root: string): Promise<DetectedDevServer | null>;
   // Docker: machine-global (NOT root-gated); ids are opaque container ids.
   dockerList(): Promise<{
     installed: boolean;
