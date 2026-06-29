@@ -1,4 +1,9 @@
-import { parseDeploys, parseLatestDeploy, parseServices } from "./parse";
+import {
+  parseDeploys,
+  parseEnvVars,
+  parseLatestDeploy,
+  parseServices,
+} from "./parse";
 
 const RENDER_API_BASE = "https://api.render.com/v1";
 
@@ -93,6 +98,19 @@ export async function latestDeploy(
   const t = opts.transport ?? renderFetchTransport;
   return parseLatestDeploy(
     await t.get(`/services/${enc(serviceId)}/deploys?limit=1`, key),
+  );
+}
+
+// A service's environment variables (key + value). Single page of up to 100 —
+// consistent with listServices' ?limit=100; env vars rarely exceed that.
+export async function listEnvVars(
+  key: string,
+  serviceId: string,
+  opts: RenderOptions = {},
+): Promise<RenderEnvVar[]> {
+  const t = opts.transport ?? renderFetchTransport;
+  return parseEnvVars(
+    await t.get(`/services/${enc(serviceId)}/env-vars?limit=100`, key),
   );
 }
 

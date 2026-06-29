@@ -248,15 +248,23 @@ export {
   // render-prefixed to avoid clashing with other agent-core exports.
   latestDeploy as renderLatestDeploy,
   listDeploys as renderListDeploys,
+  listEnvVars as renderListEnvVars,
   listServices as renderListServices,
   type RenderDeploy,
+  type RenderEnvVar,
   type RenderOptions,
   type RenderService,
   type RenderTransport,
   renderFetchTransport,
   triggerDeploy as renderTriggerDeploy,
 } from "./render/client";
-export { normalizeRepoUrl, servicesForRepo } from "./render/parse";
+export {
+  diffEnvVars,
+  type EnvDiffEntry,
+  normalizeRepoUrl,
+  parseEnvVars,
+  servicesForRepo,
+} from "./render/parse";
 export {
   detectInstalledTerminals,
   type ExternalTerminal,

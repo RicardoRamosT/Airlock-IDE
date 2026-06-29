@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   latestDeploy,
   listDeploys,
+  listEnvVars,
   listServices,
   type RenderTransport,
   triggerDeploy,
@@ -58,5 +59,25 @@ describe("render client", () => {
     const { t, posts } = fake();
     await triggerDeploy("k", "srv-1", { transport: t });
     expect(posts).toEqual([{ path: "/services/srv-1/deploys", body: {} }]);
+  });
+
+  it("listEnvVars fetches the service env-vars path and parses them", async () => {
+    const calls: string[] = [];
+    const transport = {
+      get: async (path: string) => {
+        calls.push(path);
+        return [
+          { envVar: { key: "FOO", value: "bar" } },
+          { envVar: { key: "BAZ", value: "qux" } },
+        ];
+      },
+      post: async () => null,
+    };
+    const result = await listEnvVars("k", "srv-123", { transport });
+    expect(calls).toEqual(["/services/srv-123/env-vars?limit=100"]);
+    expect(result).toEqual([
+      { key: "FOO", value: "bar" },
+      { key: "BAZ", value: "qux" },
+    ]);
   });
 });
