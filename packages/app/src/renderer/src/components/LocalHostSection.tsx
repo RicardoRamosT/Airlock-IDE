@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DevServerStartResult, DevServerState } from "../../../shared/ipc";
+import type {
+  DetectedDevServer,
+  DevServerStartResult,
+  DevServerState,
+} from "../../../shared/ipc";
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
@@ -48,6 +52,10 @@ export function LocalHostSection() {
   const [cmdEditing, setCmdEditing] = useState(false);
   const [cmdDraft, setCmdDraft] = useState("");
 
+  // Detected (unmanaged) server: a raw-started server in one of THIS project's
+  // terminals. Shown only when no managed server is active (precedence below).
+  const [detected, setDetected] = useState<DetectedDevServer | null>(null);
+
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
   useEffect(() => {
@@ -61,6 +69,7 @@ export function LocalHostSection() {
     if (!root) {
       setUrl(null);
       setUp(null);
+      setDetected(null);
       return;
     }
     try {
@@ -73,6 +82,8 @@ export function LocalHostSection() {
       } else {
         setUp(null);
       }
+      const det = await window.airlock.devServerDetectUnmanaged(root);
+      if (mounted.current) setDetected(det);
     } catch (err) {
       console.error("host refresh failed", err);
     }
@@ -146,6 +157,31 @@ export function LocalHostSection() {
     if (!root) return;
     await window.airlock.devServerStop(root);
     await window.airlock.devServerStart(root);
+  };
+
+  // Adopt a detected (unmanaged) server in place: resolve the layout terminal id
+  // that owns the detected pty, then register that existing pty as managed (no
+  // restart, no port conflict). Managed state arrives via onDevServerChanged.
+  const onManage = () => {
+    if (!root || !detected) return;
+    const { ptyId } = detected;
+    const state = useApp.getState();
+    let terminalId: string | null = null;
+    for (const tt of Object.values(state.tabTerminals)) {
+      const term = tt.terminals.find((t) => t.ptyId === ptyId);
+      if (term) {
+        terminalId = term.id;
+        break;
+      }
+    }
+    if (!terminalId) return;
+    void window.airlock.devServerRegister(
+      root,
+      terminalId,
+      ptyId,
+      "(adopted)",
+      "user",
+    );
   };
 
   const dotClass =
@@ -303,6 +339,42 @@ export function LocalHostSection() {
             title="Start dev server"
           >
             Start
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Detected (unmanaged): a raw-started server attributed to this project, but
+  // AirLock didn't launch it. Hedge + Manage(adopt). Below managed states.
+  if (devStatus === "idle" && detected) {
+    const detUrl = `http://localhost:${detected.port}`;
+    return (
+      <div className="docker">
+        <div className="docker-row" title={detUrl}>
+          <span className="status-dot" />
+          <span className="docker-name host-url">{detUrl}</span>
+          <button
+            type="button"
+            className="row-action"
+            onClick={() => void window.airlock.hostOpenExternal(detUrl)}
+            title="Open in browser"
+          >
+            <i className="codicon codicon-link-external" />
+          </button>
+        </div>
+        <div className="section-note">
+          AirLock didn&rsquo;t start this — it may or may not be this
+          project&rsquo;s dev server.
+        </div>
+        <div className="section-toolbar">
+          <button
+            type="button"
+            className="btn"
+            onClick={onManage}
+            title="Let AirLock manage this running server (adopt in place)"
+          >
+            Manage
           </button>
         </div>
       </div>
