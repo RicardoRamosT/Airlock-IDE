@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  diffEnvVars,
   normalizeRepoUrl,
   parseDeploys,
+  parseEnvVars,
   parseLatestDeploy,
   parseServices,
   servicesForRepo,
@@ -165,5 +167,48 @@ describe("servicesForRepo", () => {
   it("returns [] when there is no origin remote", () => {
     expect(servicesForRepo(svcs, null)).toEqual([]);
     expect(servicesForRepo(svcs, "")).toEqual([]);
+  });
+});
+
+describe("parseEnvVars", () => {
+  it("parses Render's enveloped env-var items", () => {
+    const json = [
+      { envVar: { key: "DATABASE_URL", value: "postgres://x" } },
+      { envVar: { key: "LOG_LEVEL", value: "info" } },
+    ];
+    expect(parseEnvVars(json)).toEqual([
+      { key: "DATABASE_URL", value: "postgres://x" },
+      { key: "LOG_LEVEL", value: "info" },
+    ]);
+  });
+  it("skips malformed items / empty keys and tolerates non-array input", () => {
+    expect(parseEnvVars([{ envVar: { value: "v" } }, {}, "nope"])).toEqual([]);
+    expect(parseEnvVars(null)).toEqual([]);
+  });
+});
+
+describe("diffEnvVars", () => {
+  const a = [
+    { key: "SHARED", value: "1" },
+    { key: "CHANGED", value: "dev" },
+    { key: "ONLY_DEV", value: "x" },
+  ];
+  const b = [
+    { key: "SHARED", value: "1" },
+    { key: "CHANGED", value: "prod" },
+    { key: "ONLY_PROD", value: "y" },
+  ];
+  it("classifies equal / differs / only-a / only-b, keys sorted", () => {
+    expect(diffEnvVars(a, b)).toEqual([
+      { key: "CHANGED", inA: true, inB: true, status: "differs" },
+      { key: "ONLY_DEV", inA: true, inB: false, status: "only-a" },
+      { key: "ONLY_PROD", inA: false, inB: true, status: "only-b" },
+      { key: "SHARED", inA: true, inB: true, status: "equal" },
+    ]);
+  });
+  it("never leaks a value into the diff entries (moat)", () => {
+    for (const e of diffEnvVars(a, b)) {
+      expect(Object.keys(e).sort()).toEqual(["inA", "inB", "key", "status"]);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import type { RenderDeploy, RenderService } from "./client";
+import type { RenderDeploy, RenderEnvVar, RenderService } from "./client";
 
 // Pure response parsers for the Render REST API. These never touch fetch so
 // they unit-test without network. Render list endpoints return an envelope
@@ -100,4 +100,47 @@ export function servicesForRepo<T extends { repo: string }>(
   const want = originUrl ? normalizeRepoUrl(originUrl) : "";
   if (!want) return [];
   return services.filter((s) => normalizeRepoUrl(s.repo) === want);
+}
+
+// Render's GET /v1/services/{id}/env-vars returns items that wrap the var in an
+// `envVar` object: [{ envVar: { key, value }, cursor }]. Defensive like
+// parseServices; skip items without a string key.
+export function parseEnvVars(json: unknown): RenderEnvVar[] {
+  return items(json)
+    .map((it) => {
+      const e = unwrap(it, "envVar");
+      return { key: str(e, "key"), value: str(e, "value") };
+    })
+    .filter((v) => v.key !== "");
+}
+
+export interface EnvDiffEntry {
+  key: string;
+  inA: boolean; // present in service A (dev)
+  inB: boolean; // present in service B (prod)
+  status: "equal" | "differs" | "only-a" | "only-b";
+}
+
+// Value-free comparison: compares values internally but the returned entries
+// carry only presence + an equal/differs verdict, never the values themselves.
+export function diffEnvVars(
+  a: RenderEnvVar[],
+  b: RenderEnvVar[],
+): EnvDiffEntry[] {
+  const mapA = new Map(a.map((v) => [v.key, v.value]));
+  const mapB = new Map(b.map((v) => [v.key, v.value]));
+  const keys = Array.from(new Set([...mapA.keys(), ...mapB.keys()])).sort();
+  return keys.map((key) => {
+    const inA = mapA.has(key);
+    const inB = mapB.has(key);
+    let status: EnvDiffEntry["status"];
+    if (inA && inB) {
+      status = mapA.get(key) === mapB.get(key) ? "equal" : "differs";
+    } else if (inA) {
+      status = "only-a";
+    } else {
+      status = "only-b";
+    }
+    return { key, inA, inB, status };
+  });
 }

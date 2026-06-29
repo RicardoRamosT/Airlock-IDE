@@ -23,6 +23,11 @@ export interface RenderDeploy {
   trigger: string; // e.g. "deploy", "api", "manual"
 }
 
+export interface RenderEnvVar {
+  key: string;
+  value: string;
+}
+
 // DI transport so the HTTP edge is swappable in tests. The real adapter uses
 // the global fetch in the Electron/Node main process.
 export interface RenderTransport {
