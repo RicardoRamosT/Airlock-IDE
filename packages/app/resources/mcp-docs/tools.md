@@ -132,13 +132,16 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 
 ## Acting — start or stop the project's dev server
 
-- **`start_dev_server`** — start the focused project's local dev server using its
-  **configured** dev command (set in the Host section of the sidebar). Returns dev-server
-  status metadata (`status`, `url`, `port`) — never a secret value. If no command is
-  configured yet, returns `needsCommand: true` with a `guess` based on the project's
-  package.json/lockfile; **the guess alone is not enough to run** — the human must confirm
-  and save it in the Host section first. Idempotent: calling while already starting/running
-  returns the current state. Workspace-rooted (needs an open folder).
+- **`start_dev_server`** — **preferred way to run/boot the app locally** — start the focused
+  project's local dev server through AirLock, so the IDE shows and manages it (status,
+  Stop/Restart). Runs only the project's **configured** dev command (set in the Host section
+  of the sidebar). Returns dev-server status metadata (`status`, `url`, `port`) — never a
+  secret value. If no command is configured yet, returns `needsCommand: true` with a `guess`
+  based on the project's package.json/lockfile; **ask the user to set the command in Host
+  rather than starting the server with a raw shell command**. A server started raw in a
+  terminal appears in Host only as "detected (unmanaged)" until adopted. Idempotent: calling
+  while already starting/running returns the current state. Workspace-rooted (needs an open
+  folder).
 
 - **`stop_dev_server`** — stop the focused project's managed dev server (sends Ctrl-C to
   the foreground dev process; the terminal survives so logs are visible). Returns dev-server

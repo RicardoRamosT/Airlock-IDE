@@ -759,7 +759,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "start_dev_server",
     {
       description:
-        "Start the focused project's local dev server using its configured dev command (set in the Host section). Returns dev-server status (status/url/port) -- never a secret value. If no command is configured, returns needs-command with a guess so the human can set it; a guess alone is not enough for the agent to run.",
+        "Start this project's local dev server THROUGH AirLock — prefer this over running `npm run dev` (or the dev command) yourself in a terminal, so the IDE shows and manages it (status, Stop/Restart). Runs only the project's configured dev command; returns dev-server status (status/url/port) — never a secret value. If it returns needsCommand, ask the user to set the dev command in the Host section rather than starting the server with a raw shell command. (A server started raw appears in Host only as 'detected (unmanaged)' until adopted.)",
     },
     async () => {
       const root = deps.getWorkspaceRoot();
