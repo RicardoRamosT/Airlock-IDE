@@ -3,6 +3,7 @@ import { formatEnvImportSummary } from "../lib/envImportSummary";
 import { useProjectTab } from "../lib/projectPane";
 import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
+import { RenderEnvSection } from "./RenderEnvSection";
 
 export function SecretsSection() {
   const tabId = useProjectTab();
@@ -289,6 +290,7 @@ export function SecretsSection() {
           ↻ new terminals get secrets — restart active
         </button>
       )}
+      <RenderEnvSection />
     </div>
   );
 }

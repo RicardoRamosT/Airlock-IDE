@@ -53,6 +53,7 @@ export type {
   DbTable,
   DiffSide,
   DirEntry,
+  EnvDiffEntry,
   EnvFileImport,
   EventFilter,
   FileContent,

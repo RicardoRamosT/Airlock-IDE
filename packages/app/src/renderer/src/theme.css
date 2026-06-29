@@ -2323,6 +2323,71 @@ button.quota-meter:hover {
   font-family: inherit;
 }
 
+.render-env {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  margin-top: var(--sb-block-gap);
+}
+.render-env-svc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: 12px;
+  text-align: left;
+}
+.render-env-row,
+.render-env-diff {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-h);
+  font-size: 11px;
+  padding-left: 16px;
+}
+.render-env-key {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.render-env-reveal {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.render-env-compare-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.render-env-status {
+  color: var(--fg-dim);
+}
+.render-env-diff--differs .render-env-status,
+.render-env-diff--only-a .render-env-status,
+.render-env-diff--only-b .render-env-status {
+  color: var(--warn, #d19a66);
+}
+
 /* Running-process notice (T3): a dismissible banner above a tab's terminal
    tabs/panes, shown on the folder-rooted terminal kept alongside a busy one. */
 .terminal-notice {
