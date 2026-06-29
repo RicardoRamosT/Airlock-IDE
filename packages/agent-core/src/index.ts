@@ -149,6 +149,17 @@ export {
   MACOS_RESERVED_PORTS,
   pickListeningPort,
 } from "./host/detect";
+export type {
+  DevServerEvent,
+  DevServerState,
+  DevServerStatus,
+} from "./host/devserver";
+export {
+  devServerNextState,
+  IDLE_DEV_SERVER,
+  pickListeningPortFromSubtree,
+  resolveDevCommand,
+} from "./host/devserver";
 export { type PortProber, probePort } from "./host/probe";
 export {
   type CliRunner,
