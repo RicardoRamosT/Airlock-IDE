@@ -2367,6 +2367,7 @@ button.quota-meter:hover {
   color: var(--fg-dim);
   cursor: pointer;
   font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
 }
 .render-env-compare-btn {
   align-self: flex-start;
