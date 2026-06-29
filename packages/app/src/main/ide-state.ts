@@ -275,15 +275,6 @@ export function gitStatusFor(root: string): Promise<GitStatus> {
   return gitStatus(root);
 }
 
-// Resolve the per-project dev URL. config.devUrl wins (explicit; shown whether
-// or not it is reachable). Otherwise DETECT a running server: guess candidate
-// ports from package.json at the root AND common frontend subdirs (frontend/,
-// web/, ...), then surface a port that is actually LISTENING -- preferring a
-// guessed one, else scanning the common dev ports. Returns null when nothing is
-// up, so a guessed-but-down port is never shown (the old root-only guess gave
-// both false negatives -- a frontend in a subdir -- and false positives -- a
-// guessed port occupied by an unrelated server). Shared by host:localUrl and
-// hostStatus. The prober is injectable; defaults to the real TCP probe.
 // Identity over guessing: surface ONLY an explicitly configured dev URL. The
 // managed dev server (see main/devserver/manager) is the authoritative source
 // for servers AirLock launched; we never probe guessed/common ports, which

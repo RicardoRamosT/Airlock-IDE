@@ -185,7 +185,7 @@ export async function setDevServerCommand(
 }
 
 // The renderer reports the adopted dev terminal: record it and move to
-// 'starting'. (Task 5 attaches port discovery here.)
+// 'starting'.
 export function registerDevServer(
   root: string,
   terminalId: string,
