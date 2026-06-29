@@ -65,6 +65,7 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
+  runAppSkill: { enabled: true },
   eventLog: { enabled: true, minLevel: "debug" as Level },
   claudeAutoStart: "first",
   defaultTerminal: "airlock",
@@ -150,6 +151,17 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
   return { enabled: true };
 }
 
+// runAppSkill is app-global and ON by default. A real boolean `enabled` (incl.
+// explicit false to turn it off) is honored; anything else (absent, partial,
+// wrong type) -> enabled.
+function sanitizeRunAppSkill(raw: unknown): { enabled: boolean } {
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (typeof r.enabled === "boolean") return { enabled: r.enabled };
+  }
+  return { enabled: true };
+}
+
 const EVENT_LEVELS: readonly Level[] = ["debug", "info", "warn", "error"];
 function sanitizeEventLog(raw: unknown): { enabled: boolean; minLevel: Level } {
   const def = { enabled: true, minLevel: "debug" as Level };
@@ -212,6 +224,7 @@ function sanitize(raw: unknown): AppPrefs {
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
+    runAppSkill: sanitizeRunAppSkill(r.runAppSkill),
     eventLog: sanitizeEventLog(r.eventLog),
     claudeAutoStart: CLAUDE_AUTO_MODES.includes(
       r.claudeAutoStart as ClaudeAutoStart,

@@ -142,6 +142,7 @@ import {
 } from "./prefs";
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
+import { reconcileRunSkill } from "./runskill/wire";
 import { guardedCommit } from "./secrets/commit";
 import { sectionStatuses } from "./sectionStatus";
 import { readSession, writeSession } from "./session-store";
@@ -837,6 +838,12 @@ export function registerIpc(
       const p = await loadPrefs(prefsFile);
       await reconcileQuotaMeter(p.quotaMeter.enabled).catch((e) =>
         console.warn("[airlock] quota meter reconcile failed", e),
+      );
+    }
+    if ("runAppSkill" in (patch as object)) {
+      const p = await loadPrefs(prefsFile);
+      await reconcileRunSkill(p.runAppSkill.enabled).catch((e) =>
+        console.warn("[airlock] run-app skill reconcile failed", e),
       );
     }
     return saved;

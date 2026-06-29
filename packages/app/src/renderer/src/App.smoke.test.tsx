@@ -101,6 +101,7 @@ const DEFAULT_PREFS: AppPrefs = {
     privilege: "block",
   },
   quotaMeter: { enabled: false },
+  runAppSkill: { enabled: true },
   eventLog: { enabled: true, minLevel: "debug" },
   defaultTerminal: "airlock",
   restoreSession: true,

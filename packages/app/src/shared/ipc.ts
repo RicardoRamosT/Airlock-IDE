@@ -469,6 +469,9 @@ export interface AppPrefs {
   // Code statusLine that AirLock reads (set enabled:false to turn it off and
   // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
+  // Auto-install the Claude "run the app" routing skill (steers Claude to the
+  // managed dev server). Default on; toggled in Settings -> Claude.
+  runAppSkill: { enabled: boolean };
   // Event log display. ON by default at "debug" level (shows all events).
   // minLevel filters which events are shown; "error" = only errors. App-global.
   eventLog: { enabled: boolean; minLevel: Level };

@@ -44,6 +44,7 @@ import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs } from "./prefs";
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
+import { reconcileRunSkill } from "./runskill/wire";
 import { startUpdateCheck, stopUpdateCheck } from "./update/check";
 import { createWindow, lastFocusedRoot } from "./window";
 
@@ -140,6 +141,11 @@ function bootstrap(): void {
     // failure to touch ~/.claude/settings.json must never break startup.
     await reconcileQuotaMeter(prefs.quotaMeter.enabled).catch((e) =>
       console.warn("[airlock] quota meter wiring failed", e),
+    );
+    // Run-app routing skill: install/remove the Claude skill to match the pref.
+    // Best-effort -- a failure to touch ~/.claude/skills must never break startup.
+    await reconcileRunSkill(prefs.runAppSkill.enabled).catch((e) =>
+      console.warn("[airlock] run-app skill wiring failed", e),
     );
     applyAppMenu(
       prefsFile,
