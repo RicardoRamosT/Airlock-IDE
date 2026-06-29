@@ -6,11 +6,13 @@ import {
   type DevServerState,
   devServerNextState,
   IDLE_DEV_SERVER,
+  pickListeningPortFromSubtree,
   readProjectConfig,
   resolveDevCommand,
   writeProjectConfig,
 } from "@airlock/agent-core";
 import type { DevServerStartResult } from "../../shared/ipc";
+import { listeningPorts, subtreePids } from "./discover";
 
 // Dependency seam: injected for production, overridable in tests so the
 // container is unit-testable without pulling electron into vitest.
@@ -50,8 +52,10 @@ export function _setDepsForTest(d: ManagerDeps): void {
   _deps = d;
 }
 
-// Reset module state between tests (clear states, rootToPty, and deps).
+// Reset module state between tests (clear states, rootToPty, pollTimers, and deps).
 export function _resetForTest(): void {
+  for (const t of pollTimers.values()) clearInterval(t);
+  pollTimers.clear();
   states.clear();
   rootToPty.clear();
   _deps = null;
@@ -67,6 +71,7 @@ function getDeps(): ManagerDeps {
 
 const states = new Map<string, DevServerState>(); // root -> state
 const rootToPty = new Map<string, string>(); // root -> managed ptyId
+const pollTimers = new Map<string, ReturnType<typeof setInterval>>(); // root -> poll timer
 
 function get(root: string): DevServerState {
   return states.get(root) ?? IDLE_DEV_SERVER;
@@ -77,6 +82,43 @@ function apply(root: string, event: DevServerEvent): DevServerState {
   states.set(root, next);
   getDeps().broadcast(root, next);
   return next;
+}
+
+// ----------------------------------------------------------------------------
+// Port discovery
+
+const DISCOVER_MS = 1000;
+
+function startPortDiscovery(root: string, ptyId: string): void {
+  stopPortDiscovery(root);
+  const tick = () => {
+    // Lazy-require keeps electron out of the module top-level (same pattern as
+    // writeTerminalInput above) so vitest can import this file without mocking.
+    const { ptyPid } = require("../ipc") as typeof import("../ipc");
+    const pid = ptyPid(ptyId);
+    if (pid === null) return; // pty gone; onPtyExit handles the reset
+    const pids = subtreePids(pid);
+    const port = pickListeningPortFromSubtree(listeningPorts(), pids);
+    const state = get(root);
+    if (port !== null && state.port !== port) {
+      apply(root, { type: "port", port });
+    } else if (state.status === "running" && port === null && pids.size <= 1) {
+      // Liveness: once running, a vanished server child (no descendants beyond
+      // the shell) AND no port -> dev server stopped (Ctrl-C/crash) while the
+      // shell survives. Move to exited so Host offers Restart.
+      apply(root, { type: "exit", code: null });
+      stopPortDiscovery(root);
+    }
+  };
+  pollTimers.set(root, setInterval(tick, DISCOVER_MS));
+}
+
+function stopPortDiscovery(root: string): void {
+  const t = pollTimers.get(root);
+  if (t !== undefined) {
+    clearInterval(t);
+    pollTimers.delete(root);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -155,7 +197,7 @@ export function registerDevServer(
   if (cur.status === "starting" || cur.status === "running") return cur;
   rootToPty.set(root, ptyId);
   const state = apply(root, { type: "start", command, terminalId, startedBy });
-  // Task 5: startPortDiscovery(root, ptyId);
+  startPortDiscovery(root, ptyId);
   return state;
 }
 
@@ -165,7 +207,7 @@ export function stopDevServer(root: string): DevServerState {
   const ptyId = rootToPty.get(root);
   if (ptyId) getDeps().writeInput(ptyId, "\x03"); // SIGINT to foreground group
   rootToPty.delete(root);
-  // Task 5: stopPortDiscovery(root);
+  stopPortDiscovery(root);
   return apply(root, { type: "stop" });
 }
 
@@ -174,7 +216,7 @@ export function onPtyExitForDevServer(ptyId: string): void {
   for (const [root, id] of rootToPty) {
     if (id === ptyId) {
       rootToPty.delete(root);
-      // Task 5: stopPortDiscovery(root);
+      stopPortDiscovery(root);
       apply(root, { type: "exit", code: null });
       return;
     }
