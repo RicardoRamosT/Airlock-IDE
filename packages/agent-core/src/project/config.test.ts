@@ -37,4 +37,14 @@ describe("project config", () => {
     await writeProjectConfig(dir, { githubAccount: undefined });
     expect((await readProjectConfig(dir)).githubAccount).toBeUndefined();
   });
+
+  it("persists and reloads devCommand alongside devUrl", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await writeProjectConfig(root, { devUrl: "http://localhost:3000" });
+    const next = await writeProjectConfig(root, { devCommand: "npm run dev" });
+    expect(next.devCommand).toBe("npm run dev");
+    expect(next.devUrl).toBe("http://localhost:3000"); // patch merges, not replaces
+    const reread = await readProjectConfig(root);
+    expect(reread.devCommand).toBe("npm run dev");
+  });
 });
