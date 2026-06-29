@@ -26,6 +26,8 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  DevServerStartResult,
+  DevServerState,
   EnvFileImport,
   QuotaStatus,
   Section,
@@ -78,6 +80,8 @@ export const TOOL_NAMES: string[] = [
   "close_app_page",
   "project_info",
   "read_events",
+  "start_dev_server",
+  "stop_dev_server",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -147,6 +151,17 @@ export interface ToolDeps {
   // The detected ProjectProfile + .airlock/overview.md text for a root, value-free
   // (tech/service names from manifests/config + secret NAMES, never values).
   getProjectInfo: (root: string) => Promise<unknown>;
+  // Managed dev-server deps for start_dev_server/stop_dev_server: status
+  // metadata only (status/url/port/terminalId/command/startedBy/exitCode) --
+  // never a secret value. start takes no arbitrary command: it runs only the
+  // project's CONFIGURED devCommand (manager enforces this). startedBy is
+  // always "agent" for the MCP tool path (never caller-supplied).
+  getDevServerState: (root: string) => DevServerState;
+  startDevServer: (
+    root: string,
+    startedBy: "user" | "agent",
+  ) => Promise<DevServerStartResult>;
+  stopDevServer: (root: string) => DevServerState;
 }
 
 // Wrap any JSON-able result in the SDK text-content shape the ping tool uses.
@@ -396,11 +411,18 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
 
   mcp.registerTool(
     "host_status",
-    { description: "Report the local dev server URL and reachability." },
+    {
+      description:
+        "Report the local dev server URL and reachability, plus the managed dev-server state (status/url/port/terminalId/command/startedBy/exitCode). No secret values.",
+    },
     async () => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
-      return ok(await ide.hostStatus(root));
+      const [host, devServer] = [
+        await ide.hostStatus(root),
+        deps.getDevServerState(root),
+      ];
+      return ok({ ...host, devServer });
     },
   );
 
@@ -724,5 +746,39 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       inputSchema: { page: z.enum(["settings", "usage"]) },
     },
     async ({ page }) => drive({ type: "close_app_page", page }),
+  );
+
+  // --- Managed dev-server tools -------------------------------------------
+  // Both tools return only dev-server metadata (status/url/port/terminalId/
+  // command/startedBy/exitCode) -- NEVER a secret value. start_dev_server
+  // takes NO arbitrary-command argument: it runs only the project's CONFIGURED
+  // cfg.devCommand (the manager enforces this and returns needsCommand when
+  // unset). This matches the security invariant for all other tools here.
+
+  mcp.registerTool(
+    "start_dev_server",
+    {
+      description:
+        "Start the focused project's local dev server using its configured dev command (set in the Host section). Returns dev-server status (status/url/port) -- never a secret value. If no command is configured, returns needs-command with a guess so the human can set it; a guess alone is not enough for the agent to run.",
+    },
+    async () => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      const r = await deps.startDevServer(root, "agent");
+      return ok(r);
+    },
+  );
+
+  mcp.registerTool(
+    "stop_dev_server",
+    {
+      description:
+        "Stop the focused project's managed dev server. Returns dev-server status. No secret values.",
+    },
+    async () => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      return ok(deps.stopDevServer(root));
+    },
   );
 }

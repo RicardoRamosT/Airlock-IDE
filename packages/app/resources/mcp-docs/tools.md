@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 29 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 31 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -10,7 +10,9 @@ asks the user to vault a secret you need (you get back only whether it was vault
 the value); one (`import_env`) batch-imports the project's .env files into the vault (per-file summaries, names only);
 two terminal tools (`get_terminal_tail` reads a terminal tab's recent output, with every
 vaulted secret value **redacted**; `send_terminal_input` writes input into a running
-terminal behind a one-time per-terminal approval); and nine **IDE-control** tools (`list_tabs`, `open_tab`,
+terminal behind a one-time per-terminal approval); two **managed dev-server** tools
+(`start_dev_server` starts the project's configured dev command, `stop_dev_server` stops it);
+and nine **IDE-control** tools (`list_tabs`, `open_tab`,
 `close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`,
 `open_app_page`, `close_app_page`) drive the focused window's tabs / split / terminals /
 page-tabs, returning layout metadata only. **None returns a secret value.**
@@ -71,8 +73,9 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   whether they're up — never to get a connection string.
 - **`git_status`** — the working-tree git status (branch, staged/unstaged changes) for the
   open folder. Use it to understand the repo state before suggesting commits/branches.
-- **`host_status`** — the resolved local dev-server URL and whether it's reachable. Use it
-  to check if the dev server is running.
+- **`host_status`** — the resolved local dev-server URL and whether it's reachable, plus the
+  managed dev-server state (`devServer`: status/url/port/terminalId/command/startedBy/exitCode).
+  Use it to check if the dev server is running and to see its managed state.
 - **`list_secret_names`** — the project's secret **names** with provider and validity — no
   values, ever. Use it to learn what credentials exist (and thus what the project needs),
   e.g. to decide which sidebar sections to surface. Acts on the **focused** project; the
@@ -126,6 +129,20 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   they decide to commit anyway. The commit is authored as the project's configured GitHub
   account. Stage files first via `run_command` (`git add …`) if needed; use `git_status` to
   see what is staged. Workspace-rooted (needs an open folder). See `security-model.md`.
+
+## Acting — start or stop the project's dev server
+
+- **`start_dev_server`** — start the focused project's local dev server using its
+  **configured** dev command (set in the Host section of the sidebar). Returns dev-server
+  status metadata (`status`, `url`, `port`) — never a secret value. If no command is
+  configured yet, returns `needsCommand: true` with a `guess` based on the project's
+  package.json/lockfile; **the guess alone is not enough to run** — the human must confirm
+  and save it in the Host section first. Idempotent: calling while already starting/running
+  returns the current state. Workspace-rooted (needs an open folder).
+
+- **`stop_dev_server`** — stop the focused project's managed dev server (sends Ctrl-C to
+  the foreground dev process; the terminal survives so logs are visible). Returns dev-server
+  status metadata — no secret values. Workspace-rooted (needs an open folder).
 
 ## Acting — ask the user to vault a secret you need
 
@@ -235,6 +252,8 @@ a terminal's output use `get_terminal_tail` (both redact). See `security-model.m
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
 - "Is X set up / reachable?" → the matching status read (`database_status`, `host_status`,
   `docker_status`, `render_services`, `neon_status`).
+- "Start / stop the dev server" → `start_dev_server` / `stop_dev_server` (runs only the
+  project's configured dev command; use `host_status` to check the managed state).
 - "What is building / deploying right now?" → `activity_status` (the live CI/deploy/container
   feed with entry ids); to clear a finished row from the panel, `dismiss_activity` with its id.
 - "What does this project use?" → `list_secret_names` + the status reads together paint the

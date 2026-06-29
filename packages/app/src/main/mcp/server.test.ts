@@ -41,6 +41,39 @@ async function startOnEphemeralPort(): Promise<number> {
       ok: true,
       data: { tabs: [], split: null, appPages: { open: [], shown: null } },
     }),
+    // Stub the managed dev-server deps so the McpDeps literal type-checks; the
+    // server-level tests assert the tool SURFACE (count/names), not the
+    // dev-server behavior (covered in tools.test.ts + manager.test.ts).
+    getDevServerState: () => ({
+      status: "idle" as const,
+      port: null,
+      url: null,
+      terminalId: null,
+      command: null,
+      startedBy: null,
+      exitCode: null,
+    }),
+    startDevServer: async () => ({
+      ok: true,
+      state: {
+        status: "idle" as const,
+        port: null,
+        url: null,
+        terminalId: null,
+        command: null,
+        startedBy: null,
+        exitCode: null,
+      },
+    }),
+    stopDevServer: () => ({
+      status: "idle" as const,
+      port: null,
+      url: null,
+      terminalId: null,
+      command: null,
+      startedBy: null,
+      exitCode: null,
+    }),
     token: TOKEN,
   });
   const port = getMcpPort();
@@ -139,7 +172,7 @@ describe("MCP server handshake", () => {
     expect(result?.capabilities).toBeDefined();
   });
 
-  it("tools/list (after initialize) returns EXACTLY the twenty-nine allowlisted tools", async () => {
+  it("tools/list (after initialize) returns EXACTLY the thirty-one allowlisted tools", async () => {
     const port = await startOnEphemeralPort();
     // A real client initializes first; with a fresh per-request transport this
     // second request must also succeed (the reused-transport bug 500'd here).
@@ -158,7 +191,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(29);
+    expect(names).toHaveLength(31);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {

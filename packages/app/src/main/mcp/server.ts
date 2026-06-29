@@ -32,6 +32,8 @@ import type {
   ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  DevServerStartResult,
+  DevServerState,
   EnvFileImport,
   QuotaStatus,
   SessionUsage,
@@ -82,6 +84,16 @@ export interface McpDeps {
   // IDE-control tools. Resolves layout metadata (or an error result) -- never a
   // secret value.
   runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>;
+  // Managed dev-server deps for start_dev_server/stop_dev_server: status
+  // metadata only (status/url/port/terminalId/command/startedBy/exitCode) --
+  // never a secret value. startDevServer takes no arbitrary command; it runs
+  // only the project's CONFIGURED devCommand (manager enforces this).
+  getDevServerState: (root: string) => DevServerState;
+  startDevServer: (
+    root: string,
+    startedBy: "user" | "agent",
+  ) => Promise<DevServerStartResult>;
+  stopDevServer: (root: string) => DevServerState;
   token: string;
 }
 
@@ -128,6 +140,9 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     getUsageLedger: deps.getUsageLedger,
     runAgentCommand: deps.runAgentCommand,
     getProjectInfo: (root) => gatherProfile(root),
+    getDevServerState: deps.getDevServerState,
+    startDevServer: deps.startDevServer,
+    stopDevServer: deps.stopDevServer,
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

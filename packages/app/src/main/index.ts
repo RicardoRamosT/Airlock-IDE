@@ -18,6 +18,11 @@ import {
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
 import {
+  getDevServerState,
+  startDevServer,
+  stopDevServer,
+} from "./devserver/manager";
+import {
   installConsoleFunnel,
   installProcessHandlers,
   wrapIpcHandle,
@@ -191,6 +196,11 @@ function bootstrap(): void {
             w.webContents.send("secrets:changed", root);
         }
       },
+      // Managed dev-server: start_dev_server/stop_dev_server tools and
+      // host_status devServer field. Status metadata only -- never a secret.
+      getDevServerState,
+      startDevServer,
+      stopDevServer,
       token,
     }).catch((e) => {
       console.error(
