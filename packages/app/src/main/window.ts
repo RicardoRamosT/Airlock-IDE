@@ -131,6 +131,7 @@ export function createWindow(): BrowserWindow {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      plugins: true,
     },
   });
 
