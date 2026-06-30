@@ -56,6 +56,10 @@ export function LocalHostSection() {
   // terminals. Shown only when no managed server is active (precedence below).
   const [detected, setDetected] = useState<DetectedDevServer | null>(null);
 
+  // Unverified servers: common dev ports listening but unattributable to this
+  // project (the detached/raw case). Shown only when no managed/attributed/devUrl.
+  const [unverified, setUnverified] = useState<number[]>([]);
+
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
   useEffect(() => {
@@ -70,6 +74,7 @@ export function LocalHostSection() {
       setUrl(null);
       setUp(null);
       setDetected(null);
+      setUnverified([]);
       return;
     }
     try {
@@ -84,6 +89,8 @@ export function LocalHostSection() {
       }
       const det = await window.airlock.devServerDetectUnmanaged(root);
       if (mounted.current) setDetected(det);
+      const uv = await window.airlock.hostUnverifiedServers(root);
+      if (mounted.current) setUnverified(uv);
     } catch (err) {
       console.error("host refresh failed", err);
     }
@@ -157,6 +164,16 @@ export function LocalHostSection() {
     if (!root) return;
     await window.airlock.devServerStop(root);
     await window.airlock.devServerStart(root);
+  };
+
+  // Non-destructive: anchor an unverified server as this project's dev URL.
+  // Graduates it to the tracked devUrl tier and silences the unverified scan.
+  const setAsDevUrl = async (port: number) => {
+    if (!root) return;
+    await window.airlock.configSet(root, {
+      devUrl: `http://localhost:${port}`,
+    });
+    await refresh();
   };
 
   // Adopt a detected (unmanaged) server in place: resolve the layout terminal id
@@ -376,6 +393,47 @@ export function LocalHostSection() {
           >
             Manage
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Unverified (tier 3): a server is listening on a common dev port that AirLock
+  // can't attribute to this project. Honest hedge + non-destructive guidance —
+  // never a kill button (we can't confirm it's this project's process).
+  if (devStatus === "idle" && !detected && unverified.length > 0) {
+    return (
+      <div className="docker">
+        {unverified.map((port) => {
+          const u = `http://localhost:${port}`;
+          return (
+            <div key={port} className="docker-row" title={u}>
+              <span className="status-dot" />
+              <span className="docker-name host-url">{u} · unverified</span>
+              <button
+                type="button"
+                className="row-action"
+                onClick={() => void window.airlock.hostOpenExternal(u)}
+                title="Open in browser"
+              >
+                <i className="codicon codicon-link-external" />
+              </button>
+              <button
+                type="button"
+                className="row-action"
+                onClick={() => void setAsDevUrl(port)}
+                title="Set as this project's dev URL (track it)"
+              >
+                <i className="codicon codicon-pin" />
+              </button>
+            </div>
+          );
+        })}
+        <div className="section-note">
+          A server is running here, but AirLock didn&rsquo;t start it and
+          can&rsquo;t confirm it&rsquo;s this project&rsquo;s — so it
+          can&rsquo;t manage it. To let AirLock Stop/Restart it, restart it
+          through AirLock (e.g. ask &ldquo;in airlock, restart the app&rdquo;).
         </div>
       </div>
     );
