@@ -489,6 +489,10 @@ export interface AppPrefs {
   // registered Claude Code URL stays stable across launches. Never exposed to
   // the renderer beyond this shared type (the token must not reach the UI).
   mcp?: { port: number; token: string };
+  // Random 32-hex salt generated once on first run and persisted. Used to derive
+  // per-project URL path tokens for the session-scoped MCP endpoints. Optional:
+  // absent until first needed; never exposed to the renderer (stays main-only).
+  installSalt?: string;
 }
 
 // One Claude session's usage, parsed from its latest statusLine emit (the

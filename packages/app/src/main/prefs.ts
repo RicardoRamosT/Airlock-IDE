@@ -120,6 +120,16 @@ export function sanitizeAgentPolicy(value: unknown): AgentCommandPolicy {
   return out;
 }
 
+// installSalt: a 32-hex random string generated once and persisted so token
+// derivation is stable across launches. OPTIONAL: absent until first needed.
+// Only a valid 32-hex string is passed through; anything else is dropped so
+// the caller re-generates and persists it.
+function sanitizeInstallSalt(raw: unknown): string | undefined {
+  return typeof raw === "string" && /^[0-9a-f]{32}$/.test(raw)
+    ? raw
+    : undefined;
+}
+
 // Pass the MCP identity through only when fully well-formed: port a finite
 // number and token a non-empty string. Anything else (absent, partial, wrong
 // types) returns undefined so the field is dropped and ensureMcpConfig will
@@ -241,6 +251,9 @@ function sanitize(raw: unknown): AppPrefs {
   // toEqual against the defaults (which have no mcp key) stays exact.
   const mcp = sanitizeMcp(r.mcp);
   if (mcp) out.mcp = mcp;
+  // Only attach installSalt when a valid 32-hex string; absent until generated.
+  const installSalt = sanitizeInstallSalt(r.installSalt);
+  if (installSalt) out.installSalt = installSalt;
   return out;
 }
 
