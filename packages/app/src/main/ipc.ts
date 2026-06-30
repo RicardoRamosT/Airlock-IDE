@@ -137,6 +137,7 @@ import {
 import { gatherProfile } from "./overview/gather";
 import {
   loadPrefs,
+  publicPrefs,
   RECENT_CAP,
   SECTIONS,
   sanitizeAgentPolicy,
@@ -800,9 +801,7 @@ export function registerIpc(
   // (used for per-project token derivation) and the renderer never needs it.
   ipcMain.handle("prefs:get", async () => {
     const prefs = await loadPrefs(prefsFile);
-    // biome-ignore lint/suspicious/noExplicitAny: strip main-only field
-    const { installSalt: _salt, ...rest } = prefs as any;
-    return rest;
+    return publicPrefs(prefs);
   });
 
   ipcMain.handle("quota:get", () => getQuota());
@@ -857,7 +856,7 @@ export function registerIpc(
         console.warn("[airlock] run-app skill reconcile failed", e),
       );
     }
-    return saved;
+    return publicPrefs(saved);
   });
 
   // App-global (NOT requireRoot-gated): toggle a sidebar section's visibility.

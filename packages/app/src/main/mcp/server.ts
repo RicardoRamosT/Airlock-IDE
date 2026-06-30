@@ -298,7 +298,18 @@ export async function startMcpServer(
         // (refuse). Focus (lastFocusedRoot) is NOT consulted for MCP requests --
         // the token IS the project identity.
         const m = /^\/mcp\/([^/?#]+)/.exec(req.url ?? "");
-        const projectToken = m?.[1] ? decodeURIComponent(m[1]) : null;
+        // Malformed percent-encoding (e.g. /mcp/%ZZ) is a refuse case, not an
+        // error. Wrap decodeURIComponent so a decode failure yields null ->
+        // rootForToken(null) -> null root -> NO_WORKSPACE (clean refusal).
+        const projectToken = m?.[1]
+          ? (() => {
+              try {
+                return decodeURIComponent(m[1]);
+              } catch {
+                return null;
+              }
+            })()
+          : null;
         const root = deps.rootForToken(projectToken);
         const reqDeps: RequestDeps = { ...deps, getWorkspaceRoot: () => root };
 

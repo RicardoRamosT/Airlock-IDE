@@ -276,4 +276,43 @@ describe("MCP server per-request path token", () => {
     const text = await callListSecretNames(port, "unknown-token-deadbeef");
     expect(text).toBe("No workspace open");
   });
+
+  it("a malformed percent-encoded path token yields NO_WORKSPACE (clean refusal)", async () => {
+    // %ZZ is invalid percent-encoding: decodeURIComponent throws.
+    // The server must treat it as a null token (-> NO_WORKSPACE) not a 500.
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    // callListSecretNames builds the URL from the token string; pass the
+    // raw malformed segment directly via a manual fetch to bypass URL encoding.
+    const res = await fetch(`http://127.0.0.1:${port}/mcp/%ZZ`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "list_secret_names", arguments: {} },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "";
+    let json: Record<string, unknown> | null = null;
+    if (contentType.includes("text/event-stream")) {
+      const line = text
+        .split("\n")
+        .find((l) => l.startsWith("data:"))
+        ?.slice("data:".length)
+        .trim();
+      json = line ? JSON.parse(line) : null;
+    } else {
+      json = JSON.parse(text);
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: test assertion
+    const resultText = (json as any)?.result?.content?.[0]?.text as string;
+    expect(resultText).toBe("No workspace open");
+  });
 });

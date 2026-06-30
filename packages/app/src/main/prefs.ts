@@ -257,6 +257,18 @@ function sanitize(raw: unknown): AppPrefs {
   return out;
 }
 
+// Strip main-only fields before the renderer sees a prefs value.
+// installSalt is an HMAC salt for per-project MCP token derivation; the
+// renderer never needs it. mcp.token is intentionally preserved (pre-existing
+// behavior; the renderer uses it to connect to the local MCP server).
+export function publicPrefs(p: AppPrefs): AppPrefs {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { installSalt: _salt, ...rest } = p as AppPrefs & {
+    installSalt?: unknown;
+  };
+  return rest as AppPrefs;
+}
+
 export async function loadPrefs(file: string): Promise<AppPrefs> {
   let text: string;
   try {

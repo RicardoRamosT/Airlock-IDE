@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SectionVisibility } from "../shared/ipc";
-import { loadPrefs, sanitizeDefaultTerminal, savePrefs } from "./prefs";
+import {
+  loadPrefs,
+  publicPrefs,
+  sanitizeDefaultTerminal,
+  savePrefs,
+} from "./prefs";
 
 describe("app prefs", () => {
   it("returns defaults when the file is absent", async () => {
@@ -444,5 +449,54 @@ describe("sanitizeDefaultTerminal", () => {
     expect(sanitizeDefaultTerminal("deleted-app")).toBe("airlock");
     expect(sanitizeDefaultTerminal(42)).toBe("airlock");
     expect(sanitizeDefaultTerminal(undefined)).toBe("airlock");
+  });
+});
+
+// publicPrefs: the renderer-safe view of AppPrefs -- installSalt must NEVER
+// reach the renderer. All other fields (including mcp.token) must pass through.
+describe("publicPrefs", () => {
+  it("strips installSalt from a prefs object that has one", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-public-"));
+    const file = path.join(dir, "prefs.json");
+    // Write a prefs file that includes installSalt so savePrefs returns it.
+    await writeFile(
+      file,
+      JSON.stringify({ installSalt: "abcdef1234567890abcdef1234567890" }),
+    );
+    const prefs = await loadPrefs(file);
+    // Verify the loaded value has installSalt (precondition).
+    expect(prefs.installSalt).toBe("abcdef1234567890abcdef1234567890");
+    // publicPrefs must remove it.
+    const pub = publicPrefs(prefs);
+    expect(pub).not.toHaveProperty("installSalt");
+  });
+
+  it("preserves all other fields including mcp.token", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-public-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        theme: "light",
+        mcp: { port: 9876, token: "tok-abc" },
+        installSalt: "abcdef1234567890abcdef1234567890",
+      }),
+    );
+    const prefs = await loadPrefs(file);
+    const pub = publicPrefs(prefs);
+    expect(pub.theme).toBe("light");
+    expect(pub.mcp?.token).toBe("tok-abc");
+    expect(pub.mcp?.port).toBe(9876);
+    expect(pub).not.toHaveProperty("installSalt");
+  });
+
+  it("works when installSalt is absent (no-op on a normal prefs)", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-public-"));
+    const prefs = await loadPrefs(path.join(dir, "absent.json"));
+    // No installSalt in default prefs -- publicPrefs should still work fine.
+    expect(prefs.installSalt).toBeUndefined();
+    const pub = publicPrefs(prefs);
+    expect(pub).not.toHaveProperty("installSalt");
+    expect(pub.theme).toBe("dark");
   });
 });
