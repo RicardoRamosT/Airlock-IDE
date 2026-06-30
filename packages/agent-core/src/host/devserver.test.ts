@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pickUnverifiedPorts } from "./detect";
 import {
   devServerNextState,
   IDLE_DEV_SERVER,
@@ -142,5 +143,36 @@ describe("pickUnmanagedServer", () => {
     expect(
       pickUnmanagedServer([{ ptyId: "pty-A", pids: new Set([222]) }], []),
     ).toBeNull();
+  });
+});
+
+describe("pickUnverifiedPorts", () => {
+  const common = [5173, 5174, 3000, 5001];
+  it("returns common listening ports that are neither managed nor owned by an excluded pid", () => {
+    const listening = [
+      { pid: 10, port: 5001 }, // keep (unattributable, common)
+      { pid: 20, port: 5173 }, // excluded pid (this project's terminal) -> drop
+      { pid: 30, port: 3000 }, // managed port -> drop
+      { pid: 40, port: 49152 }, // not a common dev port -> drop
+    ];
+    expect(pickUnverifiedPorts(listening, common, new Set([20]), 3000)).toEqual(
+      [5001],
+    );
+  });
+  it("dedupes and sorts", () => {
+    const listening = [
+      { pid: 1, port: 5174 },
+      { pid: 2, port: 5001 },
+      { pid: 3, port: 5001 },
+    ];
+    expect(pickUnverifiedPorts(listening, common, new Set(), null)).toEqual([
+      5001, 5174,
+    ]);
+  });
+  it("returns [] when nothing qualifies", () => {
+    expect(pickUnverifiedPorts([], common, new Set(), null)).toEqual([]);
+    expect(
+      pickUnverifiedPorts([{ pid: 1, port: 9999 }], common, new Set(), null),
+    ).toEqual([]);
   });
 });

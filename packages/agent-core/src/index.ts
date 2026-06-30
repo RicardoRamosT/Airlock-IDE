@@ -148,6 +148,7 @@ export {
   guessDevPort,
   MACOS_RESERVED_PORTS,
   pickListeningPort,
+  pickUnverifiedPorts,
 } from "./host/detect";
 export type {
   DevServerEvent,

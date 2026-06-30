@@ -87,3 +87,25 @@ export async function pickListeningPort(
   // i === -1 -> candidates[-1] is undefined -> null; ports are never 0.
   return candidates[i] ?? null;
 }
+
+// Unverified servers: common-dev-port LISTEN entries that AirLock can't tie to
+// the project — neither the managed server's port nor owned by a process in the
+// project's terminals. Pure; the caller supplies the listening rows, the
+// (reserved-filtered) common ports, the excluded (this-project-terminal) pids,
+// and the managed port. Returned ports are deduped + ascending.
+export function pickUnverifiedPorts(
+  listening: Array<{ pid: number; port: number }>,
+  commonPorts: number[],
+  excludedPids: Set<number>,
+  managedPort: number | null,
+): number[] {
+  const common = new Set(commonPorts);
+  const out = new Set<number>();
+  for (const { pid, port } of listening) {
+    if (!common.has(port)) continue;
+    if (managedPort !== null && port === managedPort) continue;
+    if (excludedPids.has(pid)) continue;
+    out.add(port);
+  }
+  return [...out].sort((a, b) => a - b);
+}
