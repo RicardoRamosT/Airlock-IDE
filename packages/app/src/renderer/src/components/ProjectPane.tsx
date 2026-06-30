@@ -9,8 +9,8 @@ import { BinaryNotice } from "./BinaryNotice";
 import { DataGrid } from "./DataGrid";
 import { EditorPane } from "./EditorPane";
 import { ImagePreview } from "./ImagePreview";
-import { PdfViewer } from "./PdfViewer";
 import { MainTabs } from "./MainTabs";
+import { PdfViewer } from "./PdfViewer";
 import { Viewer } from "./Viewer";
 
 // One project's unified main area scoped to a single tab (the window's single

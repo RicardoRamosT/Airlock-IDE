@@ -9,7 +9,13 @@ type State =
 // Inline PDF preview via Chromium's built-in viewer (needs webPreferences.plugins
 // + a CSP that allows the data: source). Falls back to Open-externally when the
 // PDF is too large to inline or fails to load.
-export function PdfViewer({ root, relPath }: { root: string; relPath: string }) {
+export function PdfViewer({
+  root,
+  relPath,
+}: {
+  root: string;
+  relPath: string;
+}) {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -20,7 +26,9 @@ export function PdfViewer({ root, relPath }: { root: string; relPath: string }) 
       .then((r) => {
         if (cancelled) return;
         setState(
-          r.tooLarge ? { kind: "too-large" } : { kind: "ok", dataUrl: r.dataUrl },
+          r.tooLarge
+            ? { kind: "too-large" }
+            : { kind: "ok", dataUrl: r.dataUrl },
         );
       })
       .catch((err) => {
@@ -37,7 +45,11 @@ export function PdfViewer({ root, relPath }: { root: string; relPath: string }) 
   if (state.kind === "ok")
     return (
       <div className="pdf-preview-host">
-        <embed className="pdf-preview" type="application/pdf" src={state.dataUrl} />
+        <embed
+          className="pdf-preview"
+          type="application/pdf"
+          src={state.dataUrl}
+        />
       </div>
     );
   return (
