@@ -342,6 +342,8 @@ export interface AppState {
           requestId: string;
           name: string;
           providerHint?: string;
+          root: string | null;
+          projectName: string | null;
         };
       }
     | {

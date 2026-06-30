@@ -44,7 +44,11 @@ import {
   writeTerminalInput,
 } from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
-import { configureScope, rootForToken } from "./mcp/projectScope";
+import {
+  configureScope,
+  rootForToken,
+  seedOpenRoots,
+} from "./mcp/projectScope";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu, applyDockMenu } from "./menu";
 import { loadPrefs, savePrefs } from "./prefs";
@@ -52,7 +56,7 @@ import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { reconcileRunSkill } from "./runskill/wire";
 import { startUpdateCheck, stopUpdateCheck } from "./update/check";
-import { createWindow } from "./window";
+import { allOpenRoots, createWindow } from "./window";
 
 app.setName("AirLock");
 // The display name is "AirLock", but keep userData (prefs.json + the persisted
@@ -191,6 +195,11 @@ function bootstrap(): void {
       return p ? { port: p, token } : null;
     };
     configureScope({ getServer, installSalt, userDataDir, realClaudeAbs });
+    // Pre-register tokens for roots already open (restored tabs) so rootForToken
+    // works for in-flight sessions before their first terminal spawn. Best-effort.
+    seedOpenRoots(allOpenRoots()).catch((e) =>
+      console.warn("[airlock] seedOpenRoots failed", e),
+    );
 
     // Stand up the local MCP server (loopback, bearer-guarded). A start failure
     // (e.g. a busy port we could not bump past) must NOT take down the app --

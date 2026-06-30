@@ -106,14 +106,23 @@ export function SecretModal() {
   if (modal === null) return null;
 
   const submit = async () => {
-    if (!root) {
+    // In agent-requested mode, save to the CALLER'S project root (payload.root),
+    // not the currently focused tab's root. This is the whole point of Task 6:
+    // a session in project A asking for a secret while the GUI is focused on B
+    // must vault it in A, not B.
+    const saveRoot = requested?.root ?? root;
+    if (!saveRoot) {
       setError("Open a folder before vaulting a secret.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const meta = await window.airlock.secretsSet(root, name.trim(), value);
+      const meta = await window.airlock.secretsSet(
+        saveRoot,
+        name.trim(),
+        value,
+      );
       // Requested mode: secretsSet RESOLVED, so the keychain write happened --
       // the agent's request is fulfilled even if the value looks unusual. Report
       // vaulted:true and close; do NOT keep the modal open on the !valid warning
@@ -121,7 +130,7 @@ export function SecretModal() {
       if (requested) {
         resolvedRef.current = true;
         await window.airlock.requestSecretResolve(requested.requestId, true);
-        setSecrets(await window.airlock.secretsList(root));
+        setSecrets(await window.airlock.secretsList(saveRoot));
         setModal(null);
         // A newly vaulted secret only reaches the shell on spawn, so replace the
         // active terminal when injection is on.
@@ -133,7 +142,7 @@ export function SecretModal() {
           "Saved, but the value looks unusual for this name. Check the provider hint.",
         );
       } else {
-        setSecrets(await window.airlock.secretsList(root));
+        setSecrets(await window.airlock.secretsList(saveRoot));
         setModal(null);
         // A newly vaulted secret only reaches the shell on spawn, so replace
         // the active terminal when injection is on.
@@ -164,7 +173,9 @@ export function SecretModal() {
       <div className="modal">
         <div className="modal-title">
           {requested
-            ? `Vault ${requested.name}`
+            ? requested.projectName
+              ? `Vault ${requested.name} for ${requested.projectName}`
+              : `Vault ${requested.name}`
             : updating
               ? `Update ${updating}`
               : "Add secret"}

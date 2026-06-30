@@ -864,7 +864,13 @@ export interface AirlockApi {
   // boolean crosses back -- the value goes user -> keychain via secretsSet; the
   // agent never sees it.
   onRequestSecret(
-    cb: (p: { requestId: string; name: string; providerHint?: string }) => void,
+    cb: (p: {
+      requestId: string;
+      name: string;
+      providerHint?: string;
+      root: string | null;
+      projectName: string | null;
+    }) => void,
   ): () => void;
   requestSecretResolve(requestId: string, vaulted: boolean): Promise<void>;
   // Agent-requested terminal input: main pushes agent:terminal-grant-request when

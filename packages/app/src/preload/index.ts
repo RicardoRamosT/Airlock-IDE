@@ -196,10 +196,13 @@ const api: AirlockApi = {
   getAgentPolicy: () => ipcRenderer.invoke("agentPolicy:get"),
   setAgentPolicy: (policy) => ipcRenderer.invoke("agentPolicy:set", policy),
   onRequestSecret: (cb) =>
-    subscribe<{ requestId: string; name: string; providerHint?: string }>(
-      "agent:request-secret",
-      cb,
-    ),
+    subscribe<{
+      requestId: string;
+      name: string;
+      providerHint?: string;
+      root: string | null;
+      projectName: string | null;
+    }>("agent:request-secret", cb),
   requestSecretResolve: (requestId, vaulted) =>
     ipcRenderer.invoke("agent:request-secret-resolved", requestId, vaulted),
   onTerminalGrantRequest: (cb) =>

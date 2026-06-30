@@ -111,6 +111,19 @@ export function lastFocusedWindow(): BrowserWindow | null {
   return BrowserWindow.getAllWindows()[0] ?? null;
 }
 
+// The window currently showing `root` (active-tab match first, else any window
+// with it open), for routing an agent prompt to the asking project's window
+// rather than GUI focus. Returns null if no window has this root open.
+export function windowForRoot(root: string): BrowserWindow | null {
+  for (const [id, r] of workspaceRoots) {
+    if (r === root) return BrowserWindow.fromId(id);
+  }
+  for (const [id, set] of windowRoots) {
+    if (set.has(root)) return BrowserWindow.fromId(id);
+  }
+  return null;
+}
+
 // New Window opens a fresh, no-folder airlock window.
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({

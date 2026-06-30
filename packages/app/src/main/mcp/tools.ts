@@ -93,7 +93,8 @@ export interface ToolDeps {
   getBaseEnv: () => Record<string, string>;
   requestSecretFromUser: (
     name: string,
-    providerHint?: string,
+    providerHint: string | undefined,
+    root: string | null,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
   // Batch-import env files into the vault for import_env (production wires
   // agent-core's importAllDotEnv in server.ts; tests inject a fake). Returns
@@ -611,7 +612,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     async ({ name, providerHint }) => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
-      return ok(await deps.requestSecretFromUser(name, providerHint));
+      return ok(await deps.requestSecretFromUser(name, providerHint, root));
     },
   );
 

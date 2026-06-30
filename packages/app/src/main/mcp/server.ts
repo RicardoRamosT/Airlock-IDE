@@ -53,7 +53,8 @@ export interface McpDeps {
   getBaseEnv: () => Record<string, string>;
   requestSecretFromUser: (
     name: string,
-    providerHint?: string,
+    providerHint: string | undefined,
+    root: string | null,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
   // Batch env import for the import_env tool (agent-core's importAllDotEnv,
   // injected by main) + the secrets:changed broadcast that keeps every

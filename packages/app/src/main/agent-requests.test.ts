@@ -52,9 +52,38 @@ afterEach(() => {
 });
 
 describe("requestSecretFromUser", () => {
+  it("includes root and projectName (basename) in the notify payload when root is set", () => {
+    const { notify, payloads } = makeFakeNotify();
+    void requestSecretFromUser(
+      "API_KEY",
+      "hint",
+      "/Users/me/myproject",
+      notify,
+    );
+
+    expect(payloads).toHaveLength(1);
+    const p = nth(payloads, 0);
+    expect(p.root).toBe("/Users/me/myproject");
+    expect(p.projectName).toBe("myproject");
+
+    resolveSecretRequest(p.requestId, false);
+  });
+
+  it("sets root and projectName to null in the notify payload when root is null", () => {
+    const { notify, payloads } = makeFakeNotify();
+    void requestSecretFromUser("API_KEY", undefined, null, notify);
+
+    expect(payloads).toHaveLength(1);
+    const p = nth(payloads, 0);
+    expect(p.root).toBeNull();
+    expect(p.projectName).toBeNull();
+
+    resolveSecretRequest(p.requestId, false);
+  });
+
   it("notifies the renderer once with a non-empty requestId, name, and providerHint", () => {
     const { notify, payloads } = makeFakeNotify();
-    void requestSecretFromUser("API_KEY", "hint", notify);
+    void requestSecretFromUser("API_KEY", "hint", null, notify);
 
     expect(payloads).toHaveLength(1);
     expect(nth(payloads, 0).name).toBe("API_KEY");
@@ -68,7 +97,7 @@ describe("requestSecretFromUser", () => {
 
   it("resolves {vaulted:true} when the renderer reports the captured requestId saved", async () => {
     const { notify, payloads } = makeFakeNotify();
-    const p = requestSecretFromUser("API_KEY", "hint", notify);
+    const p = requestSecretFromUser("API_KEY", "hint", null, notify);
 
     resolveSecretRequest(nth(payloads, 0).requestId, true);
 
@@ -77,7 +106,7 @@ describe("requestSecretFromUser", () => {
 
   it("resolves {vaulted:false} when the renderer reports cancel", async () => {
     const { notify, payloads } = makeFakeNotify();
-    const p = requestSecretFromUser("API_KEY", "hint", notify);
+    const p = requestSecretFromUser("API_KEY", "hint", null, notify);
 
     resolveSecretRequest(nth(payloads, 0).requestId, false);
 
@@ -86,9 +115,14 @@ describe("requestSecretFromUser", () => {
 
   it("rejects a 2nd request while one is pending (busy) without notifying again", async () => {
     const { notify, payloads } = makeFakeNotify();
-    const first = requestSecretFromUser("FIRST", undefined, notify);
+    const first = requestSecretFromUser("FIRST", undefined, null, notify);
 
-    const second = await requestSecretFromUser("SECOND", undefined, notify);
+    const second = await requestSecretFromUser(
+      "SECOND",
+      undefined,
+      null,
+      notify,
+    );
     expect(second).toEqual({ vaulted: false, busy: true });
     // The fake was NOT called a 2nd time -- no second modal was opened.
     expect(payloads).toHaveLength(1);
@@ -102,14 +136,14 @@ describe("requestSecretFromUser", () => {
   it("resolves {vaulted:false} with no window, leaving no stuck pending entry", async () => {
     const { notify: noWindow, payloads } = makeFakeNotify(false);
     await expect(
-      requestSecretFromUser("API_KEY", "hint", noWindow),
+      requestSecretFromUser("API_KEY", "hint", null, noWindow),
     ).resolves.toEqual({ vaulted: false });
     expect(payloads).toHaveLength(1);
 
     // A subsequent request still works (the no-window path left nothing pending),
     // so this one is NOT reported busy and reaches a live fake.
     const { notify: ok, payloads: okPayloads } = makeFakeNotify();
-    const p = requestSecretFromUser("NEXT", undefined, ok);
+    const p = requestSecretFromUser("NEXT", undefined, null, ok);
     expect(okPayloads).toHaveLength(1);
     resolveSecretRequest(nth(okPayloads, 0).requestId, true);
     await expect(p).resolves.toEqual({ vaulted: true });
@@ -118,14 +152,14 @@ describe("requestSecretFromUser", () => {
   it("times out to {vaulted:false, timedOut:true} and clears pending for the next request", async () => {
     vi.useFakeTimers();
     const { notify, payloads } = makeFakeNotify();
-    const p = requestSecretFromUser("API_KEY", "hint", notify);
+    const p = requestSecretFromUser("API_KEY", "hint", null, notify);
 
     // Advance well past the 5-minute timeout with no resolve.
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
     await expect(p).resolves.toEqual({ vaulted: false, timedOut: true });
 
     // Pending was cleared by the timeout -- a new request is NOT busy.
-    const second = requestSecretFromUser("AGAIN", undefined, notify);
+    const second = requestSecretFromUser("AGAIN", undefined, null, notify);
     expect(payloads).toHaveLength(2);
     resolveSecretRequest(nth(payloads, 1).requestId, true);
     await expect(second).resolves.toEqual({ vaulted: true });
@@ -252,7 +286,12 @@ describe("cross-flow agent-modal busy guard", () => {
   it("a pending secret request makes a terminal grant for an ungranted pty report busy without notifying", async () => {
     const { notify: secretNotify, payloads } = makeFakeNotify();
     // Leave this secret request pending (do not resolve) -- a modal is open.
-    const secret = requestSecretFromUser("X_SECRET", undefined, secretNotify);
+    const secret = requestSecretFromUser(
+      "X_SECRET",
+      undefined,
+      null,
+      secretNotify,
+    );
 
     const grantNotify = vi.fn<GrantNotifier>(() => true);
     const write = vi.fn(() => true);
@@ -285,6 +324,7 @@ describe("cross-flow agent-modal busy guard", () => {
     const second = await requestSecretFromUser(
       "Y_SECRET",
       undefined,
+      null,
       secretNotify,
     );
     expect(second).toEqual({ vaulted: false, busy: true });
@@ -311,7 +351,12 @@ describe("cross-flow agent-modal busy guard", () => {
 
     // Now open (and leave pending) a secret request.
     const { notify: secretNotify, payloads } = makeFakeNotify();
-    const secret = requestSecretFromUser("Z_SECRET", undefined, secretNotify);
+    const secret = requestSecretFromUser(
+      "Z_SECRET",
+      undefined,
+      null,
+      secretNotify,
+    );
 
     // The already-granted pty short-circuits before the busy guard: no notify,
     // resolves {granted:true} (here surfaced as {sent:true} after the write).

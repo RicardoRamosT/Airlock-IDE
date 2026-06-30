@@ -13,17 +13,24 @@ import {
 // A testable factory that owns just the token<->root maps and derivation.
 // The module-level singleton delegates to an instance of this.
 export function makeScopeRegistry(opts: { installSalt: string }): {
-  tokenForRoot(root: string): Promise<string>;
+  // Register or return the token for root, optionally using a precomputed
+  // projectId to avoid a second realpath call when the caller already has it.
+  tokenForRoot(root: string, precomputedProjectId?: string): Promise<string>;
   rootForToken(token: string | null): string | null;
 } {
   const tokenToRoot = new Map<string, string>();
   const rootToToken = new Map<string, string>();
 
   return {
-    async tokenForRoot(root: string): Promise<string> {
+    async tokenForRoot(
+      root: string,
+      precomputedProjectId?: string,
+    ): Promise<string> {
       const cached = rootToToken.get(root);
       if (cached) return cached;
-      const projectId = await projectIdFor(root);
+      // Use the precomputed projectId when provided (avoids a double realpath
+      // when the caller -- ensureProjectScope -- already resolved it for the dir).
+      const projectId = precomputedProjectId ?? (await projectIdFor(root));
       const token = projectTokenFrom(opts.installSalt, projectId);
       tokenToRoot.set(token, root);
       rootToToken.set(root, token);
@@ -82,8 +89,10 @@ export async function ensureProjectScope(
   }
   const { getServer, userDataDir, realClaudeAbs } = scopeDeps;
 
+  // Compute projectId once: used for the dir path AND passed to tokenForRoot so
+  // the registry does not call projectIdFor a second time (avoids double realpath).
   const projectId = await projectIdFor(root);
-  const token = await registry.tokenForRoot(root);
+  const token = await registry.tokenForRoot(root, projectId);
 
   const dir = path.join(userDataDir, "session-mcp", projectId);
   await mkdir(dir, { recursive: true });
