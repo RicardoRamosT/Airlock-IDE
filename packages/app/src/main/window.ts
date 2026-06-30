@@ -116,10 +116,16 @@ export function lastFocusedWindow(): BrowserWindow | null {
 // rather than GUI focus. Returns null if no window has this root open.
 export function windowForRoot(root: string): BrowserWindow | null {
   for (const [id, r] of workspaceRoots) {
-    if (r === root) return BrowserWindow.fromId(id);
+    if (r === root) {
+      const w = BrowserWindow.fromId(id);
+      if (w && !w.isDestroyed()) return w;
+    }
   }
   for (const [id, set] of windowRoots) {
-    if (set.has(root)) return BrowserWindow.fromId(id);
+    if (set.has(root)) {
+      const w = BrowserWindow.fromId(id);
+      if (w && !w.isDestroyed()) return w;
+    }
   }
   return null;
 }
