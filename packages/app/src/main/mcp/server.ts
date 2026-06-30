@@ -67,11 +67,17 @@ export interface McpDeps {
     },
   ) => Promise<EnvFileImport[]>;
   notifySecretsChanged: (root: string) => void;
+  // Terminal deps now take an explicit root (the calling session's project) so
+  // the terminal list and tail are scoped to that project, not GUI focus. root
+  // null means no project -> getTerminalTail returns an error, listTerminals [].
   getTerminalTail: (
     termId: string,
     lines: number,
+    root: string | null,
   ) => Promise<{ tail: string } | { error: string }>;
-  listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  listTerminals: (
+    root: string | null,
+  ) => Promise<{ id: string; preview: string }[]>;
   // Gated agent input into a live pty for the send_terminal_input tool (main
   // wires gatedTerminalInput). Value-free outcome only -- never terminal output.
   sendTerminalInput: (

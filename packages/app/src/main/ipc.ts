@@ -154,8 +154,6 @@ import {
   allOpenRoots,
   clearRootForEvent,
   isOpenRoot,
-  lastFocusedRoot,
-  lastFocusedWindowId,
   rootForEvent,
   setRootForEvent,
   setWindowRoots,
@@ -175,12 +173,11 @@ const steadyCache: SteadyCache = {};
 const sessionWindows = new Map<string, number>();
 
 // Per-PTY owning project root (sessionId -> workspace root). One tabbed window
-// holds many projects' terminals at once, so window-scoping alone is too coarse:
-// the agent must see ONLY the active tab's terminals. switchTab fires
-// workspace:setActive, so lastFocusedRoot() == the active tab's root; a terminal
-// is the agent's iff sessionRoots.get(id) === lastFocusedRoot(). Recorded in
-// pty:create (from the PANE root the renderer passes at spawn; blank tabs have
-// none and are never agent-visible), deleted on exit / killAllSessions.
+// holds many projects' terminals at once. Each MCP session's terminal tools
+// receive the calling session's root (resolved from the URL path token) and
+// filter by sessionRoots.get(id) === root. Recorded in pty:create (from the
+// PANE root the renderer passes at spawn; blank tabs have none and are never
+// agent-visible), deleted on exit / killAllSessions.
 const sessionRoots = new Map<string, string>();
 
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
@@ -1814,24 +1811,19 @@ export function terminalPidsForRoot(
   return out;
 }
 
-// The redacted tail of one terminal's recent output. Root-gated + audited
-// (ids/counts only -- never the content). The MCP tool calls THIS (not
-// getSecretValue), so the tools.ts source-guard stays green.
+// The redacted tail of one terminal's recent output. Scoped to the PASSED root
+// (the calling session's project root, resolved from the URL path token -- not
+// GUI focus). Audited (ids/counts only, never content). The MCP tool calls THIS
+// (not getSecretValue), so the tools.ts source-guard stays green.
 export async function getTerminalTail(
   termId: string,
   lines: number,
+  root: string | null,
 ): Promise<{ tail: string } | { error: string }> {
-  const root = lastFocusedRoot();
   if (!root) return { error: "No workspace open" };
-  // Scope to the ACTIVE tab: a terminal is the agent's iff it was spawned under
-  // the now-active project's root (sessionRoots === lastFocusedRoot, kept current
-  // by switchTab -> workspace:setActive). The window filter is kept too -- it
-  // composes cleanly since the active tab lives in the focused window -- but the
-  // root filter is the precise one for tabs (many projects share one window).
-  const winId = lastFocusedWindowId();
-  if (winId !== null && sessionWindows.get(termId) !== winId) {
-    return { error: "No such terminal" };
-  }
+  // Scope to the calling session's project root only. The window filter is
+  // DROPPED: the caller's project may live in a non-focused window when multiple
+  // projects are open, so filtering by window would hide valid terminals.
   if (sessionRoots.get(termId) !== root) {
     return { error: "No such terminal" };
   }
@@ -1851,19 +1843,17 @@ export async function getTerminalTail(
 }
 
 // List live terminals with a short redacted content preview so the agent can
-// tell them apart (dev-server logs vs idle shell) and pick an id.
-export async function listTerminals(): Promise<
-  { id: string; preview: string }[]
-> {
-  const root = lastFocusedRoot();
-  const winId = lastFocusedWindowId();
-  const values = root ? await allVaultedValues(root) : [];
+// tell them apart (dev-server logs vs idle shell) and pick an id. Scoped to
+// the PASSED root (calling session's project, resolved from the path token).
+// The window filter is DROPPED (the project may be in a non-focused window).
+export async function listTerminals(
+  root: string | null,
+): Promise<{ id: string; preview: string }[]> {
+  if (!root) return [];
+  const values = await allVaultedValues(root);
   const out: { id: string; preview: string }[] = [];
   for (const id of sessions.keys()) {
-    // Same dual filter as getTerminalTail: window (kept, composes cleanly) plus
-    // the precise active-tab root filter so the agent lists ONLY the terminals
-    // of the project whose tab is active (sessionRoots === lastFocusedRoot).
-    if (winId !== null && sessionWindows.get(id) !== winId) continue;
+    // Filter by the caller's project root only (not window focus).
     if (sessionRoots.get(id) !== root) continue;
     const raw = ptyBuffers.get(id) ?? "";
     out.push({ id, preview: redactedPreview(raw, values, PREVIEW_LINES) });

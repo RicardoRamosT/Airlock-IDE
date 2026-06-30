@@ -31,6 +31,7 @@ async function startOnEphemeralPort(
     rootForToken: rootForToken ?? (() => null),
     getBaseEnv: () => ({}),
     requestSecretFromUser: async () => ({ vaulted: true }),
+    // Terminal deps take root as extra params in Task 4; stubs here accept/ignore.
     getTerminalTail: async () => ({ tail: "" }),
     listTerminals: async () => [],
     // Stub the gated terminal-input dep so the McpDeps literal type-checks; the

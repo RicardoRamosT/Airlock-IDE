@@ -110,11 +110,17 @@ export interface ToolDeps {
   // Broadcast that a project's secrets changed (main-side import), so every
   // window's SECRETS section refetches live. Carries only the root path.
   notifySecretsChanged: (root: string) => void;
+  // Terminal deps now take an explicit root so the terminal list and tail are
+  // scoped to the calling session's project, not GUI focus. root null means no
+  // project -> getTerminalTail returns an error, listTerminals returns [].
   getTerminalTail: (
     termId: string,
     lines: number,
+    root: string | null,
   ) => Promise<{ tail: string } | { error: string }>;
-  listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  listTerminals: (
+    root: string | null,
+  ) => Promise<{ id: string; preview: string }[]>;
   // Gated terminal input for send_terminal_input: writes agent input into a live
   // pty AFTER a one-time per-terminal user grant (modal). Returns a value-free
   // outcome (sent/denied/timedOut/busy/error) -- never terminal output or a
@@ -559,9 +565,10 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       },
     },
     async ({ terminalId, lines }) => {
-      if (!deps.getWorkspaceRoot()) return err(NO_WORKSPACE);
-      if (!terminalId) return ok(await deps.listTerminals());
-      const res = await deps.getTerminalTail(terminalId, lines ?? 40);
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      if (!terminalId) return ok(await deps.listTerminals(root));
+      const res = await deps.getTerminalTail(terminalId, lines ?? 40, root);
       return "error" in res ? err(res.error) : ok(res);
     },
   );

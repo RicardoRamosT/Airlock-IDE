@@ -72,10 +72,21 @@ const baseDeps = {
   getWorkspaceRoot: () => null as string | null,
   getBaseEnv: () => ({}) as Record<string, string>,
   requestSecretFromUser: vi.fn(async () => ({ vaulted: true })),
+  // Terminal deps now take root as the third/first param (scoped to calling
+  // session's project, not GUI focus). Test doubles accept and ignore it;
+  // per-test overrides can assert it when the call path matters.
   getTerminalTail: vi.fn(
-    async () => ({ tail: "" }) as { tail: string } | { error: string },
+    async (
+      _termId: string,
+      _lines: number,
+      _root: string | null,
+    ): Promise<{ tail: string } | { error: string }> => ({ tail: "" }),
   ),
-  listTerminals: vi.fn(async () => [] as { id: string; preview: string }[]),
+  listTerminals: vi.fn(
+    async (
+      _root: string | null,
+    ): Promise<{ id: string; preview: string }[]> => [],
+  ),
   getActivity: vi.fn(async () => [] as ActivityItem[]),
   dismissActivity: vi.fn((_entryId: string) => {}),
   // The injected batch env importer for import_env (the real one is agent-core's
@@ -372,8 +383,12 @@ describe("get_terminal_tail tool", () => {
   it("returns NO_WORKSPACE and calls NEITHER dep with no workspace open", async () => {
     // baseDeps.getWorkspaceRoot() is null, so the handler must short-circuit
     // before reaching listTerminals/getTerminalTail (which read PTY buffers).
-    const getTerminalTail = vi.fn(async () => ({ tail: "x" }));
-    const listTerminals = vi.fn(async () => []);
+    const getTerminalTail = vi.fn(
+      async () => ({ tail: "x" }) as { tail: string } | { error: string },
+    );
+    const listTerminals = vi.fn(
+      async (_root: string | null) => [] as { id: string; preview: string }[],
+    );
     const tool = getTerminalTailTool({
       ...baseDeps,
       getTerminalTail,
@@ -389,10 +404,12 @@ describe("get_terminal_tail tool", () => {
     expect(listTerminals).not.toHaveBeenCalled();
   });
 
-  it("with a root and NO terminalId, calls listTerminals and returns the list", async () => {
+  it("with a root and NO terminalId, calls listTerminals(root) and returns the list", async () => {
     const list = [{ id: "t1", preview: "npm run dev" }];
-    const getTerminalTail = vi.fn(async () => ({ tail: "x" }));
-    const listTerminals = vi.fn(async () => list);
+    const getTerminalTail = vi.fn(
+      async () => ({ tail: "x" }) as { tail: string } | { error: string },
+    );
+    const listTerminals = vi.fn(async (_root: string | null) => list);
     const tool = getTerminalTailTool({
       ...baseDeps,
       getWorkspaceRoot: () => "/repo",
@@ -403,15 +420,21 @@ describe("get_terminal_tail tool", () => {
       content: [{ text: string }];
       isError?: boolean;
     };
-    expect(listTerminals).toHaveBeenCalledTimes(1);
+    // root is threaded so listTerminals can scope to the calling session's project.
+    expect(listTerminals).toHaveBeenCalledWith("/repo");
     expect(getTerminalTail).not.toHaveBeenCalled();
     expect(res.isError).toBeUndefined();
     expect(JSON.parse(res.content[0].text)).toEqual(list);
   });
 
-  it("with a root and a terminalId, calls getTerminalTail(id, lines) and returns the tail", async () => {
-    const getTerminalTail = vi.fn(async () => ({ tail: "build ok" }));
-    const listTerminals = vi.fn(async () => []);
+  it("with a root and a terminalId, calls getTerminalTail(id, lines, root) and returns the tail", async () => {
+    const getTerminalTail = vi.fn(
+      async () =>
+        ({ tail: "build ok" }) as { tail: string } | { error: string },
+    );
+    const listTerminals = vi.fn(
+      async (_root: string | null) => [] as { id: string; preview: string }[],
+    );
     const tool = getTerminalTailTool({
       ...baseDeps,
       getWorkspaceRoot: () => "/repo",
@@ -422,15 +445,20 @@ describe("get_terminal_tail tool", () => {
       content: [{ text: string }];
       isError?: boolean;
     };
-    expect(getTerminalTail).toHaveBeenCalledWith("t1", 10);
+    // root is threaded through so the dep can scope to the calling session's project.
+    expect(getTerminalTail).toHaveBeenCalledWith("t1", 10, "/repo");
     expect(listTerminals).not.toHaveBeenCalled();
     expect(res.isError).toBeUndefined();
     expect(JSON.parse(res.content[0].text)).toEqual({ tail: "build ok" });
   });
 
   it("defaults lines to 40 when only a terminalId is given", async () => {
-    const getTerminalTail = vi.fn(async () => ({ tail: "" }));
-    const listTerminals = vi.fn(async () => []);
+    const getTerminalTail = vi.fn(
+      async () => ({ tail: "" }) as { tail: string } | { error: string },
+    );
+    const listTerminals = vi.fn(
+      async (_root: string | null) => [] as { id: string; preview: string }[],
+    );
     const tool = getTerminalTailTool({
       ...baseDeps,
       getWorkspaceRoot: () => "/repo",
@@ -438,12 +466,17 @@ describe("get_terminal_tail tool", () => {
       listTerminals,
     });
     await tool.handler({ terminalId: "t1" });
-    expect(getTerminalTail).toHaveBeenCalledWith("t1", 40);
+    // root is threaded through; default lines is 40.
+    expect(getTerminalTail).toHaveBeenCalledWith("t1", 40, "/repo");
   });
 
   it("surfaces a getTerminalTail {error} result as isError", async () => {
-    const getTerminalTail = vi.fn(async () => ({ error: "No such terminal" }));
-    const listTerminals = vi.fn(async () => []);
+    const getTerminalTail = vi.fn(
+      async () => ({ error: "No such terminal" }) as { error: string },
+    );
+    const listTerminals = vi.fn(
+      async (_root: string | null) => [] as { id: string; preview: string }[],
+    );
     const tool = getTerminalTailTool({
       ...baseDeps,
       getWorkspaceRoot: () => "/repo",
