@@ -7,19 +7,28 @@ import { TOOL_NAMES } from "./tools";
 
 const TOKEN = "test-token-abc123";
 
+// A rootForToken factory for tests: maps a fixed token -> root pair.
+function makeRootForToken(
+  map: Record<string, string>,
+): (token: string | null) => string | null {
+  return (token) => (token ? (map[token] ?? null) : null);
+}
+
 // Always tear the server down so a failed assertion cannot leave a listener
 // bound and fail the next test.
 afterEach(async () => {
   await stopMcpServer();
 });
 
-async function startOnEphemeralPort(): Promise<number> {
+async function startOnEphemeralPort(
+  rootForToken?: (token: string | null) => string | null,
+): Promise<number> {
   const dir = await mkdtemp(path.join(tmpdir(), "airlock-mcp-srv-"));
   const prefsFile = path.join(dir, "prefs.json");
   // Port 0 -> the OS assigns a free ephemeral port (no clash with a real run).
   await startMcpServer(0, {
     prefsFile,
-    getWorkspaceRoot: () => null,
+    rootForToken: rootForToken ?? (() => null),
     getBaseEnv: () => ({}),
     requestSecretFromUser: async () => ({ vaulted: true }),
     getTerminalTail: async () => ({ tail: "" }),
@@ -207,5 +216,63 @@ describe("MCP server handshake", () => {
     const port = await startOnEphemeralPort();
     const res = await fetch(`http://127.0.0.1:${port}/mcp`, { method: "GET" });
     expect(res.status).toBe(401);
+  });
+});
+
+// Per-request path token: the server resolves the project root from the URL path
+// /mcp/<token>. A missing/unknown token -> rootForToken returns null -> tools
+// answer NO_WORKSPACE (focus is NOT consulted). A known token -> the tool sees
+// that project's root.
+describe("MCP server per-request path token", () => {
+  // Sends a tools/call for list_secret_names (workspace-gated) and returns the
+  // parsed tool result (text content string), or throws on a non-200 status.
+  async function callListSecretNames(
+    port: number,
+    projectToken: string | null,
+  ): Promise<string> {
+    const urlPath = projectToken ? `/mcp/${projectToken}` : "/mcp";
+    const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "list_secret_names", arguments: {} },
+      }),
+    });
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "";
+    let json: Record<string, unknown> | null = null;
+    if (contentType.includes("text/event-stream")) {
+      const line = text
+        .split("\n")
+        .find((l) => l.startsWith("data:"))
+        ?.slice("data:".length)
+        .trim();
+      json = line ? JSON.parse(line) : null;
+    } else {
+      json = JSON.parse(text);
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: test helper
+    const result = (json as any)?.result;
+    return (result?.content?.[0]?.text as string) ?? "";
+  }
+
+  it("a missing path token (bare /mcp) yields NO_WORKSPACE for a workspace-gated tool", async () => {
+    // rootForToken always returns null -> unknown token -> refuse.
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    const text = await callListSecretNames(port, null);
+    expect(text).toBe("No workspace open");
+  });
+
+  it("an unknown path token yields NO_WORKSPACE for a workspace-gated tool", async () => {
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    const text = await callListSecretNames(port, "unknown-token-deadbeef");
+    expect(text).toBe("No workspace open");
   });
 });

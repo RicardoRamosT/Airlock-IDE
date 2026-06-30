@@ -799,7 +799,14 @@ export function registerIpc(
   });
 
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
-  ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
+  // installSalt is stripped before sending to the renderer -- it is main-only
+  // (used for per-project token derivation) and the renderer never needs it.
+  ipcMain.handle("prefs:get", async () => {
+    const prefs = await loadPrefs(prefsFile);
+    // biome-ignore lint/suspicious/noExplicitAny: strip main-only field
+    const { installSalt: _salt, ...rest } = prefs as any;
+    return rest;
+  });
 
   ipcMain.handle("quota:get", () => getQuota());
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
