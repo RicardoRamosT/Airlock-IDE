@@ -46,6 +46,10 @@ export {
   validateSecretName,
 } from "./broker/validators";
 export {
+  claudeProjectsDirName,
+  hasResumableClaudeSession,
+} from "./claude/session";
+export {
   type AgentCommandPolicy,
   classifyCommand,
   DEFAULT_AGENT_POLICY,
