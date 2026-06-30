@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { MAX_FILE_BYTES, readImageDataUrl, readWorkspaceFile } from "./read";
+import { MAX_FILE_BYTES, readImageDataUrl, readPdfDataUrl, readWorkspaceFile } from "./read";
 
 let root: string;
 
@@ -80,5 +80,21 @@ describe("readImageDataUrl", () => {
     const r = await readImageDataUrl(root, "huge.png", 50);
     expect(r.tooLarge).toBe(true);
     expect(r.dataUrl).toBe("");
+  });
+});
+
+describe("readPdfDataUrl", () => {
+  it("returns an application/pdf data URL under the cap", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "pdf-"));
+    await writeFile(path.join(dir, "a.pdf"), Buffer.from("%PDF-1.4\n%%EOF"));
+    const r = await readPdfDataUrl(dir, "a.pdf");
+    expect(r.tooLarge).toBe(false);
+    expect(r.dataUrl.startsWith("data:application/pdf;base64,")).toBe(true);
+  });
+  it("flags too-large over the cap", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "pdf-"));
+    await writeFile(path.join(dir, "big.pdf"), Buffer.alloc(2048));
+    const r = await readPdfDataUrl(dir, "big.pdf", 1024);
+    expect(r).toEqual({ dataUrl: "", tooLarge: true });
   });
 });

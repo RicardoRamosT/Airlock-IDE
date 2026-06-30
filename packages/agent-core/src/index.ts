@@ -315,6 +315,7 @@ export {
   type FileContent,
   MAX_FILE_BYTES,
   readImageDataUrl,
+  readPdfDataUrl,
   readWorkspaceFile,
 } from "./workspace/read";
 export {

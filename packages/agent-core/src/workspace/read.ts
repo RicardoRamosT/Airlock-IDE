@@ -71,6 +71,31 @@ const IMAGE_MIME: Record<string, string> = {
   avif: "image/avif",
 };
 
+// Inline a PDF as a data: URL for the built-in Chromium viewer. Mirrors
+// readImageDataUrl: vault-guarded, size-capped (default 50 MB) so a huge PDF
+// falls back to Open-externally instead of bloating the renderer.
+export async function readPdfDataUrl(
+  root: string,
+  relPath: string,
+  max = 50_000_000,
+): Promise<{ dataUrl: string; tooLarge: boolean }> {
+  if (targetsVault(relPath))
+    throw new Error("The .airlock folder is protected");
+  const abs = await resolveWithin(root, relPath);
+  const fh = await open(abs, "r");
+  try {
+    const { size } = await fh.stat();
+    if (size > max) return { dataUrl: "", tooLarge: true };
+    const buf = await fh.readFile();
+    return {
+      dataUrl: `data:application/pdf;base64,${buf.toString("base64")}`,
+      tooLarge: false,
+    };
+  } finally {
+    await fh.close();
+  }
+}
+
 // Read a (raster) image as a data URL for the renderer's <img>. Path-confined.
 // Over `max` bytes -> { dataUrl: "", tooLarge: true } so the caller can offer
 // "open externally". Never decodes as text. ASCII-only file.
