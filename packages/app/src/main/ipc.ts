@@ -125,6 +125,7 @@ import {
   onLspDiagnostics,
   syncLspServers,
 } from "./lsp/client";
+import { ensureProjectScope } from "./mcp/projectScope";
 import { getMcpPort } from "./mcp/server";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import {
@@ -1636,6 +1637,24 @@ export function registerIpc(
           }
         }
       }
+      // Per-project claude shim: scopes any claude launched in this terminal
+      // (auto or hand-typed) to THIS project's MCP endpoint. Blank tabs
+      // (root === null) get no shim and stay unscoped (refuse). PATH lives
+      // in baseEnv (from getBaseEnv()), NOT in secretEnv (which holds only
+      // vaulted secrets and must not contain PATH -- filterDangerousEnv
+      // would block it anyway). So prepend binDir to baseEnv PATH here.
+      const baseEnvObj = stampAirlockEnv(getBaseEnv());
+      if (root) {
+        try {
+          const { binDir } = await ensureProjectScope(root);
+          baseEnvObj.PATH = `${binDir}:${baseEnvObj.PATH ?? process.env.PATH ?? ""}`;
+        } catch (err) {
+          console.error(
+            "[pty:create] ensureProjectScope failed, spawning without shim:",
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
       const s = createPtySession({
         cwd: root ?? undefined,
         cols,
@@ -1643,7 +1662,7 @@ export function registerIpc(
         // Captured login-shell env + the AIRLOCK_IDE marker so a Claude session
         // here knows it is inside AirLock. Injected secrets (already filtered)
         // remain the per-call `env` and still win over baseEnv.
-        baseEnv: stampAirlockEnv(getBaseEnv()),
+        baseEnv: baseEnvObj,
         env: secretEnv,
       });
       sessions.set(s.id, s);
