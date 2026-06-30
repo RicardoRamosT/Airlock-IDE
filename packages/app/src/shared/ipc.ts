@@ -779,6 +779,10 @@ export interface AirlockApi {
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
   // http(s) URLs in the system browser.
   hostLocalUrl(root: string): Promise<string | null>;
+  // Common dev ports that are listening but not attributable to this project's
+  // terminals and not the managed server's port. Value-free (port numbers only).
+  // Gated: only when cfg.devCommand is set AND cfg.devUrl is unset.
+  hostUnverifiedServers(root: string): Promise<number[]>;
   hostProbe(url: string): Promise<{ up: boolean }>;
   hostOpenExternal(url: string): Promise<void>;
   // Managed dev server: main-side manager owns lifecycle (start/stop/register).

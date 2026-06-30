@@ -2,12 +2,15 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  COMMON_DEV_PORTS,
   type DevServerEvent,
   type DevServerState,
   devServerNextState,
+  excludeReservedPorts,
   IDLE_DEV_SERVER,
   pickListeningPortFromSubtree,
   pickUnmanagedServer,
+  pickUnverifiedPorts,
   readProjectConfig,
   resolveDevCommand,
   writeProjectConfig,
@@ -148,6 +151,28 @@ export function detectUnmanaged(
     .filter((t) => t.ptyId !== managed)
     .map((t) => ({ ptyId: t.ptyId, pids: subtreePids(t.pid) }));
   return pickUnmanagedServer(terminals, listeningPorts());
+}
+
+// Unverified servers for this project: common dev ports that are listening but
+// neither the managed server's port nor attributable to this project's
+// terminals. GATED: only when the project has a configured devCommand AND no
+// explicit devUrl (a set devUrl is shown by the clean devUrl-probe tier; this
+// is the fallback for the un-attributable / detached case). Value-free (ports).
+export async function hostUnverifiedServers(root: string): Promise<number[]> {
+  const cfg = await readProjectConfig(root);
+  if (!cfg.devCommand?.trim() || cfg.devUrl) return [];
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { terminalPidsForRoot } = require("../ipc") as typeof import("../ipc");
+  const excluded = new Set<number>();
+  for (const t of terminalPidsForRoot(root))
+    for (const p of subtreePids(t.pid)) excluded.add(p);
+  const managedPort = get(root).port;
+  return pickUnverifiedPorts(
+    listeningPorts(),
+    excludeReservedPorts(COMMON_DEV_PORTS, process.platform),
+    excluded,
+    managedPort,
+  );
 }
 
 // Resolve the dev command for a root: explicit cfg.devCommand, else a guess

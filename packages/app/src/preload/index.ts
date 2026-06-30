@@ -143,6 +143,8 @@ const api: AirlockApi = {
   integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
+  hostUnverifiedServers: (root) =>
+    ipcRenderer.invoke("host:unverifiedServers", root),
   hostProbe: (url) => ipcRenderer.invoke("host:probe", url),
   hostOpenExternal: (url) => ipcRenderer.invoke("host:openExternal", url),
   devServerStatus: (root) => ipcRenderer.invoke("devserver:status", root),

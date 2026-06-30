@@ -87,6 +87,7 @@ import { getAnthropicStatus } from "./anthropicStatus/watch";
 import {
   detectUnmanaged,
   getDevServerState,
+  hostUnverifiedServers,
   onPtyExitForDevServer,
   registerDevServer,
   setDevServerCommand,
@@ -1487,6 +1488,9 @@ export function registerIpc(
   );
   ipcMain.handle("devserver:detectUnmanaged", (e, root: unknown) =>
     detectUnmanaged(resolveRoot(e, root)),
+  );
+  ipcMain.handle("host:unverifiedServers", (e, root: unknown) =>
+    hostUnverifiedServers(resolveRoot(e, root)),
   );
 
   // Activity-rail status dots: one aggregate read fanning out to docker/db/host/
