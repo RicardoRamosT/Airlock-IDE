@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { CLAUDE_CONTINUE_COMMAND, useApp } from "../store";
+import { CLAUDE_AUTO_COMMAND, CLAUDE_CONTINUE_COMMAND, useApp } from "../store";
 import { planRestore } from "./sessionRestore";
 
 // On startup: read the snapshot and (if enabled) reopen the projects, restore
@@ -78,28 +78,44 @@ export function useSessionRestore(): void {
     })();
   }, [layoutHydrated]);
 
-  // (2) Focus-gated resume: when the active tab is pending and has a live
-  // terminal, inject claude --continue once. Re-runs as tabTerminals updates
-  // (so it retries after the pty adopts).
   const activeTabId = useApp((s) => s.activeTabId);
-  // tabTerminals + pendingResume are intentional change-triggers (the body reads
-  // fresh state via useApp.getState()): tabTerminals re-fires this effect as a
-  // pty adopts (so the resume retries until sendToClaudeTerminal succeeds), and
-  // pendingResume re-fires it when restore marks a tab AFTER activeTabId is
-  // already the restored tab (otherwise the mark would be missed).
   const tabTerminals = useApp((s) => s.tabTerminals);
   const pendingResume = useApp((s) => s.pendingResume);
+  // Per-tab resolved resume command (continue vs fresh), and an in-flight guard so
+  // the async session check runs at most once per tab while the effect re-fires on
+  // tabTerminals/pendingResume changes (retrying until the pty adopts).
+  const resumeCmd = useRef<Map<string, string>>(new Map());
+  const resolving = useRef<Set<string>>(new Set());
   // biome-ignore lint/correctness/useExhaustiveDependencies: trigger deps, not used in the body
   useEffect(() => {
     const s = useApp.getState();
     if (!s.pendingResume.has(activeTabId)) return;
-    // sendToClaudeTerminal returns false if no pty has adopted yet -> keep the
-    // marker and retry on the next tabTerminals change.
-    if (s.sendToClaudeTerminal(CLAUDE_CONTINUE_COMMAND, activeTabId)) {
-      s.consumePendingResume(activeTabId);
-      // Claim the resumed terminal as the tab's claudeAutoId so hadClaude stays
-      // true and the tab resumes again on the NEXT restart (not just once).
-      s.adoptResumedClaude(activeTabId);
+    const inject = (cmd: string) => {
+      // sendToClaudeTerminal returns false until a pty adopts -> keep the marker
+      // and retry on the next tabTerminals change.
+      if (useApp.getState().sendToClaudeTerminal(cmd, activeTabId)) {
+        useApp.getState().consumePendingResume(activeTabId);
+        useApp.getState().adoptResumedClaude(activeTabId);
+      }
+    };
+    const cached = resumeCmd.current.get(activeTabId);
+    if (cached !== undefined) {
+      inject(cached);
+      return;
     }
+    if (resolving.current.has(activeTabId)) return;
+    resolving.current.add(activeTabId);
+    const root = s.tabState[activeTabId]?.root ?? null;
+    const decide = root
+      ? window.airlock.hasResumableSession(root).catch(() => false)
+      : Promise.resolve(false);
+    void decide.then((has) => {
+      const cmd = has ? CLAUDE_CONTINUE_COMMAND : CLAUDE_AUTO_COMMAND;
+      resumeCmd.current.set(activeTabId, cmd);
+      resolving.current.delete(activeTabId);
+      // If the pty is already live, inject now; otherwise the next tabTerminals
+      // tick re-fires this effect and injects the cached command.
+      if (useApp.getState().pendingResume.has(activeTabId)) inject(cmd);
+    });
   }, [activeTabId, tabTerminals, pendingResume]);
 }
