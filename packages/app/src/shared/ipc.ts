@@ -602,6 +602,11 @@ export interface AirlockApi {
     root: string,
     relPath: string,
   ): Promise<{ dataUrl: string; tooLarge: boolean }>;
+  // Inline a PDF as a data: URL (Chromium viewer). tooLarge => offer Open Externally.
+  readPdfDataUrl(
+    root: string,
+    relPath: string,
+  ): Promise<{ dataUrl: string; tooLarge: boolean }>;
   // Open a workspace file in the OS default app (binary files / oversized
   // images). Path-confined; the .airlock vault is rejected.
   openExternalFile(root: string, relPath: string): Promise<void>;

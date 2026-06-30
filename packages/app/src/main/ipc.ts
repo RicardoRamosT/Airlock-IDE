@@ -46,6 +46,7 @@ import {
   probePort,
   readAudit,
   readImageDataUrl,
+  readPdfDataUrl,
   readOrder,
   readProjectConfig,
   readRows,
@@ -492,6 +493,11 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
     return readImageDataUrl(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:readPdf", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return readPdfDataUrl(resolveRoot(e, root), relPath);
   });
   ipcMain.handle(
     "fs:openExternalFile",
