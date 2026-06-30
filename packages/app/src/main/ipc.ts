@@ -25,6 +25,7 @@ import {
   gitFileVersions,
   gitPull,
   gitPush,
+  hasResumableClaudeSession,
   INTEGRATIONS,
   importAllDotEnv,
   importExternal,
@@ -475,6 +476,11 @@ export function registerIpc(
     } catch {
       return false;
     }
+  });
+
+  ipcMain.handle("claude:hasResumableSession", (_e, root: unknown) => {
+    if (typeof root !== "string") throw new Error("Invalid payload");
+    return hasResumableClaudeSession(root);
   });
 
   ipcMain.handle("overview:get", async (e, root: unknown) => {

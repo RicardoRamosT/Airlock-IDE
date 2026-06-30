@@ -597,6 +597,10 @@ export interface AirlockApi {
   // root-gated and NOT an MCP/agent tool: the path comes from our own
   // session.json (no relPath join -> no path-traversal vector).
   dirExists(path: string): Promise<boolean>;
+  // True iff `claude --continue` in `root` has a conversation to resume (stats
+  // only ~/.claude/projects). Best-effort: returns false on any error so callers
+  // always fall back to a fresh claude (the safe direction).
+  hasResumableSession(root: string): Promise<boolean>;
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;
