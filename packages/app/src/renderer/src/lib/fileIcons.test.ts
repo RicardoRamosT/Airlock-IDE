@@ -48,4 +48,10 @@ describe("fileIconFor", () => {
     expect(fileIconFor("LICENSE")).toEqual({ kind: "codicon", icon: "file" });
     expect(fileIconFor("weird.xyz")).toEqual({ kind: "codicon", icon: "file" });
   });
+
+  it("maps excel extensions to a table icon", () => {
+    expect(fileIconFor("book.xlsx")).toMatchObject({ icon: "table" });
+    expect(fileIconFor("Report.XLS")).toMatchObject({ icon: "table" });
+    expect(fileIconFor("macro.xlsm")).toMatchObject({ icon: "table" });
+  });
 });
