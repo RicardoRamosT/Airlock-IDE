@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FileContent } from "../../../shared/ipc";
+import { isExcelPath } from "../lib/excelTypes";
 import { isImagePath } from "../lib/imageTypes";
 import { isPdfPath } from "../lib/pdfTypes";
 import { ProjectPaneContext } from "../lib/projectPane";
@@ -8,6 +9,7 @@ import { useApp } from "../store";
 import { BinaryNotice } from "./BinaryNotice";
 import { DataGrid } from "./DataGrid";
 import { EditorPane } from "./EditorPane";
+import { ExcelViewer } from "./ExcelViewer";
 import { ImagePreview } from "./ImagePreview";
 import { MainTabs } from "./MainTabs";
 import { PdfViewer } from "./PdfViewer";
@@ -121,6 +123,8 @@ export function ProjectPane({
           <ImagePreview key={relPath} root={root} relPath={relPath} />
         ) : isPdfPath(relPath) ? (
           <PdfViewer key={relPath} root={root} relPath={relPath} />
+        ) : isExcelPath(relPath) ? (
+          <ExcelViewer key={relPath} root={root} relPath={relPath} />
         ) : content.binary ? (
           <BinaryNotice
             key={relPath}
