@@ -336,4 +336,11 @@ export {
   resolveWithin,
   targetsVault,
 } from "./workspace/tree";
+export {
+  type ExcelAlign,
+  type ExcelCell,
+  type ExcelSheet,
+  readWorkbook,
+  type WorkbookData,
+} from "./workspace/workbook";
 export { writeWorkspaceFile } from "./workspace/write";

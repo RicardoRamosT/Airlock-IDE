@@ -10,6 +10,9 @@ import type {
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
+  ExcelAlign,
+  ExcelCell,
+  ExcelSheet,
   FileContent,
   FileVersions,
   GhAccount,
@@ -38,6 +41,7 @@ import type {
   SecretMeta,
   SteadyIntegration,
   TechCategory,
+  WorkbookData,
 } from "@airlock/agent-core";
 
 // DevServerState re-exported via import type only (erased at build — never a
@@ -71,6 +75,9 @@ export type {
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
+  ExcelAlign,
+  ExcelCell,
+  ExcelSheet,
   FileContent,
   FileVersions,
   GhAccount,
@@ -97,6 +104,7 @@ export type {
   SearchResults,
   SecretMeta,
   TechCategory,
+  WorkbookData,
 };
 
 export interface LspDiagnostic {
