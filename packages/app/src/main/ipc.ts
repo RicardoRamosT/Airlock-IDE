@@ -51,6 +51,7 @@ import {
   readPdfDataUrl,
   readProjectConfig,
   readRows,
+  readWorkbook,
   readWorkspaceFile,
   redactConnStrings,
   redactedPreview,
@@ -503,6 +504,11 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
     return readPdfDataUrl(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:readExcel", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return readWorkbook(resolveRoot(e, root), relPath);
   });
   ipcMain.handle(
     "fs:openExternalFile",

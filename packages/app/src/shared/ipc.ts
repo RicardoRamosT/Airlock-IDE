@@ -623,6 +623,9 @@ export interface AirlockApi {
     root: string,
     relPath: string,
   ): Promise<{ dataUrl: string; tooLarge: boolean }>;
+  // Parse an .xlsx/.xlsm workbook into WorkbookData for the inline viewer.
+  // tooLarge => offer Open Externally. ExcelJS runs main-side only.
+  readWorkbook(root: string, relPath: string): Promise<WorkbookData>;
   // Open a workspace file in the OS default app (binary files / oversized
   // images). Path-confined; the .airlock vault is rejected.
   openExternalFile(root: string, relPath: string): Promise<void>;
