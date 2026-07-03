@@ -213,6 +213,15 @@ export {
   pinnedEnabledManifests,
 } from "./integrations/summary";
 export {
+  type ConfigField,
+  type ConfigSchema,
+  CONNECTED_EXTENSIONS,
+  type ConnectedExtensionDescriptor,
+  type ConnectedStatus,
+  connectedSummary,
+  SLACK_DESCRIPTOR,
+} from "./integrations/connected";
+export {
   type ClaudeRunner,
   type McpRegisterInput,
   type McpRegisterResult,
