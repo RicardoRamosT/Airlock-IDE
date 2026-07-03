@@ -70,6 +70,9 @@ export type AuthSpec =
       // Which authorize param carries the scopes. Slack user tokens need
       // "user_scope"; most providers use "scope" (the default).
       scopeParam?: "scope" | "user_scope";
+      // How to join scopes in the authorize URL. RFC 6749 says space; Slack
+      // wants comma. Default " ".
+      scopeSep?: string;
     };
 
 // A connected extension's connection state (the runtime provider computes it):
@@ -133,6 +136,7 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
       "users:read",
     ],
     scopeParam: "user_scope",
+    scopeSep: ",",
   },
   configSchema: {
     fields: [

@@ -578,6 +578,19 @@ export interface PtyExitEvent {
   exitCode: number;
 }
 
+// What extensionsOAuthBegin returns -- the renderer's cue for how to complete a
+// secret-less login. "device" = show a code to type at verificationUri;
+// "browser" = the system browser is already opening, just wait. Both finish via
+// onExtensionOAuthResult.
+export type OAuthBeginResult =
+  | {
+      kind: "device";
+      userCode: string;
+      verificationUri: string;
+      expiresIn: number;
+    }
+  | { kind: "browser" };
+
 /** Exposed on window.airlock by the preload script. */
 export interface AirlockApi {
   openFolder(): Promise<string | null>;
@@ -829,12 +842,10 @@ export interface AirlockApi {
   extensionsSlackChannels(
     root: string,
   ): Promise<{ id: string; name: string; isPrivate: boolean }[]>;
-  // Start an OAuth device-flow login for a connected extension: returns the code
-  // to show; the result arrives via onExtensionOAuthResult once the user approves.
-  extensionsOAuthBegin(
-    root: string,
-    id: string,
-  ): Promise<{ userCode: string; verificationUri: string; expiresIn: number }>;
+  // Start a secret-less OAuth login (device or broker) for a connected
+  // extension. The return tells the renderer what to show; the final result
+  // arrives via onExtensionOAuthResult once the user approves.
+  extensionsOAuthBegin(root: string, id: string): Promise<OAuthBeginResult>;
   onExtensionOAuthResult(
     cb: (e: { id: string; ok: boolean; error?: string }) => void,
   ): () => void;
