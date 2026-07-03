@@ -107,6 +107,11 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
+import {
+  beginDeviceFlow,
+  oauthTokenName,
+  pollDeviceToken,
+} from "./extensions/oauth/device";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { slackAllChannels } from "./extensions/slack";
 import { syncWindowWatchers } from "./fsWatch";
@@ -1722,6 +1727,40 @@ export function registerIpc(
   // source" hook can generalize it later).
   ipcMain.handle("extensions:slackChannels", (e, root: unknown) =>
     slackAllChannels(resolveRoot(e, root)),
+  );
+
+  // extensions:oauthBegin -> start the OAuth device flow for a connected
+  // extension: return the code to show the user, and (fire-and-forget) POLL until
+  // they approve, then vault the token per-project and push extensions:oauthResult
+  // to the window. No secret, no redirect, no server -- the device grant just polls.
+  ipcMain.handle(
+    "extensions:oauthBegin",
+    async (e, root: unknown, id: unknown) => {
+      if (typeof id !== "string") throw new Error("Invalid payload");
+      const r = resolveRoot(e, root);
+      const spec = CONNECTED_EXTENSIONS.find((x) => x.id === id)?.authSpec;
+      if (spec?.flow !== "device") {
+        throw new Error(`No device-flow auth for ${id}`);
+      }
+      const code = await beginDeviceFlow(spec);
+      void pollDeviceToken(spec, code.deviceCode, code.interval, code.expiresIn)
+        .then(async (token) => {
+          await setSecret(r, oauthTokenName(id), token);
+          e.sender.send("extensions:oauthResult", { id, ok: true });
+        })
+        .catch((err) =>
+          e.sender.send("extensions:oauthResult", {
+            id,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      return {
+        userCode: code.userCode,
+        verificationUri: code.verificationUri,
+        expiresIn: code.expiresIn,
+      };
+    },
   );
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast

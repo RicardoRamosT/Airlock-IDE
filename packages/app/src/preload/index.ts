@@ -158,6 +158,13 @@ const api: AirlockApi = {
     ipcRenderer.invoke("extensions:disconnect", root, id),
   extensionsSlackChannels: (root) =>
     ipcRenderer.invoke("extensions:slackChannels", root),
+  extensionsOAuthBegin: (root, id) =>
+    ipcRenderer.invoke("extensions:oauthBegin", root, id),
+  onExtensionOAuthResult: (cb) =>
+    subscribe<{ id: string; ok: boolean; error?: string }>(
+      "extensions:oauthResult",
+      cb,
+    ),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostUnverifiedServers: (root) =>

@@ -829,6 +829,15 @@ export interface AirlockApi {
   extensionsSlackChannels(
     root: string,
   ): Promise<{ id: string; name: string; isPrivate: boolean }[]>;
+  // Start an OAuth device-flow login for a connected extension: returns the code
+  // to show; the result arrives via onExtensionOAuthResult once the user approves.
+  extensionsOAuthBegin(
+    root: string,
+    id: string,
+  ): Promise<{ userCode: string; verificationUri: string; expiresIn: number }>;
+  onExtensionOAuthResult(
+    cb: (e: { id: string; ok: boolean; error?: string }) => void,
+  ): () => void;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
