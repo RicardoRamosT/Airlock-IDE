@@ -152,6 +152,10 @@ const api: AirlockApi = {
     ipcRenderer.invoke("extensions:getConfig", root, id),
   extensionsSetConfig: (root, id, cfg) =>
     ipcRenderer.invoke("extensions:setConfig", root, id, cfg),
+  extensionsConnect: (root, id, secret) =>
+    ipcRenderer.invoke("extensions:connect", root, id, secret),
+  extensionsDisconnect: (root, id) =>
+    ipcRenderer.invoke("extensions:disconnect", root, id),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostUnverifiedServers: (root) =>

@@ -6,6 +6,9 @@ import { promisify } from "node:util";
 import {
   appendAudit,
   buildExtensionSummaries,
+  CONNECTED_EXTENSIONS,
+  type ConnectedStatus,
+  connectedSummary,
   createBranch,
   createDir,
   createFile,
@@ -104,6 +107,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
+import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -1640,7 +1644,20 @@ export function registerIpc(
         statuses[m.id] = status;
       }),
     );
-    return buildExtensionSummaries(INTEGRATIONS, statuses, ext);
+    const tier1 = buildExtensionSummaries(INTEGRATIONS, statuses, ext);
+    // Tier-2 connected extensions (e.g. Slack): status is per-project (a token
+    // vaulted for the focused root). No root -> unauthed (can't check).
+    const connected = await Promise.all(
+      CONNECTED_EXTENSIONS.map(async (d) => {
+        const provider = CONNECTED_PROVIDERS[d.id];
+        const status: ConnectedStatus =
+          root && provider
+            ? await provider.status(root).catch((): ConnectedStatus => "error")
+            : "unauthed";
+        return connectedSummary(d, status, ext);
+      }),
+    );
+    return [...tier1, ...connected];
   });
 
   // extensions:getConfig/setConfig -> a connected extension's PER-PROJECT config
@@ -1668,6 +1685,33 @@ export function registerIpc(
         extensions: { ...cur, [id]: cfg as Record<string, unknown> },
       });
       return saved.extensions?.[id] ?? {};
+    },
+  );
+
+  // extensions:connect/disconnect -> a connected provider's in-app auth. connect
+  // receives a pasted token (the ONE place a secret value crosses IPC, exactly
+  // like secrets:set) and the provider validates it then vaults it main-side;
+  // the token never returns to the renderer. disconnect removes the vaulted token.
+  ipcMain.handle(
+    "extensions:connect",
+    (e, root: unknown, id: unknown, secret: unknown) => {
+      if (typeof id !== "string" || typeof secret !== "string") {
+        throw new Error("Invalid payload");
+      }
+      const provider = CONNECTED_PROVIDERS[id];
+      if (!provider) throw new Error(`Unknown extension: ${id}`);
+      return provider.connect(resolveRoot(e, root), secret);
+    },
+  );
+
+  ipcMain.handle(
+    "extensions:disconnect",
+    async (e, root: unknown, id: unknown) => {
+      if (typeof id !== "string") throw new Error("Invalid payload");
+      const provider = CONNECTED_PROVIDERS[id];
+      if (!provider) throw new Error(`Unknown extension: ${id}`);
+      await provider.disconnect(resolveRoot(e, root));
+      return { ok: true };
     },
   );
 

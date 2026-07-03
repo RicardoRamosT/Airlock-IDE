@@ -816,6 +816,14 @@ export interface AirlockApi {
     id: string,
     cfg: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
+  // Connect a Tier-2 extension by pasting a token (validated + vaulted main-side;
+  // the token never returns). detail = e.g. the Slack workspace on success.
+  extensionsConnect(
+    root: string,
+    id: string,
+    secret: string,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }>;
+  extensionsDisconnect(root: string, id: string): Promise<{ ok: boolean }>;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
