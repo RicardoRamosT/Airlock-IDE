@@ -47,4 +47,18 @@ describe("project config", () => {
     const reread = await readProjectConfig(root);
     expect(reread.devCommand).toBe("npm run dev");
   });
+
+  it("persists per-extension config (e.g. Slack channel allow-list)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await writeProjectConfig(root, {
+      extensions: { slack: { channels: ["C123", "C456"] } },
+    });
+    const reread = await readProjectConfig(root);
+    expect(reread.extensions?.slack).toEqual({ channels: ["C123", "C456"] });
+    // A later top-level patch (devUrl) leaves extensions intact (shallow merge).
+    await writeProjectConfig(root, { devUrl: "http://localhost:3000" });
+    expect((await readProjectConfig(root)).extensions?.slack).toEqual({
+      channels: ["C123", "C456"],
+    });
+  });
 });

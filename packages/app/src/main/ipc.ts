@@ -1643,6 +1643,34 @@ export function registerIpc(
     return buildExtensionSummaries(INTEGRATIONS, statuses, ext);
   });
 
+  // extensions:getConfig/setConfig -> a connected extension's PER-PROJECT config
+  // (non-secret; e.g. Slack's channel allow-list = the permission wall). Stored
+  // in .airlock/config.json under extensions.<id>. Secrets (tokens) never go here
+  // -- they live in the vault. Root-scoped like config:get/set.
+  ipcMain.handle(
+    "extensions:getConfig",
+    async (e, root: unknown, id: unknown) => {
+      if (typeof id !== "string") throw new Error("Invalid payload");
+      const cfg = await readProjectConfig(resolveRoot(e, root));
+      return cfg.extensions?.[id] ?? {};
+    },
+  );
+
+  ipcMain.handle(
+    "extensions:setConfig",
+    async (e, root: unknown, id: unknown, cfg: unknown) => {
+      if (typeof id !== "string" || !cfg || typeof cfg !== "object") {
+        throw new Error("Invalid payload");
+      }
+      const r = resolveRoot(e, root);
+      const cur = (await readProjectConfig(r)).extensions ?? {};
+      const saved = await writeProjectConfig(r, {
+        extensions: { ...cur, [id]: cfg as Record<string, unknown> },
+      });
+      return saved.extensions?.[id] ?? {};
+    },
+  );
+
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
   // so every window's ActivitySection refetches the filtered feed live. The same
   // path the later MCP dismiss tool will reuse. A new run/deploy (new id) reappears.

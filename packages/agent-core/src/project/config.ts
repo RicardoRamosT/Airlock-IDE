@@ -21,6 +21,10 @@ export interface ProjectConfig {
   // => the sole account if there's exactly one, else the user picks. Stores only
   // the account id (a reference); the API key lives in the keychain.
   neonAccountId?: string;
+  // Per-project config for connected extensions (Tier-2), keyed by extension id.
+  // Non-secret only -- e.g. Slack's channel allow-list (the permission wall).
+  // Secrets (the Slack token) live in the vault, never here. Absent => none.
+  extensions?: Record<string, Record<string, unknown>>;
 }
 
 const DEFAULTS: ProjectConfig = { injectSecretsIntoTerminal: false };

@@ -807,6 +807,15 @@ export interface AirlockApi {
   activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
   extensionsList(): Promise<ExtensionSummary[]>;
+  extensionsGetConfig(
+    root: string,
+    id: string,
+  ): Promise<Record<string, unknown>>;
+  extensionsSetConfig(
+    root: string,
+    id: string,
+    cfg: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
