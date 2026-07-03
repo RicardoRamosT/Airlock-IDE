@@ -40,17 +40,37 @@ export interface ConnectedExtensionDescriptor {
   configSchema: ConfigSchema;
 }
 
-// How a connected extension authenticates. Absent = "token" paste (Slack today).
-// "oauth2" flow "device" = the RFC 8628 device grant: no secret, no redirect, no
-// server -- the user approves a code in their browser and the app polls.
-export type AuthSpec = {
-  kind: "oauth2";
-  flow: "device";
-  clientId: string; // public: the device flow needs no secret
-  deviceCodeUrl: string;
-  tokenUrl: string;
-  scopes: string[];
-};
+// How a connected extension authenticates. Absent = "token" paste (legacy).
+// Two secret-less "log in -> connected" flows, both keeping AirLock free of any
+// embedded client secret:
+//   - "device" (RFC 8628): no secret, no redirect, no server -- the app shows a
+//     user code, the user approves in a browser, the app polls (GitHub).
+//   - "broker": for providers whose token exchange REQUIRES a client secret
+//     (Slack/Notion/Linear). The app opens the authorize URL (redirect = our
+//     stateless Cloudflare Worker), which does the exchange with the secret and
+//     hands the token back via a one-time ticket over airlock://. Only the
+//     PUBLIC client id + broker base URL live here.
+export type AuthSpec =
+  | {
+      kind: "oauth2";
+      flow: "device";
+      clientId: string; // public: the device flow needs no secret
+      deviceCodeUrl: string;
+      tokenUrl: string;
+      scopes: string[];
+    }
+  | {
+      kind: "oauth2";
+      flow: "broker";
+      clientId: string; // public: the secret lives only in the Worker
+      authorizeUrl: string; // provider's consent screen
+      brokerBaseUrl: string; // our Worker; /callback is the redirect, /redeem hands back
+      brokerProvider: string; // the Worker's provider key (state prefix + secret lookup)
+      scopes: string[];
+      // Which authorize param carries the scopes. Slack user tokens need
+      // "user_scope"; most providers use "scope" (the default).
+      scopeParam?: "scope" | "user_scope";
+    };
 
 // A connected extension's connection state (the runtime provider computes it):
 // unauthed = no/invalid token; connected = token present + valid; error = probe
@@ -82,12 +102,38 @@ export function connectedSummary(
 // Slack: the first connected extension. Claude reads context ONLY from channels
 // the user allow-lists (the `channels` field = the permission wall). Hub-only
 // (no category). The token is vaulted per-project by the provider.
+//
+// Connect is one-click via the OAuth BROKER (Slack's exchange needs a client
+// secret, so no device flow). Task-0 config: SLACK_CLIENT_ID is your Slack app's
+// PUBLIC client id; SLACK_BROKER_URL is your deployed Worker's base URL. The
+// client SECRET stays in Cloudflare -- never here. Empty => not yet configured
+// (the engine surfaces a friendly "not configured" instead of a broken flow).
+const SLACK_CLIENT_ID = ""; // TODO(Task 0): Slack app Client ID (public)
+const SLACK_BROKER_URL = ""; // TODO(Task 0): https://airlock-auth.<acct>.workers.dev
+
 export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
   id: "slack",
   name: "Slack",
   icon: "comment-discussion",
   description:
     "Let Claude read context from Slack channels you explicitly allow.",
+  authSpec: {
+    kind: "oauth2",
+    flow: "broker",
+    clientId: SLACK_CLIENT_ID,
+    authorizeUrl: "https://slack.com/oauth/v2/authorize",
+    brokerBaseUrl: SLACK_BROKER_URL,
+    brokerProvider: "slack",
+    // User-token scopes: read the channels/groups the user can see + resolve
+    // member names. Slack requires these under `user_scope`, not `scope`.
+    scopes: [
+      "channels:history",
+      "channels:read",
+      "groups:history",
+      "users:read",
+    ],
+    scopeParam: "user_scope",
+  },
   configSchema: {
     fields: [
       {

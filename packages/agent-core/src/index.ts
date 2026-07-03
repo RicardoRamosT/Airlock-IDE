@@ -260,6 +260,7 @@ export {
   parseDeviceCode,
   parseDeviceToken,
 } from "./oauth/device";
+export { randomState } from "./oauth/state";
 export { ensureAirlockDir } from "./project/airlockDir";
 export {
   type ProjectConfig,
