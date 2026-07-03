@@ -31,6 +31,12 @@ describe("buildExtensionSummaries", () => {
     expect(a.pinned).toBe(true);
     expect(a.enabled).toBe(true);
     expect(a.icon).toBe("cloud");
+    // install/connect carried through from the manifest (for Hub action buttons)
+    expect(a.install?.command).toBe("brew install azure-cli");
+    expect(a.connect?.command).toBe("az login");
+    // vercel has neither -> undefined
+    expect(v.install).toBeUndefined();
+    expect(v.connect).toBeUndefined();
   });
 
   it("defaults a missing status to absent and missing prefs to enabled/unpinned", () => {

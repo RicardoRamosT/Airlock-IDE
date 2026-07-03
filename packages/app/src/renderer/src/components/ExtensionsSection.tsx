@@ -110,6 +110,34 @@ export function ExtensionsSection() {
                 <span className={statusDot(s.status)} />
                 <span className="db-name">{s.name}</span>
                 <span className="ext-actions">
+                  {s.status === "absent" && s.install && (
+                    <button
+                      type="button"
+                      className="row-action"
+                      aria-label={`Install ${s.name}`}
+                      title={s.install.command}
+                      onClick={() => {
+                        const c = s.install?.command;
+                        if (c) useApp.getState().runInNewTerminal(c);
+                      }}
+                    >
+                      <i className="codicon codicon-desktop-download" />
+                    </button>
+                  )}
+                  {s.status === "unauthed" && s.connect && (
+                    <button
+                      type="button"
+                      className="row-action"
+                      aria-label={`Connect ${s.name}`}
+                      title={s.connect.command}
+                      onClick={() => {
+                        const c = s.connect?.command;
+                        if (c) useApp.getState().runInNewTerminal(c);
+                      }}
+                    >
+                      <i className="codicon codicon-plug" />
+                    </button>
+                  )}
                   <input
                     type="checkbox"
                     aria-label={`Enable ${s.name}`}
