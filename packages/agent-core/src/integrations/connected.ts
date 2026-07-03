@@ -105,7 +105,7 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
 // GitHub: the first OAuth device-flow extension -- log in (no key), then Claude
 // can read issues you point it at for context. GITHUB_CLIENT_ID is your
 // registered AirLock OAuth app's client id (public; device flow needs no secret).
-const GITHUB_CLIENT_ID = "REPLACE_WITH_YOUR_OAUTH_APP_CLIENT_ID";
+const GITHUB_CLIENT_ID = "Ov23liInMBBIgWryAHdA";
 
 export const GITHUB_DESCRIPTOR: ConnectedExtensionDescriptor = {
   id: "github",
