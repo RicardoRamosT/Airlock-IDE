@@ -38,6 +38,10 @@ import type {
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
+import {
+  slackListAllowedChannelsTool,
+  slackReadChannelTool,
+} from "../extensions/slackTools";
 import { gatherProfile } from "../overview/gather";
 import { savePrefs } from "../prefs";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
@@ -161,6 +165,12 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
     getDevServerState: deps.getDevServerState,
     startDevServer: deps.startDevServer,
     stopDevServer: deps.stopDevServer,
+    // Slack tool logic lives in ../extensions/slackTools (it reads the vaulted
+    // token; kept out of tools.ts for the source-guard). The allow-list gate is
+    // enforced inside these.
+    slackListAllowedChannels: (root) => slackListAllowedChannelsTool(root),
+    slackReadChannel: (root, channel, limit) =>
+      slackReadChannelTool(root, channel, limit),
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

@@ -82,6 +82,8 @@ export const TOOL_NAMES: string[] = [
   "read_events",
   "start_dev_server",
   "stop_dev_server",
+  "slack_list_allowed_channels",
+  "slack_read_channel",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -169,6 +171,23 @@ export interface ToolDeps {
     startedBy: "user" | "agent",
   ) => Promise<DevServerStartResult>;
   stopDevServer: (root: string) => DevServerState;
+  // Slack connected-extension read deps (wired in server.ts, which reads the
+  // vaulted token -- kept OUT of this file so the source-guard stays green).
+  // slackReadChannel ENFORCES the per-project allow-list and returns { error }
+  // for a channel that is not allowed / Slack not connected; it never returns a
+  // token, only channel names + message text.
+  slackListAllowedChannels: (
+    root: string | null,
+  ) => Promise<{ channels: { id: string; name: string }[] }>;
+  slackReadChannel: (
+    root: string | null,
+    channel: string,
+    limit: number,
+  ) => Promise<{
+    channel?: string;
+    messages?: { ts: string; user: string; text: string }[];
+    error?: string;
+  }>;
 }
 
 // Wrap any JSON-able result in the SDK text-content shape the ping tool uses.
@@ -788,5 +807,50 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       if (!root) return err(NO_WORKSPACE);
       return ok(deps.stopDevServer(root));
     },
+  );
+
+  // --- Slack connected-extension tools (allow-list gated) ------------------
+  // slack_read_channel enforces the per-project allow-list in the injected dep
+  // and returns { error } for a channel that is not allowed / Slack not
+  // connected. Message text + channel names leave main; the token never does.
+  mcp.registerTool(
+    "slack_list_allowed_channels",
+    {
+      description:
+        "List the Slack channels the user has allow-listed for THIS project -- the ONLY channels slack_read_channel can read. Returns channel names + ids (no messages, no token). Empty when Slack is not connected or nothing is allowed.",
+      inputSchema: {},
+    },
+    async () =>
+      ok(await deps.slackListAllowedChannels(deps.getWorkspaceRoot())),
+  );
+
+  mcp.registerTool(
+    "slack_read_channel",
+    {
+      description:
+        "Read recent messages from an ALLOW-LISTED Slack channel for the focused project (to pull context on a problem discussed there). `channel` is an id or name from slack_list_allowed_channels. REFUSES any channel not on the allow-list and returns { error } when Slack is not connected. Returns message text (user + ts) -- never a token.",
+      inputSchema: {
+        channel: z
+          .string()
+          .describe(
+            'An allow-listed channel id or name (e.g. "bugs" or "C123").',
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("How many recent messages (default 20, max 100)."),
+      },
+    },
+    async ({ channel, limit }) =>
+      ok(
+        await deps.slackReadChannel(
+          deps.getWorkspaceRoot(),
+          channel,
+          limit ?? 20,
+        ),
+      ),
   );
 }
