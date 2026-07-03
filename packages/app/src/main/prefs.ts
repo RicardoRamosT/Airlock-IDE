@@ -30,6 +30,7 @@ export const SECTIONS: Section[] = [
   "databases",
   "docker",
   "host",
+  "extensions",
   "audit",
   "events",
 ];
@@ -42,6 +43,7 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   databases: true,
   docker: true,
   host: true,
+  extensions: true,
   audit: true,
   events: true,
 };
@@ -120,6 +122,16 @@ export function sanitizeAgentPolicy(value: unknown): AgentCommandPolicy {
   return out;
 }
 
+// installSalt: a 32-hex random string generated once and persisted so token
+// derivation is stable across launches. OPTIONAL: absent until first needed.
+// Only a valid 32-hex string is passed through; anything else is dropped so
+// the caller re-generates and persists it.
+function sanitizeInstallSalt(raw: unknown): string | undefined {
+  return typeof raw === "string" && /^[0-9a-f]{32}$/.test(raw)
+    ? raw
+    : undefined;
+}
+
 // Pass the MCP identity through only when fully well-formed: port a finite
 // number and token a non-empty string. Anything else (absent, partial, wrong
 // types) returns undefined so the field is dropped and ensureMcpConfig will
@@ -187,6 +199,27 @@ export function sanitizeDefaultTerminal(raw: unknown): string {
   return typeof raw === "string" && TERMINAL_IDS.has(raw) ? raw : "airlock";
 }
 
+// Extension Hub per-integration prefs. Keep every string key whose value is an
+// object, passing through only real boolean `enabled`/`pinned`. Returns
+// undefined when nothing valid remains so default prefs omit the key (matching
+// the optional `mcp`/`installSalt` attach pattern -> toEqual(DEFAULTS) stays
+// exact).
+function sanitizeExtensions(
+  raw: unknown,
+): Record<string, { enabled?: boolean; pinned?: boolean }> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, { enabled?: boolean; pinned?: boolean }> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== "object") continue;
+    const r = v as Record<string, unknown>;
+    const e: { enabled?: boolean; pinned?: boolean } = {};
+    if (typeof r.enabled === "boolean") e.enabled = r.enabled;
+    if (typeof r.pinned === "boolean") e.pinned = r.pinned;
+    out[k] = e;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function sanitize(raw: unknown): AppPrefs {
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
   const r = raw as Record<string, unknown>;
@@ -241,7 +274,25 @@ function sanitize(raw: unknown): AppPrefs {
   // toEqual against the defaults (which have no mcp key) stays exact.
   const mcp = sanitizeMcp(r.mcp);
   if (mcp) out.mcp = mcp;
+  // Only attach installSalt when a valid 32-hex string; absent until generated.
+  const installSalt = sanitizeInstallSalt(r.installSalt);
+  if (installSalt) out.installSalt = installSalt;
+  // Only attach extensions when at least one valid entry survives.
+  const extensions = sanitizeExtensions(r.extensions);
+  if (extensions) out.extensions = extensions;
   return out;
+}
+
+// Strip main-only fields before the renderer sees a prefs value.
+// installSalt is an HMAC salt for per-project MCP token derivation; the
+// renderer never needs it. mcp.token is intentionally preserved (pre-existing
+// behavior; the renderer uses it to connect to the local MCP server).
+export function publicPrefs(p: AppPrefs): AppPrefs {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { installSalt: _salt, ...rest } = p as AppPrefs & {
+    installSalt?: unknown;
+  };
+  return rest as AppPrefs;
 }
 
 export async function loadPrefs(file: string): Promise<AppPrefs> {

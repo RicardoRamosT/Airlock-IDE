@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SectionVisibility } from "../shared/ipc";
-import { loadPrefs, sanitizeDefaultTerminal, savePrefs } from "./prefs";
+import {
+  loadPrefs,
+  publicPrefs,
+  sanitizeDefaultTerminal,
+  savePrefs,
+} from "./prefs";
 
 describe("app prefs", () => {
   it("returns defaults when the file is absent", async () => {
@@ -21,6 +26,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -83,6 +89,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -141,6 +148,39 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).restoreSession).toBe(false);
   });
 
+  it("extensions prefs: absent by default, sanitized, and round-trip", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    // absent by default (optional attach, like mcp) -> undefined
+    const absent = path.join(dir, "absent.json");
+    expect((await loadPrefs(absent)).extensions).toBeUndefined();
+    // non-object entries dropped; only boolean enabled/pinned survive
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(
+      wrong,
+      JSON.stringify({
+        extensions: {
+          azure: { pinned: true, enabled: false, junk: 1 },
+          bad: "nope",
+          empty: { pinned: "yes" },
+        },
+      }),
+    );
+    expect((await loadPrefs(wrong)).extensions).toEqual({
+      azure: { pinned: true, enabled: false },
+      empty: {},
+    });
+    // a fully-invalid map collapses to undefined (nothing to attach)
+    const none = path.join(dir, "none.json");
+    await writeFile(none, JSON.stringify({ extensions: { x: 1, y: "z" } }));
+    expect((await loadPrefs(none)).extensions).toBeUndefined();
+    // round-trip a real patch
+    const file = path.join(dir, "prefs.json");
+    await savePrefs(file, { extensions: { snowflake: { pinned: true } } });
+    expect((await loadPrefs(file)).extensions).toEqual({
+      snowflake: { pinned: true },
+    });
+  });
+
   it("sanitizes unknown/garbage fields", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     const file = path.join(dir, "prefs.json");
@@ -166,6 +206,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -206,6 +247,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -241,7 +283,7 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).theme).toBe("dark");
   });
 
-  it("defaults sectionVisibility to all nine sections visible", async () => {
+  it("defaults sectionVisibility to all ten sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -253,6 +295,7 @@ describe("app prefs", () => {
       databases: true,
       docker: true,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -273,6 +316,7 @@ describe("app prefs", () => {
       databases: true,
       docker: false,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -284,6 +328,7 @@ describe("app prefs", () => {
       databases: true,
       docker: false,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -301,6 +346,7 @@ describe("app prefs", () => {
       databases: true,
       docker: true,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -321,6 +367,7 @@ describe("app prefs", () => {
       databases: true,
       docker: true,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -444,5 +491,54 @@ describe("sanitizeDefaultTerminal", () => {
     expect(sanitizeDefaultTerminal("deleted-app")).toBe("airlock");
     expect(sanitizeDefaultTerminal(42)).toBe("airlock");
     expect(sanitizeDefaultTerminal(undefined)).toBe("airlock");
+  });
+});
+
+// publicPrefs: the renderer-safe view of AppPrefs -- installSalt must NEVER
+// reach the renderer. All other fields (including mcp.token) must pass through.
+describe("publicPrefs", () => {
+  it("strips installSalt from a prefs object that has one", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-public-"));
+    const file = path.join(dir, "prefs.json");
+    // Write a prefs file that includes installSalt so savePrefs returns it.
+    await writeFile(
+      file,
+      JSON.stringify({ installSalt: "abcdef1234567890abcdef1234567890" }),
+    );
+    const prefs = await loadPrefs(file);
+    // Verify the loaded value has installSalt (precondition).
+    expect(prefs.installSalt).toBe("abcdef1234567890abcdef1234567890");
+    // publicPrefs must remove it.
+    const pub = publicPrefs(prefs);
+    expect(pub).not.toHaveProperty("installSalt");
+  });
+
+  it("preserves all other fields including mcp.token", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-public-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        theme: "light",
+        mcp: { port: 9876, token: "tok-abc" },
+        installSalt: "abcdef1234567890abcdef1234567890",
+      }),
+    );
+    const prefs = await loadPrefs(file);
+    const pub = publicPrefs(prefs);
+    expect(pub.theme).toBe("light");
+    expect(pub.mcp?.token).toBe("tok-abc");
+    expect(pub.mcp?.port).toBe(9876);
+    expect(pub).not.toHaveProperty("installSalt");
+  });
+
+  it("works when installSalt is absent (no-op on a normal prefs)", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-public-"));
+    const prefs = await loadPrefs(path.join(dir, "absent.json"));
+    // No installSalt in default prefs -- publicPrefs should still work fine.
+    expect(prefs.installSalt).toBeUndefined();
+    const pub = publicPrefs(prefs);
+    expect(pub).not.toHaveProperty("installSalt");
+    expect(pub.theme).toBe("dark");
   });
 });

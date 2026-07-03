@@ -46,6 +46,10 @@ export {
   validateSecretName,
 } from "./broker/validators";
 export {
+  claudeProjectsDirName,
+  hasResumableClaudeSession,
+} from "./claude/session";
+export {
   type AgentCommandPolicy,
   classifyCommand,
   DEFAULT_AGENT_POLICY,
@@ -164,6 +168,17 @@ export {
 } from "./host/devserver";
 export { type PortProber, probePort } from "./host/probe";
 export {
+  type AuthSpec,
+  CONNECTED_EXTENSIONS,
+  type ConfigField,
+  type ConfigSchema,
+  type ConnectedExtensionDescriptor,
+  type ConnectedStatus,
+  connectedSummary,
+  GITHUB_DESCRIPTOR,
+  SLACK_DESCRIPTOR,
+} from "./integrations/connected";
+export {
   type CliRunner,
   type DetectStatus,
   detectStatus,
@@ -173,6 +188,7 @@ export {
   pollIntegrations,
   pollSteady,
   type RelevanceContext,
+  realRunner,
   runManifest,
   type SteadyCache,
   type SteadyIntegration,
@@ -200,6 +216,13 @@ export {
   SNOWFLAKE,
   VERCEL,
 } from "./integrations/registry";
+export {
+  buildExtensionSummaries,
+  type ExtensionSummary,
+  type ExtPrefs,
+  enabledManifests,
+  pinnedEnabledManifests,
+} from "./integrations/summary";
 export {
   type ClaudeRunner,
   type McpRegisterInput,
@@ -231,6 +254,12 @@ export {
   neonConnectionUri,
   resolveNeonAccountId,
 } from "./neon/client";
+export {
+  type DeviceCode,
+  type DeviceTokenResult,
+  parseDeviceCode,
+  parseDeviceToken,
+} from "./oauth/device";
 export { ensureAirlockDir } from "./project/airlockDir";
 export {
   type ProjectConfig,
@@ -278,6 +307,17 @@ export {
   parseEnvVars,
   servicesForRepo,
 } from "./render/parse";
+export {
+  authTest as slackAuthTest,
+  channelHistory as slackChannelHistory,
+  listChannels as slackListChannels,
+  type SlackTransport,
+} from "./slack/client";
+export type {
+  SlackAuth,
+  SlackChannel,
+  SlackMessage,
+} from "./slack/parse";
 export {
   detectInstalledTerminals,
   type ExternalTerminal,
@@ -332,4 +372,11 @@ export {
   resolveWithin,
   targetsVault,
 } from "./workspace/tree";
+export {
+  type ExcelAlign,
+  type ExcelCell,
+  type ExcelSheet,
+  readWorkbook,
+  type WorkbookData,
+} from "./workspace/workbook";
 export { writeWorkspaceFile } from "./workspace/write";

@@ -21,6 +21,7 @@
   --ficon-scss: #f55385;
   --ficon-img: #a074c4;
   --ficon-pdf: #cc3e44;
+  --ficon-xls: #217346;
   --ficon-env: #c6a93f;
   --ficon-git: #e37933;
   --ficon-test: #3ba776;
@@ -3121,6 +3122,65 @@ textarea:focus-visible {
   opacity: 0.6;
 }
 
+/* Extension Hub rows: a status row plus trailing enable/pin controls. The
+   whole controls group hangs to the right; the pin reveals on row hover unless
+   it is pinned (then it stays visible so the pinned state reads at a glance). */
+.ext-row .ext-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sb-gap);
+  flex: none;
+}
+.ext-row .ext-actions .row-action {
+  margin-left: 0;
+}
+.ext-row .ext-actions input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.ext-row:hover .row-action.reveal {
+  opacity: 1;
+}
+.ext-row.disabled .db-name,
+.ext-row.disabled > .codicon {
+  opacity: 0.55;
+}
+
+/* Slack channel allow-list picker (in the SlackChannelsModal). */
+.slack-channel-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.slack-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+/* OAuth device-flow user code: big, legible, easy to read + type. */
+.oauth-code {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 10px;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  user-select: all;
+}
+
 .db-row .codicon-chevron-down,
 .db-row .codicon-chevron-right {
   font-size: 14px;
@@ -3653,6 +3713,15 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   font-size: 13px;
 }
+
+/* Inline Excel (.xlsx/.xlsm) viewer */
+.xlsx-viewer-host { display: flex; flex-direction: column; width: 100%; height: 100%; }
+.xlsx-sheet-tabs { display: flex; gap: 4px; padding: 4px 6px; border-bottom: 1px solid var(--border); flex: 0 0 auto; overflow-x: auto; }
+.xlsx-sheet-tabs button { height: var(--control-h); padding: 0 8px; background: transparent; border: 1px solid transparent; border-radius: 4px; color: var(--fg-dim); cursor: pointer; white-space: nowrap; }
+.xlsx-sheet-tabs button.active { background: var(--bg-panel); color: var(--fg); }
+.xlsx-grid-scroll { flex: 1 1 auto; overflow: auto; }
+.xlsx-grid { border-collapse: collapse; font-size: 12px; }
+.xlsx-grid td { border: 1px solid var(--border); padding: 2px 6px; white-space: nowrap; vertical-align: top; }
 
 /* Find-in-files panel (window-level overlay; reuses .palette-backdrop). */
 .search-panel {

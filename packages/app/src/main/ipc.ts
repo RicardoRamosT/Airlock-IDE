@@ -5,17 +5,24 @@ import path from "node:path";
 import { promisify } from "node:util";
 import {
   appendAudit,
+  buildExtensionSummaries,
+  CONNECTED_EXTENSIONS,
+  type ConnectedStatus,
+  connectedSummary,
   createBranch,
   createDir,
   createFile,
   createPtySession,
+  type DetectStatus,
   deleteSecret,
   detectInstalledTerminals,
+  detectStatus,
   discardChanges,
   dockerStart,
   dockerStop,
   duplicate,
   type EventFilter,
+  enabledManifests,
   ensureAirlockDir,
   filterDangerousEnv,
   getGlobalSecret,
@@ -25,6 +32,7 @@ import {
   gitFileVersions,
   gitPull,
   gitPush,
+  hasResumableClaudeSession,
   INTEGRATIONS,
   importAllDotEnv,
   importExternal,
@@ -42,6 +50,7 @@ import {
   type PtySession,
   parseConnString,
   pingDb,
+  pinnedEnabledManifests,
   pollSteady,
   probePort,
   readAudit,
@@ -50,7 +59,9 @@ import {
   readPdfDataUrl,
   readProjectConfig,
   readRows,
+  readWorkbook,
   readWorkspaceFile,
+  realRunner,
   redactConnStrings,
   redactedPreview,
   redactedTail,
@@ -96,6 +107,13 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
+import {
+  beginDeviceFlow,
+  oauthTokenName,
+  pollDeviceToken,
+} from "./extensions/oauth/device";
+import { CONNECTED_PROVIDERS } from "./extensions/provider";
+import { slackAllChannels } from "./extensions/slack";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -125,6 +143,7 @@ import {
   onLspDiagnostics,
   syncLspServers,
 } from "./lsp/client";
+import { ensureProjectScope } from "./mcp/projectScope";
 import { getMcpPort } from "./mcp/server";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import {
@@ -137,6 +156,7 @@ import {
 import { gatherProfile } from "./overview/gather";
 import {
   loadPrefs,
+  publicPrefs,
   RECENT_CAP,
   SECTIONS,
   sanitizeAgentPolicy,
@@ -154,8 +174,6 @@ import {
   allOpenRoots,
   clearRootForEvent,
   isOpenRoot,
-  lastFocusedRoot,
-  lastFocusedWindowId,
   rootForEvent,
   setRootForEvent,
   setWindowRoots,
@@ -169,18 +187,22 @@ const sessions = new Map<string, PtySession>();
 // manifest's everyMs cadence holds regardless of how often the sidebar polls.
 const steadyCache: SteadyCache = {};
 
+// Per-manifest detect-status cache for the Extension Hub list (extensions:list),
+// throttled to each manifest's poll.everyMs so opening the Hub view doesn't
+// re-spawn every CLI on each poll tick. Persisted across IPC calls.
+const extDetectCache: Record<string, { at: number; status: DetectStatus }> = {};
+
 // Per-PTY owning window (sessionId -> BrowserWindow id). Terminal-reading agent
 // tools are scoped to the agent's (last-focused) window, so a window only ever
 // sees + reads its OWN terminals. Recorded in pty:create, deleted on exit.
 const sessionWindows = new Map<string, number>();
 
 // Per-PTY owning project root (sessionId -> workspace root). One tabbed window
-// holds many projects' terminals at once, so window-scoping alone is too coarse:
-// the agent must see ONLY the active tab's terminals. switchTab fires
-// workspace:setActive, so lastFocusedRoot() == the active tab's root; a terminal
-// is the agent's iff sessionRoots.get(id) === lastFocusedRoot(). Recorded in
-// pty:create (from the PANE root the renderer passes at spawn; blank tabs have
-// none and are never agent-visible), deleted on exit / killAllSessions.
+// holds many projects' terminals at once. Each MCP session's terminal tools
+// receive the calling session's root (resolved from the URL path token) and
+// filter by sessionRoots.get(id) === root. Recorded in pty:create (from the
+// PANE root the renderer passes at spawn; blank tabs have none and are never
+// agent-visible), deleted on exit / killAllSessions.
 const sessionRoots = new Map<string, string>();
 
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
@@ -478,6 +500,11 @@ export function registerIpc(
     }
   });
 
+  ipcMain.handle("claude:hasResumableSession", (_e, root: unknown) => {
+    if (typeof root !== "string") throw new Error("Invalid payload");
+    return hasResumableClaudeSession(root);
+  });
+
   ipcMain.handle("overview:get", async (e, root: unknown) => {
     if (typeof root !== "string" || !isOpenRoot(e, root))
       throw new Error("Invalid or unopened root");
@@ -498,6 +525,11 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     assertNotVault(relPath);
     return readPdfDataUrl(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle("fs:readExcel", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    assertNotVault(relPath);
+    return readWorkbook(resolveRoot(e, root), relPath);
   });
   ipcMain.handle(
     "fs:openExternalFile",
@@ -799,7 +831,12 @@ export function registerIpc(
   });
 
   // App-global prefs: NOT requireRoot-gated (work with no folder open).
-  ipcMain.handle("prefs:get", () => loadPrefs(prefsFile));
+  // installSalt is stripped before sending to the renderer -- it is main-only
+  // (used for per-project token derivation) and the renderer never needs it.
+  ipcMain.handle("prefs:get", async () => {
+    const prefs = await loadPrefs(prefsFile);
+    return publicPrefs(prefs);
+  });
 
   ipcMain.handle("quota:get", () => getQuota());
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
@@ -853,7 +890,7 @@ export function registerIpc(
         console.warn("[airlock] run-app skill reconcile failed", e),
       );
     }
-    return saved;
+    return publicPrefs(saved);
   });
 
   // App-global (NOT requireRoot-gated): toggle a sidebar section's visibility.
@@ -1558,7 +1595,15 @@ export function registerIpc(
   // names only (no keychain prompt).
   ipcMain.handle("integrations:steady", async (e) => {
     const root = rootForEvent(e);
-    const all = await pollSteady(INTEGRATIONS, root, Date.now(), steadyCache);
+    // Category views (Host/Databases) show an integration ONLY when the user has
+    // pinned it in the Extension Hub -- default is Hub-only, keeping the sidebar
+    // clean. (Disabled integrations are excluded too, via pinnedEnabledManifests.)
+    const prefs = await loadPrefs(prefsFile);
+    const manifests = pinnedEnabledManifests(
+      INTEGRATIONS,
+      prefs.extensions ?? {},
+    );
+    const all = await pollSteady(manifests, root, Date.now(), steadyCache);
     if (!root) return all; // no focused project -> nothing to disambiguate
     const secretNames = (await listSecrets(root)).map((m) => m.name);
     let rootFiles: string[] = [];
@@ -1567,12 +1612,156 @@ export function registerIpc(
     } catch {
       // unreadable root (deleted/permissions): fall back to no file signal
     }
-    const byId = new Map(INTEGRATIONS.map((m) => [m.id, m]));
+    const byId = new Map(manifests.map((m) => [m.id, m]));
     return all.filter((s) => {
       const m = byId.get(s.id);
       return m ? isRelevant(m, { secretNames, rootFiles }) : true;
     });
   });
+
+  // extensions:list -> ExtensionSummary[] for the Extension Hub view. Detects
+  // EVERY manifest (regardless of surface) so the Hub is the one place that lists
+  // all integrations, throttled per-id by poll.everyMs, then folds prefs
+  // (enabled/pinned). Detect (an auth check) never mutates; a failure degrades to
+  // "absent" so a missing/slow CLI never breaks the list.
+  ipcMain.handle("extensions:list", async (e) => {
+    const root = rootForEvent(e);
+    const prefs = await loadPrefs(prefsFile);
+    const ext = prefs.extensions ?? {};
+    const now = Date.now();
+    const statuses: Record<string, DetectStatus> = {};
+    // Detect only ENABLED manifests (a disabled integration is "not polled" --
+    // buildExtensionSummaries reports it as "disabled" regardless of status).
+    await Promise.all(
+      enabledManifests(INTEGRATIONS, ext).map(async (m) => {
+        const cached = extDetectCache[m.id];
+        if (cached && now - cached.at < m.poll.everyMs) {
+          statuses[m.id] = cached.status;
+          return;
+        }
+        const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
+        const status = await detectStatus(
+          m,
+          cwd,
+          m.poll.timeoutMs ?? 8000,
+          realRunner,
+        ).catch((): DetectStatus => "absent");
+        extDetectCache[m.id] = { at: now, status };
+        statuses[m.id] = status;
+      }),
+    );
+    const tier1 = buildExtensionSummaries(INTEGRATIONS, statuses, ext);
+    // Tier-2 connected extensions (e.g. Slack): status is per-project (a token
+    // vaulted for the focused root). No root -> unauthed (can't check).
+    const connected = await Promise.all(
+      CONNECTED_EXTENSIONS.map(async (d) => {
+        const provider = CONNECTED_PROVIDERS[d.id];
+        const status: ConnectedStatus =
+          root && provider
+            ? await provider.status(root).catch((): ConnectedStatus => "error")
+            : "unauthed";
+        return connectedSummary(d, status, ext);
+      }),
+    );
+    return [...tier1, ...connected];
+  });
+
+  // extensions:getConfig/setConfig -> a connected extension's PER-PROJECT config
+  // (non-secret; e.g. Slack's channel allow-list = the permission wall). Stored
+  // in .airlock/config.json under extensions.<id>. Secrets (tokens) never go here
+  // -- they live in the vault. Root-scoped like config:get/set.
+  ipcMain.handle(
+    "extensions:getConfig",
+    async (e, root: unknown, id: unknown) => {
+      if (typeof id !== "string") throw new Error("Invalid payload");
+      const cfg = await readProjectConfig(resolveRoot(e, root));
+      return cfg.extensions?.[id] ?? {};
+    },
+  );
+
+  ipcMain.handle(
+    "extensions:setConfig",
+    async (e, root: unknown, id: unknown, cfg: unknown) => {
+      if (typeof id !== "string" || !cfg || typeof cfg !== "object") {
+        throw new Error("Invalid payload");
+      }
+      const r = resolveRoot(e, root);
+      const cur = (await readProjectConfig(r)).extensions ?? {};
+      const saved = await writeProjectConfig(r, {
+        extensions: { ...cur, [id]: cfg as Record<string, unknown> },
+      });
+      return saved.extensions?.[id] ?? {};
+    },
+  );
+
+  // extensions:connect/disconnect -> a connected provider's in-app auth. connect
+  // receives a pasted token (the ONE place a secret value crosses IPC, exactly
+  // like secrets:set) and the provider validates it then vaults it main-side;
+  // the token never returns to the renderer. disconnect removes the vaulted token.
+  ipcMain.handle(
+    "extensions:connect",
+    (e, root: unknown, id: unknown, secret: unknown) => {
+      if (typeof id !== "string" || typeof secret !== "string") {
+        throw new Error("Invalid payload");
+      }
+      const provider = CONNECTED_PROVIDERS[id];
+      if (!provider) throw new Error(`Unknown extension: ${id}`);
+      return provider.connect(resolveRoot(e, root), secret);
+    },
+  );
+
+  ipcMain.handle(
+    "extensions:disconnect",
+    async (e, root: unknown, id: unknown) => {
+      if (typeof id !== "string") throw new Error("Invalid payload");
+      const provider = CONNECTED_PROVIDERS[id];
+      if (!provider) throw new Error(`Unknown extension: ${id}`);
+      await provider.disconnect(resolveRoot(e, root));
+      return { ok: true };
+    },
+  );
+
+  // extensions:slackChannels -> every channel the connected token can see, for
+  // the allow-list PICKER. Channel names/ids only (no messages, no token). []
+  // when Slack is not connected. Slack-specific for v1 (a generic "config option
+  // source" hook can generalize it later).
+  ipcMain.handle("extensions:slackChannels", (e, root: unknown) =>
+    slackAllChannels(resolveRoot(e, root)),
+  );
+
+  // extensions:oauthBegin -> start the OAuth device flow for a connected
+  // extension: return the code to show the user, and (fire-and-forget) POLL until
+  // they approve, then vault the token per-project and push extensions:oauthResult
+  // to the window. No secret, no redirect, no server -- the device grant just polls.
+  ipcMain.handle(
+    "extensions:oauthBegin",
+    async (e, root: unknown, id: unknown) => {
+      if (typeof id !== "string") throw new Error("Invalid payload");
+      const r = resolveRoot(e, root);
+      const spec = CONNECTED_EXTENSIONS.find((x) => x.id === id)?.authSpec;
+      if (spec?.flow !== "device") {
+        throw new Error(`No device-flow auth for ${id}`);
+      }
+      const code = await beginDeviceFlow(spec);
+      void pollDeviceToken(spec, code.deviceCode, code.interval, code.expiresIn)
+        .then(async (token) => {
+          await setSecret(r, oauthTokenName(id), token);
+          e.sender.send("extensions:oauthResult", { id, ok: true });
+        })
+        .catch((err) =>
+          e.sender.send("extensions:oauthResult", {
+            id,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      return {
+        userCode: code.userCode,
+        verificationUri: code.verificationUri,
+        expiresIn: code.expiresIn,
+      };
+    },
+  );
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
   // so every window's ActivitySection refetches the filtered feed live. The same
@@ -1633,6 +1822,24 @@ export function registerIpc(
           }
         }
       }
+      // Per-project claude shim: scopes any claude launched in this terminal
+      // (auto or hand-typed) to THIS project's MCP endpoint. Blank tabs
+      // (root === null) get no shim and stay unscoped (refuse). PATH lives
+      // in baseEnv (from getBaseEnv()), NOT in secretEnv (which holds only
+      // vaulted secrets and must not contain PATH -- filterDangerousEnv
+      // would block it anyway). So prepend binDir to baseEnv PATH here.
+      const baseEnvObj = stampAirlockEnv(getBaseEnv());
+      if (root) {
+        try {
+          const { binDir } = await ensureProjectScope(root);
+          baseEnvObj.PATH = `${binDir}:${baseEnvObj.PATH ?? process.env.PATH ?? ""}`;
+        } catch (err) {
+          console.error(
+            "[pty:create] ensureProjectScope failed, spawning without shim:",
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
       const s = createPtySession({
         cwd: root ?? undefined,
         cols,
@@ -1640,7 +1847,7 @@ export function registerIpc(
         // Captured login-shell env + the AIRLOCK_IDE marker so a Claude session
         // here knows it is inside AirLock. Injected secrets (already filtered)
         // remain the per-call `env` and still win over baseEnv.
-        baseEnv: stampAirlockEnv(getBaseEnv()),
+        baseEnv: baseEnvObj,
         env: secretEnv,
       });
       sessions.set(s.id, s);
@@ -1807,24 +2014,19 @@ export function terminalPidsForRoot(
   return out;
 }
 
-// The redacted tail of one terminal's recent output. Root-gated + audited
-// (ids/counts only -- never the content). The MCP tool calls THIS (not
-// getSecretValue), so the tools.ts source-guard stays green.
+// The redacted tail of one terminal's recent output. Scoped to the PASSED root
+// (the calling session's project root, resolved from the URL path token -- not
+// GUI focus). Audited (ids/counts only, never content). The MCP tool calls THIS
+// (not getSecretValue), so the tools.ts source-guard stays green.
 export async function getTerminalTail(
   termId: string,
   lines: number,
+  root: string | null,
 ): Promise<{ tail: string } | { error: string }> {
-  const root = lastFocusedRoot();
   if (!root) return { error: "No workspace open" };
-  // Scope to the ACTIVE tab: a terminal is the agent's iff it was spawned under
-  // the now-active project's root (sessionRoots === lastFocusedRoot, kept current
-  // by switchTab -> workspace:setActive). The window filter is kept too -- it
-  // composes cleanly since the active tab lives in the focused window -- but the
-  // root filter is the precise one for tabs (many projects share one window).
-  const winId = lastFocusedWindowId();
-  if (winId !== null && sessionWindows.get(termId) !== winId) {
-    return { error: "No such terminal" };
-  }
+  // Scope to the calling session's project root only. The window filter is
+  // DROPPED: the caller's project may live in a non-focused window when multiple
+  // projects are open, so filtering by window would hide valid terminals.
   if (sessionRoots.get(termId) !== root) {
     return { error: "No such terminal" };
   }
@@ -1844,19 +2046,17 @@ export async function getTerminalTail(
 }
 
 // List live terminals with a short redacted content preview so the agent can
-// tell them apart (dev-server logs vs idle shell) and pick an id.
-export async function listTerminals(): Promise<
-  { id: string; preview: string }[]
-> {
-  const root = lastFocusedRoot();
-  const winId = lastFocusedWindowId();
-  const values = root ? await allVaultedValues(root) : [];
+// tell them apart (dev-server logs vs idle shell) and pick an id. Scoped to
+// the PASSED root (calling session's project, resolved from the path token).
+// The window filter is DROPPED (the project may be in a non-focused window).
+export async function listTerminals(
+  root: string | null,
+): Promise<{ id: string; preview: string }[]> {
+  if (!root) return [];
+  const values = await allVaultedValues(root);
   const out: { id: string; preview: string }[] = [];
   for (const id of sessions.keys()) {
-    // Same dual filter as getTerminalTail: window (kept, composes cleanly) plus
-    // the precise active-tab root filter so the agent lists ONLY the terminals
-    // of the project whose tab is active (sessionRoots === lastFocusedRoot).
-    if (winId !== null && sessionWindows.get(id) !== winId) continue;
+    // Filter by the caller's project root only (not window focus).
     if (sessionRoots.get(id) !== root) continue;
     const raw = ptyBuffers.get(id) ?? "";
     out.push({ id, preview: redactedPreview(raw, values, PREVIEW_LINES) });

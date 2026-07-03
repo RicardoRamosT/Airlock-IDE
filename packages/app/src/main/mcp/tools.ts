@@ -82,6 +82,9 @@ export const TOOL_NAMES: string[] = [
   "read_events",
   "start_dev_server",
   "stop_dev_server",
+  "slack_list_allowed_channels",
+  "slack_read_channel",
+  "github_read_issue",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -93,7 +96,8 @@ export interface ToolDeps {
   getBaseEnv: () => Record<string, string>;
   requestSecretFromUser: (
     name: string,
-    providerHint?: string,
+    providerHint: string | undefined,
+    root: string | null,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
   // Batch-import env files into the vault for import_env (production wires
   // agent-core's importAllDotEnv in server.ts; tests inject a fake). Returns
@@ -110,11 +114,17 @@ export interface ToolDeps {
   // Broadcast that a project's secrets changed (main-side import), so every
   // window's SECRETS section refetches live. Carries only the root path.
   notifySecretsChanged: (root: string) => void;
+  // Terminal deps now take an explicit root so the terminal list and tail are
+  // scoped to the calling session's project, not GUI focus. root null means no
+  // project -> getTerminalTail returns an error, listTerminals returns [].
   getTerminalTail: (
     termId: string,
     lines: number,
+    root: string | null,
   ) => Promise<{ tail: string } | { error: string }>;
-  listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  listTerminals: (
+    root: string | null,
+  ) => Promise<{ id: string; preview: string }[]>;
   // Gated terminal input for send_terminal_input: writes agent input into a live
   // pty AFTER a one-time per-terminal user grant (modal). Returns a value-free
   // outcome (sent/denied/timedOut/busy/error) -- never terminal output or a
@@ -162,6 +172,38 @@ export interface ToolDeps {
     startedBy: "user" | "agent",
   ) => Promise<DevServerStartResult>;
   stopDevServer: (root: string) => DevServerState;
+  // Slack connected-extension read deps (wired in server.ts, which reads the
+  // vaulted token -- kept OUT of this file so the source-guard stays green).
+  // slackReadChannel ENFORCES the per-project allow-list and returns { error }
+  // for a channel that is not allowed / Slack not connected; it never returns a
+  // token, only channel names + message text.
+  slackListAllowedChannels: (
+    root: string | null,
+  ) => Promise<{ channels: { id: string; name: string }[] }>;
+  slackReadChannel: (
+    root: string | null,
+    channel: string,
+    limit: number,
+  ) => Promise<{
+    channel?: string;
+    messages?: { ts: string; user: string; text: string }[];
+    error?: string;
+  }>;
+  // GitHub read (device-flow OAuth). Reads the vaulted token main-side (kept OUT
+  // of this file for the source-guard) and returns the issue's title/body/state/
+  // url or an error -- never a token.
+  githubReadIssue: (
+    root: string | null,
+    owner: string,
+    repo: string,
+    issue: number,
+  ) => Promise<{
+    title?: string;
+    body?: string;
+    state?: string;
+    url?: string;
+    error?: string;
+  }>;
 }
 
 // Wrap any JSON-able result in the SDK text-content shape the ping tool uses.
@@ -559,9 +601,10 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       },
     },
     async ({ terminalId, lines }) => {
-      if (!deps.getWorkspaceRoot()) return err(NO_WORKSPACE);
-      if (!terminalId) return ok(await deps.listTerminals());
-      const res = await deps.getTerminalTail(terminalId, lines ?? 40);
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      if (!terminalId) return ok(await deps.listTerminals(root));
+      const res = await deps.getTerminalTail(terminalId, lines ?? 40, root);
       return "error" in res ? err(res.error) : ok(res);
     },
   );
@@ -604,7 +647,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     async ({ name, providerHint }) => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
-      return ok(await deps.requestSecretFromUser(name, providerHint));
+      return ok(await deps.requestSecretFromUser(name, providerHint, root));
     },
   );
 
@@ -780,5 +823,70 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       if (!root) return err(NO_WORKSPACE);
       return ok(deps.stopDevServer(root));
     },
+  );
+
+  // --- Slack connected-extension tools (allow-list gated) ------------------
+  // slack_read_channel enforces the per-project allow-list in the injected dep
+  // and returns { error } for a channel that is not allowed / Slack not
+  // connected. Message text + channel names leave main; the token never does.
+  mcp.registerTool(
+    "slack_list_allowed_channels",
+    {
+      description:
+        "List the Slack channels the user has allow-listed for THIS project -- the ONLY channels slack_read_channel can read. Returns channel names + ids (no messages, no token). Empty when Slack is not connected or nothing is allowed.",
+      inputSchema: {},
+    },
+    async () =>
+      ok(await deps.slackListAllowedChannels(deps.getWorkspaceRoot())),
+  );
+
+  mcp.registerTool(
+    "slack_read_channel",
+    {
+      description:
+        "Read recent messages from an ALLOW-LISTED Slack channel for the focused project (to pull context on a problem discussed there). `channel` is an id or name from slack_list_allowed_channels. REFUSES any channel not on the allow-list and returns { error } when Slack is not connected. Returns message text (user + ts) -- never a token.",
+      inputSchema: {
+        channel: z
+          .string()
+          .describe(
+            'An allow-listed channel id or name (e.g. "bugs" or "C123").',
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("How many recent messages (default 20, max 100)."),
+      },
+    },
+    async ({ channel, limit }) =>
+      ok(
+        await deps.slackReadChannel(
+          deps.getWorkspaceRoot(),
+          channel,
+          limit ?? 20,
+        ),
+      ),
+  );
+
+  // --- GitHub connected-extension tool (device-flow OAuth) -----------------
+  // Reads an issue via the vaulted token (in the injected dep, out of this file).
+  // Returns the issue text or { error } when GitHub is not connected -- no token.
+  mcp.registerTool(
+    "github_read_issue",
+    {
+      description:
+        "Read a GitHub issue (title, body, state, url) for context on a problem discussed there, using the project's connected GitHub login. Args: owner, repo, issue (number). Returns { error } when GitHub is not connected. Never returns a token.",
+      inputSchema: {
+        owner: z.string().describe('The repo owner/org, e.g. "anthropics".'),
+        repo: z.string().describe("The repository name."),
+        issue: z.number().int().describe("The issue number."),
+      },
+    },
+    async ({ owner, repo, issue }) =>
+      ok(
+        await deps.githubReadIssue(deps.getWorkspaceRoot(), owner, repo, issue),
+      ),
   );
 }

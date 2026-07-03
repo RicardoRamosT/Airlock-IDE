@@ -315,6 +315,9 @@ export interface AppState {
   setUpdateProgress: (p: UpdateProgress) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
+  // Extension Hub per-integration prefs (enabled/pinned), hydrated from
+  // AppPrefs.extensions. app-global (persisted). Keyed by integration id.
+  extensionsPrefs: Record<string, { enabled?: boolean; pinned?: boolean }>;
   claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
   defaultTerminal: string; // app-global (persisted): "airlock" or a terminal id
   layoutHydrated: boolean; // default false
@@ -342,6 +345,8 @@ export interface AppState {
           requestId: string;
           name: string;
           providerHint?: string;
+          root: string | null;
+          projectName: string | null;
         };
       }
     | {
@@ -354,6 +359,9 @@ export interface AppState {
       }
     | "connect-neon"
     | "connect-render"
+    | "connect-slack"
+    | "slack-channels"
+    | { oauthDevice: { id: string; name: string } }
     | "add-database"
     | null;
 
@@ -480,6 +488,13 @@ export interface AppState {
   setClipboardClearSeconds: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
   setActiveView: (v: Section) => void;
+  setExtensionsPrefs: (
+    v: Record<string, { enabled?: boolean; pinned?: boolean }>,
+  ) => void;
+  setExtensionPref: (
+    id: string,
+    patch: { enabled?: boolean; pinned?: boolean },
+  ) => void;
   setClaudeAutoStart: (v: ClaudeAutoStart) => void;
   setDefaultTerminal: (v: string) => void;
   openExternalTerminal: (tabId: string) => void;
@@ -780,10 +795,12 @@ export const useApp = create<AppState>((set) => ({
     databases: true,
     docker: true,
     host: true,
+    extensions: true,
     audit: true,
     events: true,
   },
   activeView: "files",
+  extensionsPrefs: {},
   claudeAutoStart: "first",
   defaultTerminal: "airlock",
   layoutHydrated: false,
@@ -1565,6 +1582,14 @@ export const useApp = create<AppState>((set) => ({
     set({ clipboardClearSeconds }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   setActiveView: (activeView) => set({ activeView }),
+  setExtensionsPrefs: (extensionsPrefs) => set({ extensionsPrefs }),
+  setExtensionPref: (id, patch) =>
+    set((s) => ({
+      extensionsPrefs: {
+        ...s.extensionsPrefs,
+        [id]: { ...s.extensionsPrefs[id], ...patch },
+      },
+    })),
   setClaudeAutoStart: (claudeAutoStart) => set({ claudeAutoStart }),
   setDefaultTerminal: (defaultTerminal) => set({ defaultTerminal }),
   // Launch the external terminal for tabId's project root (no-op if no root).

@@ -1,11 +1,16 @@
+import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
   captureLoginEnv,
   importAllDotEnv,
-  registerMcpServer,
   unregisterMcpServer,
 } from "@airlock/agent-core";
 import { app, BrowserWindow, ipcMain, nativeImage } from "electron";
+
+const execFileAsync = promisify(execFile);
+
 import { activityStatus, addDismissedActivity } from "./activity";
 import { registerAgentCommandIpc, runAgentCommand } from "./agent-commands";
 import {
@@ -39,14 +44,19 @@ import {
   writeTerminalInput,
 } from "./ipc";
 import { ensureMcpConfig } from "./mcp/config";
+import {
+  configureScope,
+  rootForToken,
+  seedOpenRoots,
+} from "./mcp/projectScope";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./mcp/server";
 import { applyAppMenu, applyDockMenu } from "./menu";
-import { loadPrefs } from "./prefs";
+import { loadPrefs, savePrefs } from "./prefs";
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { reconcileRunSkill } from "./runskill/wire";
 import { startUpdateCheck, stopUpdateCheck } from "./update/check";
-import { createWindow, lastFocusedRoot } from "./window";
+import { allOpenRoots, createWindow } from "./window";
 
 app.setName("AirLock");
 // The display name is "AirLock", but keep userData (prefs.json + the persisted
@@ -155,12 +165,51 @@ function bootstrap(): void {
     );
     applyDockMenu(prefs.openProjectsAsTabs, prefs.recentFolders);
 
+    // Carry-forward: generate installSalt if absent (needed by projectScope
+    // for per-project token derivation). Persisted once; stable across launches.
+    let installSalt = prefs.installSalt ?? "";
+    if (!installSalt) {
+      installSalt = randomBytes(16).toString("hex");
+      await savePrefs(prefsFile, { installSalt }).catch((e) =>
+        console.warn("[airlock] could not persist installSalt", e),
+      );
+    }
+
+    // Carry-forward: resolve the real claude binary once at startup so the
+    // per-project shim can bake an absolute fallback path. Null if not found.
+    let realClaudeAbs: string | null = null;
+    try {
+      const { stdout } = await execFileAsync("which", ["claude"]);
+      const resolved = stdout.trim();
+      if (resolved) realClaudeAbs = resolved;
+    } catch {
+      // claude not on PATH -- shim will still work if PATH is correct at spawn.
+    }
+
+    // Wire the project-scope registry: token derivation, shim/config rendering,
+    // and the per-request rootForToken lookup. Must be called before startMcpServer
+    // and before any pty spawn so ensureProjectScope is ready.
+    const userDataDir = app.getPath("userData");
+    const getServer = () => {
+      const p = getMcpPort();
+      return p ? { port: p, token } : null;
+    };
+    configureScope({ getServer, installSalt, userDataDir, realClaudeAbs });
+    // Pre-register tokens for roots already open (restored tabs) so rootForToken
+    // works for in-flight sessions before their first terminal spawn. Best-effort.
+    seedOpenRoots(allOpenRoots()).catch((e) =>
+      console.warn("[airlock] seedOpenRoots failed", e),
+    );
+
     // Stand up the local MCP server (loopback, bearer-guarded). A start failure
     // (e.g. a busy port we could not bump past) must NOT take down the app --
     // log and continue; the IDE works without the agent bridge.
     await startMcpServer(port, {
       prefsFile,
-      getWorkspaceRoot: lastFocusedRoot,
+      // Per-request root resolution: the server resolves the project root from
+      // the URL path token (/mcp/<token>), not from GUI focus. Unknown token ->
+      // null -> workspace-gated tools return NO_WORKSPACE (refuse).
+      rootForToken,
       getBaseEnv: () => loginEnv,
       requestSecretFromUser,
       getTerminalTail,
@@ -222,35 +271,11 @@ function bootstrap(): void {
     // dev (gated on app.isPackaged inside).
     startUpdateCheck(app.getVersion());
 
-    // Make airlock's tools native to every terminal `claude` in this app:
-    // register the MCP server in the user's global claude config so any claude
-    // session here loads it on startup -- no per-project setup, no restart, no
-    // manual `claude mcp add`. Removed again on quit (below) so a closed AirLock
-    // leaves no dead "airlock" server in unrelated terminals. Gated on a live
-    // bound port (skip if the server did not come up); idempotent + best-effort,
-    // so a failure never disrupts the app.
-    const livePort = getMcpPort();
-    if (livePort) {
-      const url = `http://127.0.0.1:${livePort}/mcp`;
-      void registerMcpServer({ url, token, scope: "user" })
-        .then((r) => {
-          if (!r.ok && r.reason === "not_found") {
-            // The `claude` CLI is not installed/on PATH; tell the user how to
-            // wire it up by hand. NEVER print the real token -- use a placeholder.
-            console.error(
-              `airlock: 'claude' CLI not found; to connect manually run: claude mcp add --transport http airlock ${url} --scope user --header "Authorization: Bearer <token>"`,
-            );
-          } else if (!r.ok) {
-            console.error("airlock: MCP registration failed:", r.message);
-          }
-        })
-        .catch((err) => {
-          console.error(
-            "airlock: MCP registration threw:",
-            err instanceof Error ? err.message : err,
-          );
-        });
-    }
+    // One-time migration: remove the stale account-wide user-scope airlock
+    // registration from any prior AirLock version. Per-project scoping via
+    // --mcp-config replaces it (Task 3). Idempotent and best-effort; a missing
+    // entry is fine.
+    void unregisterMcpServer({ scope: "user" }).catch(() => {});
   });
 
   app.on("before-quit", () => {

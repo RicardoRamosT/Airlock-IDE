@@ -38,12 +38,16 @@ const api: AirlockApi = {
   readFile: (root, relPath) => ipcRenderer.invoke("fs:readFile", root, relPath),
   exists: (root, relPath) => ipcRenderer.invoke("fs:exists", root, relPath),
   dirExists: (path) => ipcRenderer.invoke("fs:dirExists", path),
+  hasResumableSession: (root) =>
+    ipcRenderer.invoke("claude:hasResumableSession", root),
   writeFile: (root, relPath, content) =>
     ipcRenderer.invoke("fs:writeFile", root, relPath, content),
   readImageDataUrl: (root, relPath) =>
     ipcRenderer.invoke("fs:readImage", root, relPath),
   readPdfDataUrl: (root, relPath) =>
     ipcRenderer.invoke("fs:readPdf", root, relPath),
+  readWorkbook: (root, relPath) =>
+    ipcRenderer.invoke("fs:readExcel", root, relPath),
   openExternalFile: (root, relPath) =>
     ipcRenderer.invoke("fs:openExternalFile", root, relPath),
   createFile: (root, relPath) => ipcRenderer.invoke("fs:create", root, relPath),
@@ -143,6 +147,24 @@ const api: AirlockApi = {
   activityStatus: (root) => ipcRenderer.invoke("activity:status", root),
   activityDismiss: (id) => ipcRenderer.invoke("activity:dismiss", id),
   integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
+  extensionsList: () => ipcRenderer.invoke("extensions:list"),
+  extensionsGetConfig: (root, id) =>
+    ipcRenderer.invoke("extensions:getConfig", root, id),
+  extensionsSetConfig: (root, id, cfg) =>
+    ipcRenderer.invoke("extensions:setConfig", root, id, cfg),
+  extensionsConnect: (root, id, secret) =>
+    ipcRenderer.invoke("extensions:connect", root, id, secret),
+  extensionsDisconnect: (root, id) =>
+    ipcRenderer.invoke("extensions:disconnect", root, id),
+  extensionsSlackChannels: (root) =>
+    ipcRenderer.invoke("extensions:slackChannels", root),
+  extensionsOAuthBegin: (root, id) =>
+    ipcRenderer.invoke("extensions:oauthBegin", root, id),
+  onExtensionOAuthResult: (cb) =>
+    subscribe<{ id: string; ok: boolean; error?: string }>(
+      "extensions:oauthResult",
+      cb,
+    ),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostUnverifiedServers: (root) =>
@@ -196,10 +218,13 @@ const api: AirlockApi = {
   getAgentPolicy: () => ipcRenderer.invoke("agentPolicy:get"),
   setAgentPolicy: (policy) => ipcRenderer.invoke("agentPolicy:set", policy),
   onRequestSecret: (cb) =>
-    subscribe<{ requestId: string; name: string; providerHint?: string }>(
-      "agent:request-secret",
-      cb,
-    ),
+    subscribe<{
+      requestId: string;
+      name: string;
+      providerHint?: string;
+      root: string | null;
+      projectName: string | null;
+    }>("agent:request-secret", cb),
   requestSecretResolve: (requestId, vaulted) =>
     ipcRenderer.invoke("agent:request-secret-resolved", requestId, vaulted),
   onTerminalGrantRequest: (cb) =>

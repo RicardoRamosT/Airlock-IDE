@@ -10,6 +10,10 @@ import type {
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
+  ExcelAlign,
+  ExcelCell,
+  ExcelSheet,
+  ExtensionSummary,
   FileContent,
   FileVersions,
   GhAccount,
@@ -38,6 +42,7 @@ import type {
   SecretMeta,
   SteadyIntegration,
   TechCategory,
+  WorkbookData,
 } from "@airlock/agent-core";
 
 // DevServerState re-exported via import type only (erased at build — never a
@@ -55,6 +60,7 @@ export interface DetectedDevServer {
 }
 
 export type {
+  ExtensionSummary,
   IntegrationItem,
   ItemAction,
   ItemDetail,
@@ -71,6 +77,9 @@ export type {
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
+  ExcelAlign,
+  ExcelCell,
+  ExcelSheet,
   FileContent,
   FileVersions,
   GhAccount,
@@ -97,6 +106,7 @@ export type {
   SearchResults,
   SecretMeta,
   TechCategory,
+  WorkbookData,
 };
 
 export interface LspDiagnostic {
@@ -279,6 +289,7 @@ export type Section =
   | "databases"
   | "docker"
   | "host"
+  | "extensions"
   | "audit"
   | "events";
 export type SectionVisibility = Record<Section, boolean>;
@@ -484,11 +495,20 @@ export interface AppPrefs {
   // external app is launched at the project folder instead of an embedded pane.
   defaultTerminal: string;
   restoreSession: boolean; // restore open projects + resume chats on launch
+  // Extension Hub per-integration prefs (Tier-1 manifests & future Tier-2).
+  // Absent => defaults (enabled true, pinned false). App-global; keyed by
+  // manifest/extension id. `pinned` opts an integration into its category view
+  // (Host/Databases); `enabled:false` hides it everywhere and stops polling.
+  extensions?: Record<string, { enabled?: boolean; pinned?: boolean }>;
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
   // the renderer beyond this shared type (the token must not reach the UI).
   mcp?: { port: number; token: string };
+  // Random 32-hex salt generated once on first run and persisted. Used to derive
+  // per-project URL path tokens for the session-scoped MCP endpoints. Optional:
+  // absent until first needed; never exposed to the renderer (stays main-only).
+  installSalt?: string;
 }
 
 // One Claude session's usage, parsed from its latest statusLine emit (the
@@ -593,6 +613,10 @@ export interface AirlockApi {
   // root-gated and NOT an MCP/agent tool: the path comes from our own
   // session.json (no relPath join -> no path-traversal vector).
   dirExists(path: string): Promise<boolean>;
+  // True iff `claude --continue` in `root` has a conversation to resume (stats
+  // only ~/.claude/projects). Best-effort: returns false on any error so callers
+  // always fall back to a fresh claude (the safe direction).
+  hasResumableSession(root: string): Promise<boolean>;
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
   writeFile(root: string, relPath: string, content: string): Promise<void>;
@@ -607,6 +631,9 @@ export interface AirlockApi {
     root: string,
     relPath: string,
   ): Promise<{ dataUrl: string; tooLarge: boolean }>;
+  // Parse an .xlsx/.xlsm workbook into WorkbookData for the inline viewer.
+  // tooLarge => offer Open Externally. ExcelJS runs main-side only.
+  readWorkbook(root: string, relPath: string): Promise<WorkbookData>;
   // Open a workspace file in the OS default app (binary files / oversized
   // images). Path-confined; the .airlock vault is rejected.
   openExternalFile(root: string, relPath: string): Promise<void>;
@@ -779,6 +806,38 @@ export interface AirlockApi {
   activityStatus(root: string | null): Promise<ActivityItem[]>;
   activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
+  extensionsList(): Promise<ExtensionSummary[]>;
+  extensionsGetConfig(
+    root: string,
+    id: string,
+  ): Promise<Record<string, unknown>>;
+  extensionsSetConfig(
+    root: string,
+    id: string,
+    cfg: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
+  // Connect a Tier-2 extension by pasting a token (validated + vaulted main-side;
+  // the token never returns). detail = e.g. the Slack workspace on success.
+  extensionsConnect(
+    root: string,
+    id: string,
+    secret: string,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }>;
+  extensionsDisconnect(root: string, id: string): Promise<{ ok: boolean }>;
+  // Slack-specific (v1): all channels the connected token can see, for the
+  // allow-list picker. Names/ids only -- no messages, no token.
+  extensionsSlackChannels(
+    root: string,
+  ): Promise<{ id: string; name: string; isPrivate: boolean }[]>;
+  // Start an OAuth device-flow login for a connected extension: returns the code
+  // to show; the result arrives via onExtensionOAuthResult once the user approves.
+  extensionsOAuthBegin(
+    root: string,
+    id: string,
+  ): Promise<{ userCode: string; verificationUri: string; expiresIn: number }>;
+  onExtensionOAuthResult(
+    cb: (e: { id: string; ok: boolean; error?: string }) => void,
+  ): () => void;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
@@ -860,7 +919,13 @@ export interface AirlockApi {
   // boolean crosses back -- the value goes user -> keychain via secretsSet; the
   // agent never sees it.
   onRequestSecret(
-    cb: (p: { requestId: string; name: string; providerHint?: string }) => void,
+    cb: (p: {
+      requestId: string;
+      name: string;
+      providerHint?: string;
+      root: string | null;
+      projectName: string | null;
+    }) => void,
   ): () => void;
   requestSecretResolve(requestId: string, vaulted: boolean): Promise<void>;
   // Agent-requested terminal input: main pushes agent:terminal-grant-request when

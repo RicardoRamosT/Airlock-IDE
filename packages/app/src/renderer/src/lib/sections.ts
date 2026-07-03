@@ -11,6 +11,7 @@ export const SECTION_META: { id: Section; label: string; icon: string }[] = [
   { id: "databases", label: "Databases", icon: "database" },
   { id: "docker", label: "Docker", icon: "vm" },
   { id: "host", label: "Host", icon: "globe" },
+  { id: "extensions", label: "Extensions", icon: "extensions" },
   { id: "audit", label: "Audit", icon: "shield" },
   { id: "events", label: "Events", icon: "list-flat" },
 ];

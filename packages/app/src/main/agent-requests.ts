@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { BrowserWindow, ipcMain } from "electron";
 import type { TerminalInputResult } from "../shared/ipc";
+import { windowForRoot } from "./window";
 
 // MAIN-ONLY resolver: the agent (via the request_secret MCP tool) asks the USER
 // to vault a secret. This module pushes an event to the renderer (which opens
@@ -40,11 +42,21 @@ export type RequestNotifier = (payload: {
   requestId: string;
   name: string;
   providerHint?: string;
+  root: string | null;
+  projectName: string | null;
 }) => boolean;
 
+// Route the prompt to the window that owns `root` (active-tab match first),
+// falling back to the focused window, then any window -- the same escalation
+// as before but now the caller's project window is preferred over GUI focus.
 const realNotify: RequestNotifier = (payload) => {
-  const win =
-    BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  let win: BrowserWindow | null = null;
+  if (payload.root) win = windowForRoot(payload.root);
+  if (!win)
+    win =
+      BrowserWindow.getFocusedWindow() ??
+      BrowserWindow.getAllWindows()[0] ??
+      null;
   const wc = win?.webContents;
   if (!wc || wc.isDestroyed()) return false;
   wc.send("agent:request-secret", payload);
@@ -61,9 +73,12 @@ function anyAgentModalPending(): boolean {
 // MAIN-ONLY: ask the user to vault a secret. Opens the modal and awaits the
 // user's save/cancel. NEVER returns or handles a value -- the value goes
 // user -> keychain via secretsSet; this resolves only a boolean.
+// root identifies the CALLING SESSION's project so the prompt targets that
+// window (not GUI focus) and the renderer saves to that project's vault.
 export function requestSecretFromUser(
   name: string,
-  providerHint?: string,
+  providerHint: string | undefined,
+  root: string | null,
   notify: RequestNotifier = realNotify,
 ): Promise<SecretRequestResult> {
   // Single in-flight across BOTH agent-modal flows: a 2nd request while either a
@@ -72,9 +87,12 @@ export function requestSecretFromUser(
   if (anyAgentModalPending())
     return Promise.resolve({ vaulted: false, busy: true });
   const requestId = randomUUID();
+  // Derive a display name for the project (shown in the modal title so the user
+  // knows which project asked). ASCII-only (path.basename is fine).
+  const projectName = root ? path.basename(root) : null;
   // No live window to ask -- resolve not-vaulted immediately and leave no
   // pending entry, so the next request can proceed.
-  if (!notify({ requestId, name, providerHint })) {
+  if (!notify({ requestId, name, providerHint, root, projectName })) {
     return Promise.resolve({ vaulted: false });
   }
   return new Promise<SecretRequestResult>((resolve) => {

@@ -72,6 +72,7 @@ export interface RelevanceSpec {
 export interface IntegrationManifest {
   id: string; // stable; item ids are `int:<id>:<key>`
   name: string;
+  icon?: string; // codicon name for the Extension Hub row (optional; UI falls back)
   detect: { authCheck: Command }; // ready iff this command exits 0
   poll: {
     everyMs: number;

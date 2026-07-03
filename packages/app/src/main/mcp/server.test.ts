@@ -7,21 +7,31 @@ import { TOOL_NAMES } from "./tools";
 
 const TOKEN = "test-token-abc123";
 
+// A rootForToken factory for tests: maps a fixed token -> root pair.
+function makeRootForToken(
+  map: Record<string, string>,
+): (token: string | null) => string | null {
+  return (token) => (token ? (map[token] ?? null) : null);
+}
+
 // Always tear the server down so a failed assertion cannot leave a listener
 // bound and fail the next test.
 afterEach(async () => {
   await stopMcpServer();
 });
 
-async function startOnEphemeralPort(): Promise<number> {
+async function startOnEphemeralPort(
+  rootForToken?: (token: string | null) => string | null,
+): Promise<number> {
   const dir = await mkdtemp(path.join(tmpdir(), "airlock-mcp-srv-"));
   const prefsFile = path.join(dir, "prefs.json");
   // Port 0 -> the OS assigns a free ephemeral port (no clash with a real run).
   await startMcpServer(0, {
     prefsFile,
-    getWorkspaceRoot: () => null,
+    rootForToken: rootForToken ?? (() => null),
     getBaseEnv: () => ({}),
     requestSecretFromUser: async () => ({ vaulted: true }),
+    // Terminal deps take root as extra params in Task 4; stubs here accept/ignore.
     getTerminalTail: async () => ({ tail: "" }),
     listTerminals: async () => [],
     // Stub the gated terminal-input dep so the McpDeps literal type-checks; the
@@ -172,7 +182,7 @@ describe("MCP server handshake", () => {
     expect(result?.capabilities).toBeDefined();
   });
 
-  it("tools/list (after initialize) returns EXACTLY the thirty-one allowlisted tools", async () => {
+  it("tools/list (after initialize) returns EXACTLY the thirty-four allowlisted tools", async () => {
     const port = await startOnEphemeralPort();
     // A real client initializes first; with a fresh per-request transport this
     // second request must also succeed (the reused-transport bug 500'd here).
@@ -191,7 +201,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(31);
+    expect(names).toHaveLength(34);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {
@@ -207,5 +217,102 @@ describe("MCP server handshake", () => {
     const port = await startOnEphemeralPort();
     const res = await fetch(`http://127.0.0.1:${port}/mcp`, { method: "GET" });
     expect(res.status).toBe(401);
+  });
+});
+
+// Per-request path token: the server resolves the project root from the URL path
+// /mcp/<token>. A missing/unknown token -> rootForToken returns null -> tools
+// answer NO_WORKSPACE (focus is NOT consulted). A known token -> the tool sees
+// that project's root.
+describe("MCP server per-request path token", () => {
+  // Sends a tools/call for list_secret_names (workspace-gated) and returns the
+  // parsed tool result (text content string), or throws on a non-200 status.
+  async function callListSecretNames(
+    port: number,
+    projectToken: string | null,
+  ): Promise<string> {
+    const urlPath = projectToken ? `/mcp/${projectToken}` : "/mcp";
+    const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "list_secret_names", arguments: {} },
+      }),
+    });
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "";
+    let json: Record<string, unknown> | null = null;
+    if (contentType.includes("text/event-stream")) {
+      const line = text
+        .split("\n")
+        .find((l) => l.startsWith("data:"))
+        ?.slice("data:".length)
+        .trim();
+      json = line ? JSON.parse(line) : null;
+    } else {
+      json = JSON.parse(text);
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: test helper
+    const result = (json as any)?.result;
+    return (result?.content?.[0]?.text as string) ?? "";
+  }
+
+  it("a missing path token (bare /mcp) yields NO_WORKSPACE for a workspace-gated tool", async () => {
+    // rootForToken always returns null -> unknown token -> refuse.
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    const text = await callListSecretNames(port, null);
+    expect(text).toBe("No workspace open");
+  });
+
+  it("an unknown path token yields NO_WORKSPACE for a workspace-gated tool", async () => {
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    const text = await callListSecretNames(port, "unknown-token-deadbeef");
+    expect(text).toBe("No workspace open");
+  });
+
+  it("a malformed percent-encoded path token yields NO_WORKSPACE (clean refusal)", async () => {
+    // %ZZ is invalid percent-encoding: decodeURIComponent throws.
+    // The server must treat it as a null token (-> NO_WORKSPACE) not a 500.
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    // callListSecretNames builds the URL from the token string; pass the
+    // raw malformed segment directly via a manual fetch to bypass URL encoding.
+    const res = await fetch(`http://127.0.0.1:${port}/mcp/%ZZ`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "list_secret_names", arguments: {} },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "";
+    let json: Record<string, unknown> | null = null;
+    if (contentType.includes("text/event-stream")) {
+      const line = text
+        .split("\n")
+        .find((l) => l.startsWith("data:"))
+        ?.slice("data:".length)
+        .trim();
+      json = line ? JSON.parse(line) : null;
+    } else {
+      json = JSON.parse(text);
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: test assertion
+    const resultText = (json as any)?.result?.content?.[0]?.text as string;
+    expect(resultText).toBe("No workspace open");
   });
 });

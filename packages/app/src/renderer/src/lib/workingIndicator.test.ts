@@ -64,9 +64,26 @@ describe("hasWorkingIndicator", () => {
     expect(hasWorkingIndicator("⠂ Frobnicating… (2s)")).toBe(true);
   });
 
+  // Claude Code 2.1.199 dropped BOTH "esc to interrupt" AND the "…" after the
+  // verb (verified: 0 occurrences of either in the 2.1.199 binary), so the
+  // footer is now "<glyph> <Verb> (<Ns> · ↓ <N> tokens · …)" -- no ellipsis. The
+  // dot must still light off the one invariant every version keeps: the
+  // parenthetical live elapsed timer "(<N>s" (with optional minutes/hours).
+  it("matches 2.1.199 footers that dropped the … and the esc hint", () => {
+    expect(hasWorkingIndicator("✻ Frolicking (12s · ↓ 1.2k tokens)")).toBe(true);
+    expect(
+      hasWorkingIndicator("✻ Cerebrating (1m 5s · ↑ 2.3k tokens · thinking)"),
+    ).toBe(true);
+    expect(hasWorkingIndicator("✻ Simmering (45s)")).toBe(true);
+    // Narrow split truncates the tail; the "(Ns" anchor stays intact.
+    expect(hasWorkingIndicator("✻ Frolicking (12s · ↓ 1.2…")).toBe(true);
+  });
+
   it("does not match finished/idle lines that share the spinner glyphs", () => {
     // Finished summary: glyph + past-tense verb, but no "… (Ns" core.
     expect(hasWorkingIndicator("✳ Churned for 6s")).toBe(false);
+    // A bare duration WITHOUT the footer's paren is not the working timer.
+    expect(hasWorkingIndicator("Compiled in 2s")).toBe(false);
     // Response bullet text.
     expect(hasWorkingIndicator("⏺ I'm here and working.")).toBe(false);
     // Idle footer hints with midline separators and parens but no elapsed.

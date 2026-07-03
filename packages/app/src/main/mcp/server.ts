@@ -38,6 +38,11 @@ import type {
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
+import { githubReadIssueTool } from "../extensions/githubTools";
+import {
+  slackListAllowedChannelsTool,
+  slackReadChannelTool,
+} from "../extensions/slackTools";
 import { gatherProfile } from "../overview/gather";
 import { savePrefs } from "../prefs";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
@@ -45,11 +50,16 @@ import { registerTools } from "./tools";
 
 export interface McpDeps {
   prefsFile: string;
-  getWorkspaceRoot: () => string | null;
+  // Resolve the project root for a request path token (/mcp/<token>). Returns
+  // null for unknown or absent tokens; the per-request handler then provides
+  // getWorkspaceRoot = () => null, which causes workspace-gated tools to answer
+  // NO_WORKSPACE. Focus (lastFocusedRoot) is NOT consulted for MCP requests.
+  rootForToken: (token: string | null) => string | null;
   getBaseEnv: () => Record<string, string>;
   requestSecretFromUser: (
     name: string,
-    providerHint?: string,
+    providerHint: string | undefined,
+    root: string | null,
   ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
   // Batch env import for the import_env tool (agent-core's importAllDotEnv,
   // injected by main) + the secrets:changed broadcast that keeps every
@@ -63,11 +73,17 @@ export interface McpDeps {
     },
   ) => Promise<EnvFileImport[]>;
   notifySecretsChanged: (root: string) => void;
+  // Terminal deps now take an explicit root (the calling session's project) so
+  // the terminal list and tail are scoped to that project, not GUI focus. root
+  // null means no project -> getTerminalTail returns an error, listTerminals [].
   getTerminalTail: (
     termId: string,
     lines: number,
+    root: string | null,
   ) => Promise<{ tail: string } | { error: string }>;
-  listTerminals: () => Promise<{ id: string; preview: string }[]>;
+  listTerminals: (
+    root: string | null,
+  ) => Promise<{ id: string; preview: string }[]>;
   // Gated agent input into a live pty for the send_terminal_input tool (main
   // wires gatedTerminalInput). Value-free outcome only -- never terminal output.
   sendTerminalInput: (
@@ -97,6 +113,13 @@ export interface McpDeps {
   token: string;
 }
 
+// Per-request deps: McpDeps extended with a resolved getWorkspaceRoot for this
+// specific request (derived from the path token). This is the type createMcpServer
+// and registerTools operate on. McpDeps itself no longer carries getWorkspaceRoot
+// because the root is resolved per request from the URL path token, not from
+// focus state.
+type RequestDeps = McpDeps & { getWorkspaceRoot: () => string | null };
+
 // Module-level singletons: the listener is process-global and lives across
 // window-close on darwin, only torn down on quit. There is intentionally NO
 // long-lived McpServer/transport here -- both are created per request (see the
@@ -118,7 +141,7 @@ const MAX_BODY_BYTES = 4 * 1024 * 1024;
 // allowlist-locked registration used everywhere (tools.test.ts asserts it stays locked to
 // exactly the allowlisted tools and that none returns a secret value), so the
 // security invariant holds identically on every per-request server.
-function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
+function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
   const mcp = new McpServer({ name: "airlock", version: "1.0.0" });
 
   // Register the v1 read + UI-control tools (see ./tools). Each is a thin
@@ -143,6 +166,14 @@ function createMcpServer(deps: McpDeps, docs: DocEntry[]): McpServer {
     getDevServerState: deps.getDevServerState,
     startDevServer: deps.startDevServer,
     stopDevServer: deps.stopDevServer,
+    // Slack tool logic lives in ../extensions/slackTools (it reads the vaulted
+    // token; kept out of tools.ts for the source-guard). The allow-list gate is
+    // enforced inside these.
+    slackListAllowedChannels: (root) => slackListAllowedChannelsTool(root),
+    slackReadChannel: (root, channel, limit) =>
+      slackReadChannelTool(root, channel, limit),
+    githubReadIssue: (root, owner, repo, issue) =>
+      githubReadIssueTool(root, owner, repo, issue),
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list
@@ -276,9 +307,29 @@ export async function startMcpServer(
         // a pre-parsed body and does not consume the stream itself on this path.
         const body = await readJsonBody(req);
 
+        // Identity (separate from the bearer access gate): the project token in
+        // the URL path. /mcp/<token>; /mcp or /mcp/ -> null -> NO_WORKSPACE
+        // (refuse). Focus (lastFocusedRoot) is NOT consulted for MCP requests --
+        // the token IS the project identity.
+        const m = /^\/mcp\/([^/?#]+)/.exec(req.url ?? "");
+        // Malformed percent-encoding (e.g. /mcp/%ZZ) is a refuse case, not an
+        // error. Wrap decodeURIComponent so a decode failure yields null ->
+        // rootForToken(null) -> null root -> NO_WORKSPACE (clean refusal).
+        const projectToken = m?.[1]
+          ? (() => {
+              try {
+                return decodeURIComponent(m[1]);
+              } catch {
+                return null;
+              }
+            })()
+          : null;
+        const root = deps.rootForToken(projectToken);
+        const reqDeps: RequestDeps = { ...deps, getWorkspaceRoot: () => root };
+
         // Fresh server + fresh transport PER REQUEST -- the stateless transport is
         // single-use (reuse throws and surfaces as an opaque 500).
-        const server = createMcpServer(deps, docs);
+        const server = createMcpServer(reqDeps, docs);
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined,
         });

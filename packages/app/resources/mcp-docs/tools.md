@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 31 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 34 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -15,7 +15,10 @@ terminal behind a one-time per-terminal approval); two **managed dev-server** to
 and nine **IDE-control** tools (`list_tabs`, `open_tab`,
 `close_tab`, `switch_tab`, `split_view`, `open_terminal`, `close_terminal`,
 `open_app_page`, `close_app_page`) drive the focused window's tabs / split / terminals /
-page-tabs, returning layout metadata only. **None returns a secret value.**
+page-tabs, returning layout metadata only; and two **Slack** tools
+(`slack_list_allowed_channels`, `slack_read_channel`) read messages from ONLY the
+channels the user has allow-listed for the project. **None returns a secret value**
+(the Slack token stays main-side; only channel names + message text leave). 
 
 Workspace-rooted tools error with "No workspace open" if the human has not opened a folder
 yet; the app-global tools (and the IDE-control tools) work regardless.
@@ -251,6 +254,34 @@ layout shape: `ide-control.md`.
 
 These change LAYOUT only. To run something that needs a credential use `run_command`; to read
 a terminal's output use `get_terminal_tail` (both redact). See `security-model.md`.
+
+## Slack — read context from allow-listed channels
+
+Slack is a **connected extension**: the user pastes a token (vaulted per project)
+and allow-lists specific channels in the Extensions hub. That allow-list is a hard
+**permission wall** — these tools can reach nothing outside it, and the token is
+never returned to you.
+
+- **`slack_list_allowed_channels`** — list the channels the user allow-listed for
+  the focused project (`{ id, name }`). These are the ONLY channels you can read.
+  Empty when Slack is not connected or nothing is allowed. No args.
+- **`slack_read_channel`** — read recent messages from an **allow-listed** channel
+  to pull context on a problem discussed there. Args: `channel` (an id or name from
+  `slack_list_allowed_channels`, e.g. `"bugs"` or `"C123"`) and optional `limit`
+  (default 20, max 100). **Refuses** any channel not on the allow-list and returns
+  `{ error }` when Slack is not connected. Returns message text (`user` + `ts`) —
+  never a token. Workspace-rooted (the allow-list + token are per project).
+
+## GitHub — read an issue for context
+
+GitHub is a **connected extension** you link by **logging in** (OAuth device flow —
+no API key). Once connected for a project, the token is vaulted and used
+main-side; you never see it.
+
+- **`github_read_issue`** — read a GitHub issue (title, body, state, url) to pull
+  context on a problem discussed there. Args: `owner`, `repo`, `issue` (number).
+  Returns `{ error }` when GitHub is not connected for the project. Never returns
+  a token. Workspace-rooted.
 
 ## Picking a tool
 
