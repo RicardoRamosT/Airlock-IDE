@@ -38,6 +38,7 @@ import type {
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
+import { githubReadIssueTool } from "../extensions/githubTools";
 import {
   slackListAllowedChannelsTool,
   slackReadChannelTool,
@@ -171,6 +172,8 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
     slackListAllowedChannels: (root) => slackListAllowedChannelsTool(root),
     slackReadChannel: (root, channel, limit) =>
       slackReadChannelTool(root, channel, limit),
+    githubReadIssue: (root, owner, repo, issue) =>
+      githubReadIssueTool(root, owner, repo, issue),
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

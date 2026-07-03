@@ -84,6 +84,7 @@ export const TOOL_NAMES: string[] = [
   "stop_dev_server",
   "slack_list_allowed_channels",
   "slack_read_channel",
+  "github_read_issue",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -186,6 +187,21 @@ export interface ToolDeps {
   ) => Promise<{
     channel?: string;
     messages?: { ts: string; user: string; text: string }[];
+    error?: string;
+  }>;
+  // GitHub read (device-flow OAuth). Reads the vaulted token main-side (kept OUT
+  // of this file for the source-guard) and returns the issue's title/body/state/
+  // url or an error -- never a token.
+  githubReadIssue: (
+    root: string | null,
+    owner: string,
+    repo: string,
+    issue: number,
+  ) => Promise<{
+    title?: string;
+    body?: string;
+    state?: string;
+    url?: string;
     error?: string;
   }>;
 }
@@ -851,6 +867,26 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
           channel,
           limit ?? 20,
         ),
+      ),
+  );
+
+  // --- GitHub connected-extension tool (device-flow OAuth) -----------------
+  // Reads an issue via the vaulted token (in the injected dep, out of this file).
+  // Returns the issue text or { error } when GitHub is not connected -- no token.
+  mcp.registerTool(
+    "github_read_issue",
+    {
+      description:
+        "Read a GitHub issue (title, body, state, url) for context on a problem discussed there, using the project's connected GitHub login. Args: owner, repo, issue (number). Returns { error } when GitHub is not connected. Never returns a token.",
+      inputSchema: {
+        owner: z.string().describe('The repo owner/org, e.g. "anthropics".'),
+        repo: z.string().describe("The repository name."),
+        issue: z.number().int().describe("The issue number."),
+      },
+    },
+    async ({ owner, repo, issue }) =>
+      ok(
+        await deps.githubReadIssue(deps.getWorkspaceRoot(), owner, repo, issue),
       ),
   );
 }

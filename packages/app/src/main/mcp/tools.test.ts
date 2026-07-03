@@ -161,6 +161,7 @@ const baseDeps = {
   })),
   slackListAllowedChannels: vi.fn(async () => ({ channels: [] })),
   slackReadChannel: vi.fn(async () => ({ error: "not connected" })),
+  githubReadIssue: vi.fn(async () => ({ error: "not connected" })),
 };
 
 describe("registerTools allowlist guard", () => {
@@ -168,13 +169,13 @@ describe("registerTools allowlist guard", () => {
   // twenty-nine allowlisted tools (twenty read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the thirty-three allowlisted tools and nothing else", () => {
+  it("registers exactly the thirty-four allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(33);
+    expect(registered).toHaveLength(34);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");

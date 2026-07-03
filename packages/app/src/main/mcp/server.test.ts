@@ -182,7 +182,7 @@ describe("MCP server handshake", () => {
     expect(result?.capabilities).toBeDefined();
   });
 
-  it("tools/list (after initialize) returns EXACTLY the thirty-three allowlisted tools", async () => {
+  it("tools/list (after initialize) returns EXACTLY the thirty-four allowlisted tools", async () => {
     const port = await startOnEphemeralPort();
     // A real client initializes first; with a fresh per-request transport this
     // second request must also succeed (the reused-transport bug 500'd here).
@@ -201,7 +201,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(33);
+    expect(names).toHaveLength(34);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {

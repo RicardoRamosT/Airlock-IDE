@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 33 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 34 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -271,6 +271,17 @@ never returned to you.
   (default 20, max 100). **Refuses** any channel not on the allow-list and returns
   `{ error }` when Slack is not connected. Returns message text (`user` + `ts`) —
   never a token. Workspace-rooted (the allow-list + token are per project).
+
+## GitHub — read an issue for context
+
+GitHub is a **connected extension** you link by **logging in** (OAuth device flow —
+no API key). Once connected for a project, the token is vaulted and used
+main-side; you never see it.
+
+- **`github_read_issue`** — read a GitHub issue (title, body, state, url) to pull
+  context on a problem discussed there. Args: `owner`, `repo`, `issue` (number).
+  Returns `{ error }` when GitHub is not connected for the project. Never returns
+  a token. Workspace-rooted.
 
 ## Picking a tool
 
