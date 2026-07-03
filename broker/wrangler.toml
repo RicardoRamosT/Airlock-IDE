@@ -1,0 +1,10 @@
+name = "airlock-auth"
+main = "worker.ts"
+compatibility_date = "2026-07-03"
+
+# One-time ticket store (30s TTL). Create it with:
+#   wrangler kv namespace create TICKETS
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "TICKETS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
