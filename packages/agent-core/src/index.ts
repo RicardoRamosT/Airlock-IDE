@@ -168,6 +168,15 @@ export {
 } from "./host/devserver";
 export { type PortProber, probePort } from "./host/probe";
 export {
+  CONNECTED_EXTENSIONS,
+  type ConfigField,
+  type ConfigSchema,
+  type ConnectedExtensionDescriptor,
+  type ConnectedStatus,
+  connectedSummary,
+  SLACK_DESCRIPTOR,
+} from "./integrations/connected";
+export {
   type CliRunner,
   type DetectStatus,
   detectStatus,
@@ -176,8 +185,8 @@ export {
   type PollCache,
   pollIntegrations,
   pollSteady,
-  realRunner,
   type RelevanceContext,
+  realRunner,
   runManifest,
   type SteadyCache,
   type SteadyIntegration,
@@ -207,20 +216,11 @@ export {
 } from "./integrations/registry";
 export {
   buildExtensionSummaries,
-  enabledManifests,
   type ExtensionSummary,
   type ExtPrefs,
+  enabledManifests,
   pinnedEnabledManifests,
 } from "./integrations/summary";
-export {
-  type ConfigField,
-  type ConfigSchema,
-  CONNECTED_EXTENSIONS,
-  type ConnectedExtensionDescriptor,
-  type ConnectedStatus,
-  connectedSummary,
-  SLACK_DESCRIPTOR,
-} from "./integrations/connected";
 export {
   type ClaudeRunner,
   type McpRegisterInput,
@@ -299,6 +299,17 @@ export {
   parseEnvVars,
   servicesForRepo,
 } from "./render/parse";
+export {
+  authTest as slackAuthTest,
+  channelHistory as slackChannelHistory,
+  listChannels as slackListChannels,
+  type SlackTransport,
+} from "./slack/client";
+export type {
+  SlackAuth,
+  SlackChannel,
+  SlackMessage,
+} from "./slack/parse";
 export {
   detectInstalledTerminals,
   type ExternalTerminal,
