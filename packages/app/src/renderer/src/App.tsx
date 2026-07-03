@@ -2,6 +2,7 @@ import type React from "react";
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
 import { NeonConnectModal } from "./components/NeonConnectModal";
+import { OAuthDeviceModal } from "./components/OAuthDeviceModal";
 import { OverviewTab } from "./components/OverviewTab";
 import { Palette } from "./components/Palette";
 import { ProjectPane } from "./components/ProjectPane";
@@ -146,6 +147,9 @@ export function App() {
         {modal === "connect-render" && <RenderConnectModal />}
         {modal === "connect-slack" && <SlackConnectModal />}
         {modal === "slack-channels" && <SlackChannelsModal />}
+        {typeof modal === "object" &&
+          modal !== null &&
+          "oauthDevice" in modal && <OAuthDeviceModal />}
         <Palette />
         {searchOpen && <SearchPanel />}
         <ReferencesPanel />

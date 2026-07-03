@@ -156,7 +156,9 @@ export function ExtensionsSection() {
                       aria-label={`Connect ${s.name}`}
                       title={`Connect ${s.name}`}
                       onClick={() => {
-                        if (s.id === "slack") setModal("connect-slack");
+                        if (s.authKind === "oauth2")
+                          setModal({ oauthDevice: { id: s.id, name: s.name } });
+                        else if (s.id === "slack") setModal("connect-slack");
                       }}
                     >
                       <i className="codicon codicon-plug" />
