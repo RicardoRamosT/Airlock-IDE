@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ExtensionSummary } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
 // The Extension Hub's sidebar surface: ONE compact list of every integration
@@ -39,6 +40,16 @@ export function ExtensionsSection() {
   // toggles feel instant; the 5s poll reconciles afterwards.
   const prefs = useApp((s) => s.extensionsPrefs);
   const setExtensionPref = useApp((s) => s.setExtensionPref);
+  const setModal = useApp((s) => s.setModal);
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+
+  // Tier-2 connect/disconnect. v1 has one connected extension (Slack); the
+  // connect flow opens its modal. disconnect removes the vaulted token (the
+  // 5s poll then flips the row back to "Available").
+  const disconnect = (id: string) => {
+    if (root) void window.airlock.extensionsDisconnect(root, id);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +148,43 @@ export function ExtensionsSection() {
                     >
                       <i className="codicon codicon-plug" />
                     </button>
+                  )}
+                  {s.tier === "connected" && s.status === "unauthed" && (
+                    <button
+                      type="button"
+                      className="row-action"
+                      aria-label={`Connect ${s.name}`}
+                      title={`Connect ${s.name}`}
+                      onClick={() => {
+                        if (s.id === "slack") setModal("connect-slack");
+                      }}
+                    >
+                      <i className="codicon codicon-plug" />
+                    </button>
+                  )}
+                  {s.tier === "connected" && s.status === "connected" && (
+                    <>
+                      <button
+                        type="button"
+                        className="row-action"
+                        aria-label={`Configure ${s.name} channels`}
+                        title="Choose allowed channels"
+                        onClick={() => {
+                          if (s.id === "slack") setModal("slack-channels");
+                        }}
+                      >
+                        <i className="codicon codicon-settings-gear" />
+                      </button>
+                      <button
+                        type="button"
+                        className="row-action"
+                        aria-label={`Disconnect ${s.name}`}
+                        title={`Disconnect ${s.name}`}
+                        onClick={() => disconnect(s.id)}
+                      >
+                        <i className="codicon codicon-debug-disconnect" />
+                      </button>
+                    </>
                   )}
                   <input
                     type="checkbox"

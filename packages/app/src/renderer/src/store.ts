@@ -359,6 +359,8 @@ export interface AppState {
       }
     | "connect-neon"
     | "connect-render"
+    | "connect-slack"
+    | "slack-channels"
     | "add-database"
     | null;
 

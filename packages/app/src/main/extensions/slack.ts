@@ -7,11 +7,14 @@
 import {
   type ConnectedStatus,
   deleteSecret,
+  getSecretValue,
   type IntegrationItem,
   listSecrets,
   readProjectConfig,
+  type SlackChannel,
   setSecret,
   slackAuthTest,
+  slackListChannels,
 } from "@airlock/agent-core";
 import type { ConnectedProvider, ConnectResult } from "./provider";
 
@@ -45,6 +48,15 @@ export async function allowedChannels(root: string): Promise<AllowedChannel[]> {
     }
   }
   return out;
+}
+
+// All channels the connected token can see (for the allow-list PICKER). Needs
+// the token (main-only) + a network call, so it is NOT on the cheap status path.
+// Returns channel names/ids only -- no messages, no token. [] when not connected.
+export async function slackAllChannels(root: string): Promise<SlackChannel[]> {
+  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  if (!token) return [];
+  return slackListChannels(token).catch(() => []);
 }
 
 export const slackProvider: ConnectedProvider = {

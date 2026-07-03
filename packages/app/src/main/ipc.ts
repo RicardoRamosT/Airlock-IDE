@@ -108,6 +108,7 @@ import {
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
+import { slackAllChannels } from "./extensions/slack";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -1713,6 +1714,14 @@ export function registerIpc(
       await provider.disconnect(resolveRoot(e, root));
       return { ok: true };
     },
+  );
+
+  // extensions:slackChannels -> every channel the connected token can see, for
+  // the allow-list PICKER. Channel names/ids only (no messages, no token). []
+  // when Slack is not connected. Slack-specific for v1 (a generic "config option
+  // source" hook can generalize it later).
+  ipcMain.handle("extensions:slackChannels", (e, root: unknown) =>
+    slackAllChannels(resolveRoot(e, root)),
   );
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast

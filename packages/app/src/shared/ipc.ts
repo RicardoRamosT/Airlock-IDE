@@ -824,6 +824,11 @@ export interface AirlockApi {
     secret: string,
   ): Promise<{ ok: boolean; detail?: string; error?: string }>;
   extensionsDisconnect(root: string, id: string): Promise<{ ok: boolean }>;
+  // Slack-specific (v1): all channels the connected token can see, for the
+  // allow-list picker. Names/ids only -- no messages, no token.
+  extensionsSlackChannels(
+    root: string,
+  ): Promise<{ id: string; name: string; isPrivate: boolean }[]>;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only

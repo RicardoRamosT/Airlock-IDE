@@ -13,6 +13,8 @@ import { SecretModal } from "./components/SecretModal";
 import { SettingsTab } from "./components/SettingsTab";
 import { Sidebar } from "./components/Sidebar";
 import { SidebarResizer } from "./components/SidebarResizer";
+import { SlackChannelsModal } from "./components/SlackChannelsModal";
+import { SlackConnectModal } from "./components/SlackConnectModal";
 import { StatusBar } from "./components/StatusBar";
 import { TerminalGrantModal } from "./components/TerminalGrantModal";
 import { TerminalManager } from "./components/TerminalManager";
@@ -142,6 +144,8 @@ export function App() {
         {modal === "connect-neon" && <NeonConnectModal />}
         {modal === "add-database" && <AddDatabaseModal />}
         {modal === "connect-render" && <RenderConnectModal />}
+        {modal === "connect-slack" && <SlackConnectModal />}
+        {modal === "slack-channels" && <SlackChannelsModal />}
         <Palette />
         {searchOpen && <SearchPanel />}
         <ReferencesPanel />

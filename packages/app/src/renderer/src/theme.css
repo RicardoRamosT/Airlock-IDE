@@ -3147,6 +3147,27 @@ textarea:focus-visible {
   opacity: 0.55;
 }
 
+/* Slack channel allow-list picker (in the SlackChannelsModal). */
+.slack-channel-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.slack-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
 .db-row .codicon-chevron-down,
 .db-row .codicon-chevron-right {
   font-size: 14px;
