@@ -111,8 +111,8 @@ export function connectedSummary(
 // PUBLIC client id; SLACK_BROKER_URL is your deployed Worker's base URL. The
 // client SECRET stays in Cloudflare -- never here. Empty => not yet configured
 // (the engine surfaces a friendly "not configured" instead of a broken flow).
-const SLACK_CLIENT_ID = ""; // TODO(Task 0): Slack app Client ID (public)
-const SLACK_BROKER_URL = ""; // TODO(Task 0): https://airlock-auth.<acct>.workers.dev
+const SLACK_CLIENT_ID = "11505449057237.11505460411653";
+const SLACK_BROKER_URL = "https://airlock-auth.airlock-workers.workers.dev";
 
 export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
   id: "slack",
