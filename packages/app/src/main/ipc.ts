@@ -19,6 +19,7 @@ import {
   dockerStop,
   duplicate,
   type EventFilter,
+  enabledManifests,
   ensureAirlockDir,
   filterDangerousEnv,
   getGlobalSecret,
@@ -46,6 +47,7 @@ import {
   type PtySession,
   parseConnString,
   pingDb,
+  pinnedEnabledManifests,
   pollSteady,
   probePort,
   readAudit,
@@ -1583,7 +1585,15 @@ export function registerIpc(
   // names only (no keychain prompt).
   ipcMain.handle("integrations:steady", async (e) => {
     const root = rootForEvent(e);
-    const all = await pollSteady(INTEGRATIONS, root, Date.now(), steadyCache);
+    // Category views (Host/Databases) show an integration ONLY when the user has
+    // pinned it in the Extension Hub -- default is Hub-only, keeping the sidebar
+    // clean. (Disabled integrations are excluded too, via pinnedEnabledManifests.)
+    const prefs = await loadPrefs(prefsFile);
+    const manifests = pinnedEnabledManifests(
+      INTEGRATIONS,
+      prefs.extensions ?? {},
+    );
+    const all = await pollSteady(manifests, root, Date.now(), steadyCache);
     if (!root) return all; // no focused project -> nothing to disambiguate
     const secretNames = (await listSecrets(root)).map((m) => m.name);
     let rootFiles: string[] = [];
@@ -1592,7 +1602,7 @@ export function registerIpc(
     } catch {
       // unreadable root (deleted/permissions): fall back to no file signal
     }
-    const byId = new Map(INTEGRATIONS.map((m) => [m.id, m]));
+    const byId = new Map(manifests.map((m) => [m.id, m]));
     return all.filter((s) => {
       const m = byId.get(s.id);
       return m ? isRelevant(m, { secretNames, rootFiles }) : true;
@@ -1606,10 +1616,14 @@ export function registerIpc(
   // "absent" so a missing/slow CLI never breaks the list.
   ipcMain.handle("extensions:list", async (e) => {
     const root = rootForEvent(e);
+    const prefs = await loadPrefs(prefsFile);
+    const ext = prefs.extensions ?? {};
     const now = Date.now();
     const statuses: Record<string, DetectStatus> = {};
+    // Detect only ENABLED manifests (a disabled integration is "not polled" --
+    // buildExtensionSummaries reports it as "disabled" regardless of status).
     await Promise.all(
-      INTEGRATIONS.map(async (m) => {
+      enabledManifests(INTEGRATIONS, ext).map(async (m) => {
         const cached = extDetectCache[m.id];
         if (cached && now - cached.at < m.poll.everyMs) {
           statuses[m.id] = cached.status;
@@ -1626,12 +1640,7 @@ export function registerIpc(
         statuses[m.id] = status;
       }),
     );
-    const prefs = await loadPrefs(prefsFile);
-    return buildExtensionSummaries(
-      INTEGRATIONS,
-      statuses,
-      prefs.extensions ?? {},
-    );
+    return buildExtensionSummaries(INTEGRATIONS, statuses, ext);
   });
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
