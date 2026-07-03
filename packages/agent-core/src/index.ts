@@ -176,6 +176,7 @@ export {
   type PollCache,
   pollIntegrations,
   pollSteady,
+  realRunner,
   type RelevanceContext,
   runManifest,
   type SteadyCache,
@@ -204,6 +205,13 @@ export {
   SNOWFLAKE,
   VERCEL,
 } from "./integrations/registry";
+export {
+  buildExtensionSummaries,
+  enabledManifests,
+  type ExtensionSummary,
+  type ExtPrefs,
+  pinnedEnabledManifests,
+} from "./integrations/summary";
 export {
   type ClaudeRunner,
   type McpRegisterInput,

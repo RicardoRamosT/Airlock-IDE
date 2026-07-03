@@ -15,7 +15,7 @@ export type CliRunner = (
   opts: { cwd?: string; timeoutMs: number },
 ) => Promise<string>;
 
-const realRunner: CliRunner = async (cmd, args, { cwd, timeoutMs }) => {
+export const realRunner: CliRunner = async (cmd, args, { cwd, timeoutMs }) => {
   const { stdout } = await exec(cmd, args, {
     cwd,
     timeout: timeoutMs,

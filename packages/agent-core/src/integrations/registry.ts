@@ -7,6 +7,7 @@ import type { IntegrationManifest } from "./manifest";
 export const VERCEL: IntegrationManifest = {
   id: "vercel",
   name: "Vercel",
+  icon: "rocket",
   detect: { authCheck: { cmd: "vercel", args: ["whoami"] } },
   poll: {
     everyMs: 20000,
@@ -35,6 +36,7 @@ export const VERCEL: IntegrationManifest = {
 export const SNOWFLAKE: IntegrationManifest = {
   id: "snowflake",
   name: "Snowflake",
+  icon: "database",
   surface: { view: "databases" },
   // Account-wide CLI: only surface in projects that use Snowflake.
   relevance: { envPrefix: "SNOWFLAKE_" },
@@ -76,6 +78,7 @@ export const SNOWFLAKE: IntegrationManifest = {
 export const AZURE: IntegrationManifest = {
   id: "azure",
   name: "Azure",
+  icon: "cloud",
   surface: { view: "host" },
   // `az webapp list` is account-wide, so only surface Azure in projects that
   // use it: a vaulted AZURE_* secret, or an Azure Developer CLI config in root.
