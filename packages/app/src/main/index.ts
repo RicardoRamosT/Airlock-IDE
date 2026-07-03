@@ -33,6 +33,7 @@ import {
   wrapIpcHandle,
 } from "./eventlog/capture";
 import { emitEvent, flushEventLog, startEventLog } from "./eventlog/wire";
+import { registerAirlockProtocol } from "./extensions/oauth/deeplink";
 import {
   broadcastActivityChanged,
   flushSession,
@@ -80,6 +81,10 @@ if (!gotLock) {
       win.focus();
     }
   });
+
+  // Claim airlock:// and route broker OAuth callbacks. Registered here (before
+  // whenReady) so an early "open-url" from the browser handoff isn't missed.
+  registerAirlockProtocol(app);
 
   bootstrap();
 }
