@@ -34,6 +34,7 @@ const summary = (over: Partial<ExtensionSummary>): ExtensionSummary => ({
   enabled: true,
   pinned: false,
   hasConfig: false,
+  authKind: "token",
   ...over,
 });
 

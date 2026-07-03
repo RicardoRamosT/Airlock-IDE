@@ -168,12 +168,14 @@ export {
 } from "./host/devserver";
 export { type PortProber, probePort } from "./host/probe";
 export {
+  type AuthSpec,
   CONNECTED_EXTENSIONS,
   type ConfigField,
   type ConfigSchema,
   type ConnectedExtensionDescriptor,
   type ConnectedStatus,
   connectedSummary,
+  GITHUB_DESCRIPTOR,
   SLACK_DESCRIPTOR,
 } from "./integrations/connected";
 export {
@@ -252,6 +254,12 @@ export {
   neonConnectionUri,
   resolveNeonAccountId,
 } from "./neon/client";
+export {
+  type DeviceCode,
+  type DeviceTokenResult,
+  parseDeviceCode,
+  parseDeviceToken,
+} from "./oauth/device";
 export { ensureAirlockDir } from "./project/airlockDir";
 export {
   type ProjectConfig,

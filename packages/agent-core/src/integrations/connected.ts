@@ -36,8 +36,21 @@ export interface ConnectedExtensionDescriptor {
   // A SECTION_META view id if the extension can be pinned into a category view;
   // omitted => Hub-only (Slack has no natural category).
   category?: string;
+  authSpec?: AuthSpec;
   configSchema: ConfigSchema;
 }
+
+// How a connected extension authenticates. Absent = "token" paste (Slack today).
+// "oauth2" flow "device" = the RFC 8628 device grant: no secret, no redirect, no
+// server -- the user approves a code in their browser and the app polls.
+export type AuthSpec = {
+  kind: "oauth2";
+  flow: "device";
+  clientId: string; // public: the device flow needs no secret
+  deviceCodeUrl: string;
+  tokenUrl: string;
+  scopes: string[];
+};
 
 // A connected extension's connection state (the runtime provider computes it):
 // unauthed = no/invalid token; connected = token present + valid; error = probe
@@ -62,6 +75,7 @@ export function connectedSummary(
     enabled,
     pinned: prefs[d.id]?.pinned === true,
     hasConfig: d.configSchema.fields.length > 0,
+    authKind: d.authSpec ? "oauth2" : "token",
   };
 }
 
@@ -88,6 +102,28 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
 
 // Every shipped connected extension. Adding one = a descriptor here + a provider
 // in app/main.
+// GitHub: the first OAuth device-flow extension -- log in (no key), then Claude
+// can read issues you point it at for context. GITHUB_CLIENT_ID is your
+// registered AirLock OAuth app's client id (public; device flow needs no secret).
+const GITHUB_CLIENT_ID = "REPLACE_WITH_YOUR_OAUTH_APP_CLIENT_ID";
+
+export const GITHUB_DESCRIPTOR: ConnectedExtensionDescriptor = {
+  id: "github",
+  name: "GitHub",
+  icon: "github",
+  description: "Let Claude read GitHub issues you point it at, for context.",
+  authSpec: {
+    kind: "oauth2",
+    flow: "device",
+    clientId: GITHUB_CLIENT_ID,
+    deviceCodeUrl: "https://github.com/login/device/code",
+    tokenUrl: "https://github.com/login/oauth/access_token",
+    scopes: ["repo"],
+  },
+  configSchema: { fields: [] }, // Phase A: scope-gated; no per-repo allow-list yet
+};
+
 export const CONNECTED_EXTENSIONS: ConnectedExtensionDescriptor[] = [
   SLACK_DESCRIPTOR,
+  GITHUB_DESCRIPTOR,
 ];
