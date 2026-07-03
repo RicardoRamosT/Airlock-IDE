@@ -13,6 +13,7 @@ import type {
   ExcelAlign,
   ExcelCell,
   ExcelSheet,
+  ExtensionSummary,
   FileContent,
   FileVersions,
   GhAccount,
@@ -59,6 +60,7 @@ export interface DetectedDevServer {
 }
 
 export type {
+  ExtensionSummary,
   IntegrationItem,
   ItemAction,
   ItemDetail,
@@ -804,6 +806,7 @@ export interface AirlockApi {
   activityStatus(root: string | null): Promise<ActivityItem[]>;
   activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
+  extensionsList(): Promise<ExtensionSummary[]>;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only

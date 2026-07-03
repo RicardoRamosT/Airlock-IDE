@@ -5,12 +5,15 @@ import path from "node:path";
 import { promisify } from "node:util";
 import {
   appendAudit,
+  buildExtensionSummaries,
   createBranch,
   createDir,
   createFile,
   createPtySession,
+  type DetectStatus,
   deleteSecret,
   detectInstalledTerminals,
+  detectStatus,
   discardChanges,
   dockerStart,
   dockerStop,
@@ -53,6 +56,7 @@ import {
   readRows,
   readWorkbook,
   readWorkspaceFile,
+  realRunner,
   redactConnStrings,
   redactedPreview,
   redactedTail,
@@ -170,6 +174,11 @@ const sessions = new Map<string, PtySession>();
 // Per-manifest steady-state poll cache, persisted across IPC calls so each
 // manifest's everyMs cadence holds regardless of how often the sidebar polls.
 const steadyCache: SteadyCache = {};
+
+// Per-manifest detect-status cache for the Extension Hub list (extensions:list),
+// throttled to each manifest's poll.everyMs so opening the Hub view doesn't
+// re-spawn every CLI on each poll tick. Persisted across IPC calls.
+const extDetectCache: Record<string, { at: number; status: DetectStatus }> = {};
 
 // Per-PTY owning window (sessionId -> BrowserWindow id). Terminal-reading agent
 // tools are scoped to the agent's (last-focused) window, so a window only ever
@@ -1588,6 +1597,41 @@ export function registerIpc(
       const m = byId.get(s.id);
       return m ? isRelevant(m, { secretNames, rootFiles }) : true;
     });
+  });
+
+  // extensions:list -> ExtensionSummary[] for the Extension Hub view. Detects
+  // EVERY manifest (regardless of surface) so the Hub is the one place that lists
+  // all integrations, throttled per-id by poll.everyMs, then folds prefs
+  // (enabled/pinned). Detect (an auth check) never mutates; a failure degrades to
+  // "absent" so a missing/slow CLI never breaks the list.
+  ipcMain.handle("extensions:list", async (e) => {
+    const root = rootForEvent(e);
+    const now = Date.now();
+    const statuses: Record<string, DetectStatus> = {};
+    await Promise.all(
+      INTEGRATIONS.map(async (m) => {
+        const cached = extDetectCache[m.id];
+        if (cached && now - cached.at < m.poll.everyMs) {
+          statuses[m.id] = cached.status;
+          return;
+        }
+        const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
+        const status = await detectStatus(
+          m,
+          cwd,
+          m.poll.timeoutMs ?? 8000,
+          realRunner,
+        ).catch((): DetectStatus => "absent");
+        extDetectCache[m.id] = { at: now, status };
+        statuses[m.id] = status;
+      }),
+    );
+    const prefs = await loadPrefs(prefsFile);
+    return buildExtensionSummaries(
+      INTEGRATIONS,
+      statuses,
+      prefs.extensions ?? {},
+    );
   });
 
   // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
