@@ -7,6 +7,7 @@
 // the allow-list lives in that project's .airlock/config.json -- a tight,
 // intentional permission wall, and it composes with the project-scoped MCP server.
 import type { ConnectedStatus, IntegrationItem } from "@airlock/agent-core";
+import { githubProvider } from "./github";
 import { slackProvider } from "./slack";
 
 export interface ConnectResult {
@@ -30,4 +31,5 @@ export interface ConnectedProvider {
 // Every shipped connected provider, keyed by descriptor id.
 export const CONNECTED_PROVIDERS: Record<string, ConnectedProvider> = {
   slack: slackProvider,
+  github: githubProvider,
 };
