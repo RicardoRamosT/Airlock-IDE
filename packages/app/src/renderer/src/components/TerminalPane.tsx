@@ -1,7 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { type DragEvent, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { openEditorFile } from "../lib/editorFiles";
 import { isExternalFileDrag } from "../lib/externalDrop";
 import { useProjectTab } from "../lib/projectPane";
@@ -461,43 +461,53 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   }, []);
 
   // Drag a file (or files) onto the terminal to PASTE its path -- like macOS
-  // Terminal.app. External drags (Finder/Desktop) carry the File objects
+  // Terminal.app. External drags (Finder/Desktop) carry File objects
   // (getPathForFile -> absolute); an internal file-tree drag carries the item's
-  // project-RELATIVE path in text/plain (joined with the pane root). We paste
-  // text only (no newline) and import nothing -- distinct from the file tree's
-  // own drop, which imports.
-  const onHostDragOver = (e: DragEvent<HTMLDivElement>) => {
-    const types = [...(e.dataTransfer.types ?? [])];
-    if (isExternalFileDrag(types) || types.includes("text/plain")) {
-      e.preventDefault(); // claim it (and stop Electron's default file-open)
-      e.dataTransfer.dropEffect = "copy";
-    }
-  };
-  const onHostDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const id = idRef.current;
-    if (!id) return;
-    const types = [...(e.dataTransfer.types ?? [])];
-    let paths: string[] = [];
-    if (isExternalFileDrag(types) && e.dataTransfer.files.length > 0) {
-      paths = Array.from(e.dataTransfer.files).map((f) =>
-        window.airlock.getPathForFile(f),
-      );
-    } else {
-      const rel = e.dataTransfer.getData("text/plain");
-      const root = useApp.getState().tabState[tabId]?.root ?? null;
-      if (rel && root) paths = [`${root.replace(/\/$/, "")}/${rel}`];
-    }
-    const text = terminalDropText(paths);
-    if (text) window.airlock.ptyInput(id, text);
-  };
+  // project-RELATIVE path in text/plain (joined with the pane root). Paste text
+  // only (no newline); imports nothing -- distinct from the file tree's import
+  // drop.
+  //
+  // NATIVE listeners on the host, NOT React onDrop props: xterm manages this
+  // div's DOM imperatively, and the React-synthetic drop/dragover never fired,
+  // so the browser rejected every drop (dragover was never preventDefaulted --
+  // the whole feature silently no-op'd for every file type / source). Native
+  // listeners on the real host element fire during DOM bubbling regardless.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onDragOver = (e: DragEvent) => {
+      const types = [...(e.dataTransfer?.types ?? [])];
+      if (isExternalFileDrag(types) || types.includes("text/plain")) {
+        e.preventDefault(); // allow the drop (and stop the default file-open)
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      const id = idRef.current;
+      const dt = e.dataTransfer;
+      if (!id || !dt) return;
+      const types = [...(dt.types ?? [])];
+      let paths: string[] = [];
+      if (isExternalFileDrag(types) && dt.files.length > 0) {
+        paths = Array.from(dt.files).map((f) =>
+          window.airlock.getPathForFile(f),
+        );
+      } else {
+        const rel = dt.getData("text/plain");
+        const root = useApp.getState().tabState[tabId]?.root ?? null;
+        if (rel && root) paths = [`${root.replace(/\/$/, "")}/${rel}`];
+      }
+      const text = terminalDropText(paths);
+      if (text) window.airlock.ptyInput(id, text);
+    };
+    host.addEventListener("dragover", onDragOver);
+    host.addEventListener("drop", onDrop);
+    return () => {
+      host.removeEventListener("dragover", onDragOver);
+      host.removeEventListener("drop", onDrop);
+    };
+  }, [tabId]);
 
-  return (
-    <div
-      ref={hostRef}
-      className="terminal-host"
-      onDragOver={onHostDragOver}
-      onDrop={onHostDrop}
-    />
-  );
+  return <div ref={hostRef} className="terminal-host" />;
 }
