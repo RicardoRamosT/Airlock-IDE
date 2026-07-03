@@ -11,7 +11,7 @@ const allVisible = Object.fromEntries(
   SECTION_META.map((m) => [m.id, true]),
 ) as SectionVisibility;
 
-it("lists all nine sections in canonical sidebar order", () => {
+it("lists all ten sections in canonical sidebar order", () => {
   expect(SECTION_META.map((m) => m.id)).toEqual([
     "files",
     "secrets",
@@ -20,6 +20,7 @@ it("lists all nine sections in canonical sidebar order", () => {
     "databases",
     "docker",
     "host",
+    "extensions",
     "audit",
     "events",
   ]);

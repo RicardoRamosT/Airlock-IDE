@@ -30,6 +30,7 @@ export const SECTIONS: Section[] = [
   "databases",
   "docker",
   "host",
+  "extensions",
   "audit",
   "events",
 ];
@@ -42,6 +43,7 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   databases: true,
   docker: true,
   host: true,
+  extensions: true,
   audit: true,
   events: true,
 };
@@ -197,6 +199,27 @@ export function sanitizeDefaultTerminal(raw: unknown): string {
   return typeof raw === "string" && TERMINAL_IDS.has(raw) ? raw : "airlock";
 }
 
+// Extension Hub per-integration prefs. Keep every string key whose value is an
+// object, passing through only real boolean `enabled`/`pinned`. Returns
+// undefined when nothing valid remains so default prefs omit the key (matching
+// the optional `mcp`/`installSalt` attach pattern -> toEqual(DEFAULTS) stays
+// exact).
+function sanitizeExtensions(
+  raw: unknown,
+): Record<string, { enabled?: boolean; pinned?: boolean }> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, { enabled?: boolean; pinned?: boolean }> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== "object") continue;
+    const r = v as Record<string, unknown>;
+    const e: { enabled?: boolean; pinned?: boolean } = {};
+    if (typeof r.enabled === "boolean") e.enabled = r.enabled;
+    if (typeof r.pinned === "boolean") e.pinned = r.pinned;
+    out[k] = e;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function sanitize(raw: unknown): AppPrefs {
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
   const r = raw as Record<string, unknown>;
@@ -254,6 +277,9 @@ function sanitize(raw: unknown): AppPrefs {
   // Only attach installSalt when a valid 32-hex string; absent until generated.
   const installSalt = sanitizeInstallSalt(r.installSalt);
   if (installSalt) out.installSalt = installSalt;
+  // Only attach extensions when at least one valid entry survives.
+  const extensions = sanitizeExtensions(r.extensions);
+  if (extensions) out.extensions = extensions;
   return out;
 }
 

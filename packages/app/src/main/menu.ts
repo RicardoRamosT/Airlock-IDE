@@ -17,6 +17,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   databases: "Databases",
   docker: "Docker",
   host: "Host",
+  extensions: "Extensions",
   audit: "Audit",
   events: "Events",
 };

@@ -85,6 +85,7 @@ const DEFAULT_PREFS: AppPrefs = {
     databases: true,
     docker: true,
     host: true,
+    extensions: true,
     audit: true,
     events: true,
   },

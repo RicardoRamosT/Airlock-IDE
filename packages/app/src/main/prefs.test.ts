@@ -26,6 +26,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -88,6 +89,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -146,6 +148,39 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).restoreSession).toBe(false);
   });
 
+  it("extensions prefs: absent by default, sanitized, and round-trip", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    // absent by default (optional attach, like mcp) -> undefined
+    const absent = path.join(dir, "absent.json");
+    expect((await loadPrefs(absent)).extensions).toBeUndefined();
+    // non-object entries dropped; only boolean enabled/pinned survive
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(
+      wrong,
+      JSON.stringify({
+        extensions: {
+          azure: { pinned: true, enabled: false, junk: 1 },
+          bad: "nope",
+          empty: { pinned: "yes" },
+        },
+      }),
+    );
+    expect((await loadPrefs(wrong)).extensions).toEqual({
+      azure: { pinned: true, enabled: false },
+      empty: {},
+    });
+    // a fully-invalid map collapses to undefined (nothing to attach)
+    const none = path.join(dir, "none.json");
+    await writeFile(none, JSON.stringify({ extensions: { x: 1, y: "z" } }));
+    expect((await loadPrefs(none)).extensions).toBeUndefined();
+    // round-trip a real patch
+    const file = path.join(dir, "prefs.json");
+    await savePrefs(file, { extensions: { snowflake: { pinned: true } } });
+    expect((await loadPrefs(file)).extensions).toEqual({
+      snowflake: { pinned: true },
+    });
+  });
+
   it("sanitizes unknown/garbage fields", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     const file = path.join(dir, "prefs.json");
@@ -171,6 +206,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -211,6 +247,7 @@ describe("app prefs", () => {
         databases: true,
         docker: true,
         host: true,
+        extensions: true,
         audit: true,
         events: true,
       },
@@ -246,7 +283,7 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).theme).toBe("dark");
   });
 
-  it("defaults sectionVisibility to all nine sections visible", async () => {
+  it("defaults sectionVisibility to all ten sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -258,6 +295,7 @@ describe("app prefs", () => {
       databases: true,
       docker: true,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -278,6 +316,7 @@ describe("app prefs", () => {
       databases: true,
       docker: false,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -289,6 +328,7 @@ describe("app prefs", () => {
       databases: true,
       docker: false,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -306,6 +346,7 @@ describe("app prefs", () => {
       databases: true,
       docker: true,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });
@@ -326,6 +367,7 @@ describe("app prefs", () => {
       databases: true,
       docker: true,
       host: true,
+      extensions: true,
       audit: true,
       events: true,
     });

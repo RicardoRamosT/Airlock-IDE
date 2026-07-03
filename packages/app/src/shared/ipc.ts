@@ -287,6 +287,7 @@ export type Section =
   | "databases"
   | "docker"
   | "host"
+  | "extensions"
   | "audit"
   | "events";
 export type SectionVisibility = Record<Section, boolean>;
@@ -492,6 +493,11 @@ export interface AppPrefs {
   // external app is launched at the project folder instead of an embedded pane.
   defaultTerminal: string;
   restoreSession: boolean; // restore open projects + resume chats on launch
+  // Extension Hub per-integration prefs (Tier-1 manifests & future Tier-2).
+  // Absent => defaults (enabled true, pinned false). App-global; keyed by
+  // manifest/extension id. `pinned` opts an integration into its category view
+  // (Host/Databases); `enabled:false` hides it everywhere and stops polling.
+  extensions?: Record<string, { enabled?: boolean; pinned?: boolean }>;
   // Local MCP server identity (HTTP port + bearer token). Optional: absent on
   // first run and generated/persisted by mcp/config.ensureMcpConfig so the
   // registered Claude Code URL stays stable across launches. Never exposed to
