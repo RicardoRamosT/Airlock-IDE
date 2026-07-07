@@ -2,6 +2,73 @@
 
 All notable user-facing changes to AirLock. Dates are when the version was cut.
 
+## 0.5.0
+
+### Added
+- **Extension Hub.** A new "Extensions" sidebar view lists every integration
+  grouped by state (Connected / Available / Not installed / Disabled), with
+  enable and pin toggles and one-click Install / Connect actions. Category
+  integrations (Snowflake, Azure, Vercel) appear under Databases / Host only
+  when you pin them, so the sidebar stays clean by default.
+- **Connect Slack in one click.** Slack connects through your browser via a
+  hosted OAuth broker (no pasted token), then a channel allow-list "permission
+  wall" lets you choose exactly which channels Claude may read. Two gated MCP
+  tools (`slack_read_channel`, `slack_list_allowed_channels`) let Claude pull
+  that context; the token stays in the main process and never reaches the model.
+- **Connect GitHub with a device login.** GitHub connects with a device-code
+  sign-in (no secret, no pasted token); a `github_read_issue` MCP tool reads an
+  issue through the vaulted token.
+- **Events panel.** A new "Events" sidebar view with a live feed you can filter
+  by level and category, backed by a size-rotated on-disk log with a
+  secret-redaction safety net. A `read_events` MCP tool lets Claude query it.
+- **Managed dev servers.** Start / Stop / Restart your project's dev server from
+  the HOST view, or let Claude drive it with the `start_dev_server` /
+  `stop_dev_server` MCP tools. AirLock discovers the served port and tracks
+  liveness, and an already-running unmanaged server can be adopted in place.
+- **Inline Excel viewer.** Open `.xlsx` / `.xls` / `.xlsm` files as a formatted,
+  multi-sheet table (bold, italic, color, fill, alignment, and merged cells).
+- **Inline PDF viewer.** Open `.pdf` files directly in a tab.
+- **Render environment variables in the sidebar.** Expand a Render service to
+  see its env keys (masked, reveal on click) and run a value-free dev vs prod
+  comparison.
+- **Tabbed Settings.** Settings now has a left category rail (Appearance,
+  Layout, Terminal, Claude, Secrets, Agent, About) instead of one long scroll,
+  plus per-section sidebar-visibility toggles and an About tab (version, MCP
+  port, and update check).
+- **Let Claude run your app.** An opt-in skill (Settings → Claude) routes
+  Claude's "run the app" requests to AirLock's managed dev server, so the IDE
+  shows and manages the process.
+- **Drag files onto a terminal** to paste their absolute path(s), the way the
+  macOS Terminal does.
+
+### Changed
+- **Per-project MCP scoping.** Claude's MCP tools now resolve to the calling
+  session's project (via a per-session token) instead of whichever window last
+  had focus, so tools act on the right project across multiple projects and
+  windows. AirLock also migrated off the old account-wide MCP registration.
+- **Session restore falls back to a fresh Claude** when a restored tab has no
+  resumable conversation, so a restored tab never lands on a dead
+  `claude --continue` prompt.
+
+### Fixed
+- **The tab "working" dot** lights again on Claude Code 2.1.199: detection is
+  re-anchored on the live elapsed-timer footer after Claude Code dropped both
+  the "esc to interrupt" hint and the trailing "…".
+- **Terminal drag-and-drop** now fires over the terminal (native listeners)
+  instead of silently doing nothing, for both Finder and file-tree drags.
+- **The project Overview** renders README HTML wrappers and shields.io badges as
+  clean labelled links instead of leaking raw `<div>` / `<img>` tags.
+- A shared **"Open a folder first" empty state** (with an Open Folder button)
+  now appears across Secrets, Databases, Git, Audit, and Files.
+
+### Internal
+- New OAuth platform: a stateless Cloudflare Worker broker that holds only
+  client secrets (never user data) for providers whose token exchange requires a
+  secret, an `airlock://` protocol handler for the browser callback, and a
+  device-flow engine for secret-less providers.
+- Structured event-logging pipeline (buffered writer, size-rotated file sink,
+  and reused secret redaction) underpinning the Events panel and `read_events`.
+
 ## 0.4.0
 
 ### Added

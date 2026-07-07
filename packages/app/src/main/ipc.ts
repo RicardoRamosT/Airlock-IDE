@@ -107,6 +107,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
+import { runBrokerFlow } from "./extensions/oauth/broker";
 import {
   beginDeviceFlow,
   oauthTokenName,
@@ -1729,37 +1730,52 @@ export function registerIpc(
     slackAllChannels(resolveRoot(e, root)),
   );
 
-  // extensions:oauthBegin -> start the OAuth device flow for a connected
-  // extension: return the code to show the user, and (fire-and-forget) POLL until
-  // they approve, then vault the token per-project and push extensions:oauthResult
-  // to the window. No secret, no redirect, no server -- the device grant just polls.
+  // extensions:oauthBegin -> start the OAuth login for a connected extension,
+  // both secret-less "log in -> connected" flows. Returns a discriminated shape
+  // telling the renderer what to show; in both cases a fire-and-forget task
+  // finishes the login, vaults the token per-project, and pushes
+  // extensions:oauthResult to the window.
+  //   - "device" (RFC 8628): return a code to type; poll until approved.
+  //   - "broker": the app opens the browser to the consent screen and awaits the
+  //     airlock:// callback; there's no code to type.
   ipcMain.handle(
     "extensions:oauthBegin",
     async (e, root: unknown, id: unknown) => {
       if (typeof id !== "string") throw new Error("Invalid payload");
       const r = resolveRoot(e, root);
       const spec = CONNECTED_EXTENSIONS.find((x) => x.id === id)?.authSpec;
-      if (spec?.flow !== "device") {
-        throw new Error(`No device-flow auth for ${id}`);
-      }
-      const code = await beginDeviceFlow(spec);
-      void pollDeviceToken(spec, code.deviceCode, code.interval, code.expiresIn)
-        .then(async (token) => {
-          await setSecret(r, oauthTokenName(id), token);
-          e.sender.send("extensions:oauthResult", { id, ok: true });
-        })
-        .catch((err) =>
-          e.sender.send("extensions:oauthResult", {
-            id,
-            ok: false,
-            error: err instanceof Error ? err.message : String(err),
-          }),
+      // Vault the resulting token + notify the window. Shared by both flows.
+      const finish = (p: Promise<string>) =>
+        void p
+          .then(async (token) => {
+            await setSecret(r, oauthTokenName(id), token);
+            e.sender.send("extensions:oauthResult", { id, ok: true });
+          })
+          .catch((err) =>
+            e.sender.send("extensions:oauthResult", {
+              id,
+              ok: false,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+
+      if (spec?.flow === "device") {
+        const code = await beginDeviceFlow(spec);
+        finish(
+          pollDeviceToken(spec, code.deviceCode, code.interval, code.expiresIn),
         );
-      return {
-        userCode: code.userCode,
-        verificationUri: code.verificationUri,
-        expiresIn: code.expiresIn,
-      };
+        return {
+          kind: "device" as const,
+          userCode: code.userCode,
+          verificationUri: code.verificationUri,
+          expiresIn: code.expiresIn,
+        };
+      }
+      if (spec?.flow === "broker") {
+        finish(runBrokerFlow(spec));
+        return { kind: "browser" as const };
+      }
+      throw new Error(`No OAuth login configured for ${id}`);
     },
   );
 

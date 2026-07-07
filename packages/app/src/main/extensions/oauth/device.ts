@@ -11,6 +11,10 @@ import {
   parseDeviceToken,
 } from "@airlock/agent-core";
 
+// The device-flow arm of the AuthSpec union (has deviceCodeUrl/tokenUrl). The
+// engine narrows on spec.flow before calling in here.
+type DeviceAuthSpec = Extract<AuthSpec, { flow: "device" }>;
+
 type Fetch = (
   url: string,
   init: { method: string; headers: Record<string, string>; body: string },
@@ -29,7 +33,7 @@ const form = (o: Record<string, string>) => new URLSearchParams(o).toString();
 
 // Start the device flow: ask the provider for a device+user code to show.
 export async function beginDeviceFlow(
-  spec: AuthSpec,
+  spec: DeviceAuthSpec,
   fx: Fetch = realFetch,
 ): Promise<DeviceCode> {
   const res = await fx(spec.deviceCodeUrl, {
@@ -49,7 +53,7 @@ export async function beginDeviceFlow(
 // the access token. `pending` waits `interval`; `slow_down` bumps it by 5s (per
 // RFC 8628); terminal states throw. Bounded by `expiresInSec`.
 export async function pollDeviceToken(
-  spec: AuthSpec,
+  spec: DeviceAuthSpec,
   deviceCode: string,
   intervalSec: number,
   expiresInSec: number,

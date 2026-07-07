@@ -70,7 +70,9 @@ describe("hasWorkingIndicator", () => {
   // dot must still light off the one invariant every version keeps: the
   // parenthetical live elapsed timer "(<N>s" (with optional minutes/hours).
   it("matches 2.1.199 footers that dropped the … and the esc hint", () => {
-    expect(hasWorkingIndicator("✻ Frolicking (12s · ↓ 1.2k tokens)")).toBe(true);
+    expect(hasWorkingIndicator("✻ Frolicking (12s · ↓ 1.2k tokens)")).toBe(
+      true,
+    );
     expect(
       hasWorkingIndicator("✻ Cerebrating (1m 5s · ↑ 2.3k tokens · thinking)"),
     ).toBe(true);
