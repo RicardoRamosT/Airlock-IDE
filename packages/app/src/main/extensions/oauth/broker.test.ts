@@ -78,4 +78,14 @@ describe("normalizeTeamId", () => {
   it("returns empty for empty input", () => {
     expect(normalizeTeamId("")).toBe("");
   });
+  it("passes through free text that merely contains a team-like token", () => {
+    expect(normalizeTeamId("team12345678 workspace")).toBe(
+      "team12345678 workspace",
+    );
+  });
+  it("extracts from a lowercase /client/ URL too", () => {
+    expect(normalizeTeamId("https://app.slack.com/client/t0123abcd/c1")).toBe(
+      "T0123ABCD",
+    );
+  });
 });

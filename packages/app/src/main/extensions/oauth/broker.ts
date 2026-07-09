@@ -30,7 +30,8 @@ async function realOpen(url: string): Promise<void> {
 
 // Build the provider's authorize URL. Pure. Scopes join with spec.scopeSep
 // (Slack wants comma; RFC 6749 default is space) under spec.scopeParam (Slack
-// user tokens need "user_scope"; default "scope").
+// user tokens need "user_scope"; default "scope"). When `team` is set, pins the
+// workspace via the `team` param (Slack).
 export function buildAuthorizeUrl(
   spec: BrokerAuthSpec,
   state: string,
@@ -60,8 +61,7 @@ export function normalizeTeamId(input: string): string {
   if (/^T[A-Z0-9]{6,}$/i.test(s)) return s.toUpperCase();
   const client = s.match(/\/client\/(T[A-Z0-9]{6,})/i);
   if (client) return client[1].toUpperCase();
-  const any = s.match(/\bT[A-Z0-9]{8,}\b/i);
-  return any ? any[0].toUpperCase() : s;
+  return s;
 }
 
 // Run the whole browser handoff: open the consent screen, await the airlock://
