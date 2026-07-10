@@ -480,6 +480,9 @@ export interface AppPrefs {
   // Code statusLine that AirLock reads (set enabled:false to turn it off and
   // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
+  // Dock status badge (macOS). OFF by default (opt-in): enabling installs
+  // AirLock-labeled Claude Code hooks in ~/.claude/settings.json. App-global.
+  dockStatus: { enabled: boolean };
   // Auto-install the Claude "run the app" routing skill (steers Claude to the
   // managed dev server). Default on; toggled in Settings -> Claude.
   runAppSkill: { enabled: boolean };
