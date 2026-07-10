@@ -107,6 +107,7 @@ import {
   startDevServer,
   stopDevServer,
 } from "./devserver/manager";
+import { reconcileDockStatus } from "./dockstatus/wire";
 import { emitEvent, queryEvents } from "./eventlog/wire";
 import { normalizeTeamId, runBrokerFlow } from "./extensions/oauth/broker";
 import {
@@ -897,6 +898,12 @@ export function registerIpc(
       const p = await loadPrefs(prefsFile);
       await reconcileQuotaMeter(p.quotaMeter.enabled).catch((e) =>
         console.warn("[airlock] quota meter reconcile failed", e),
+      );
+    }
+    if ("dockStatus" in (patch as object)) {
+      const p = await loadPrefs(prefsFile);
+      await reconcileDockStatus(p.dockStatus.enabled).catch((e) =>
+        console.warn("[airlock] dock status reconcile failed", e),
       );
     }
     if ("runAppSkill" in (patch as object)) {
