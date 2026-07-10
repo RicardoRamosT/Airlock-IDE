@@ -45,6 +45,8 @@ export function SettingsTab() {
   );
   const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
+  const selfVerifyEnabled = useApp((s) => s.selfVerifyEnabled);
+  const setSelfVerifyEnabled = useApp((s) => s.setSelfVerifyEnabled);
   const runAppSkillEnabled = useApp((s) => s.runAppSkillEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
@@ -352,6 +354,32 @@ export function SettingsTab() {
                 Code status line that AirLock reads; if you already have a
                 custom status line, AirLock chains it so your footer is
                 unchanged. Turning this off removes it completely.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="self-verify">
+                  Let Claude verify AirLock (self-test tools)
+                </label>
+                <input
+                  id="self-verify"
+                  type="checkbox"
+                  checked={selfVerifyEnabled}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setSelfVerifyEnabled(v);
+                    void window.airlock.prefsSet({
+                      selfVerify: { enabled: v },
+                    });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Installs an <code>airlock-verify</code> skill and lets the
+                Claude you run inside AirLock drive the app, read its debug
+                event log, screenshot the UI, and toggle feature settings to
+                verify features end-to-end. Off by default. Screenshots can
+                capture whatever is on screen (including a revealed secret);
+                Claude can never change security settings.
               </p>
               <div className="settings-row">
                 <label htmlFor="run-app-skill">
