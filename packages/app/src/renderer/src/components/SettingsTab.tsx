@@ -45,6 +45,8 @@ export function SettingsTab() {
   );
   const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
+  const dockStatusEnabled = useApp((s) => s.dockStatusEnabled);
+  const setDockStatusEnabled = useApp((s) => s.setDockStatusEnabled);
   const runAppSkillEnabled = useApp((s) => s.runAppSkillEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
@@ -352,6 +354,31 @@ export function SettingsTab() {
                 Code status line that AirLock reads; if you already have a
                 custom status line, AirLock chains it so your footer is
                 unchanged. Turning this off removes it completely.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="dock-status">
+                  Show Claude activity on the app icon (macOS)
+                </label>
+                <input
+                  id="dock-status"
+                  type="checkbox"
+                  checked={dockStatusEnabled}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setDockStatusEnabled(v);
+                    void window.airlock.prefsSet({
+                      dockStatus: { enabled: v },
+                    });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Colors the dock icon from Claude's own signals: yellow while a
+                session is working, green when one finishes or needs you,
+                nothing when idle. Enabling installs AirLock-labeled hooks into{" "}
+                <code>~/.claude/settings.json</code> (any Claude session on this
+                Mac); turning it off removes them completely.
               </p>
               <div className="settings-row">
                 <label htmlFor="run-app-skill">

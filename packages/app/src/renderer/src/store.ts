@@ -305,6 +305,8 @@ export interface AppState {
   setQuota: (q: QuotaStatus) => void;
   quotaMeterEnabled: boolean;
   setQuotaMeterEnabled: (v: boolean) => void;
+  dockStatusEnabled: boolean;
+  setDockStatusEnabled: (v: boolean) => void;
   runAppSkillEnabled: boolean;
   setRunAppSkillEnabled: (v: boolean) => void;
   anthropicStatus: AnthropicStatus | null;
@@ -779,6 +781,8 @@ export const useApp = create<AppState>((set) => ({
   setQuota: (q) => set({ quota: q }),
   quotaMeterEnabled: false,
   setQuotaMeterEnabled: (v) => set({ quotaMeterEnabled: v }),
+  dockStatusEnabled: false,
+  setDockStatusEnabled: (v) => set({ dockStatusEnabled: v }),
   runAppSkillEnabled: true,
   setRunAppSkillEnabled: (v) => set({ runAppSkillEnabled: v }),
   anthropicStatus: null,
