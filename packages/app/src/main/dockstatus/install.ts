@@ -97,7 +97,7 @@ export async function uninstallDockStatusHooks(
   p: DockStatusPaths,
 ): Promise<void> {
   const settings = await readJson(p.settingsPath);
-  if (settings && settings.hooks && typeof settings.hooks === "object") {
+  if (settings?.hooks && typeof settings.hooks === "object") {
     const hooks = settings.hooks as Record<string, unknown[]>;
     for (const { event } of HOOK_EVENTS) {
       if (Array.isArray(hooks[event])) {
