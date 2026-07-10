@@ -119,7 +119,10 @@ export function ExtensionsSection() {
               >
                 <i className={`codicon codicon-${s.icon ?? "plug"}`} />
                 <span className={statusDot(s.status)} />
-                <span className="db-name">{s.name}</span>
+                <span className="db-name">
+                  {s.name}
+                  {s.account ? ` · ${s.account}` : ""}
+                </span>
                 <span className="ext-actions">
                   {s.status === "absent" && s.install && (
                     <button
@@ -166,6 +169,25 @@ export function ExtensionsSection() {
                   )}
                   {s.tier === "connected" && s.status === "connected" && (
                     <>
+                      {s.id === "slack" && (
+                        <button
+                          type="button"
+                          className="row-action"
+                          aria-label="Change Slack workspace"
+                          title="Change workspace"
+                          onClick={() =>
+                            setModal({
+                              oauthDevice: {
+                                id: s.id,
+                                name: s.name,
+                                manage: true,
+                              },
+                            })
+                          }
+                        >
+                          <i className="codicon codicon-arrow-swap" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="row-action"

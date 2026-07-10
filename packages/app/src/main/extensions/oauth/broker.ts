@@ -30,11 +30,13 @@ async function realOpen(url: string): Promise<void> {
 
 // Build the provider's authorize URL. Pure. Scopes join with spec.scopeSep
 // (Slack wants comma; RFC 6749 default is space) under spec.scopeParam (Slack
-// user tokens need "user_scope"; default "scope").
+// user tokens need "user_scope"; default "scope"). When `team` is set, pins the
+// workspace via the `team` param (Slack).
 export function buildAuthorizeUrl(
   spec: BrokerAuthSpec,
   state: string,
   redirectUri: string,
+  team?: string,
 ): string {
   const u = new URL(spec.authorizeUrl);
   u.searchParams.set("client_id", spec.clientId);
@@ -45,7 +47,21 @@ export function buildAuthorizeUrl(
   u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("response_type", "code");
   u.searchParams.set("state", state);
+  if (team) u.searchParams.set("team", team);
   return u.toString();
+}
+
+// Normalize a user-supplied Slack workspace hint into the Team ID Slack's
+// authorize `team` param wants. Accepts a bare id (T0123ABCD) or a pasted Slack
+// URL (app.slack.com/client/T…). Unknown text passes through trimmed -- Slack
+// then falls back to its own workspace switcher rather than us hard-failing.
+export function normalizeTeamId(input: string): string {
+  const s = (input ?? "").trim();
+  if (!s) return "";
+  if (/^T[A-Z0-9]{6,}$/i.test(s)) return s.toUpperCase();
+  const client = s.match(/\/client\/(T[A-Z0-9]{6,})/i);
+  if (client?.[1]) return client[1].toUpperCase();
+  return s;
 }
 
 // Run the whole browser handoff: open the consent screen, await the airlock://
@@ -54,6 +70,7 @@ export function buildAuthorizeUrl(
 // back; the caller vaults it. Throws (friendly message) on timeout / bad config.
 export async function runBrokerFlow(
   spec: BrokerAuthSpec,
+  team?: string,
   timeoutMs = 5 * 60_000,
   deps: {
     open?: (url: string) => Promise<void>;
@@ -71,7 +88,7 @@ export async function runBrokerFlow(
   const wait = deps.wait ?? awaitCallback;
   const base = spec.brokerBaseUrl.replace(/\/$/, "");
   const state = randomState();
-  await open(buildAuthorizeUrl(spec, state, `${base}/callback`));
+  await open(buildAuthorizeUrl(spec, state, `${base}/callback`, team));
   const { ticket } = await wait(state, timeoutMs);
   const res = await fx(`${base}/redeem`, {
     method: "POST",

@@ -72,6 +72,7 @@ import {
   searchProject,
   setGlobalSecret,
   setSecret,
+  slackAuthTest,
   stageFiles,
   switchBranch,
   switchGhAccount,
@@ -107,7 +108,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
-import { runBrokerFlow } from "./extensions/oauth/broker";
+import { normalizeTeamId, runBrokerFlow } from "./extensions/oauth/broker";
 import {
   beginDeviceFlow,
   oauthTokenName,
@@ -115,6 +116,7 @@ import {
 } from "./extensions/oauth/device";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { slackAllChannels } from "./extensions/slack";
+import { slackWorkspacePatch } from "./extensions/slackWorkspace";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -268,6 +270,18 @@ function ptyHasChild(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+// The workspace/account label for a connected extension row, read from its
+// per-project config (e.g. Slack's captured workspace name). Undefined -> none.
+function workspaceAccountName(cfg: unknown): string | undefined {
+  const w =
+    cfg && typeof cfg === "object"
+      ? (cfg as { workspace?: unknown }).workspace
+      : undefined;
+  const n =
+    w && typeof w === "object" ? (w as { name?: unknown }).name : undefined;
+  return typeof n === "string" && n ? n : undefined;
 }
 
 // Tell every window the activity feed changed (no payload) so each ActivitySection
@@ -1654,6 +1668,9 @@ export function registerIpc(
     const tier1 = buildExtensionSummaries(INTEGRATIONS, statuses, ext);
     // Tier-2 connected extensions (e.g. Slack): status is per-project (a token
     // vaulted for the focused root). No root -> unauthed (can't check).
+    const projExts = root
+      ? ((await readProjectConfig(root).catch(() => null))?.extensions ?? null)
+      : null;
     const connected = await Promise.all(
       CONNECTED_EXTENSIONS.map(async (d) => {
         const provider = CONNECTED_PROVIDERS[d.id];
@@ -1661,7 +1678,12 @@ export function registerIpc(
           root && provider
             ? await provider.status(root).catch((): ConnectedStatus => "error")
             : "unauthed";
-        return connectedSummary(d, status, ext);
+        const summary = connectedSummary(d, status, ext);
+        const account =
+          status === "connected"
+            ? workspaceAccountName(projExts?.[d.id])
+            : undefined;
+        return account ? { ...summary, account } : summary;
       }),
     );
     return [...tier1, ...connected];
@@ -1688,8 +1710,12 @@ export function registerIpc(
       }
       const r = resolveRoot(e, root);
       const cur = (await readProjectConfig(r)).extensions ?? {};
+      const curExt = (cur[id] ?? {}) as Record<string, unknown>;
       const saved = await writeProjectConfig(r, {
-        extensions: { ...cur, [id]: cfg as Record<string, unknown> },
+        extensions: {
+          ...cur,
+          [id]: { ...curExt, ...(cfg as Record<string, unknown>) },
+        },
       });
       return saved.extensions?.[id] ?? {};
     },
@@ -1745,11 +1771,15 @@ export function registerIpc(
       const r = resolveRoot(e, root);
       const spec = CONNECTED_EXTENSIONS.find((x) => x.id === id)?.authSpec;
       // Vault the resulting token + notify the window. Shared by both flows.
-      const finish = (p: Promise<string>) =>
+      const finish = (
+        p: Promise<string>,
+        afterVault?: (token: string) => Promise<void>,
+      ) =>
         void p
           .then(async (token) => {
             await setSecret(r, oauthTokenName(id), token);
             e.sender.send("extensions:oauthResult", { id, ok: true });
+            if (afterVault) void afterVault(token).catch(() => {});
           })
           .catch((err) =>
             e.sender.send("extensions:oauthResult", {
@@ -1772,7 +1802,26 @@ export function registerIpc(
         };
       }
       if (spec?.flow === "broker") {
-        finish(runBrokerFlow(spec));
+        const cfg = (await readProjectConfig(r)).extensions?.[id] ?? {};
+        const team = normalizeTeamId(
+          typeof cfg.workspacePin === "string" ? cfg.workspacePin : "",
+        );
+        const capture =
+          id === "slack"
+            ? async (token: string) => {
+                const a = await slackAuthTest(token);
+                if (!a.ok) return; // best-effort: a good token still connected
+                const exts = (await readProjectConfig(r)).extensions ?? {};
+                const patch = slackWorkspacePatch(exts[id], a);
+                await writeProjectConfig(r, {
+                  extensions: {
+                    ...exts,
+                    [id]: { ...(exts[id] ?? {}), ...patch },
+                  },
+                });
+              }
+            : undefined;
+        finish(runBrokerFlow(spec, team || undefined), capture);
         return { kind: "browser" as const };
       }
       throw new Error(`No OAuth login configured for ${id}`);

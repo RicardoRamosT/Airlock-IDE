@@ -361,7 +361,7 @@ export interface AppState {
     | "connect-render"
     | "connect-slack"
     | "slack-channels"
-    | { oauthDevice: { id: string; name: string } }
+    | { oauthDevice: { id: string; name: string; manage?: boolean } }
     | "add-database"
     | null;
 
