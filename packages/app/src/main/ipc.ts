@@ -272,6 +272,18 @@ function ptyHasChild(pid: number): boolean {
   }
 }
 
+// The workspace/account label for a connected extension row, read from its
+// per-project config (e.g. Slack's captured workspace name). Undefined -> none.
+function workspaceAccountName(cfg: unknown): string | undefined {
+  const w =
+    cfg && typeof cfg === "object"
+      ? (cfg as { workspace?: unknown }).workspace
+      : undefined;
+  const n =
+    w && typeof w === "object" ? (w as { name?: unknown }).name : undefined;
+  return typeof n === "string" && n ? n : undefined;
+}
+
 // Tell every window the activity feed changed (no payload) so each ActivitySection
 // refetches the now-filtered list. The dismissed set is app-global, so this fans
 // out to ALL windows (like sections:changed). Reused by the activity:dismiss IPC
@@ -1656,6 +1668,9 @@ export function registerIpc(
     const tier1 = buildExtensionSummaries(INTEGRATIONS, statuses, ext);
     // Tier-2 connected extensions (e.g. Slack): status is per-project (a token
     // vaulted for the focused root). No root -> unauthed (can't check).
+    const projExts = root
+      ? ((await readProjectConfig(root).catch(() => null))?.extensions ?? null)
+      : null;
     const connected = await Promise.all(
       CONNECTED_EXTENSIONS.map(async (d) => {
         const provider = CONNECTED_PROVIDERS[d.id];
@@ -1663,7 +1678,9 @@ export function registerIpc(
           root && provider
             ? await provider.status(root).catch((): ConnectedStatus => "error")
             : "unauthed";
-        return connectedSummary(d, status, ext);
+        const summary = connectedSummary(d, status, ext);
+        const account = workspaceAccountName(projExts?.[d.id]);
+        return account ? { ...summary, account } : summary;
       }),
     );
     return [...tier1, ...connected];

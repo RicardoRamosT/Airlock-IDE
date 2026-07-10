@@ -26,6 +26,9 @@ export interface ExtensionSummary {
   // How the extension authenticates: "token" (paste) or "oauth2" (browser login).
   // Drives which Connect flow the Hub opens for a Tier-2 row.
   authKind: "token" | "oauth2";
+  // For a connected Tier-2 row: a short account/workspace label shown next to the
+  // name (e.g. the Slack workspace). Populated main-side from per-project config.
+  account?: string;
   // Passed through from the manifest so the Hub can offer an actionable button:
   // "Install <name>" on an absent row, "Connect <name>" on an unauthed row
   // (each runs its command in a new terminal -- user-initiated).
