@@ -28,6 +28,7 @@ import {
 } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { BrowserWindow } from "electron";
 import type {
   ActivityItem,
   AgentCommand,
@@ -44,7 +45,8 @@ import {
   slackReadChannelTool,
 } from "../extensions/slackTools";
 import { gatherProfile } from "../overview/gather";
-import { savePrefs } from "../prefs";
+import { loadPrefs, savePrefs } from "../prefs";
+import { applyPrefPatch } from "./prefWrite";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
 
@@ -174,6 +176,16 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
       slackReadChannelTool(root, channel, limit),
     githubReadIssue: (root, owner, repo, issue) =>
       githubReadIssueTool(root, owner, repo, issue),
+    selfVerifyEnabled: async () =>
+      (await loadPrefs(deps.prefsFile)).selfVerify.enabled,
+    captureScreenshot: async () => {
+      const win =
+        BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      if (!win) return null;
+      const img = await win.webContents.capturePage();
+      return img.toPNG().toString("base64");
+    },
+    setPref: (key, value) => applyPrefPatch(deps.prefsFile, key, value),
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list

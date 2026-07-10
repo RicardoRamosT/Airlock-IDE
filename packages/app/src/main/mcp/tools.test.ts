@@ -71,6 +71,11 @@ const baseDeps = {
   prefsFile: "/tmp/airlock-test-prefs.json",
   getWorkspaceRoot: () => null as string | null,
   getBaseEnv: () => ({}) as Record<string, string>,
+  selfVerifyEnabled: vi.fn(async () => false),
+  captureScreenshot: vi.fn(async () => null as string | null),
+  setPref: vi.fn(
+    async () => ({ ok: false, error: "nc" }) as { ok: boolean; error?: string },
+  ),
   requestSecretFromUser: vi.fn(async () => ({ vaulted: true })),
   // Terminal deps now take root as the third/first param (scoped to calling
   // session's project, not GUI focus). Test doubles accept and ignore it;
@@ -169,13 +174,13 @@ describe("registerTools allowlist guard", () => {
   // twenty-nine allowlisted tools (twenty read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the thirty-four allowlisted tools and nothing else", () => {
+  it("registers exactly the thirty-six allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(34);
+    expect(registered).toHaveLength(36);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");

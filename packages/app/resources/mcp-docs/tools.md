@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 34 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 36 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -62,6 +62,12 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 
 ## Debugging — query the event log
 
+- **`capture_screenshot`** — capture a PNG of AirLock's focused window (returned as an
+  image) to visually verify the UI. Requires Self-verification enabled; captures whatever
+  is on screen (including a revealed secret).
+- **`set_pref`** — set an app-global preference to drive a feature (e.g. `{ key:
+  "quotaMeter", value: { enabled: true } }`). Requires Self-verification; only UI/feature
+  toggles are allowed, security settings are refused.
 - **`read_events`** — query AirLock's debugging event log (lifecycle, integration calls,
   agent commands, IPC, and errors). Secret-free by construction (values are stripped at
   capture time). Optional filters: `level` (minimum severity: `"debug"`, `"info"`,
