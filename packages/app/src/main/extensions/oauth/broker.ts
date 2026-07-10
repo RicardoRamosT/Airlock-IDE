@@ -87,7 +87,12 @@ export async function runBrokerFlow(
   const fx = deps.fx ?? realFetch;
   const wait = deps.wait ?? awaitCallback;
   const base = spec.brokerBaseUrl.replace(/\/$/, "");
-  const state = randomState();
+  // State MUST be "<brokerProvider>.<random>" -- the Worker's /callback derives
+  // the provider via state.split(".")[0] (providerFromState). A bare random state
+  // made it read the whole string as the provider -> no config -> HTTP 400 "bad
+  // request" on every Slack redirect (the token exchange never ran). randomState()
+  // is base64url (no dots), so the only "." is this separator.
+  const state = `${spec.brokerProvider}.${randomState()}`;
   await open(buildAuthorizeUrl(spec, state, `${base}/callback`, team));
   const { ticket } = await wait(state, timeoutMs);
   const res = await fx(`${base}/redeem`, {
