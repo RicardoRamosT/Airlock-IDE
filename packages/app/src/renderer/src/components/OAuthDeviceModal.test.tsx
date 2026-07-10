@@ -126,4 +126,10 @@ it("manage mode: saves the workspace pin then opens the browser", async () => {
     workspacePin: "T2NEWTEAM",
   });
   expect(oauthBegin).toHaveBeenCalled();
+  // Both calls are asserted above, so each invocationCallOrder[0] exists.
+  // biome-ignore lint/style/noNonNullAssertion: calls asserted above
+  expect(setConfig.mock.invocationCallOrder[0]!).toBeLessThan(
+    // biome-ignore lint/style/noNonNullAssertion: calls asserted above
+    oauthBegin.mock.invocationCallOrder[0]!,
+  );
 });

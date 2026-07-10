@@ -1679,7 +1679,10 @@ export function registerIpc(
             ? await provider.status(root).catch((): ConnectedStatus => "error")
             : "unauthed";
         const summary = connectedSummary(d, status, ext);
-        const account = workspaceAccountName(projExts?.[d.id]);
+        const account =
+          status === "connected"
+            ? workspaceAccountName(projExts?.[d.id])
+            : undefined;
         return account ? { ...summary, account } : summary;
       }),
     );
@@ -1775,8 +1778,8 @@ export function registerIpc(
         void p
           .then(async (token) => {
             await setSecret(r, oauthTokenName(id), token);
-            if (afterVault) await afterVault(token).catch(() => {});
             e.sender.send("extensions:oauthResult", { id, ok: true });
+            if (afterVault) void afterVault(token).catch(() => {});
           })
           .catch((err) =>
             e.sender.send("extensions:oauthResult", {
