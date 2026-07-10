@@ -55,6 +55,14 @@
       {
         "from": "resources/claude-skills",
         "to": "claude-skills"
+      },
+      {
+        "from": "resources/airlock-dock-status.sh",
+        "to": "airlock-dock-status.sh"
+      },
+      {
+        "from": "resources/dock",
+        "to": "dock"
       }
     ],
     "mac": {
