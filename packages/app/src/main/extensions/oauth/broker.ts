@@ -70,6 +70,7 @@ export function normalizeTeamId(input: string): string {
 // back; the caller vaults it. Throws (friendly message) on timeout / bad config.
 export async function runBrokerFlow(
   spec: BrokerAuthSpec,
+  team?: string,
   timeoutMs = 5 * 60_000,
   deps: {
     open?: (url: string) => Promise<void>;
@@ -87,7 +88,7 @@ export async function runBrokerFlow(
   const wait = deps.wait ?? awaitCallback;
   const base = spec.brokerBaseUrl.replace(/\/$/, "");
   const state = randomState();
-  await open(buildAuthorizeUrl(spec, state, `${base}/callback`));
+  await open(buildAuthorizeUrl(spec, state, `${base}/callback`, team));
   const { ticket } = await wait(state, timeoutMs);
   const res = await fx(`${base}/redeem`, {
     method: "POST",

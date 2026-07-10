@@ -107,7 +107,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { emitEvent, queryEvents } from "./eventlog/wire";
-import { runBrokerFlow } from "./extensions/oauth/broker";
+import { normalizeTeamId, runBrokerFlow } from "./extensions/oauth/broker";
 import {
   beginDeviceFlow,
   oauthTokenName,
@@ -1688,8 +1688,12 @@ export function registerIpc(
       }
       const r = resolveRoot(e, root);
       const cur = (await readProjectConfig(r)).extensions ?? {};
+      const curExt = (cur[id] ?? {}) as Record<string, unknown>;
       const saved = await writeProjectConfig(r, {
-        extensions: { ...cur, [id]: cfg as Record<string, unknown> },
+        extensions: {
+          ...cur,
+          [id]: { ...curExt, ...(cfg as Record<string, unknown>) },
+        },
       });
       return saved.extensions?.[id] ?? {};
     },
@@ -1772,7 +1776,11 @@ export function registerIpc(
         };
       }
       if (spec?.flow === "broker") {
-        finish(runBrokerFlow(spec));
+        const cfg = (await readProjectConfig(r)).extensions?.[id] ?? {};
+        const team = normalizeTeamId(
+          typeof cfg.workspacePin === "string" ? cfg.workspacePin : "",
+        );
+        finish(runBrokerFlow(spec, team || undefined));
         return { kind: "browser" as const };
       }
       throw new Error(`No OAuth login configured for ${id}`);
