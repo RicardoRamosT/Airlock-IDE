@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { OAuthBeginResult } from "../../../shared/ipc";
 import { useApp } from "../store";
@@ -8,6 +14,8 @@ import { OAuthDeviceModal } from "./OAuthDeviceModal";
 let resultCb:
   | ((e: { id: string; ok: boolean; error?: string }) => void)
   | null = null;
+let oauthBegin: ReturnType<typeof vi.fn>;
+let setConfig: ReturnType<typeof vi.fn>;
 
 afterEach(() => {
   cleanup();
@@ -17,8 +25,12 @@ afterEach(() => {
 
 function mount(
   root: string | null,
-  begin: OAuthBeginResult,
-  ext = { id: "github", name: "GitHub" },
+  beginResult: OAuthBeginResult,
+  ext: { id: string; name: string; manage?: boolean } = {
+    id: "github",
+    name: "GitHub",
+  },
+  cfg: Record<string, unknown> = {},
 ) {
   const t1 = useApp.getState().activeTabId;
   useApp.setState({
@@ -26,8 +38,12 @@ function mount(
     tabState: { ...useApp.getState().tabState, [t1]: { root } as never },
     modal: { oauthDevice: ext },
   });
+  oauthBegin = vi.fn(async () => beginResult);
+  setConfig = vi.fn(async () => ({}));
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
-    extensionsOAuthBegin: vi.fn(async () => begin),
+    extensionsOAuthBegin: oauthBegin,
+    extensionsGetConfig: vi.fn(async () => cfg),
+    extensionsSetConfig: setConfig,
     onExtensionOAuthResult: (cb: typeof resultCb) => {
       resultCb = cb;
       return () => {};
@@ -71,4 +87,43 @@ it("broker flow: shows the browser waiting state (no code), closes on success", 
   expect(document.querySelector(".oauth-code")).toBeNull();
   await act(async () => resultCb?.({ id: "slack", ok: true }));
   expect(useApp.getState().modal).toBeNull();
+});
+
+it("manage mode: does not auto-begin; shows current workspace pre-filled", async () => {
+  mount(
+    "/proj",
+    { kind: "browser" },
+    { id: "slack", name: "Slack", manage: true },
+    { workspace: { id: "T1", name: "Acme" } },
+  );
+  render(<OAuthDeviceModal />);
+  expect(await screen.findByText(/Current workspace: Acme/i)).toBeTruthy();
+  expect(oauthBegin).not.toHaveBeenCalled();
+  const input = (await screen.findByPlaceholderText(
+    /T0123ABCD/i,
+  )) as HTMLInputElement;
+  expect(input.value).toBe("T1");
+});
+
+it("manage mode: saves the workspace pin then opens the browser", async () => {
+  mount(
+    "/proj",
+    { kind: "browser" },
+    { id: "slack", name: "Slack", manage: true },
+    { workspace: { id: "T1", name: "Acme" } },
+  );
+  render(<OAuthDeviceModal />);
+  const input = (await screen.findByPlaceholderText(
+    /T0123ABCD/i,
+  )) as HTMLInputElement;
+  await act(async () => {
+    fireEvent.change(input, { target: { value: "T2NEWTEAM" } });
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText("Open browser to switch"));
+  });
+  expect(setConfig).toHaveBeenCalledWith("/proj", "slack", {
+    workspacePin: "T2NEWTEAM",
+  });
+  expect(oauthBegin).toHaveBeenCalled();
 });
