@@ -60,7 +60,7 @@ export function normalizeTeamId(input: string): string {
   if (!s) return "";
   if (/^T[A-Z0-9]{6,}$/i.test(s)) return s.toUpperCase();
   const client = s.match(/\/client\/(T[A-Z0-9]{6,})/i);
-  if (client) return client[1].toUpperCase();
+  if (client?.[1]) return client[1].toUpperCase();
   return s;
 }
 
