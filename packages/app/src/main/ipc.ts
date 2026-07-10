@@ -72,6 +72,7 @@ import {
   searchProject,
   setGlobalSecret,
   setSecret,
+  slackAuthTest,
   stageFiles,
   switchBranch,
   switchGhAccount,
@@ -115,6 +116,7 @@ import {
 } from "./extensions/oauth/device";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { slackAllChannels } from "./extensions/slack";
+import { slackWorkspacePatch } from "./extensions/slackWorkspace";
 import { syncWindowWatchers } from "./fsWatch";
 import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
 import {
@@ -1749,10 +1751,14 @@ export function registerIpc(
       const r = resolveRoot(e, root);
       const spec = CONNECTED_EXTENSIONS.find((x) => x.id === id)?.authSpec;
       // Vault the resulting token + notify the window. Shared by both flows.
-      const finish = (p: Promise<string>) =>
+      const finish = (
+        p: Promise<string>,
+        afterVault?: (token: string) => Promise<void>,
+      ) =>
         void p
           .then(async (token) => {
             await setSecret(r, oauthTokenName(id), token);
+            if (afterVault) await afterVault(token).catch(() => {});
             e.sender.send("extensions:oauthResult", { id, ok: true });
           })
           .catch((err) =>
@@ -1780,7 +1786,22 @@ export function registerIpc(
         const team = normalizeTeamId(
           typeof cfg.workspacePin === "string" ? cfg.workspacePin : "",
         );
-        finish(runBrokerFlow(spec, team || undefined));
+        const capture =
+          id === "slack"
+            ? async (token: string) => {
+                const a = await slackAuthTest(token);
+                if (!a.ok) return; // best-effort: a good token still connected
+                const exts = (await readProjectConfig(r)).extensions ?? {};
+                const patch = slackWorkspacePatch(exts[id], a);
+                await writeProjectConfig(r, {
+                  extensions: {
+                    ...exts,
+                    [id]: { ...(exts[id] ?? {}), ...patch },
+                  },
+                });
+              }
+            : undefined;
+        finish(runBrokerFlow(spec, team || undefined), capture);
         return { kind: "browser" as const };
       }
       throw new Error(`No OAuth login configured for ${id}`);
