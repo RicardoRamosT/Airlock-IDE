@@ -76,6 +76,33 @@ export function usePrefs(): void {
     setExtensionsPrefs,
   ]);
 
+  // Live app-global prefs push (e.g. the set_pref MCP tool changing a pref from
+  // the backend): re-apply the slices so the UI reflects it without a restart.
+  // Authoritative like onSectionsChanged -- mark hydrated so a late startup
+  // prefsGet cannot clobber it. getState() setters are stable, so deps are empty.
+  useEffect(() => {
+    return window.airlock.onPrefsChanged((p) => {
+      const s = useApp.getState();
+      s.setLayoutHydrated(true);
+      s.setSidebarVisible(p.sidebarVisible);
+      s.setSidebarPosition(p.sidebarPosition);
+      s.setSidebarWidth(p.sidebarWidth);
+      s.setTheme(p.theme);
+      s.setClipboardClearSeconds(p.clipboardClearSeconds);
+      s.setOpenProjectsAsTabs(p.openProjectsAsTabs);
+      s.setShowRunningProcessNotice(p.showRunningProcessNotice);
+      s.setSectionVisibility(p.sectionVisibility);
+      s.setActiveView(p.activeView);
+      s.setClaudeAutoStart(p.claudeAutoStart);
+      s.setRestoreSession(p.restoreSession);
+      s.setDefaultTerminal(p.defaultTerminal);
+      s.setQuotaMeterEnabled(p.quotaMeter.enabled);
+      s.setSelfVerifyEnabled(p.selfVerify.enabled);
+      s.setRunAppSkillEnabled(p.runAppSkill.enabled);
+      s.setExtensionsPrefs(p.extensions ?? {});
+    });
+  }, []);
+
   // Runtime visibility changes (View menu or right-click) arrive as an
   // authoritative push from main. Mark hydrated first so a late startup
   // prefsGet cannot clobber the user's live change (the recurring hydrate race).

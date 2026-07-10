@@ -45,7 +45,7 @@ import {
   slackReadChannelTool,
 } from "../extensions/slackTools";
 import { gatherProfile } from "../overview/gather";
-import { loadPrefs, savePrefs } from "../prefs";
+import { loadPrefs, publicPrefs, savePrefs } from "../prefs";
 import { applyPrefPatch } from "./prefWrite";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
@@ -185,7 +185,20 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
       const img = await win.webContents.capturePage();
       return img.toPNG().toString("base64");
     },
-    setPref: (key, value) => applyPrefPatch(deps.prefsFile, key, value),
+    setPref: async (key, value) => {
+      const r = await applyPrefPatch(deps.prefsFile, key, value);
+      // Push the new prefs to every window so a backend-driven change (set_pref)
+      // is reflected in the UI live, without an app restart.
+      if (r.ok) {
+        const pub = publicPrefs(await loadPrefs(deps.prefsFile));
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.webContents.isDestroyed()) {
+            w.webContents.send("prefs:changed", pub);
+          }
+        }
+      }
+      return r;
+    },
   });
 
   // Register the IDE-manual docs as read-only MCP resources from the list
