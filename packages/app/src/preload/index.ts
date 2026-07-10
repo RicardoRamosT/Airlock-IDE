@@ -32,6 +32,7 @@ const api: AirlockApi = {
   workspaceRoots: (roots) => ipcRenderer.invoke("workspace:roots", roots),
   sessionGet: () => ipcRenderer.invoke("session:get"),
   sessionSave: (snap) => ipcRenderer.send("session:save", snap),
+  reportRendererError: (p) => ipcRenderer.send("events:report", p),
   openFile: () => ipcRenderer.invoke("dialog:openFile"),
   onMenuAction: (cb) => subscribe<MenuAction>("menu:action", cb),
   listDir: (root, relPath) => ipcRenderer.invoke("fs:listDir", root, relPath),
