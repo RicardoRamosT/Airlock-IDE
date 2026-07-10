@@ -13,6 +13,8 @@ describe("isSettablePref", () => {
       "defaultTerminal",
       "restoreSession",
       "clipboardClearSeconds",
+      "activeView",
+      "sidebarVisible",
     ]) {
       expect(isSettablePref(k), k).toBe(true);
     }

@@ -19,6 +19,11 @@ const SETTABLE = new Set<string>([
   "defaultTerminal",
   "restoreSession",
   "clipboardClearSeconds",
+  // Sidebar focus: let the agent open the sidebar + switch the active section so
+  // it can drive/verify a sidebar panel (e.g. activeView "extensions"). Applied
+  // live via the prefs:changed broadcast. Pure UI state, no security concern.
+  "activeView",
+  "sidebarVisible",
 ]);
 
 export function isSettablePref(key: string): boolean {

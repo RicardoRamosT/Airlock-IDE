@@ -14,7 +14,10 @@ throws.
 2. **Drive the feature.** Exercise it with the driving tools:
    `open_tab`, `open_terminal` + `send_terminal_input`, `set_pref` to flip a
    feature on (e.g. `{ "key": "quotaMeter", "value": { "enabled": true } }`),
-   `start_dev_server`, `run_command`, `open_app_page`.
+   `start_dev_server`, `run_command`, `open_app_page`. To drive/verify a SIDEBAR
+   panel (Extensions, Secrets, Git, …), focus it with
+   `set_pref { key:"sidebarVisible", value:true }` then
+   `set_pref { key:"activeView", value:"extensions" }`, then `capture_screenshot`.
 3. **Check the backend AND renderer.** Call `read_events` with
    `{ "level": "error", "since": "<baseline>" }`. ANY result is an error the UI
    may have hidden — report it with its `op` and message. Renderer crashes show
