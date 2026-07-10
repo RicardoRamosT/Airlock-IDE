@@ -103,6 +103,7 @@ const DEFAULT_PREFS: AppPrefs = {
   },
   quotaMeter: { enabled: false },
   runAppSkill: { enabled: true },
+  selfVerify: { enabled: false },
   eventLog: { enabled: true, minLevel: "debug" },
   defaultTerminal: "airlock",
   restoreSession: true,
