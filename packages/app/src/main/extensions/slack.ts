@@ -18,8 +18,12 @@ import {
 } from "@airlock/agent-core";
 import type { ConnectedProvider, ConnectResult } from "./provider";
 
-// The vault secret name that holds a project's Slack token.
-export const SLACK_TOKEN_NAME = "SLACK_TOKEN";
+// The vault secret name that holds a project's Slack token. MUST equal
+// oauthTokenName("slack") = "SLACK_OAUTH_TOKEN" -- what the broker OAuth flow
+// (ipc extensions:oauthBegin) vaults the token under. It was "SLACK_TOKEN" (the
+// legacy paste-flow name), which never matched the OAuth-vaulted name, so status
+// read empty and the row stayed "Available" despite a successful connect.
+export const SLACK_TOKEN_NAME = "SLACK_OAUTH_TOKEN";
 
 // One allow-listed channel: {id} is what the API + gate use; {name} is for
 // display (so the Hub/tools can show #name without a network round-trip).
