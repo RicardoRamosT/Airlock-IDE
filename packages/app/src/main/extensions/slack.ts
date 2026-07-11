@@ -6,15 +6,18 @@
 // text ever leave main.
 import {
   type ConnectedStatus,
+  type ConvKind,
   deleteSecret,
   getSecretValue,
   type IntegrationItem,
+  labelConversations,
   listSecrets,
   readProjectConfig,
   type SlackChannel,
   setSecret,
   slackAuthTest,
   slackListChannels,
+  slackListUsers,
 } from "@airlock/agent-core";
 import type { ConnectedProvider, ConnectResult } from "./provider";
 
@@ -25,11 +28,17 @@ import type { ConnectedProvider, ConnectResult } from "./provider";
 // read empty and the row stayed "Available" despite a successful connect.
 export const SLACK_TOKEN_NAME = "SLACK_OAUTH_TOKEN";
 
-// One allow-listed channel: {id} is what the API + gate use; {name} is for
-// display (so the Hub/tools can show #name without a network round-trip).
+// One allow-listed conversation: {id} is what the API + gate use; {name} is the
+// display label; {kind} drives the type glyph. Persisted in project config.
 export interface AllowedChannel {
   id: string;
   name: string;
+  kind: ConvKind;
+}
+
+// Coerce a persisted kind (or a legacy entry with none) to a ConvKind.
+function asConvKind(v: unknown): ConvKind {
+  return v === "private" || v === "im" || v === "mpim" ? v : "public";
 }
 
 // Read a project's Slack channel allow-list (the permission wall) from config.
@@ -42,11 +51,12 @@ export async function allowedChannels(root: string): Promise<AllowedChannel[]> {
   const out: AllowedChannel[] = [];
   for (const c of raw) {
     if (c && typeof c === "object") {
-      const o = c as { id?: unknown; name?: unknown };
+      const o = c as { id?: unknown; name?: unknown; kind?: unknown };
       if (typeof o.id === "string") {
         out.push({
           id: o.id,
           name: typeof o.name === "string" ? o.name : o.id,
+          kind: asConvKind(o.kind),
         });
       }
     }
@@ -54,13 +64,26 @@ export async function allowedChannels(root: string): Promise<AllowedChannel[]> {
   return out;
 }
 
-// All channels the connected token can see (for the allow-list PICKER). Needs
-// the token (main-only) + a network call, so it is NOT on the cheap status path.
-// Returns channel names/ids only -- no messages, no token. [] when not connected.
+// Whether this project has opted into private channels / DMs / group DMs.
+export async function slackIncludePrivate(root: string): Promise<boolean> {
+  const cfg = await readProjectConfig(root);
+  return cfg.extensions?.slack?.includePrivate === true;
+}
+
+// All conversations the connected token can see (for the allow-list PICKER),
+// with display labels. Needs the token (main-only) + network, so it is NOT on
+// the cheap status path. users.list is fetched ONLY when a DM/group DM is
+// present (to resolve names). Returns labels/ids/kinds only -- no messages, no
+// token. [] when not connected.
 export async function slackAllChannels(root: string): Promise<SlackChannel[]> {
   const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
   if (!token) return [];
-  return slackListChannels(token).catch(() => []);
+  const includePrivate = await slackIncludePrivate(root);
+  const raw = await slackListChannels(token, includePrivate).catch(() => []);
+  const needUsers =
+    includePrivate && raw.some((c) => c.kind === "im" || c.kind === "mpim");
+  const users = needUsers ? await slackListUsers(token).catch(() => []) : [];
+  return labelConversations(raw, users);
 }
 
 export const slackProvider: ConnectedProvider = {

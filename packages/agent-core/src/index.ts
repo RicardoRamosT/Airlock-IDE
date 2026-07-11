@@ -312,12 +312,16 @@ export {
   authTest as slackAuthTest,
   channelHistory as slackChannelHistory,
   listChannels as slackListChannels,
+  listUsers as slackListUsers,
   type SlackTransport,
 } from "./slack/client";
+export { labelConversations } from "./slack/parse";
 export type {
+  ConvKind,
   SlackAuth,
   SlackChannel,
   SlackMessage,
+  SlackUser,
 } from "./slack/parse";
 export {
   detectInstalledTerminals,

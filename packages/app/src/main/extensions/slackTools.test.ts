@@ -3,8 +3,8 @@ import type { AllowedChannel } from "./slack";
 import { resolveAllowedChannel } from "./slackTools";
 
 const allowed: AllowedChannel[] = [
-  { id: "C1", name: "bugs" },
-  { id: "C2", name: "eng" },
+  { id: "C1", name: "bugs", kind: "public" },
+  { id: "C2", name: "eng", kind: "public" },
 ];
 
 describe("resolveAllowedChannel (the permission gate)", () => {
