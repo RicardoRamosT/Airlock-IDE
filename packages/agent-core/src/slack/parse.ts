@@ -65,6 +65,59 @@ export function parseChannels(json: unknown): SlackChannel[] {
     });
 }
 
+// users.list -> id -> display name (best available). Skips deleted accounts.
+export interface SlackUser {
+  id: string;
+  name: string;
+}
+
+export function parseUsers(json: unknown): SlackUser[] {
+  const r = obj(json);
+  if (r.ok !== true || !Array.isArray(r.members)) return [];
+  return r.members
+    .map((m) => obj(m))
+    .filter((m) => typeof m.id === "string" && m.deleted !== true)
+    .map((m) => {
+      const p = obj(m.profile);
+      const name =
+        str(p.display_name) ||
+        str(m.real_name) ||
+        str(p.real_name) ||
+        str(m.name);
+      return { id: str(m.id), name };
+    });
+}
+
+// "mpdm-alice--bob--carol-1" -> "alice, bob, carol".
+export function cleanMpimName(name: string): string {
+  const m = name.match(/^mpdm-(.+?)-1$/);
+  return (m?.[1] ?? name).split("--").filter(Boolean).join(", ");
+}
+
+// Turn raw conversations into display-labeled ones: im -> "<user> (DM)", mpim ->
+// "<members> (group)", channels unchanged. Pure (network-free) so it is unit
+// tested; slackAllChannels supplies the users map.
+export function labelConversations(
+  raw: SlackChannel[],
+  users: SlackUser[],
+): SlackChannel[] {
+  const byId = new Map(users.map((u) => [u.id, u.name] as const));
+  return raw.map((c) => {
+    if (c.kind === "im") {
+      const who = (c.userId && byId.get(c.userId)) || c.userId || "unknown";
+      return { id: c.id, name: `${who} (DM)`, kind: c.kind };
+    }
+    if (c.kind === "mpim") {
+      return {
+        id: c.id,
+        name: `${cleanMpimName(c.name)} (group)`,
+        kind: c.kind,
+      };
+    }
+    return { id: c.id, name: c.name, kind: c.kind };
+  });
+}
+
 // conversations.history -> recent messages (newest-first from Slack).
 export interface SlackMessage {
   ts: string;
