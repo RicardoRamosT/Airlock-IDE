@@ -41,6 +41,17 @@ function asConvKind(v: unknown): ConvKind {
   return v === "private" || v === "im" || v === "mpim" ? v : "public";
 }
 
+// Display glyph for a conversation kind (sidebar resources + read-tool echo).
+export function convGlyph(kind: ConvKind): string {
+  return kind === "im"
+    ? "@"
+    : kind === "mpim"
+      ? "👥"
+      : kind === "private"
+        ? "🔒"
+        : "#";
+}
+
 // Read a project's Slack channel allow-list (the permission wall) from config.
 // Defensive: any malformed entry is dropped. Exported so the MCP tools reuse the
 // exact same gate as the UI.
@@ -120,7 +131,7 @@ export const slackProvider: ConnectedProvider = {
     const chans = await allowedChannels(root);
     return chans.map((c) => ({
       id: `int:slack:${c.id}`,
-      title: `#${c.name}`,
+      title: `${convGlyph(c.kind)}${c.name}`,
       subtitle: "allowed",
       state: "idle" as const,
     }));
