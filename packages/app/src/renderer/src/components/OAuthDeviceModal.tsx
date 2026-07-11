@@ -25,6 +25,7 @@ export function OAuthDeviceModal() {
   const [error, setError] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [current, setCurrent] = useState<string | null>(null);
+  const [includePrivate, setIncludePrivateState] = useState(false);
 
   const id = dev?.id ?? null;
   const name = dev?.name ?? "";
@@ -58,6 +59,7 @@ export function OAuthDeviceModal() {
         const wsId = typeof ws.id === "string" ? ws.id : "";
         setPin(pinCfg || wsId);
         setCurrent(typeof ws.name === "string" && ws.name ? ws.name : null);
+        setIncludePrivateState(cfg.includePrivate === true);
       })
       .catch(() => {});
     return () => {
@@ -92,6 +94,24 @@ export function OAuthDeviceModal() {
     }
     begin();
   }, [id, root, pin, begin]);
+
+  // Persist the private-access opt-in immediately (merged into the slack config).
+  // It gates the scopes the NEXT begin() requests -- the user reopens the browser
+  // to mint a token with the new scopes.
+  const setIncludePrivate = useCallback(
+    async (v: boolean) => {
+      setIncludePrivateState(v);
+      if (!id || !root) return;
+      try {
+        await window.airlock.extensionsSetConfig(root, id, {
+          includePrivate: v,
+        });
+      } catch {
+        /* a failed save shouldn't block toggling */
+      }
+    },
+    [id, root],
+  );
 
   if (!dev) return null;
 
@@ -168,6 +188,25 @@ export function OAuthDeviceModal() {
             )}
             {showWorkspace && (
               <div className="oauth-workspace">
+                {id === "slack" && (
+                  <>
+                    <label className="oauth-optin">
+                      <input
+                        type="checkbox"
+                        checked={includePrivate}
+                        onChange={(e) =>
+                          void setIncludePrivate(e.target.checked)
+                        }
+                      />
+                      Include private channels, DMs &amp; group DMs
+                    </label>
+                    <div className="section-note">
+                      {includePrivate
+                        ? "Your Slack app must declare the groups/im/mpim scopes. Reopen the browser to apply."
+                        : "Default: public channels only."}
+                    </div>
+                  </>
+                )}
                 <div className="modal-caption">
                   {manage
                     ? "Enter the workspace's Team ID (T0123ABCD) or paste your Slack URL."

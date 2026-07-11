@@ -3181,6 +3181,15 @@ textarea:focus-visible {
   user-select: all;
 }
 
+.oauth-optin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin: 8px 0 2px;
+  cursor: pointer;
+}
+
 .db-row .codicon-chevron-down,
 .db-row .codicon-chevron-right {
   font-size: 14px;
