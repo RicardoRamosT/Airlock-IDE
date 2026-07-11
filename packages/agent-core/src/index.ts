@@ -177,6 +177,7 @@ export {
   connectedSummary,
   GITHUB_DESCRIPTOR,
   SLACK_DESCRIPTOR,
+  slackScopes,
 } from "./integrations/connected";
 export {
   type CliRunner,
