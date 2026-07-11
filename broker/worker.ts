@@ -54,35 +54,50 @@ function bounce(deepLink: string): Response {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    const url = new URL(req.url);
+    try {
+      const url = new URL(req.url);
 
-    // GET /callback?code&state -> exchange (with the secret) -> ticket -> airlock://
-    if (url.pathname === "/callback") {
-      const code = url.searchParams.get("code");
-      const state = url.searchParams.get("state") ?? "";
-      const cfg = providerCfg(env, providerFromState(state));
-      if (!code || !cfg) return new Response("bad request", { status: 400 });
-      const ticket = await exchangeAndTicket(
-        cfg,
-        code,
-        `${url.origin}/callback`,
-        { fx: fetch, kv: env.TICKETS, newTicket: () => crypto.randomUUID() },
-      );
-      if (!ticket)
-        return new Response("token exchange failed", { status: 502 });
-      return bounce(
-        `airlock://oauth/${providerFromState(state)}?ticket=${encodeURIComponent(ticket)}&state=${encodeURIComponent(state)}`,
-      );
+      // GET /callback?code&state -> exchange (with the secret) -> ticket -> airlock://
+      if (url.pathname === "/callback") {
+        const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state") ?? "";
+        const cfg = providerCfg(env, providerFromState(state));
+        if (!code || !cfg) return new Response("bad request", { status: 400 });
+        const ticket = await exchangeAndTicket(
+          cfg,
+          code,
+          `${url.origin}/callback`,
+          // fetch MUST be wrapped, not passed as `fx: fetch` -- calling it as
+          // deps.fx(...) strips its `this` and Cloudflare throws "Illegal invocation".
+          {
+            fx: (u, i) => fetch(u, i),
+            kv: env.TICKETS,
+            newTicket: () => crypto.randomUUID(),
+          },
+        );
+        if (!ticket)
+          return new Response("token exchange failed", { status: 502 });
+        return bounce(
+          `airlock://oauth/${providerFromState(state)}?ticket=${encodeURIComponent(ticket)}&state=${encodeURIComponent(state)}`,
+        );
+      }
+
+      // POST /redeem {ticket} -> {token} exactly once (then it is gone).
+      if (req.method === "POST" && url.pathname === "/redeem") {
+        const body = (await req.json().catch(() => ({}))) as {
+          ticket?: string;
+        };
+        if (!body.ticket) return json({ error: "no ticket" }, 400);
+        const token = await redeem(env.TICKETS, body.ticket);
+        return token ? json({ token }) : json({ error: "expired" }, 404);
+      }
+
+      return new Response("not found", { status: 404 });
+    } catch (e) {
+      // Never leak an opaque Cloudflare 1101 mid-OAuth: log for Workers Logs and
+      // return a clean error the app surfaces as a friendly failure.
+      console.error("broker callback error", e);
+      return new Response("broker error", { status: 500 });
     }
-
-    // POST /redeem {ticket} -> {token} exactly once (then it is gone).
-    if (req.method === "POST" && url.pathname === "/redeem") {
-      const body = (await req.json().catch(() => ({}))) as { ticket?: string };
-      if (!body.ticket) return json({ error: "no ticket" }, 400);
-      const token = await redeem(env.TICKETS, body.ticket);
-      return token ? json({ token }) : json({ error: "expired" }, 404);
-    }
-
-    return new Response("not found", { status: 404 });
   },
 };
