@@ -145,7 +145,10 @@ describe("labelConversations", () => {
   });
   it("passes channels through unchanged", () => {
     expect(
-      labelConversations([{ id: "C1", name: "general", kind: "public" }], users),
+      labelConversations(
+        [{ id: "C1", name: "general", kind: "public" }],
+        users,
+      ),
     ).toEqual([{ id: "C1", name: "general", kind: "public" }]);
   });
 });

@@ -316,7 +316,6 @@ export {
   listUsers as slackListUsers,
   type SlackTransport,
 } from "./slack/client";
-export { labelConversations } from "./slack/parse";
 export type {
   ConvKind,
   SlackAuth,
@@ -324,6 +323,7 @@ export type {
   SlackMessage,
   SlackUser,
 } from "./slack/parse";
+export { labelConversations } from "./slack/parse";
 export {
   detectInstalledTerminals,
   type ExternalTerminal,
