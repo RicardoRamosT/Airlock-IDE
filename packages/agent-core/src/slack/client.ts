@@ -37,17 +37,33 @@ export async function authTest(
   return parseAuthTest(await tx("auth.test", token, {}));
 }
 
+// True only for a well-formed { ok: true } Slack response.
+function slackOk(json: unknown): boolean {
+  return (
+    !!json && typeof json === "object" && (json as { ok?: unknown }).ok === true
+  );
+}
+
 export async function listChannels(
   token: string,
   tx: SlackTransport = fetchTransport,
 ): Promise<SlackChannel[]> {
-  // One capped page of public + private channels (archived excluded). A single
-  // page (limit 1000) is plenty for a channel PICKER; pagination is a follow-on.
-  const json = await tx("conversations.list", token, {
-    types: "public_channel,private_channel",
-    exclude_archived: "true",
-    limit: "1000",
-  });
+  // One capped page (limit 1000) is plenty for a channel PICKER; pagination is
+  // a follow-on.
+  const page = (types: string) =>
+    tx("conversations.list", token, {
+      types,
+      exclude_archived: "true",
+      limit: "1000",
+    });
+  // Prefer public + private, but a user token with only channels:read (no
+  // groups:read) makes Slack HARD-FAIL the whole combined request with
+  // missing_scope -- returning ZERO channels, not just zero private ones. Fall
+  // back to public-only so such a token still lists its public channels.
+  // (Listing private channels needs groups:read, which requires re-consent and
+  // the Slack app to declare it.)
+  let json = await page("public_channel,private_channel");
+  if (!slackOk(json)) json = await page("public_channel");
   return parseChannels(json);
 }
 

@@ -25,6 +25,26 @@ describe("slack client (fake transport)", () => {
     });
   });
 
+  it("falls back to public-only when the combined request fails (no groups:read)", async () => {
+    const tx: SlackTransport = vi.fn(async (_m, _t, params) =>
+      params.types === "public_channel,private_channel"
+        ? { ok: false, error: "missing_scope", needed: "groups:read" }
+        : { ok: true, channels: [{ id: "C1", name: "social", is_private: false }] },
+    );
+    const chans = await listChannels("t", tx);
+    expect(chans).toEqual([{ id: "C1", name: "social", isPrivate: false }]);
+    expect(tx).toHaveBeenNthCalledWith(1, "conversations.list", "t", {
+      types: "public_channel,private_channel",
+      exclude_archived: "true",
+      limit: "1000",
+    });
+    expect(tx).toHaveBeenNthCalledWith(2, "conversations.list", "t", {
+      types: "public_channel",
+      exclude_archived: "true",
+      limit: "1000",
+    });
+  });
+
   it("channelHistory clamps the limit to [1,100] and parses messages", async () => {
     const tx: SlackTransport = vi.fn(async () => ({
       ok: true,
