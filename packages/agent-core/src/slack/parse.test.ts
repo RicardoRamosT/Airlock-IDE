@@ -31,22 +31,45 @@ describe("parseAuthTest", () => {
   });
 });
 
-describe("parseChannels", () => {
-  it("maps channels and skips archived", () => {
-    const chans = parseChannels({
-      ok: true,
-      channels: [
-        { id: "C1", name: "general", is_private: false, is_archived: false },
-        { id: "C2", name: "secret", is_private: true, is_archived: false },
-        { id: "C3", name: "old", is_private: false, is_archived: true },
-      ],
-    });
-    expect(chans).toEqual([
-      { id: "C1", name: "general", isPrivate: false },
-      { id: "C2", name: "secret", isPrivate: true },
-    ]);
+describe("parseChannels kind", () => {
+  it("public channel", () => {
+    expect(
+      parseChannels({ ok: true, channels: [{ id: "C1", name: "general" }] }),
+    ).toEqual([{ id: "C1", name: "general", kind: "public" }]);
   });
-  it("returns [] on a bad payload", () => {
+  it("private channel", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [{ id: "G1", name: "secret", is_private: true }],
+      }),
+    ).toEqual([{ id: "G1", name: "secret", kind: "private" }]);
+  });
+  it("group DM (mpim) -- is_mpim wins over is_private", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [
+          { id: "G2", name: "mpdm-a--b-1", is_private: true, is_mpim: true },
+        ],
+      }),
+    ).toEqual([{ id: "G2", name: "mpdm-a--b-1", kind: "mpim" }]);
+  });
+  it("1:1 DM (im) captures userId, no name", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [{ id: "D1", is_im: true, user: "U9" }],
+      }),
+    ).toEqual([{ id: "D1", name: "", kind: "im", userId: "U9" }]);
+  });
+  it("skips archived + non-string ids; [] on bad payload", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [{ id: "C1", name: "a", is_archived: true }, { name: "b" }],
+      }),
+    ).toEqual([]);
     expect(parseChannels({ ok: false })).toEqual([]);
     expect(parseChannels(null)).toEqual([]);
   });

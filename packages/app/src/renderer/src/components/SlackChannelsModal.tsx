@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
-type Channel = { id: string; name: string; isPrivate: boolean };
+type Channel = {
+  id: string;
+  name: string;
+  kind: "public" | "private" | "im" | "mpim";
+};
 
 // The Slack permission wall: pick which channels Claude may read for THIS
 // project. Loads every channel the token can see + the current allow-list, and
@@ -100,7 +104,7 @@ export function SlackChannelsModal() {
                   onChange={() => toggle(c.id)}
                 />
                 <span>
-                  {c.isPrivate ? "🔒 " : "#"}
+                  {c.kind === "private" ? "🔒 " : "#"}
                   {c.name}
                 </span>
               </label>

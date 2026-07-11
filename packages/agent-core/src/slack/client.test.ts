@@ -17,7 +17,7 @@ describe("slack client (fake transport)", () => {
       channels: [{ id: "C1", name: "general", is_private: false }],
     }));
     const chans = await listChannels("t", tx);
-    expect(chans).toEqual([{ id: "C1", name: "general", isPrivate: false }]);
+    expect(chans).toEqual([{ id: "C1", name: "general", kind: "public" }]);
     expect(tx).toHaveBeenCalledWith("conversations.list", "t", {
       types: "public_channel,private_channel",
       exclude_archived: "true",
@@ -32,7 +32,7 @@ describe("slack client (fake transport)", () => {
         : { ok: true, channels: [{ id: "C1", name: "social", is_private: false }] },
     );
     const chans = await listChannels("t", tx);
-    expect(chans).toEqual([{ id: "C1", name: "social", isPrivate: false }]);
+    expect(chans).toEqual([{ id: "C1", name: "social", kind: "public" }]);
     expect(tx).toHaveBeenNthCalledWith(1, "conversations.list", "t", {
       types: "public_channel,private_channel",
       exclude_archived: "true",

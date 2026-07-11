@@ -841,7 +841,9 @@ export interface AirlockApi {
   // allow-list picker. Names/ids only -- no messages, no token.
   extensionsSlackChannels(
     root: string,
-  ): Promise<{ id: string; name: string; isPrivate: boolean }[]>;
+  ): Promise<
+    { id: string; name: string; kind: "public" | "private" | "im" | "mpim" }[]
+  >;
   // Start a secret-less OAuth login (device or broker) for a connected
   // extension. The return tells the renderer what to show; the final result
   // arrives via onExtensionOAuthResult once the user approves.

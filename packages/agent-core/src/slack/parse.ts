@@ -34,11 +34,21 @@ export function parseAuthTest(json: unknown): SlackAuth {
   };
 }
 
-// conversations.list -> the channels a token can see (archived skipped).
+// conversations.list -> the conversations a token can see (archived skipped).
+export type ConvKind = "public" | "private" | "im" | "mpim";
 export interface SlackChannel {
   id: string;
   name: string;
-  isPrivate: boolean;
+  kind: ConvKind;
+  userId?: string; // set only for im (the other party) -> used to build the label
+}
+
+// mpim is also is_private, so its check must precede the private check.
+function convKind(c: Record<string, unknown>): ConvKind {
+  if (c.is_im === true) return "im";
+  if (c.is_mpim === true) return "mpim";
+  if (c.is_private === true) return "private";
+  return "public";
 }
 
 export function parseChannels(json: unknown): SlackChannel[] {
@@ -47,11 +57,12 @@ export function parseChannels(json: unknown): SlackChannel[] {
   return r.channels
     .map((c) => obj(c))
     .filter((c) => c.is_archived !== true && typeof c.id === "string")
-    .map((c) => ({
-      id: str(c.id),
-      name: str(c.name),
-      isPrivate: c.is_private === true,
-    }));
+    .map((c) => {
+      const kind = convKind(c);
+      return kind === "im"
+        ? { id: str(c.id), name: str(c.name), kind, userId: str(c.user) }
+        : { id: str(c.id), name: str(c.name), kind };
+    });
 }
 
 // conversations.history -> recent messages (newest-first from Slack).
