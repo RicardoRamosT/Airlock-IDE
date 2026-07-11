@@ -7,9 +7,11 @@ import {
   parseAuthTest,
   parseChannels,
   parseHistory,
+  parseUsers,
   type SlackAuth,
   type SlackChannel,
   type SlackMessage,
+  type SlackUser,
 } from "./parse";
 
 export type SlackTransport = (
@@ -44,8 +46,12 @@ function slackOk(json: unknown): boolean {
   );
 }
 
+const ALL_TYPES = "public_channel,private_channel,mpim,im";
+const SINGLE_TYPES = ["public_channel", "private_channel", "mpim", "im"];
+
 export async function listChannels(
   token: string,
+  includePrivate = true,
   tx: SlackTransport = fetchTransport,
 ): Promise<SlackChannel[]> {
   // One capped page (limit 1000) is plenty for a channel PICKER; pagination is
@@ -56,15 +62,26 @@ export async function listChannels(
       exclude_archived: "true",
       limit: "1000",
     });
-  // Prefer public + private, but a user token with only channels:read (no
-  // groups:read) makes Slack HARD-FAIL the whole combined request with
-  // missing_scope -- returning ZERO channels, not just zero private ones. Fall
-  // back to public-only so such a token still lists its public channels.
-  // (Listing private channels needs groups:read, which requires re-consent and
-  // the Slack app to declare it.)
-  let json = await page("public_channel,private_channel");
-  if (!slackOk(json)) json = await page("public_channel");
-  return parseChannels(json);
+  // Opted out (default project state): public channels only, one call.
+  if (!includePrivate) return parseChannels(await page("public_channel"));
+  // Opted in: prefer one call for all types. A partially-scoped token makes
+  // Slack HARD-FAIL the whole combined request with missing_scope (ZERO
+  // channels, not just zero of the missing type), so fall back to querying each
+  // type independently and unioning what succeeds. Types are disjoint; a type
+  // the token can't see yields [] via parseChannels (never a throw).
+  const combined = await page(ALL_TYPES);
+  if (slackOk(combined)) return parseChannels(combined);
+  const perType = await Promise.all(SINGLE_TYPES.map((t) => page(t)));
+  return perType.flatMap(parseChannels);
+}
+
+export async function listUsers(
+  token: string,
+  tx: SlackTransport = fetchTransport,
+): Promise<SlackUser[]> {
+  // One page (limit 1000) is plenty to label DMs for a picker; pagination is a
+  // follow-on. users:read is granted whenever a project has opted in.
+  return parseUsers(await tx("users.list", token, { limit: "1000" }));
 }
 
 export async function channelHistory(
