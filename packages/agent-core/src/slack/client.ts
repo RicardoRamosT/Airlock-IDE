@@ -20,16 +20,31 @@ export type SlackTransport = (
   params: Record<string, string>,
 ) => Promise<unknown>;
 
+// Hard cap on any single Slack Web API call. Without it, a hung request (a
+// stalled socket, an unreachable host) never rejects -- the tool call then
+// blocks until the MCP client's own multi-minute timeout, which reads as "Slack
+// just hangs". Abort at 15s so the caller gets a fast, catchable failure instead.
+const SLACK_TIMEOUT_MS = 15_000;
+
 export const fetchTransport: SlackTransport = async (method, token, params) => {
-  const res = await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-    },
-    body: new URLSearchParams(params).toString(),
-  });
-  return res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SLACK_TIMEOUT_MS);
+  try {
+    const res = await fetch(`https://slack.com/api/${method}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+      },
+      body: new URLSearchParams(params).toString(),
+      signal: ctrl.signal,
+    });
+    // await INSIDE the try so the timer covers body streaming too, and so a
+    // timeout during .json() still rejects here rather than escaping.
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 export async function authTest(

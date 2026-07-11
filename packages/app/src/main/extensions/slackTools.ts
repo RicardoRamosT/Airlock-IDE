@@ -67,7 +67,11 @@ export async function slackReadChannelTool(
   try {
     const messages = await slackChannelHistory(token, match.id, limit);
     return { channel: `${convGlyph(match.kind)}${match.name}`, messages };
-  } catch {
-    return { error: "Slack request failed." };
+  } catch (e) {
+    // Surface the reason (timeout/abort vs network) instead of a generic string
+    // -- a bare "failed" hid why reads were stalling.
+    return {
+      error: `Slack request failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }
