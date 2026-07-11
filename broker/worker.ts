@@ -1,7 +1,7 @@
 // broker/worker.ts — Cloudflare Worker entry (deploy with `wrangler deploy`).
 // A STATELESS OAuth broker: it holds only AirLock's client secrets (as Wrangler
 // secrets), performs the code->token exchange a distributed desktop app can't do
-// safely, and hands the token back to the app via a one-time, 30s ticket. It
+// safely, and hands the token back to the app via a one-time, 60s ticket. It
 // stores no user data. All pure logic + its tests live in core.ts; this file is
 // the thin Cloudflare-runtime wiring (typechecked by wrangler at deploy).
 import { exchangeAndTicket, type KV, type ProviderCfg, redeem } from "./core";
