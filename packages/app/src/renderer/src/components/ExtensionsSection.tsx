@@ -210,14 +210,6 @@ export function ExtensionsSection() {
                       </button>
                     </>
                   )}
-                  <input
-                    type="checkbox"
-                    aria-label={`Enable ${s.name}`}
-                    checked={enabled}
-                    onChange={(e) =>
-                      applyPref(s.id, { enabled: e.target.checked })
-                    }
-                  />
                   {s.category && (
                     <button
                       type="button"
@@ -237,6 +229,18 @@ export function ExtensionsSection() {
                       />
                     </button>
                   )}
+                  {/* Enable toggle is the LAST child so it lines up flush-right
+                      on every row. The pin (when present) sits to its left --
+                      putting it after the checkbox used to indent the checkbox
+                      on pinnable rows (its .reveal opacity:0 still holds space). */}
+                  <input
+                    type="checkbox"
+                    aria-label={`Enable ${s.name}`}
+                    checked={enabled}
+                    onChange={(e) =>
+                      applyPref(s.id, { enabled: e.target.checked })
+                    }
+                  />
                 </span>
               </div>
             );

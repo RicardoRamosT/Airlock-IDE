@@ -70,6 +70,27 @@ it("pins a category integration -> prefsSet with the merged extensions map", asy
   );
 });
 
+it("keeps the enable checkbox as the last control so it stays flush-right", async () => {
+  // A pinnable row renders a trailing pin button; it must sit BEFORE the enable
+  // checkbox so the checkbox is the last (right-flush) child and lines up with
+  // category-less rows' checkboxes.
+  mockApi([
+    summary({ id: "azure", name: "Azure", category: "host", status: "ready" }),
+  ]);
+  const { container } = render(<ExtensionsSection />);
+  await screen.findByText("Azure");
+  const actions = container.querySelector(".ext-actions");
+  expect(actions).toBeTruthy();
+  const last = actions?.lastElementChild as HTMLElement;
+  expect(last?.tagName).toBe("INPUT");
+  expect(last?.getAttribute("type")).toBe("checkbox");
+  // ...and the pin precedes it.
+  const pin = screen.getByRole("button", { name: /pin azure/i });
+  expect(
+    pin.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+
 it("offers no pin control for a category-less integration", async () => {
   mockApi([summary({ id: "nc", name: "NoCat", status: "ready" })]); // no category
   render(<ExtensionsSection />);
