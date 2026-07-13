@@ -7,9 +7,16 @@
 import {
   type ConnectedStatus,
   deleteSecret,
+  getSecretValue,
   type IntegrationItem,
   listSecrets,
+  originRemoteUrl,
 } from "@airlock/agent-core";
+import {
+  issuesToItems,
+  parseGithubRemote,
+  parseIssuesPayload,
+} from "./githubResources";
 import { oauthTokenName } from "./oauth/device";
 import type { ConnectedProvider, ConnectResult } from "./provider";
 
@@ -30,7 +37,27 @@ export const githubProvider: ConnectedProvider = {
     const names = (await listSecrets(root).catch(() => [])).map((m) => m.name);
     return names.includes(TOKEN) ? "connected" : "unauthed";
   },
-  async listResources(): Promise<IntegrationItem[]> {
-    return [];
+  async listResources(root): Promise<IntegrationItem[]> {
+    const remote = parseGithubRemote(
+      await originRemoteUrl(root).catch(() => null),
+    );
+    if (!remote) return [];
+    const token = await getSecretValue(root, TOKEN).catch(() => null);
+    if (!token) return [];
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${remote.owner}/${remote.repo}/issues?state=open&per_page=40&sort=updated`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+          },
+        },
+      );
+      if (!res.ok) return [];
+      return issuesToItems(parseIssuesPayload(await res.json()));
+    } catch {
+      return [];
+    }
   },
 };
