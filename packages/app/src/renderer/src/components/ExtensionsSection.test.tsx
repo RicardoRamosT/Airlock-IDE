@@ -56,13 +56,15 @@ it("groups integrations by status and shows a Disabled group", async () => {
   expect(screen.getByText("Disabled")).toBeTruthy();
 });
 
-it("pins a category integration -> prefsSet with the merged extensions map", async () => {
+it("eye toggle on a category integration -> prefsSet with the merged extensions map", async () => {
   mockApi([
     summary({ id: "azure", name: "Azure", category: "host", status: "ready" }),
   ]);
   render(<ExtensionsSection />);
-  const pin = await screen.findByRole("button", { name: /pin azure/i });
-  fireEvent.click(pin);
+  const eye = await screen.findByRole("button", {
+    name: /show azure in sidebar/i,
+  });
+  fireEvent.click(eye);
   await waitFor(() =>
     expect(prefsSet).toHaveBeenCalledWith({
       extensions: { azure: { pinned: true } },
@@ -71,7 +73,7 @@ it("pins a category integration -> prefsSet with the merged extensions map", asy
 });
 
 it("keeps the enable checkbox as the last control so it stays flush-right", async () => {
-  // A pinnable row renders a trailing pin button; it must sit BEFORE the enable
+  // A pinnable row renders a trailing eye button; it must sit BEFORE the enable
   // checkbox so the checkbox is the last (right-flush) child and lines up with
   // category-less rows' checkboxes.
   mockApi([
@@ -84,11 +86,11 @@ it("keeps the enable checkbox as the last control so it stays flush-right", asyn
   const last = actions?.lastElementChild as HTMLElement;
   expect(last?.tagName).toBe("INPUT");
   expect(last?.getAttribute("type")).toBe("checkbox");
-  // ...and the pin precedes it, in the pin column.
-  const pin = screen.getByRole("button", { name: /pin azure/i });
-  expect(pin.className).toContain("ext-col-pin");
+  // ...and the eye precedes it, in the eye column.
+  const eye = screen.getByRole("button", { name: /show azure in sidebar/i });
+  expect(eye.className).toContain("ext-col-pin");
   expect(
-    pin.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING,
+    eye.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 });
 
@@ -154,11 +156,13 @@ it("puts connect in the shared connection column", async () => {
   expect(connect.className).toContain("ext-col-conn");
 });
 
-it("offers no pin control for a category-less integration", async () => {
+it("offers no eye control for a category-less integration", async () => {
   mockApi([summary({ id: "nc", name: "NoCat", status: "ready" })]); // no category
   render(<ExtensionsSection />);
   await screen.findByText("NoCat");
-  expect(screen.queryByRole("button", { name: /pin nocat/i })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: /nocat in sidebar/i }),
+  ).toBeNull();
 });
 
 it("shows an empty-state note when there are no integrations", async () => {

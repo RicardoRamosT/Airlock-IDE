@@ -220,18 +220,18 @@ export function ExtensionsSection() {
                     <button
                       type="button"
                       className={`row-action ext-col-pin${pinned ? "" : " reveal"}`}
-                      aria-label={`${pinned ? "Unpin" : "Pin"} ${s.name} ${
-                        pinned ? "from" : "to"
+                      aria-label={`${pinned ? "Hide" : "Show"} ${s.name} ${
+                        pinned ? "from" : "in"
                       } sidebar`}
                       title={
                         pinned
-                          ? `Shown under ${s.category}`
-                          : `Pin under ${s.category}`
+                          ? `Shown in ${s.category}`
+                          : `Show in ${s.category}`
                       }
                       onClick={() => applyPref(s.id, { pinned: !pinned })}
                     >
                       <i
-                        className={`codicon codicon-${pinned ? "pinned" : "pin"}`}
+                        className={`codicon codicon-${pinned ? "eye" : "eye-closed"}`}
                       />
                     </button>
                   )}
