@@ -3122,20 +3122,40 @@ textarea:focus-visible {
   opacity: 0.6;
 }
 
-/* Extension Hub rows: a status row plus trailing enable/pin controls. The
-   whole controls group hangs to the right; the pin reveals on row hover unless
-   it is pinned (then it stays visible so the pinned state reads at a glance). */
+/* Extension Hub rows: a status row plus trailing action/enable controls, laid
+   out as a FIXED-COLUMN grid so each action type lines up vertically across
+   rows (a tidy table). One 22px column per action in a canonical order --
+   swap, configure, connect/disconnect (shared), pin -- then the enable
+   checkbox. Empty cells keep their track (grid tracks are fixed, not content-
+   sized), so columns stay aligned even when a row omits an action. The pin
+   reveals on row hover unless pinned (opacity:0 still holds its column). */
 .ext-row .ext-actions {
   margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--sb-gap);
   flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, 22px) auto;
+  align-items: center;
+  justify-items: center;
+  gap: var(--sb-gap);
 }
 .ext-row .ext-actions .row-action {
   margin-left: 0;
 }
+/* Canonical column per action type (classes set in ExtensionsSection.tsx). */
+.ext-col-swap {
+  grid-column: 1;
+}
+.ext-col-config {
+  grid-column: 2;
+}
+.ext-col-conn {
+  grid-column: 3;
+}
+.ext-col-pin {
+  grid-column: 4;
+}
 .ext-row .ext-actions input[type="checkbox"] {
+  grid-column: 5;
   margin: 0;
   cursor: pointer;
 }

@@ -84,11 +84,49 @@ it("keeps the enable checkbox as the last control so it stays flush-right", asyn
   const last = actions?.lastElementChild as HTMLElement;
   expect(last?.tagName).toBe("INPUT");
   expect(last?.getAttribute("type")).toBe("checkbox");
-  // ...and the pin precedes it.
+  // ...and the pin precedes it, in the pin column.
   const pin = screen.getByRole("button", { name: /pin azure/i });
+  expect(pin.className).toContain("ext-col-pin");
   expect(
     pin.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
+});
+
+it("standardizes action icons into a fixed column per action type", async () => {
+  // Connected Slack shows the full manage cluster (swap + configure +
+  // disconnect); each carries its canonical column class so the same action
+  // lines up vertically across rows (grid tracks defined in theme.css).
+  mockApi([
+    summary({
+      id: "slack",
+      name: "Slack",
+      tier: "connected",
+      status: "connected",
+    }),
+  ]);
+  render(<ExtensionsSection />);
+  const swap = await screen.findByRole("button", {
+    name: /change slack workspace/i,
+  });
+  const config = screen.getByRole("button", { name: /configure slack/i });
+  const disconnect = screen.getByRole("button", { name: /disconnect slack/i });
+  expect(swap.className).toContain("ext-col-swap");
+  expect(config.className).toContain("ext-col-config");
+  expect(disconnect.className).toContain("ext-col-conn");
+});
+
+it("puts connect in the shared connection column", async () => {
+  mockApi([
+    summary({
+      id: "slack",
+      name: "Slack",
+      tier: "connected",
+      status: "unauthed",
+    }),
+  ]);
+  render(<ExtensionsSection />);
+  const connect = await screen.findByRole("button", { name: /connect slack/i });
+  expect(connect.className).toContain("ext-col-conn");
 });
 
 it("offers no pin control for a category-less integration", async () => {

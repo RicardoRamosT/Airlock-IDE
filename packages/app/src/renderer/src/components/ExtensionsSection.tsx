@@ -127,7 +127,7 @@ export function ExtensionsSection() {
                   {s.status === "absent" && s.install && (
                     <button
                       type="button"
-                      className="row-action"
+                      className="row-action ext-col-conn"
                       aria-label={`Install ${s.name}`}
                       title={s.install.command}
                       onClick={() => {
@@ -141,7 +141,7 @@ export function ExtensionsSection() {
                   {s.status === "unauthed" && s.connect && (
                     <button
                       type="button"
-                      className="row-action"
+                      className="row-action ext-col-conn"
                       aria-label={`Connect ${s.name}`}
                       title={s.connect.command}
                       onClick={() => {
@@ -155,7 +155,7 @@ export function ExtensionsSection() {
                   {s.tier === "connected" && s.status === "unauthed" && (
                     <button
                       type="button"
-                      className="row-action"
+                      className="row-action ext-col-conn"
                       aria-label={`Connect ${s.name}`}
                       title={`Connect ${s.name}`}
                       onClick={() => {
@@ -172,7 +172,7 @@ export function ExtensionsSection() {
                       {s.id === "slack" && (
                         <button
                           type="button"
-                          className="row-action"
+                          className="row-action ext-col-swap"
                           aria-label="Change Slack workspace"
                           title="Change workspace"
                           onClick={() =>
@@ -190,7 +190,7 @@ export function ExtensionsSection() {
                       )}
                       <button
                         type="button"
-                        className="row-action"
+                        className="row-action ext-col-config"
                         aria-label={`Configure ${s.name} channels`}
                         title="Choose allowed channels"
                         onClick={() => {
@@ -201,7 +201,7 @@ export function ExtensionsSection() {
                       </button>
                       <button
                         type="button"
-                        className="row-action"
+                        className="row-action ext-col-conn"
                         aria-label={`Disconnect ${s.name}`}
                         title={`Disconnect ${s.name}`}
                         onClick={() => disconnect(s.id)}
@@ -213,7 +213,7 @@ export function ExtensionsSection() {
                   {s.category && (
                     <button
                       type="button"
-                      className={`row-action${pinned ? "" : " reveal"}`}
+                      className={`row-action ext-col-pin${pinned ? "" : " reveal"}`}
                       aria-label={`${pinned ? "Unpin" : "Pin"} ${s.name} ${
                         pinned ? "from" : "to"
                       } sidebar`}
@@ -229,10 +229,11 @@ export function ExtensionsSection() {
                       />
                     </button>
                   )}
-                  {/* Enable toggle is the LAST child so it lines up flush-right
-                      on every row. The pin (when present) sits to its left --
-                      putting it after the checkbox used to indent the checkbox
-                      on pinnable rows (its .reveal opacity:0 still holds space). */}
+                  {/* Trailing controls are a fixed-column grid (see theme.css):
+                      each action type owns a column (swap / configure /
+                      connect-or-disconnect / pin), so the same icon lines up
+                      vertically across rows. The enable checkbox is the last
+                      column -- flush-right on every row. */}
                   <input
                     type="checkbox"
                     aria-label={`Enable ${s.name}`}
