@@ -115,6 +115,7 @@ import {
   pollDeviceToken,
 } from "./extensions/oauth/device";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
+import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels } from "./extensions/slack";
 import { slackWorkspacePatch } from "./extensions/slackWorkspace";
 import { syncWindowWatchers } from "./fsWatch";
@@ -1687,6 +1688,33 @@ export function registerIpc(
       }),
     );
     return [...tier1, ...connected];
+  });
+
+  // extensions:resources -> for each ENABLED + eye-on (pinned) connected
+  // extension, its granted resources tagged with the section its eye targets
+  // (`category`). Root-scoped; per-provider errors degrade to []. The renderer's
+  // Git/Activity sections filter by category and render each resource row.
+  ipcMain.handle("extensions:resources", async (e) => {
+    const root = rootForEvent(e);
+    if (!root) return [];
+    const prefs = await loadPrefs(prefsFile);
+    const ext = prefs.extensions ?? {};
+    const wanted = eyeOnConnected(CONNECTED_EXTENSIONS, ext);
+    const out = await Promise.all(
+      wanted.map(async (d) => {
+        const provider = CONNECTED_PROVIDERS[d.id];
+        const resources = provider
+          ? await provider.listResources(root).catch(() => [])
+          : [];
+        return {
+          id: d.id,
+          name: d.name,
+          category: d.category ?? "",
+          resources,
+        };
+      }),
+    );
+    return out.filter((r) => r.category);
   });
 
   // extensions:getConfig/setConfig -> a connected extension's PER-PROJECT config

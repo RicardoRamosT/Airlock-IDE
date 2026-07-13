@@ -148,6 +148,7 @@ const api: AirlockApi = {
   activityDismiss: (id) => ipcRenderer.invoke("activity:dismiss", id),
   integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
   extensionsList: () => ipcRenderer.invoke("extensions:list"),
+  extensionsResources: () => ipcRenderer.invoke("extensions:resources"),
   extensionsGetConfig: (root, id) =>
     ipcRenderer.invoke("extensions:getConfig", root, id),
   extensionsSetConfig: (root, id, cfg) =>

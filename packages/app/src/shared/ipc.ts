@@ -21,6 +21,7 @@ import type {
   GitStatus,
   ImportExternalResult,
   ImportResult,
+  IntegrationItem,
   Level,
   LogEvent,
   NeonAccountRef,
@@ -591,6 +592,15 @@ export type OAuthBeginResult =
     }
   | { kind: "browser" };
 
+// A connected extension's granted resources, grouped for the sidebar section
+// its eye targets (`category`). Fed by the extensions:resources IPC.
+export interface ExtensionResources {
+  id: string;
+  name: string;
+  category: string;
+  resources: IntegrationItem[];
+}
+
 /** Exposed on window.airlock by the preload script. */
 export interface AirlockApi {
   openFolder(): Promise<string | null>;
@@ -820,6 +830,8 @@ export interface AirlockApi {
   activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
   extensionsList(): Promise<ExtensionSummary[]>;
+  // Eye-on connected extensions' granted resources, grouped by target section.
+  extensionsResources(): Promise<ExtensionResources[]>;
   extensionsGetConfig(
     root: string,
     id: string,
