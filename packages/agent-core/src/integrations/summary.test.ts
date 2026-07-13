@@ -21,7 +21,7 @@ describe("buildExtensionSummaries", () => {
     expect(v.status).toBe("disabled");
     expect(v.enabled).toBe(false);
     expect(v.pinned).toBe(false);
-    expect(v.category).toBeUndefined(); // activity-surfaced -> no category
+    expect(v.category).toBe("activity"); // activity surface -> "activity" category
     expect(v.tier).toBe("status");
     expect(v.hasConfig).toBe(false);
 

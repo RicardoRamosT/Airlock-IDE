@@ -8,6 +8,8 @@ export const VERCEL: IntegrationManifest = {
   id: "vercel",
   name: "Vercel",
   icon: "rocket",
+  // Deployments are transient build events -> the Activity feed (eye-gated).
+  surface: "activity",
   detect: { authCheck: { cmd: "vercel", args: ["whoami"] } },
   poll: {
     everyMs: 20000,

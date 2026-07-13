@@ -16,8 +16,9 @@ export interface ExtensionSummary {
   name: string;
   icon?: string; // codicon name; renderer falls back to a generic icon
   tier: "status" | "connected";
-  // A SECTION_META view id (steady manifests, e.g. "host"); undefined when the
-  // integration has no category view to pin into (activity-only, or Tier-2).
+  // The sidebar section the eye surfaces this into: a SECTION_META view id
+  // ("host"/"databases" for steady manifests, "activity" for transient ones);
+  // undefined only when there is no target section (a Tier-2 Hub-only ext).
   category?: string;
   status: "absent" | "unauthed" | "ready" | "connected" | "error" | "disabled";
   enabled: boolean;
@@ -54,12 +55,16 @@ export function buildExtensionSummaries(
   return manifests.map((m) => {
     const enabled = isEnabled(prefs, m.id);
     const view = steadyView(m);
+    // Activity-surface manifests have no steady view; treat "activity" as their
+    // category so the eye toggle can surface them into the Activity feed.
+    const category =
+      m.surface === "activity" ? "activity" : (view ?? undefined);
     return {
       id: m.id,
       name: m.name,
       icon: m.icon,
       tier: "status",
-      category: view ?? undefined,
+      category,
       status: enabled ? (statuses[m.id] ?? "absent") : "disabled",
       enabled,
       pinned: prefs[m.id]?.pinned === true,
