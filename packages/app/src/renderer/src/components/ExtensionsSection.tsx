@@ -188,17 +188,23 @@ export function ExtensionsSection() {
                           <i className="codicon codicon-arrow-swap" />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="row-action ext-col-config"
-                        aria-label={`Configure ${s.name} channels`}
-                        title="Choose allowed channels"
-                        onClick={() => {
-                          if (s.id === "slack") setModal("slack-channels");
-                        }}
-                      >
-                        <i className="codicon codicon-settings-gear" />
-                      </button>
+                      {/* Configure: only when the extension actually has a
+                          config schema (hasConfig). Slack = channel allow-list;
+                          GitHub has none yet (Phase A), so no gear -- it was a
+                          dead button that did nothing on click. */}
+                      {s.hasConfig && (
+                        <button
+                          type="button"
+                          className="row-action ext-col-config"
+                          aria-label={`Configure ${s.name}`}
+                          title={`Configure ${s.name}`}
+                          onClick={() => {
+                            if (s.id === "slack") setModal("slack-channels");
+                          }}
+                        >
+                          <i className="codicon codicon-settings-gear" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="row-action ext-col-conn"

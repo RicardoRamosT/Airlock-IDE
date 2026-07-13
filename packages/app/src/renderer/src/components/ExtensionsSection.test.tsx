@@ -102,6 +102,7 @@ it("standardizes action icons into a fixed column per action type", async () => 
       name: "Slack",
       tier: "connected",
       status: "connected",
+      hasConfig: true, // Slack has a channel allow-list -> configure gear shows
     }),
   ]);
   render(<ExtensionsSection />);
@@ -113,6 +114,30 @@ it("standardizes action icons into a fixed column per action type", async () => 
   expect(swap.className).toContain("ext-col-swap");
   expect(config.className).toContain("ext-col-config");
   expect(disconnect.className).toContain("ext-col-conn");
+});
+
+it("hides the configure gear when the extension has no config", async () => {
+  // GitHub (Phase A) has an empty config schema -> hasConfig false. The gear
+  // used to render for every connected extension but only did something for
+  // Slack, so GitHub's gear was a dead button. It must not render at all.
+  mockApi([
+    summary({
+      id: "github",
+      name: "GitHub",
+      tier: "connected",
+      status: "connected",
+      hasConfig: false,
+    }),
+  ]);
+  render(<ExtensionsSection />);
+  await screen.findByText("GitHub");
+  expect(
+    screen.queryByRole("button", { name: /configure github/i }),
+  ).toBeNull();
+  // ...but disconnect is still offered.
+  expect(
+    screen.getByRole("button", { name: /disconnect github/i }),
+  ).toBeTruthy();
 });
 
 it("puts connect in the shared connection column", async () => {
