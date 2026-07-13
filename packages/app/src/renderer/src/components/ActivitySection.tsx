@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityItem, ActivityStep } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
+import { useExtensionResources } from "../lib/useExtensionResources";
 import { useApp } from "../store";
+import { ResourceRow } from "./ResourceRow";
 
 function dotClass(state: ActivityItem["state"]): string {
   if (state === "done") return "status-dot on";
@@ -30,6 +32,8 @@ export function ActivitySection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [items, setItems] = useState<ActivityItem[]>([]);
+  // Slack channels surfaced here when the user turns on Slack's eye.
+  const slackRows = useExtensionResources("activity");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -150,7 +154,7 @@ export function ActivitySection() {
         )}
       </div>
       {!loaded && <div className="section-note">Loading…</div>}
-      {loaded && items.length === 0 && (
+      {loaded && items.length === 0 && slackRows.length === 0 && (
         <div className="section-note">Nothing active</div>
       )}
       {items.map((item) => {
@@ -243,6 +247,14 @@ export function ActivitySection() {
           </div>
         );
       })}
+      {slackRows.length > 0 && (
+        <>
+          <div className="section-note">Slack</div>
+          {slackRows.map((r) => (
+            <ResourceRow key={r.id} r={r} />
+          ))}
+        </>
+      )}
       {menu && (
         <>
           <button

@@ -16,7 +16,7 @@ describe("connectedSummary", () => {
     expect(s.pinned).toBe(true);
     expect(s.enabled).toBe(true);
     expect(s.hasConfig).toBe(true); // has a channels field
-    expect(s.category).toBeUndefined(); // Slack is Hub-only
+    expect(s.category).toBe("activity"); // Slack surfaces channels into Activity
   });
 
   it("reports unauthed when not connected", () => {

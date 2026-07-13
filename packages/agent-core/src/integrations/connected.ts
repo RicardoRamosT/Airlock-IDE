@@ -120,6 +120,8 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
   icon: "comment-discussion",
   description:
     "Let Claude read context from Slack channels you explicitly allow.",
+  // The eye surfaces the allow-listed channels into the Activity section.
+  category: "activity",
   authSpec: {
     kind: "oauth2",
     flow: "broker",
@@ -162,6 +164,8 @@ export const GITHUB_DESCRIPTOR: ConnectedExtensionDescriptor = {
   name: "GitHub",
   icon: "github",
   description: "Let Claude read GitHub issues you point it at, for context.",
+  // The eye surfaces the current repo's open issues + PRs into the Git section.
+  category: "git",
   authSpec: {
     kind: "oauth2",
     flow: "device",
