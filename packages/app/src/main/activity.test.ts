@@ -1,4 +1,4 @@
-import type { CiRun } from "@airlock/agent-core";
+import { type CiRun, INTEGRATIONS } from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
 import type { ActivityItem } from "../shared/ipc";
 import {
@@ -6,12 +6,29 @@ import {
   ciRunState,
   ciRunToItem,
   dockerContainerToItem,
+  eyeOnManifests,
   filterDismissed,
   integrationItemToItem,
   isActivityDismissed,
   renderDeployState,
   renderServiceToItem,
 } from "./activity";
+
+describe("eyeOnManifests", () => {
+  it("keeps only enabled + eye-on (pinned) manifests for the activity feed", () => {
+    const ids = eyeOnManifests(INTEGRATIONS, { vercel: { pinned: true } }).map(
+      (m) => m.id,
+    );
+    expect(ids).toContain("vercel");
+    expect(ids).not.toContain("azure"); // not pinned -> excluded
+  });
+  it("excludes a disabled manifest even if pinned", () => {
+    const ids = eyeOnManifests(INTEGRATIONS, {
+      vercel: { enabled: false, pinned: true },
+    }).map((m) => m.id);
+    expect(ids).not.toContain("vercel");
+  });
+});
 
 const item = (id: string): ActivityItem => ({
   id,

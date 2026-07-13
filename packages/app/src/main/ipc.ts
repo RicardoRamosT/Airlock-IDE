@@ -1596,11 +1596,13 @@ export function registerIpc(
   // renderer passes the PANE's root explicitly (the one shared sidebar follows
   // the focused pane, and an implicit window root would race the focus sync);
   // validate it like resolveRoot does, degrading to global-only items.
-  ipcMain.handle("activity:status", (e, root?: unknown) =>
-    activityStatus(
+  ipcMain.handle("activity:status", async (e, root?: unknown) => {
+    const prefs = await loadPrefs(prefsFile);
+    return activityStatus(
       typeof root === "string" && root && isOpenRoot(e, root) ? root : null,
-    ),
-  );
+      prefs.extensions ?? {},
+    );
+  });
 
   // integrations:steady -> SteadyIntegration[] for the sidebar steady surface.
   // The RESOURCE list is account-wide (a warehouse/web app isn't project-scoped)

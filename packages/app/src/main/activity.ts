@@ -4,8 +4,10 @@
 // ASCII-only comments: CJS-bundled into the Electron main process.
 import {
   type CiRun,
+  type ExtPrefs,
   INTEGRATIONS,
   type IntegrationItem,
+  type IntegrationManifest,
   latestCiRun,
   type PollCache,
   pollIntegrations,
@@ -147,8 +149,21 @@ export function integrationItemToItem(i: IntegrationItem): ActivityItem {
   };
 }
 
+// Manifests whose eye is on (pinned) and which are enabled -- the ones the user
+// chose to surface into the Activity feed. Gates the manifest-integration poll
+// below; CI/Render/Docker are separate, ungated sources.
+export function eyeOnManifests(
+  manifests: IntegrationManifest[],
+  ext: ExtPrefs,
+): IntegrationManifest[] {
+  return manifests.filter(
+    (m) => ext[m.id]?.enabled !== false && ext[m.id]?.pinned === true,
+  );
+}
+
 export async function activityStatus(
   root: string | null,
+  ext: ExtPrefs = {},
 ): Promise<ActivityItem[]> {
   const items: ActivityItem[] = [];
 
@@ -191,7 +206,7 @@ export async function activityStatus(
   // Activity feed polls every few seconds; pollIntegrations serves cache within
   // each manifest's window and degrades each one to []).
   for (const it of await pollIntegrations(
-    INTEGRATIONS,
+    eyeOnManifests(INTEGRATIONS, ext),
     root,
     Date.now(),
     integrationCache,
