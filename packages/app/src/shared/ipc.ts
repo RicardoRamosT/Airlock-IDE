@@ -948,6 +948,8 @@ export interface AirlockApi {
   quotaGet(): Promise<QuotaStatus | null>;
   // Per-session usage ledger (since launch) for the Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
+  // AirLock process-tree memory footprint (macOS) for the Usage dashboard.
+  memoryGet(): Promise<MemorySample>;
   // Project overview: live tech-stack profile + optional .airlock/overview.md summary.
   overviewGet(root: string): Promise<OverviewResult>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
