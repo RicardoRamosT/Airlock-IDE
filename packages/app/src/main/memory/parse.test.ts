@@ -100,6 +100,12 @@ describe("classifyProc", () => {
       ),
     ).toEqual({ kind: "claude", project: "LendLogic.PnLAnalyzer" });
   });
+  it("classifies an interactive claude with no session-mcp path as project-less", () => {
+    expect(classifyProc("/Users/r/.local/bin/claude")).toEqual({
+      kind: "claude",
+      project: null,
+    });
+  });
   it("classifies shells and node", () => {
     expect(classifyProc("-zsh").kind).toBe("shell");
     expect(classifyProc("/bin/zsh").kind).toBe("shell");
@@ -135,11 +141,26 @@ describe("assembleSample", () => {
     expect(s.updatedAt).toBe(1_700_000_000_000);
     // Non-rollup rows sorted desc by footprint
     const kinds = s.procs.map((p) => p.kind);
-    expect(s.procs[0]).toMatchObject({ pid: 35358, kind: "language-server" });
+    expect(s.procs[0]).toMatchObject({
+      pid: 35358,
+      kind: "language-server",
+      name: "language server",
+    });
     expect(s.procs[1]).toMatchObject({
       pid: 48417,
       kind: "claude",
       project: "LendLogic.PnLAnalyzer",
+      name: "LendLogic.PnLAnalyzer", // project used as the user-facing name
+    });
+    expect(s.procs[2]).toMatchObject({
+      pid: 47419,
+      kind: "airlock-helper",
+      name: "AirLock Helper (renderer)", // from --type=renderer
+    });
+    expect(s.procs[3]).toMatchObject({
+      pid: 46998,
+      kind: "airlock-main",
+      name: "AirLock",
     });
     // The one sub-threshold proc (48142, 3 MB zsh) is folded into a rollup row
     const rollup = s.procs.find((p) => p.pid === -1);
@@ -148,9 +169,72 @@ describe("assembleSample", () => {
     expect(kinds).not.toContain(undefined);
   });
 
+  it("names a project-less claude row via the generic basename path", () => {
+    // Same shape as the main fixture, but the claude row has no --mcp-config
+    // session-mcp path, so classifyProc yields project: null and the
+    // `kind === "claude" && project` ternary in assembleSample takes its
+    // FALSE branch, falling through to nameFor's generic basename handling.
+    const noProjectPs = [
+      "60000     1 /Applications/AirLock.app/Contents/MacOS/AirLock",
+      "60001 60000 /Users/r/.local/bin/claude",
+    ].join("\n");
+    const noProjectFootprint = {
+      byPid: new Map<number, number>([
+        [60000, 94_000_000],
+        [60001, 650_000_000],
+      ]),
+      total: 744_000_000,
+    };
+    const s = assembleSample(
+      parsePs(noProjectPs),
+      noProjectFootprint,
+      60000,
+      1_700_000_000_000,
+      20_000_000,
+    );
+    const claudeRow = s.procs.find((p) => p.kind === "claude");
+    expect(claudeRow).toMatchObject({
+      pid: 60001,
+      project: null,
+      name: "claude",
+    });
+  });
+
   it("skips descendant pids that footprint did not measure (died mid-sample)", () => {
     const fp = { byPid: new Map([[46998, 94_000_000]]), total: 94_000_000 };
     const s = assembleSample(parsePs(PS), fp, 46998, 1, 20_000_000);
     expect(s.procs.every((p) => p.pid === 46998)).toBe(true);
+  });
+
+  it("keeps the rollup row last even when its aggregate exceeds a kept row's footprint", () => {
+    // Two sub-threshold shells (15 MB each, under the 20 MB rollup threshold)
+    // together sum to 30 MB -- more than the 25 MB kept AirLock-main row. If
+    // the rollup were sorted in among the real rows (by footprint desc) it
+    // would land FIRST; it must instead stay last, by design (a summary
+    // footer, appended after the sort, never sorted itself).
+    const rollupPs = [
+      "50000     1 /Applications/AirLock.app/Contents/MacOS/AirLock",
+      "50001 50000 -zsh",
+      "50002 50000 -zsh",
+    ].join("\n");
+    const rollupFootprint = {
+      byPid: new Map<number, number>([
+        [50000, 25_000_000], // kept row
+        [50001, 15_000_000], // sub-threshold shell #1
+        [50002, 15_000_000], // sub-threshold shell #2
+      ]),
+      total: 55_000_000,
+    };
+    const s = assembleSample(
+      parsePs(rollupPs),
+      rollupFootprint,
+      50000,
+      1_700_000_000_000,
+      20_000_000, // rollup threshold 20 MB
+    );
+    const last = s.procs[s.procs.length - 1];
+    expect(last?.pid).toBe(-1);
+    expect(last?.footprint).toBe(30_000_000); // 15M + 15M folded procs
+    expect(s.procs[0]?.pid).toBe(50000); // the one kept row, sorted first
   });
 });

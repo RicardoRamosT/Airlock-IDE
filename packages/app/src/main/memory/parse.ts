@@ -95,10 +95,13 @@ export function classifyProc(command: string): {
   return { kind: "other", project: null };
 }
 
-// Join the descendant ps rows with the footprint map, classify each, sort by
-// footprint desc, and fold sub-threshold procs into one synthetic "N smaller
-// processes" row (pid -1). total is footprint's own coalition total so the
-// headline stays exact regardless of rollup or dropped pids.
+// Join the descendant ps rows with the footprint map, classify each, and fold
+// sub-threshold procs into one synthetic "N smaller processes" row (pid -1).
+// Kept rows are sorted by footprint desc; the rollup row is then APPENDED
+// LAST, by design, regardless of its own aggregate size -- it is a summary
+// footer, not sorted in among the real rows (the renderer's sortProcs pins
+// pid -1 last too, for the same reason). total is footprint's own coalition
+// total so the headline stays exact regardless of rollup or dropped pids.
 export function assembleSample(
   rows: PsRow[],
   footprint: { byPid: Map<number, number>; total: number },
