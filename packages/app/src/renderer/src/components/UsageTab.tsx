@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
-import type { QuotaWindow, SessionUsage } from "../../../shared/ipc";
+import type {
+  MemorySample,
+  QuotaWindow,
+  SessionUsage,
+} from "../../../shared/ipc";
+import {
+  formatBytes,
+  kindLabel,
+  type SortCol,
+  sortProcs,
+} from "../lib/memoryFormat";
 import {
   clampPct,
   formatCountdown,
@@ -26,17 +36,28 @@ export function UsageTab() {
   const closeAppPage = useApp((s) => s.closeAppPage);
   const quota = useApp((s) => s.quota);
   const [sessions, setSessions] = useState<SessionUsage[]>([]);
+  const [memory, setMemory] = useState<MemorySample | null>(null);
+  const [memSort, setMemSort] = useState<{ col: SortCol; dir: "asc" | "desc" }>(
+    { col: "footprint", dir: "desc" },
+  );
   const [, setTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const load = () =>
+    const load = () => {
       void window.airlock
         .usageGet()
         .then((u) => {
           if (!cancelled) setSessions(u);
         })
         .catch(console.error);
+      void window.airlock
+        .memoryGet()
+        .then((m) => {
+          if (!cancelled) setMemory(m);
+        })
+        .catch(console.error);
+    };
     load();
     const id = setInterval(() => {
       load();
@@ -220,6 +241,82 @@ export function UsageTab() {
                 ))}
               </tbody>
             </table>
+          )}
+        </section>
+
+        <section className="usage-section">
+          <h3>Memory (AirLock + children)</h3>
+          {memory?.available ? (
+            <>
+              <div className="usage-kpis">
+                <div className="usage-kpi">
+                  <span className="usage-kpi-value">
+                    {formatBytes(memory.total)}
+                  </span>
+                  <span className="usage-kpi-label">AirLock total</span>
+                </div>
+              </div>
+              <table className="usage-table">
+                <thead>
+                  <tr>
+                    {(
+                      [
+                        ["pid", "PID"],
+                        ["kind", "Kind"],
+                        ["project", "Project"],
+                        ["footprint", "Footprint"],
+                      ] as [SortCol, string][]
+                    ).map(([col, label]) => (
+                      <th
+                        key={col}
+                        className={
+                          col === "footprint" || col === "pid"
+                            ? "num"
+                            : undefined
+                        }
+                        style={{ cursor: "pointer" }}
+                        onClick={() =>
+                          setMemSort((s) =>
+                            s.col === col
+                              ? { col, dir: s.dir === "asc" ? "desc" : "asc" }
+                              : {
+                                  col,
+                                  dir: col === "footprint" ? "desc" : "asc",
+                                },
+                          )
+                        }
+                      >
+                        {label}
+                        {memSort.col === col
+                          ? memSort.dir === "asc"
+                            ? " ↑"
+                            : " ↓"
+                          : ""}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortProcs(memory.procs, memSort.col, memSort.dir).map(
+                    (p) => (
+                      <tr key={p.pid}>
+                        <td className="num">{p.pid === -1 ? "—" : p.pid}</td>
+                        <td>{kindLabel(p.kind)}</td>
+                        <td>{p.pid === -1 ? p.name : (p.project ?? "—")}</td>
+                        <td className="num">{formatBytes(p.footprint)}</td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+              <p className="settings-note">
+                Physical memory footprint (matches Activity Monitor). Claude
+                sessions and language servers are child processes AirLock spawns
+                inside its terminals; macOS bills their memory to AirLock.
+              </p>
+            </>
+          ) : (
+            <p className="settings-note">Memory breakdown unavailable</p>
           )}
         </section>
 
