@@ -549,6 +549,36 @@ export interface SessionUsage {
   lastProgressAt: number;
 }
 
+// One process in AirLock's tree (main + descendants), for the Usage
+// dashboard's Memory panel. footprint is macOS physical footprint in BYTES
+// (the value Activity Monitor shows). The synthetic rollup row uses pid -1.
+export type MemKind =
+  | "airlock-main"
+  | "airlock-helper"
+  | "claude"
+  | "language-server"
+  | "shell"
+  | "node"
+  | "other";
+
+export interface MemProc {
+  pid: number;
+  name: string;
+  kind: MemKind;
+  project: string | null; // set for claude sessions; null otherwise
+  footprint: number; // bytes
+}
+
+// Snapshot of AirLock's process-coalition memory. total is footprint's own
+// coalition total (bytes) so it stays exact regardless of UI rollup. available
+// is false off-macOS or when the footprint tool is missing/failed.
+export interface MemorySample {
+  available: boolean;
+  total: number; // bytes
+  updatedAt: number; // epoch ms
+  procs: MemProc[];
+}
+
 // Payload of the overview:get IPC. profile is always present (computed live);
 // summary is the .airlock/overview.md text or null; summaryMtimeMs is its mtime
 // (0 when absent) so the renderer can detect a fresh write while polling.
