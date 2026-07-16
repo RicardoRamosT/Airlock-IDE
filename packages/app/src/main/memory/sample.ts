@@ -3,6 +3,7 @@
 // fsWatch.ts); all logic lives in parse.ts. macOS only; fails soft otherwise.
 // ASCII-only comments: CJS-bundled into the Electron main process.
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,13 +41,13 @@ export async function sampleMemory(): Promise<MemorySample> {
     if (pids.length === 0) return { ...UNAVAILABLE, updatedAt: Date.now() };
 
     // 2) In the same tick, footprint exactly those pids to a temp JSON file.
-    //    Unique per call so overlapping polls cannot corrupt each other.
-    const out = path.join(
-      tmpdir(),
-      `airlock-fp-${process.pid}-${Date.now()}.json`,
-    );
+    //    A fresh UUID per call so overlapping polls cannot corrupt each other.
+    const out = path.join(tmpdir(), `airlock-fp-${randomUUID()}.json`);
     try {
+      // maxBuffer covers footprint's per-process stdout summary on large trees
+      // (the bulk JSON goes to `out`, not stdout).
       await execFileP("/usr/bin/footprint", ["-j", out, ...pids], {
+        maxBuffer: 8 * 1024 * 1024,
         timeout: 5000,
       });
       const json = await readFile(out, "utf8");
