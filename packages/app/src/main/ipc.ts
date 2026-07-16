@@ -149,6 +149,7 @@ import {
 } from "./lsp/client";
 import { ensureProjectScope } from "./mcp/projectScope";
 import { getMcpPort } from "./mcp/server";
+import { sampleMemory } from "./memory/sample";
 import { applyAppMenu, applyDockMenu, changeSectionVisibility } from "./menu";
 import {
   addNeonAccount,
@@ -866,6 +867,10 @@ export function registerIpc(
   // usage:get -> SessionUsage[] for the Usage dashboard (sorted by output
   // tokens, the cost proxy on subscription plans).
   ipcMain.handle("usage:get", () => getUsageLedger());
+
+  // memory:get -> MemorySample for the Usage dashboard Memory panel. On demand
+  // (the dashboard polls while open); samples AirLock's process tree footprint.
+  ipcMain.handle("memory:get", () => sampleMemory());
 
   // Session restore: read the persisted layout snapshot; save the latest one
   // (async, serialized, best-effort) and hold it for the synchronous quit flush.

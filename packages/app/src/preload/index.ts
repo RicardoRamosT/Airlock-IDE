@@ -201,6 +201,7 @@ const api: AirlockApi = {
     ipcRenderer.invoke("terminal:openExternal", root),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
   usageGet: () => ipcRenderer.invoke("usage:get"),
+  memoryGet: () => ipcRenderer.invoke("memory:get"),
   overviewGet: (root) => ipcRenderer.invoke("overview:get", root),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
   anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
