@@ -10,6 +10,13 @@ import { useEffect, useRef, useState } from "react";
 import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
 import { editorChrome } from "../lib/editorChrome";
 import { openEditorFile } from "../lib/editorFiles";
+import {
+  enclosingScopes,
+  lspSymbolsToScopes,
+  pathSegments,
+  type Scope,
+  scopesFromMarkdown,
+} from "../lib/editorScopes";
 import { editorTheme } from "../lib/editorTheme";
 import { languageExtensionForPath } from "../lib/language";
 import { toCmCompletions } from "../lib/lspCompletions";
@@ -17,6 +24,7 @@ import { toCmDiagnostics } from "../lib/lspDiagnostics";
 import { lspLanguageId } from "../lib/lspLanguage";
 import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
+import { EditorBreadcrumb } from "./EditorBreadcrumb";
 import { EditorContextMenu } from "./EditorContextMenu";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
@@ -146,6 +154,11 @@ export function EditorPane({
   const viewRef = useRef<EditorView | null>(null);
   const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  // Scope model (for the breadcrumb's symbol trail) + the cursor's current
+  // line (for picking the enclosing chain out of it). Both are presentation
+  // state only -- see the scopes-fetch effect and updateListener below.
+  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [cursorLine, setCursorLine] = useState(1);
   const setReferences = useApp((s) => s.setReferences);
   const [menu, setMenu] = useState<{
     x: number;
@@ -160,6 +173,7 @@ export function EditorPane({
   const syncRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const editable = !file.truncated;
   const lspLang = lspLanguageId(relPath);
+  const isMarkdown = /\.mdx?$/i.test(relPath);
   // Theme lives in a CodeMirror Compartment so a theme toggle RECONFIGURES it in
   // place (separate effect below) instead of being a dependency of the editor-
   // construction effect. Rebuilding the editor on a theme change recreated the
@@ -229,6 +243,18 @@ export function EditorPane({
           themeCompartment.of(editorTheme(themeRef.current)),
           EditorView.theme({ "&": { height: "100%" } }),
           ...editorChrome(),
+          // Track the cursor's line for the breadcrumb's symbol trail.
+          // Unconditional (not gated on `editable`): a read-only/truncated
+          // view still allows moving the selection, and the breadcrumb should
+          // track it there too.
+          EditorView.updateListener.of((u) => {
+            if (u.selectionSet || u.docChanged) {
+              const line = u.state.doc.lineAt(
+                u.state.selection.main.head,
+              ).number;
+              setCursorLine(line);
+            }
+          }),
           lintGutter(),
           ...(lspLang
             ? [
@@ -421,19 +447,56 @@ export function EditorPane({
     });
   }, [lspLang, root, relPath]);
 
+  // Fetch the scope model that feeds the breadcrumb's symbol trail: LSP
+  // languages ask the language server for document symbols; markdown parses
+  // the live buffer's headings; anything else has no scopes. Refreshes on
+  // open/language change and then on a timer -- the document lives inside the
+  // CodeMirror view (a ref), not React state, so there's no state dependency
+  // to react to on every edit; polling on the same cadence as autosave settles
+  // is cheap and keeps the trail from going stale after edits.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      const view = viewRef.current;
+      if (!view) return;
+      if (lspLang) {
+        try {
+          const syms = await window.airlock.lspDocumentSymbol(root, relPath);
+          if (!cancelled) setScopes(lspSymbolsToScopes(syms));
+        } catch {
+          if (!cancelled) setScopes([]);
+        }
+      } else if (isMarkdown) {
+        if (!cancelled)
+          setScopes(scopesFromMarkdown(view.state.doc.toString()));
+      } else if (!cancelled) {
+        setScopes([]);
+      }
+    };
+    void refresh();
+    const id = setInterval(() => void refresh(), 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [root, relPath, lspLang, isMarkdown]);
+
   return (
     <div className="editor-pane">
-      <div className="editor-status" aria-live="polite">
-        {!editable ? (
-          <span className="badge">too large to edit (first 1 MB)</span>
-        ) : saveState === "unsaved" ? (
-          <span className="editor-dot" title="Unsaved - autosaving">
-            unsaved
-          </span>
-        ) : saveState === "saved" ? (
-          <span className="editor-saved">saved</span>
-        ) : null}
-      </div>
+      <EditorBreadcrumb
+        pathSegments={pathSegments(relPath)}
+        symbolTrail={enclosingScopes(scopes, cursorLine)}
+        saveState={saveState}
+        truncated={!editable}
+        onSymbolClick={(s) => {
+          const view = viewRef.current;
+          if (!view) return;
+          const line = Math.max(1, Math.min(s.line, view.state.doc.lines));
+          const pos = view.state.doc.line(line).from;
+          view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+          view.focus();
+        }}
+      />
       <div ref={hostRef} className="viewer-host" />
       {menu && (
         <EditorContextMenu

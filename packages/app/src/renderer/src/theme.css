@@ -2089,25 +2089,80 @@ button.quota-meter:hover {
   height: 100%;
 }
 
-/* The editable file pane fills the viewer body and positions the small autosave
-   status badge over the top-right corner (it does not take a layout row). */
+/* The editable file pane stacks the breadcrumb bar above the CodeMirror host;
+   the host takes the remaining vertical space. */
 .editor-pane {
   position: relative;
   min-height: 0;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-pane .viewer-host {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Editor breadcrumb bar (EditorBreadcrumb.tsx): path segments + the symbol
+   trail at the cursor on the left, save state on the right. Replaces the old
+   floating .editor-status badge -- that class now lives inside this bar as a
+   normal flex child instead of being absolutely positioned. */
+.editor-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-gap);
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.breadcrumb-trail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.breadcrumb-seg {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  padding: 0 2px;
+  font: inherit;
+}
+
+/* Path segments are non-interactive for v1 -- there is no file-tree-reveal
+   store action to wire a click to (see EditorBreadcrumb.tsx). */
+.breadcrumb-path {
+  cursor: default;
+}
+
+.breadcrumb-sym {
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.breadcrumb-sym:hover {
+  background: var(--hover);
+}
+
+.breadcrumb-seg:not(:last-child)::after {
+  content: "›";
+  margin: 0 4px;
+  color: var(--fg-dim);
 }
 
 .editor-status {
-  position: absolute;
-  top: 6px;
-  right: 16px;
-  z-index: 3;
   font-size: 10px;
-  pointer-events: none;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .editor-dot {
