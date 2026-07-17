@@ -3900,6 +3900,42 @@ button.docker-row .codicon-chevron-right {
   background: var(--bg-panel);
 }
 
+/* Bracket-pair colorization (editorChrome.ts). 6 cycling depths. */
+.cm-bracket-depth-0 {
+  color: #ffd700;
+}
+.cm-bracket-depth-1 {
+  color: #da70d6;
+}
+.cm-bracket-depth-2 {
+  color: #179fff;
+}
+.cm-bracket-depth-3 {
+  color: #ffd700;
+}
+.cm-bracket-depth-4 {
+  color: #da70d6;
+}
+.cm-bracket-depth-5 {
+  color: #179fff;
+}
+:root[data-theme="light"] .cm-bracket-depth-0,
+:root[data-theme="light"] .cm-bracket-depth-3 {
+  color: #0431fa;
+}
+:root[data-theme="light"] .cm-bracket-depth-1,
+:root[data-theme="light"] .cm-bracket-depth-4 {
+  color: #319331;
+}
+:root[data-theme="light"] .cm-bracket-depth-2,
+:root[data-theme="light"] .cm-bracket-depth-5 {
+  color: #7b3814;
+}
+/* Minimap sits at the right; keep it out of the way of the scrollbar. */
+.cm-minimap {
+  opacity: 0.85;
+}
+
 .terminal-external-placeholder {
   display: flex;
   flex-direction: column;

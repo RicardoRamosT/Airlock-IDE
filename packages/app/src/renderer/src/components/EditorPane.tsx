@@ -8,6 +8,7 @@ import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
+import { editorChrome } from "../lib/editorChrome";
 import { openEditorFile } from "../lib/editorFiles";
 import { editorTheme } from "../lib/editorTheme";
 import { languageExtensionForPath } from "../lib/language";
@@ -227,6 +228,7 @@ export function EditorPane({
           basicSetup,
           themeCompartment.of(editorTheme(themeRef.current)),
           EditorView.theme({ "&": { height: "100%" } }),
+          ...editorChrome(),
           lintGutter(),
           ...(lspLang
             ? [
