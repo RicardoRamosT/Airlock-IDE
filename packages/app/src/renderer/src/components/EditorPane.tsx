@@ -4,12 +4,12 @@ import {
 } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
 import { openEditorFile } from "../lib/editorFiles";
+import { editorTheme } from "../lib/editorTheme";
 import { languageExtensionForPath } from "../lib/language";
 import { toCmCompletions } from "../lib/lspCompletions";
 import { toCmDiagnostics } from "../lib/lspDiagnostics";
@@ -225,7 +225,7 @@ export function EditorPane({
         doc: file.content,
         extensions: [
           basicSetup,
-          themeCompartment.of(themeRef.current === "dark" ? oneDark : []),
+          themeCompartment.of(editorTheme(themeRef.current)),
           EditorView.theme({ "&": { height: "100%" } }),
           lintGutter(),
           ...(lspLang
@@ -386,7 +386,7 @@ export function EditorPane({
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: themeCompartment.reconfigure(theme === "dark" ? oneDark : []),
+      effects: themeCompartment.reconfigure(editorTheme(theme)),
     });
   }, [theme, themeCompartment]);
 
