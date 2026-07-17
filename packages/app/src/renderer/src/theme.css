@@ -2190,7 +2190,7 @@ button.quota-meter:hover {
   position: absolute;
   top: 24px; /* .editor-breadcrumb height */
   left: 0;
-  right: 14px; /* clear the minimap/scrollbar */
+  right: 120px; /* clear the minimap: @replit/codemirror-minimap renders at editorWidth/6, capped at 120px */
   z-index: 4;
   display: flex;
   flex-direction: column;
