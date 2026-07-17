@@ -102,6 +102,7 @@ const DEFAULT_PREFS: AppPrefs = {
     privilege: "block",
   },
   quotaMeter: { enabled: false },
+  dockStatus: { enabled: false },
   runAppSkill: { enabled: true },
   eventLog: { enabled: true, minLevel: "debug" },
   defaultTerminal: "airlock",

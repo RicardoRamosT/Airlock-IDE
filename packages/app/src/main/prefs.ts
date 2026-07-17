@@ -67,6 +67,7 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
+  dockStatus: { enabled: false },
   runAppSkill: { enabled: true },
   eventLog: { enabled: true, minLevel: "debug" as Level },
   claudeAutoStart: "first",
@@ -163,6 +164,17 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
   return { enabled: true };
 }
 
+// dockStatus is app-global and OFF by default (opt-in: enabling writes hooks
+// into ~/.claude/settings.json). Only a real boolean is honored; anything else
+// (absent, partial, wrong type) -> disabled.
+function sanitizeDockStatus(raw: unknown): { enabled: boolean } {
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (typeof r.enabled === "boolean") return { enabled: r.enabled };
+  }
+  return { enabled: false };
+}
+
 // runAppSkill is app-global and ON by default. A real boolean `enabled` (incl.
 // explicit false to turn it off) is honored; anything else (absent, partial,
 // wrong type) -> enabled.
@@ -257,6 +269,7 @@ function sanitize(raw: unknown): AppPrefs {
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
+    dockStatus: sanitizeDockStatus(r.dockStatus),
     runAppSkill: sanitizeRunAppSkill(r.runAppSkill),
     eventLog: sanitizeEventLog(r.eventLog),
     claudeAutoStart: CLAUDE_AUTO_MODES.includes(

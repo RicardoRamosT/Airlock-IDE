@@ -27,6 +27,7 @@ import {
   startDevServer,
   stopDevServer,
 } from "./devserver/manager";
+import { reconcileDockStatus } from "./dockstatus/wire";
 import {
   installConsoleFunnel,
   installProcessHandlers,
@@ -156,6 +157,11 @@ function bootstrap(): void {
     // failure to touch ~/.claude/settings.json must never break startup.
     await reconcileQuotaMeter(prefs.quotaMeter.enabled).catch((e) =>
       console.warn("[airlock] quota meter wiring failed", e),
+    );
+    // Dock status badge: opt-in (default off). Installs Claude hooks only if the
+    // user enabled it; a true no-op otherwise. Best-effort -- never break startup.
+    await reconcileDockStatus(prefs.dockStatus.enabled).catch((e) =>
+      console.warn("[airlock] dock status wiring failed", e),
     );
     // Run-app routing skill: install/remove the Claude skill to match the pref.
     // Best-effort -- a failure to touch ~/.claude/skills must never break startup.

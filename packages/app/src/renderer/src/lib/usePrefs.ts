@@ -18,6 +18,7 @@ export function usePrefs(): void {
   const setRestoreSession = useApp((s) => s.setRestoreSession);
   const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
+  const setDockStatusEnabled = useApp((s) => s.setDockStatusEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
   const setExtensionsPrefs = useApp((s) => s.setExtensionsPrefs);
   const theme = useApp((s) => s.theme);
@@ -47,6 +48,7 @@ export function usePrefs(): void {
         setRestoreSession(p.restoreSession);
         setDefaultTerminal(p.defaultTerminal);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
+        setDockStatusEnabled(p.dockStatus.enabled);
         setRunAppSkillEnabled(p.runAppSkill.enabled);
         setExtensionsPrefs(p.extensions ?? {});
         useApp.getState().setLayoutHydrated(true);
@@ -69,6 +71,7 @@ export function usePrefs(): void {
     setRestoreSession,
     setDefaultTerminal,
     setQuotaMeterEnabled,
+    setDockStatusEnabled,
     setRunAppSkillEnabled,
     setExtensionsPrefs,
   ]);
