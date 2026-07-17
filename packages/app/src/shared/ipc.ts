@@ -1074,4 +1074,8 @@ export interface AirlockApi {
     line: number,
     character: number,
   ): Promise<ReferenceResults>;
+  lspDocumentSymbol(
+    root: string,
+    relPath: string,
+  ): Promise<LspDocumentSymbol[]>;
 }
