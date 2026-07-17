@@ -1,6 +1,6 @@
 import type { Scope } from "../lib/editorScopes";
 
-type SaveState = "idle" | "unsaved" | "saved";
+export type SaveState = "idle" | "unsaved" | "saved";
 
 // Slim VS Code-style bar under the tab: path segments on the left, the symbol
 // trail (from the scope chain at the cursor) next, and save state on the

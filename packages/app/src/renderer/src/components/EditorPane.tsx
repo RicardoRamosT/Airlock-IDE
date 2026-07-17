@@ -24,7 +24,7 @@ import { toCmDiagnostics } from "../lib/lspDiagnostics";
 import { lspLanguageId } from "../lib/lspLanguage";
 import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
-import { EditorBreadcrumb } from "./EditorBreadcrumb";
+import { EditorBreadcrumb, type SaveState } from "./EditorBreadcrumb";
 import { EditorContextMenu } from "./EditorContextMenu";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
@@ -32,7 +32,6 @@ import { EditorContextMenu } from "./EditorContextMenu";
 const AUTOSAVE_MS = 800;
 // Debounce window for pushing full-text changes to the language server.
 const LSP_DEBOUNCE_MS = 300;
-type SaveState = "idle" | "unsaved" | "saved";
 
 // LSP completion + hover for one open file. Both first call `sync` to push the
 // current document to the server, THEN query at the cursor. The sync is what
@@ -159,6 +158,9 @@ export function EditorPane({
   // state only -- see the scopes-fetch effect and updateListener below.
   const [scopes, setScopes] = useState<Scope[]>([]);
   const [cursorLine, setCursorLine] = useState(1);
+  // Bumped (debounced) on doc changes to retrigger the scope-fetch effect --
+  // see the updateListener below and the scope-fetch effect's dependency array.
+  const [scopeNonce, setScopeNonce] = useState(0);
   const setReferences = useApp((s) => s.setReferences);
   const [menu, setMenu] = useState<{
     x: number;
@@ -193,6 +195,7 @@ export function EditorPane({
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lspTimer: ReturnType<typeof setTimeout> | undefined;
+    let scopeTimer: ReturnType<typeof setTimeout> | undefined;
     let lspVersion = 1;
     let dirty = false;
 
@@ -253,6 +256,10 @@ export function EditorPane({
                 u.state.selection.main.head,
               ).number;
               setCursorLine(line);
+            }
+            if (u.docChanged) {
+              if (scopeTimer) clearTimeout(scopeTimer);
+              scopeTimer = setTimeout(() => setScopeNonce((n) => n + 1), 600);
             }
           }),
           lintGutter(),
@@ -390,6 +397,7 @@ export function EditorPane({
     return () => {
       flush(); // flush before the editor goes away (file switch / unmount)
       if (lspTimer) clearTimeout(lspTimer);
+      if (scopeTimer) clearTimeout(scopeTimer);
       if (lspLang) void window.airlock.lspDidClose(root, relPath);
       view.destroy();
       viewRef.current = null;
@@ -450,10 +458,11 @@ export function EditorPane({
   // Fetch the scope model that feeds the breadcrumb's symbol trail: LSP
   // languages ask the language server for document symbols; markdown parses
   // the live buffer's headings; anything else has no scopes. Refreshes on
-  // open/language change and then on a timer -- the document lives inside the
-  // CodeMirror view (a ref), not React state, so there's no state dependency
-  // to react to on every edit; polling on the same cadence as autosave settles
-  // is cheap and keeps the trail from going stale after edits.
+  // open/language change and on `scopeNonce`, which the construction effect's
+  // updateListener bumps (debounced, 600ms) on every doc change -- so the
+  // trail stays fresh after edits with zero idle polling. Cursor-only moves
+  // don't bump the nonce; they're free via enclosingScopes on render.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scopeNonce is not read in the body but intentionally included as a trigger dep — the construction effect's updateListener bumps it (debounced) on doc changes to force a refetch.
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
@@ -474,12 +483,10 @@ export function EditorPane({
       }
     };
     void refresh();
-    const id = setInterval(() => void refresh(), 1500);
     return () => {
       cancelled = true;
-      clearInterval(id);
     };
-  }, [root, relPath, lspLang, isMarkdown]);
+  }, [root, relPath, lspLang, isMarkdown, scopeNonce]);
 
   return (
     <div className="editor-pane">
