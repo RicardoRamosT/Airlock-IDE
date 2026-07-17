@@ -26,3 +26,56 @@ export function enclosingScopes(scopes: Scope[], line: number): Scope[] {
 export function pathSegments(relPath: string): string[] {
   return relPath.split("/").filter((seg) => seg.length > 0);
 }
+
+// Derive a heading scope model from markdown text. Fence-aware (```/~~~ toggles
+// suppress heading detection inside code blocks). A heading covers lines until
+// the next heading of the same-or-higher level (or EOF), so headings nest the
+// way VS Code's breadcrumb/sticky expect. Pure -> unit-tested.
+export function scopesFromMarkdown(doc: string): Scope[] {
+  const lines = doc.split("\n");
+  type H = { level: number; scope: Scope };
+  const heads: H[] = [];
+  let offset = 0;
+  let fence: string | null = null;
+  lines.forEach((text, i) => {
+    const lineNo = i + 1;
+    const fenceMatch = text.match(/^\s*(```+|~~~+)/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1]?.[0]; // ` or ~
+      if (marker) {
+        if (fence === null) fence = marker;
+        else if (fence === marker) fence = null;
+      }
+    } else if (fence === null) {
+      const h = text.match(/^(#{1,6})\s+(.*\S)\s*$/);
+      if (h?.[1] && h[2]) {
+        heads.push({
+          level: h[1].length,
+          scope: {
+            name: h[2],
+            kind: "heading",
+            line: lineNo,
+            endLine: lines.length, // provisional; closed below
+            from: offset,
+            to: doc.length,
+          },
+        });
+      }
+    }
+    offset += text.length + 1; // +1 for the newline
+  });
+  // Close each heading at the line before the next same-or-higher-level heading.
+  for (let i = 0; i < heads.length; i++) {
+    const hi = heads[i];
+    if (!hi) continue;
+    for (let j = i + 1; j < heads.length; j++) {
+      const hj = heads[j];
+      if (hj && hj.level <= hi.level) {
+        hi.scope.endLine = hj.scope.line - 1;
+        hi.scope.to = hj.scope.from - 1;
+        break;
+      }
+    }
+  }
+  return heads.map((h) => h.scope);
+}

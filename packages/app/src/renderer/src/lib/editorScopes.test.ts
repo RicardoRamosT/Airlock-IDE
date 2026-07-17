@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { enclosingScopes, pathSegments, type Scope } from "./editorScopes";
+import {
+  enclosingScopes,
+  pathSegments,
+  type Scope,
+  scopesFromMarkdown,
+} from "./editorScopes";
 
 const scopes: Scope[] = [
   { name: "Outer", kind: "class", line: 1, endLine: 20, from: 0, to: 200 },
@@ -77,5 +82,44 @@ describe("pathSegments", () => {
   });
   it("drops empty segments from leading/duplicate slashes", () => {
     expect(pathSegments("/a//b.ts")).toEqual(["a", "b.ts"]);
+  });
+});
+
+describe("scopesFromMarkdown", () => {
+  const doc = [
+    "# Title", // 1
+    "intro", // 2
+    "## Section A", // 3
+    "text", // 4
+    "### Sub", // 5
+    "## Section B", // 6
+    "```", // 7 (fence open)
+    "# not a heading", // 8 (inside fence)
+    "```", // 9 (fence close)
+    "end", // 10
+  ].join("\n");
+
+  it("emits a nested heading scope model, skipping fenced code", () => {
+    const s = scopesFromMarkdown(doc);
+    const byName = Object.fromEntries(s.map((x) => [x.name, x]));
+    expect(s.map((x) => x.name)).toEqual([
+      "Title",
+      "Section A",
+      "Sub",
+      "Section B",
+    ]);
+    // Title (h1) covers to EOF; Section A (h2) ends before Section B (h2)
+    expect(byName.Title).toMatchObject({
+      kind: "heading",
+      line: 1,
+      endLine: 10,
+    });
+    expect(byName["Section A"]).toMatchObject({ line: 3, endLine: 5 });
+    expect(byName.Sub).toMatchObject({ line: 5, endLine: 5 });
+    expect(byName["Section B"]).toMatchObject({ line: 6, endLine: 10 });
+  });
+
+  it("returns [] for a doc with no headings", () => {
+    expect(scopesFromMarkdown("just text\nmore")).toEqual([]);
   });
 });
