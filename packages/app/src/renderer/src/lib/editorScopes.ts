@@ -1,3 +1,5 @@
+import type { LspDocumentSymbol } from "../../../shared/ipc";
+
 // The shared "scope model": a flat list of nesting ranges (functions, classes,
 // markdown headings, ...) that both the symbol breadcrumb and sticky scroll
 // consume. Pure and unit-tested; providers are added in later tasks
@@ -78,4 +80,37 @@ export function scopesFromMarkdown(doc: string): Scope[] {
     }
   }
   return heads.map((h) => h.scope);
+}
+
+// LSP SymbolKind number -> a short display hint. Only the common ones; anything
+// else falls back to "symbol".
+const SYMBOL_KIND: Record<number, string> = {
+  5: "class",
+  6: "method",
+  9: "constructor",
+  11: "interface",
+  12: "function",
+  13: "variable",
+  23: "struct",
+};
+
+// Flatten a hierarchical LspDocumentSymbol tree (already 1-based) into a flat
+// nested Scope[] in document order. Pure -> unit-tested.
+export function lspSymbolsToScopes(symbols: LspDocumentSymbol[]): Scope[] {
+  const out: Scope[] = [];
+  const walk = (nodes: LspDocumentSymbol[]): void => {
+    for (const n of nodes) {
+      out.push({
+        name: n.name,
+        kind: SYMBOL_KIND[n.kind] ?? "symbol",
+        line: n.range.startLine,
+        endLine: n.range.endLine,
+        from: 0, // offsets unused for LSP scopes; breadcrumb/sticky use lines
+        to: 0,
+      });
+      if (n.children.length) walk(n.children);
+    }
+  };
+  walk(symbols);
+  return out;
 }

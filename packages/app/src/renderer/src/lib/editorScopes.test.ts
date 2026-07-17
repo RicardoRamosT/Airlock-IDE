@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { LspDocumentSymbol } from "../../../shared/ipc";
 import {
   enclosingScopes,
+  lspSymbolsToScopes,
   pathSegments,
   type Scope,
   scopesFromMarkdown,
@@ -121,5 +123,31 @@ describe("scopesFromMarkdown", () => {
 
   it("returns [] for a doc with no headings", () => {
     expect(scopesFromMarkdown("just text\nmore")).toEqual([]);
+  });
+});
+
+describe("lspSymbolsToScopes", () => {
+  it("flattens the symbol tree into nested Scopes (1-based lines preserved)", () => {
+    const symbols: LspDocumentSymbol[] = [
+      {
+        name: "Foo",
+        kind: 5,
+        range: { startLine: 1, startChar: 0, endLine: 10, endChar: 1 },
+        children: [
+          {
+            name: "bar",
+            kind: 6,
+            range: { startLine: 3, startChar: 2, endLine: 5, endChar: 3 },
+            children: [],
+          },
+        ],
+      },
+    ];
+    const scopes = lspSymbolsToScopes(symbols);
+    expect(scopes.map((s) => [s.name, s.line, s.endLine])).toEqual([
+      ["Foo", 1, 10],
+      ["bar", 3, 5],
+    ]);
+    expect(scopes[0]?.kind).toBe("class"); // kind 5 = Class
   });
 });
