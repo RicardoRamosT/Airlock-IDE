@@ -1,9 +1,9 @@
 import { unifiedMergeView } from "@codemirror/merge";
 import { EditorState } from "@codemirror/state";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef } from "react";
+import { editorTheme } from "../lib/editorTheme";
 import { languageExtensionForPath } from "../lib/language";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
@@ -27,7 +27,7 @@ export function Viewer() {
         doc: diff.modified,
         extensions: [
           basicSetup,
-          ...(theme === "dark" ? [oneDark] : []),
+          editorTheme(theme),
           EditorState.readOnly.of(true),
           EditorView.editable.of(false),
           EditorView.theme({ "&": { height: "100%" } }),
