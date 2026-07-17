@@ -131,6 +131,21 @@ export interface LspHover {
   contents: string;
 }
 
+// One node of a textDocument/documentSymbol result, normalized main-side to
+// 1-based lines. Hierarchical (children) so the breadcrumb / sticky scroll can
+// build a scope chain. kind is the LSP SymbolKind number (1=File..26=TypeParam).
+export interface LspDocumentSymbol {
+  name: string;
+  kind: number;
+  range: {
+    startLine: number;
+    startChar: number;
+    endLine: number;
+    endChar: number;
+  };
+  children: LspDocumentSymbol[];
+}
+
 export interface LspDefinition {
   relPath: string;
   line: number; // 1-indexed, ready for revealLine
@@ -1059,4 +1074,8 @@ export interface AirlockApi {
     line: number,
     character: number,
   ): Promise<ReferenceResults>;
+  lspDocumentSymbol(
+    root: string,
+    relPath: string,
+  ): Promise<LspDocumentSymbol[]>;
 }

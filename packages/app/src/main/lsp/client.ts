@@ -14,6 +14,7 @@ import type {
   LspCompletionItem,
   LspDefinition,
   LspDiagnostic,
+  LspDocumentSymbol,
   ReferenceFile,
   ReferenceResults,
 } from "../../shared/ipc";
@@ -362,6 +363,59 @@ export async function lspReferences(
     console.error("[lsp] references failed", err);
     return [];
   }
+}
+
+// textDocument/documentSymbol -> normalized LspDocumentSymbol[] (1-based lines).
+// Handles both DocumentSymbol[] (hierarchical) and SymbolInformation[] (flat).
+// Main-side inline normalization (cannot import the renderer's lspSymbols.ts).
+export async function lspDocumentSymbol(
+  root: string,
+  relPath: string,
+): Promise<LspDocumentSymbol[]> {
+  const s = ensure(root);
+  await s.ready;
+  try {
+    const r = (await s.conn.sendRequest("textDocument/documentSymbol", {
+      textDocument: { uri: await uriOf(root, relPath) },
+    })) as unknown;
+    return normDocSymbols(r);
+  } catch (err) {
+    console.error("[lsp] documentSymbol failed", err);
+    return [];
+  }
+}
+
+function normDocSymbols(raw: unknown): LspDocumentSymbol[] {
+  if (!Array.isArray(raw)) return [];
+  const out: LspDocumentSymbol[] = [];
+  for (const node of raw) {
+    if (!node || typeof node !== "object") continue;
+    const n = node as Record<string, unknown>;
+    const name = typeof n.name === "string" ? n.name : null;
+    const kind = typeof n.kind === "number" ? n.kind : 0;
+    const loc = n.location as { range?: unknown } | undefined;
+    const range = normDocRange(n.range ?? loc?.range);
+    if (name === null || !range) continue;
+    out.push({ name, kind, range, children: normDocSymbols(n.children) });
+  }
+  return out;
+}
+
+function normDocRange(r: unknown): LspDocumentSymbol["range"] | null {
+  if (!r || typeof r !== "object") return null;
+  const rr = r as { start?: unknown; end?: unknown };
+  const s = normDocPt(rr.start);
+  const e = normDocPt(rr.end);
+  if (!s || !e) return null;
+  return { startLine: s.line, startChar: s.ch, endLine: e.line, endChar: e.ch };
+}
+
+function normDocPt(p: unknown): { line: number; ch: number } | null {
+  if (!p || typeof p !== "object") return null;
+  const pp = p as { line?: unknown; character?: unknown };
+  if (typeof pp.line !== "number" || typeof pp.character !== "number")
+    return null;
+  return { line: pp.line + 1, ch: pp.character };
 }
 
 function disposeServer(root: string): void {

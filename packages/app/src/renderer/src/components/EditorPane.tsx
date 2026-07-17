@@ -4,26 +4,35 @@ import {
 } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
+import { editorChrome } from "../lib/editorChrome";
 import { openEditorFile } from "../lib/editorFiles";
+import {
+  enclosingScopes,
+  lspSymbolsToScopes,
+  pathSegments,
+  type Scope,
+  scopesFromMarkdown,
+} from "../lib/editorScopes";
+import { editorTheme } from "../lib/editorTheme";
 import { languageExtensionForPath } from "../lib/language";
 import { toCmCompletions } from "../lib/lspCompletions";
 import { toCmDiagnostics } from "../lib/lspDiagnostics";
 import { lspLanguageId } from "../lib/lspLanguage";
 import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
+import { EditorBreadcrumb, type SaveState } from "./EditorBreadcrumb";
 import { EditorContextMenu } from "./EditorContextMenu";
+import { StickyScroll } from "./StickyScroll";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
 // flushes immediately (the effect cleanup), so nothing is lost on navigation.
 const AUTOSAVE_MS = 800;
 // Debounce window for pushing full-text changes to the language server.
 const LSP_DEBOUNCE_MS = 300;
-type SaveState = "idle" | "unsaved" | "saved";
 
 // LSP completion + hover for one open file. Both first call `sync` to push the
 // current document to the server, THEN query at the cursor. The sync is what
@@ -143,8 +152,21 @@ export function EditorPane({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  // Bumped right after viewRef.current is (re)assigned in the construction
+  // effect below, purely to force a re-render -- refs alone don't trigger one.
+  // StickyScroll is keyed on this so it remounts against the current
+  // EditorView instance instead of a stale one.
+  const [viewReady, setViewReady] = useState(0);
   const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  // Scope model (for the breadcrumb's symbol trail) + the cursor's current
+  // line (for picking the enclosing chain out of it). Both are presentation
+  // state only -- see the scopes-fetch effect and updateListener below.
+  const [scopes, setScopes] = useState<Scope[]>([]);
+  const [cursorLine, setCursorLine] = useState(1);
+  // Bumped (debounced) on doc changes to retrigger the scope-fetch effect --
+  // see the updateListener below and the scope-fetch effect's dependency array.
+  const [scopeNonce, setScopeNonce] = useState(0);
   const setReferences = useApp((s) => s.setReferences);
   const [menu, setMenu] = useState<{
     x: number;
@@ -159,6 +181,7 @@ export function EditorPane({
   const syncRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const editable = !file.truncated;
   const lspLang = lspLanguageId(relPath);
+  const isMarkdown = /\.mdx?$/i.test(relPath);
   // Theme lives in a CodeMirror Compartment so a theme toggle RECONFIGURES it in
   // place (separate effect below) instead of being a dependency of the editor-
   // construction effect. Rebuilding the editor on a theme change recreated the
@@ -178,6 +201,7 @@ export function EditorPane({
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lspTimer: ReturnType<typeof setTimeout> | undefined;
+    let scopeTimer: ReturnType<typeof setTimeout> | undefined;
     let lspVersion = 1;
     let dirty = false;
 
@@ -225,8 +249,25 @@ export function EditorPane({
         doc: file.content,
         extensions: [
           basicSetup,
-          themeCompartment.of(themeRef.current === "dark" ? oneDark : []),
+          themeCompartment.of(editorTheme(themeRef.current)),
           EditorView.theme({ "&": { height: "100%" } }),
+          ...editorChrome(),
+          // Track the cursor's line for the breadcrumb's symbol trail.
+          // Unconditional (not gated on `editable`): a read-only/truncated
+          // view still allows moving the selection, and the breadcrumb should
+          // track it there too.
+          EditorView.updateListener.of((u) => {
+            if (u.selectionSet || u.docChanged) {
+              const line = u.state.doc.lineAt(
+                u.state.selection.main.head,
+              ).number;
+              setCursorLine(line);
+            }
+            if (u.docChanged) {
+              if (scopeTimer) clearTimeout(scopeTimer);
+              scopeTimer = setTimeout(() => setScopeNonce((n) => n + 1), 600);
+            }
+          }),
           lintGutter(),
           ...(lspLang
             ? [
@@ -349,6 +390,7 @@ export function EditorPane({
       parent: host,
     });
     viewRef.current = view;
+    setViewReady((n) => n + 1);
     if (lspLang) {
       void window.airlock.lspDidOpen(
         root,
@@ -362,6 +404,7 @@ export function EditorPane({
     return () => {
       flush(); // flush before the editor goes away (file switch / unmount)
       if (lspTimer) clearTimeout(lspTimer);
+      if (scopeTimer) clearTimeout(scopeTimer);
       if (lspLang) void window.airlock.lspDidClose(root, relPath);
       view.destroy();
       viewRef.current = null;
@@ -386,7 +429,7 @@ export function EditorPane({
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: themeCompartment.reconfigure(theme === "dark" ? oneDark : []),
+      effects: themeCompartment.reconfigure(editorTheme(theme)),
     });
   }, [theme, themeCompartment]);
 
@@ -419,20 +462,63 @@ export function EditorPane({
     });
   }, [lspLang, root, relPath]);
 
+  // Fetch the scope model that feeds the breadcrumb's symbol trail: LSP
+  // languages ask the language server for document symbols; markdown parses
+  // the live buffer's headings; anything else has no scopes. Refreshes on
+  // open/language change and on `scopeNonce`, which the construction effect's
+  // updateListener bumps (debounced, 600ms) on every doc change -- so the
+  // trail stays fresh after edits with zero idle polling. Cursor-only moves
+  // don't bump the nonce; they're free via enclosingScopes on render.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scopeNonce is not read in the body but intentionally included as a trigger dep — the construction effect's updateListener bumps it (debounced) on doc changes to force a refetch.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      const view = viewRef.current;
+      if (!view) return;
+      if (lspLang) {
+        try {
+          const syms = await window.airlock.lspDocumentSymbol(root, relPath);
+          if (!cancelled) setScopes(lspSymbolsToScopes(syms));
+        } catch {
+          if (!cancelled) setScopes([]);
+        }
+      } else if (isMarkdown) {
+        if (!cancelled)
+          setScopes(scopesFromMarkdown(view.state.doc.toString()));
+      } else if (!cancelled) {
+        setScopes([]);
+      }
+    };
+    void refresh();
+    return () => {
+      cancelled = true;
+    };
+  }, [root, relPath, lspLang, isMarkdown, scopeNonce]);
+
   return (
     <div className="editor-pane">
-      <div className="editor-status" aria-live="polite">
-        {!editable ? (
-          <span className="badge">too large to edit (first 1 MB)</span>
-        ) : saveState === "unsaved" ? (
-          <span className="editor-dot" title="Unsaved - autosaving">
-            unsaved
-          </span>
-        ) : saveState === "saved" ? (
-          <span className="editor-saved">saved</span>
-        ) : null}
-      </div>
+      <EditorBreadcrumb
+        pathSegments={pathSegments(relPath)}
+        symbolTrail={enclosingScopes(scopes, cursorLine)}
+        saveState={saveState}
+        truncated={!editable}
+        onSymbolClick={(s) => {
+          const view = viewRef.current;
+          if (!view) return;
+          const line = Math.max(1, Math.min(s.line, view.state.doc.lines));
+          const pos = view.state.doc.line(line).from;
+          view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+          view.focus();
+        }}
+      />
       <div ref={hostRef} className="viewer-host" />
+      <StickyScroll
+        // viewReady bumps when the view is (re)constructed so the overlay
+        // binds to the current instance; scopes drive its pinned content.
+        key={viewReady}
+        view={viewRef.current}
+        scopes={scopes}
+      />
       {menu && (
         <EditorContextMenu
           x={menu.x}

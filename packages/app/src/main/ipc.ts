@@ -142,6 +142,7 @@ import {
   lspDidChange,
   lspDidClose,
   lspDidOpen,
+  lspDocumentSymbol,
   lspHover,
   lspReferences,
   onLspDiagnostics,
@@ -737,6 +738,10 @@ export function registerIpc(
       return lspReferences(resolveRoot(e, root), relPath, line, character);
     },
   );
+  ipcMain.handle("lsp:documentSymbol", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    return lspDocumentSymbol(resolveRoot(e, root), relPath);
+  });
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),

@@ -2081,6 +2081,13 @@ button.quota-meter:hover {
 }
 
 .viewer-host {
+  /* Positioning context in general (e.g. for anything CodeMirror itself
+     absolutely-positions inside this host). NOTE: .sticky-scroll below is
+     rendered as a REACT SIBLING of this div, not a child of it -- CodeMirror
+     owns this div's children imperatively (`parent: host`), so React must
+     never also render JSX children into it. .sticky-scroll's actual
+     containing block is .editor-pane (already position: relative). */
+  position: relative;
   min-height: 0;
   overflow: auto;
 }
@@ -2089,25 +2096,80 @@ button.quota-meter:hover {
   height: 100%;
 }
 
-/* The editable file pane fills the viewer body and positions the small autosave
-   status badge over the top-right corner (it does not take a layout row). */
+/* The editable file pane stacks the breadcrumb bar above the CodeMirror host;
+   the host takes the remaining vertical space. */
 .editor-pane {
   position: relative;
   min-height: 0;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-pane .viewer-host {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Editor breadcrumb bar (EditorBreadcrumb.tsx): path segments + the symbol
+   trail at the cursor on the left, save state on the right. Replaces the old
+   floating .editor-status badge -- that class now lives inside this bar as a
+   normal flex child instead of being absolutely positioned. */
+.editor-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sb-gap);
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.breadcrumb-trail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.breadcrumb-seg {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  padding: 0 2px;
+  font: inherit;
+}
+
+/* Path segments are non-interactive for v1 -- there is no file-tree-reveal
+   store action to wire a click to (see EditorBreadcrumb.tsx). */
+.breadcrumb-path {
+  cursor: default;
+}
+
+.breadcrumb-sym {
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.breadcrumb-sym:hover {
+  background: var(--hover);
+}
+
+.breadcrumb-seg:not(:last-child)::after {
+  content: "›";
+  margin: 0 4px;
+  color: var(--fg-dim);
 }
 
 .editor-status {
-  position: absolute;
-  top: 6px;
-  right: 16px;
-  z-index: 3;
   font-size: 10px;
-  pointer-events: none;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .editor-dot {
@@ -2116,6 +2178,46 @@ button.quota-meter:hover {
 
 .editor-saved {
   color: var(--fg-dim);
+}
+
+/* Sticky scroll (StickyScroll.tsx): pinned enclosing-scope header lines,
+   absolutely positioned over the top of the code viewport. Rendered as a
+   sibling of .viewer-host inside .editor-pane, so .editor-pane (already
+   position: relative) is the actual containing block -- `top` is offset by
+   .editor-breadcrumb's fixed height so the overlay starts at the top of
+   .viewer-host instead of covering the breadcrumb bar above it. */
+.sticky-scroll {
+  position: absolute;
+  top: 24px; /* .editor-breadcrumb height */
+  left: 0;
+  right: 120px; /* clear the minimap: @replit/codemirror-minimap renders at editorWidth/6, capped at 120px */
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.sticky-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 0 8px;
+  height: 18px;
+  line-height: 18px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.sticky-row:hover {
+  background: var(--hover);
 }
 
 .terminal-host {
@@ -3898,6 +4000,42 @@ button.docker-row .codicon-chevron-right {
   white-space: pre-wrap;
   color: var(--fg);
   background: var(--bg-panel);
+}
+
+/* Bracket-pair colorization (editorChrome.ts). 6 cycling depths. */
+.cm-bracket-depth-0 {
+  color: #ffd700;
+}
+.cm-bracket-depth-1 {
+  color: #da70d6;
+}
+.cm-bracket-depth-2 {
+  color: #179fff;
+}
+.cm-bracket-depth-3 {
+  color: #ffd700;
+}
+.cm-bracket-depth-4 {
+  color: #da70d6;
+}
+.cm-bracket-depth-5 {
+  color: #179fff;
+}
+:root[data-theme="light"] .cm-bracket-depth-0,
+:root[data-theme="light"] .cm-bracket-depth-3 {
+  color: #0431fa;
+}
+:root[data-theme="light"] .cm-bracket-depth-1,
+:root[data-theme="light"] .cm-bracket-depth-4 {
+  color: #319331;
+}
+:root[data-theme="light"] .cm-bracket-depth-2,
+:root[data-theme="light"] .cm-bracket-depth-5 {
+  color: #7b3814;
+}
+/* Minimap sits at the right; keep it out of the way of the scrollbar. */
+.cm-minimap {
+  opacity: 0.85;
 }
 
 .terminal-external-placeholder {
