@@ -26,6 +26,7 @@ import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
 import { EditorBreadcrumb, type SaveState } from "./EditorBreadcrumb";
 import { EditorContextMenu } from "./EditorContextMenu";
+import { StickyScroll } from "./StickyScroll";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
 // flushes immediately (the effect cleanup), so nothing is lost on navigation.
@@ -151,6 +152,11 @@ export function EditorPane({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  // Bumped right after viewRef.current is (re)assigned in the construction
+  // effect below, purely to force a re-render -- refs alone don't trigger one.
+  // StickyScroll is keyed on this so it remounts against the current
+  // EditorView instance instead of a stale one.
+  const [viewReady, setViewReady] = useState(0);
   const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   // Scope model (for the breadcrumb's symbol trail) + the cursor's current
@@ -384,6 +390,7 @@ export function EditorPane({
       parent: host,
     });
     viewRef.current = view;
+    setViewReady((n) => n + 1);
     if (lspLang) {
       void window.airlock.lspDidOpen(
         root,
@@ -505,6 +512,13 @@ export function EditorPane({
         }}
       />
       <div ref={hostRef} className="viewer-host" />
+      <StickyScroll
+        // viewReady bumps when the view is (re)constructed so the overlay
+        // binds to the current instance; scopes drive its pinned content.
+        key={viewReady}
+        view={viewRef.current}
+        scopes={scopes}
+      />
       {menu && (
         <EditorContextMenu
           x={menu.x}
