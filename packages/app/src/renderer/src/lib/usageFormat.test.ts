@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SessionUsage } from "../../../shared/ipc";
 import {
   aggregateByModel,
+  costLabel,
   formatApiTime,
   formatModels,
   formatTokens,
@@ -127,5 +128,16 @@ describe("formatters", () => {
     expect(formatUsd(0)).toBe("—");
     expect(formatUsd(0.004)).toBe("<$0.01");
     expect(formatUsd(1.25)).toBe("$1.25");
+  });
+  it("costLabel prefixes an approximation on a subscription, verbatim otherwise", () => {
+    expect(costLabel(178.41, true)).toBe("≈ $178.41");
+    expect(costLabel(178.41, false)).toBe("$178.41");
+  });
+  it("costLabel leaves the em-dash zero placeholder unprefixed", () => {
+    expect(costLabel(0, true)).toBe("—");
+    expect(costLabel(0, false)).toBe("—");
+  });
+  it("costLabel handles the sub-cent case on a subscription", () => {
+    expect(costLabel(0.004, true)).toBe("≈ <$0.01");
   });
 });
