@@ -46,6 +46,21 @@ describe("buildExtensionSummaries", () => {
     expect(v.enabled).toBe(true);
     expect(v.pinned).toBe(false);
   });
+
+  it("folds an accounts entry onto the matching status row", () => {
+    const out = buildExtensionSummaries(
+      [AZURE],
+      { azure: "ready" },
+      {},
+      { azure: "My-Sub" },
+    );
+    expect(out[0]?.account).toBe("My-Sub");
+  });
+
+  it("leaves account undefined when no accounts map is given", () => {
+    const out = buildExtensionSummaries([AZURE], { azure: "ready" }, {});
+    expect(out[0]?.account).toBeUndefined();
+  });
 });
 
 describe("pinnedEnabledManifests", () => {

@@ -93,6 +93,11 @@ export interface IntegrationManifest {
   // never background. (Terminal-interactive auth is fine here; only BACKGROUND
   // polling that opens a browser is unsafe -- see the Neon note in registry.ts.)
   connect?: { command: string; docsUrl?: string };
+  // Optional: a short account/subscription label extracted from the auth
+  // check's JSON stdout via a JSONPath (evalExpr). Shown on the Extension Hub
+  // row so a connected CLI integration says WHO/WHERE you are connected. Azure:
+  // "$.name" (the subscription from `az account show`).
+  account?: { path: string };
 }
 
 // A resolved detail line on an item (the DetailSpec after expr evaluation).

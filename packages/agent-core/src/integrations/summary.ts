@@ -51,6 +51,7 @@ export function buildExtensionSummaries(
   manifests: IntegrationManifest[],
   statuses: Record<string, DetectStatus>,
   prefs: ExtPrefs,
+  accounts: Record<string, string | undefined> = {},
 ): ExtensionSummary[] {
   return manifests.map((m) => {
     const enabled = isEnabled(prefs, m.id);
@@ -72,6 +73,7 @@ export function buildExtensionSummaries(
       authKind: "token",
       ...(m.install ? { install: m.install } : {}),
       ...(m.connect ? { connect: m.connect } : {}),
+      ...(accounts[m.id] ? { account: accounts[m.id] } : {}),
     };
   });
 }

@@ -17,6 +17,7 @@ import {
   deleteSecret,
   detectInstalledTerminals,
   detectStatus,
+  detectWithOutput,
   discardChanges,
   dockerStart,
   dockerStop,
@@ -48,6 +49,7 @@ import {
   move,
   neonConnectionUri,
   type PtySession,
+  parseAccount,
   parseConnString,
   pingDb,
   pinnedEnabledManifests,
@@ -197,7 +199,10 @@ const steadyCache: SteadyCache = {};
 // Per-manifest detect-status cache for the Extension Hub list (extensions:list),
 // throttled to each manifest's poll.everyMs so opening the Hub view doesn't
 // re-spawn every CLI on each poll tick. Persisted across IPC calls.
-const extDetectCache: Record<string, { at: number; status: DetectStatus }> = {};
+const extDetectCache: Record<
+  string,
+  { at: number; status: DetectStatus; account?: string }
+> = {};
 
 // Per-PTY owning window (sessionId -> BrowserWindow id). Terminal-reading agent
 // tools are scoped to the agent's (last-focused) window, so a window only ever
@@ -1654,6 +1659,20 @@ export function registerIpc(
     });
   });
 
+  // integrations:resources -> the resources for ONE integration, account-wide,
+  // with NO pin/relevance filter (unlike integrations:steady). Powers the
+  // Extension Hub's expand-in-place: see & control a connection's resources
+  // from any project. Reuses the shared steadyCache (everyMs-throttled) so it
+  // never double-spawns a CLI the Host view already polled. Returns null for an
+  // unknown id or a transient (Activity) manifest (pollSteady skips those).
+  ipcMain.handle("integrations:resources", async (e, id: string) => {
+    const root = rootForEvent(e);
+    const m = INTEGRATIONS.find((x) => x.id === id);
+    if (!m) return null;
+    const [s] = await pollSteady([m], root, Date.now(), steadyCache);
+    return s ?? null;
+  });
+
   // extensions:list -> ExtensionSummary[] for the Extension Hub view. Detects
   // EVERY manifest (regardless of surface) so the Hub is the one place that lists
   // all integrations, throttled per-id by poll.everyMs, then folds prefs
@@ -1665,6 +1684,7 @@ export function registerIpc(
     const ext = prefs.extensions ?? {};
     const now = Date.now();
     const statuses: Record<string, DetectStatus> = {};
+    const accounts: Record<string, string | undefined> = {};
     // Detect only ENABLED manifests (a disabled integration is "not polled" --
     // buildExtensionSummaries reports it as "disabled" regardless of status).
     await Promise.all(
@@ -1672,20 +1692,46 @@ export function registerIpc(
         const cached = extDetectCache[m.id];
         if (cached && now - cached.at < m.poll.everyMs) {
           statuses[m.id] = cached.status;
+          accounts[m.id] = cached.account;
           return;
         }
         const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
-        const status = await detectStatus(
-          m,
-          cwd,
-          m.poll.timeoutMs ?? 8000,
-          realRunner,
-        ).catch((): DetectStatus => "absent");
-        extDetectCache[m.id] = { at: now, status };
-        statuses[m.id] = status;
+        const timeoutMs = m.poll.timeoutMs ?? 8000;
+        // A manifest that declares `account` uses the stdout-capturing probe so
+        // the SAME auth check yields the connected-account label; others only
+        // need the status. Both degrade to "absent" on any error.
+        if (m.account) {
+          const { status, stdout } = await detectWithOutput(
+            m,
+            cwd,
+            timeoutMs,
+            realRunner,
+          ).catch(() => ({ status: "absent" as DetectStatus, stdout: "" }));
+          const account =
+            status === "ready"
+              ? (parseAccount(stdout, m.account.path) ?? undefined)
+              : undefined;
+          extDetectCache[m.id] = { at: now, status, account };
+          statuses[m.id] = status;
+          accounts[m.id] = account;
+        } else {
+          const status = await detectStatus(
+            m,
+            cwd,
+            timeoutMs,
+            realRunner,
+          ).catch((): DetectStatus => "absent");
+          extDetectCache[m.id] = { at: now, status };
+          statuses[m.id] = status;
+        }
       }),
     );
-    const tier1 = buildExtensionSummaries(INTEGRATIONS, statuses, ext);
+    const tier1 = buildExtensionSummaries(
+      INTEGRATIONS,
+      statuses,
+      ext,
+      accounts,
+    );
     // Tier-2 connected extensions (e.g. Slack): status is per-project (a token
     // vaulted for the focused root). No root -> unauthed (can't check).
     const projExts = root

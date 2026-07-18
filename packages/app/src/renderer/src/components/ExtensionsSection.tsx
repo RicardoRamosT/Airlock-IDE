@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ExtensionSummary } from "../../../shared/ipc";
+import type { ExtensionSummary, IntegrationItem } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { ResourceRow } from "./ResourceRow";
 
 // The Extension Hub's sidebar surface: ONE compact list of every integration
 // (Tier-1 status manifests today; Tier-2 connected extensions later), grouped by
@@ -43,6 +44,17 @@ export function ExtensionsSection() {
   const setModal = useApp((s) => s.setModal);
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+  // Which connected steady rows are expanded (id set). Expanding a row fetches
+  // that integration's resources on demand (see ExtensionResources) -- nothing
+  // polls until the user opens a row.
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const toggleOpen = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // Tier-2 connect/disconnect. v1 has one connected extension (Slack); the
   // connect flow opens its modal. disconnect removes the vaulted token (the
@@ -112,148 +124,231 @@ export function ExtensionsSection() {
           {groups[bucket].map((s) => {
             const enabled = prefs[s.id]?.enabled ?? s.enabled;
             const pinned = prefs[s.id]?.pinned ?? s.pinned;
+            // A connected CLI (status) integration that surfaces into a steady
+            // view (Host/Databases) can expand in place to show its resources.
+            const steadyConnected =
+              s.tier === "status" &&
+              (s.status === "ready" || s.status === "connected") &&
+              !!s.category &&
+              s.category !== "activity";
+            const isOpen = open.has(s.id);
             return (
-              <div
-                key={s.id}
-                className={`db-row ext-row${enabled ? "" : " disabled"}`}
-              >
-                <i className={`codicon codicon-${s.icon ?? "plug"}`} />
-                <span className={statusDot(s.status)} />
-                <span className="db-name">
-                  {s.name}
-                  {s.account ? ` · ${s.account}` : ""}
-                </span>
-                <span className="ext-actions">
-                  {s.status === "absent" && s.install && (
+              <div key={s.id} className="ext-item">
+                <div className={`db-row ext-row${enabled ? "" : " disabled"}`}>
+                  {steadyConnected ? (
                     <button
                       type="button"
-                      className="row-action ext-col-conn"
-                      aria-label={`Install ${s.name}`}
-                      title={s.install.command}
-                      onClick={() => {
-                        const c = s.install?.command;
-                        if (c) useApp.getState().runInNewTerminal(c);
-                      }}
+                      className="ext-expand"
+                      aria-expanded={isOpen}
+                      aria-label={`${isOpen ? "Collapse" : "Expand"} ${s.name}`}
+                      onClick={() => toggleOpen(s.id)}
                     >
-                      <i className="codicon codicon-desktop-download" />
+                      <i
+                        className={`codicon codicon-chevron-${isOpen ? "down" : "right"}`}
+                      />
                     </button>
+                  ) : (
+                    <span className="ext-expand-spacer" aria-hidden />
                   )}
-                  {s.status === "unauthed" && s.connect && (
-                    <button
-                      type="button"
-                      className="row-action ext-col-conn"
-                      aria-label={`Connect ${s.name}`}
-                      title={s.connect.command}
-                      onClick={() => {
-                        const c = s.connect?.command;
-                        if (c) useApp.getState().runInNewTerminal(c);
-                      }}
-                    >
-                      <i className="codicon codicon-plug" />
-                    </button>
-                  )}
-                  {s.tier === "connected" && s.status === "unauthed" && (
-                    <button
-                      type="button"
-                      className="row-action ext-col-conn"
-                      aria-label={`Connect ${s.name}`}
-                      title={`Connect ${s.name}`}
-                      onClick={() => {
-                        if (s.authKind === "oauth2")
-                          setModal({ oauthDevice: { id: s.id, name: s.name } });
-                        else if (s.id === "slack") setModal("connect-slack");
-                      }}
-                    >
-                      <i className="codicon codicon-plug" />
-                    </button>
-                  )}
-                  {s.tier === "connected" && s.status === "connected" && (
-                    <>
-                      {s.id === "slack" && (
-                        <button
-                          type="button"
-                          className="row-action ext-col-swap"
-                          aria-label="Change Slack workspace"
-                          title="Change workspace"
-                          onClick={() =>
-                            setModal({
-                              oauthDevice: {
-                                id: s.id,
-                                name: s.name,
-                                manage: true,
-                              },
-                            })
-                          }
-                        >
-                          <i className="codicon codicon-arrow-swap" />
-                        </button>
-                      )}
-                      {/* Configure: only when the extension actually has a
-                          config schema (hasConfig). Slack = channel allow-list;
-                          GitHub has none yet (Phase A), so no gear -- it was a
-                          dead button that did nothing on click. */}
-                      {s.hasConfig && (
-                        <button
-                          type="button"
-                          className="row-action ext-col-config"
-                          aria-label={`Configure ${s.name}`}
-                          title={`Configure ${s.name}`}
-                          onClick={() => {
-                            if (s.id === "slack") setModal("slack-channels");
-                          }}
-                        >
-                          <i className="codicon codicon-settings-gear" />
-                        </button>
-                      )}
+                  <i className={`codicon codicon-${s.icon ?? "plug"}`} />
+                  <span className={statusDot(s.status)} />
+                  <span className="db-name">
+                    {s.name}
+                    {s.account ? ` · ${s.account}` : ""}
+                  </span>
+                  <span className="ext-actions">
+                    {s.status === "absent" && s.install && (
                       <button
                         type="button"
                         className="row-action ext-col-conn"
-                        aria-label={`Disconnect ${s.name}`}
-                        title={`Disconnect ${s.name}`}
-                        onClick={() => disconnect(s.id)}
+                        aria-label={`Install ${s.name}`}
+                        title={s.install.command}
+                        onClick={() => {
+                          const c = s.install?.command;
+                          if (c) useApp.getState().runInNewTerminal(c);
+                        }}
                       >
-                        <i className="codicon codicon-debug-disconnect" />
+                        <i className="codicon codicon-desktop-download" />
                       </button>
-                    </>
-                  )}
-                  {s.category && (
-                    <button
-                      type="button"
-                      className={`row-action ext-col-pin${pinned ? "" : " reveal"}`}
-                      aria-label={`${pinned ? "Hide" : "Show"} ${s.name} ${
-                        pinned ? "from" : "in"
-                      } sidebar`}
-                      title={
-                        pinned
-                          ? `Shown in ${s.category}`
-                          : `Show in ${s.category}`
-                      }
-                      onClick={() => applyPref(s.id, { pinned: !pinned })}
-                    >
-                      <i
-                        className={`codicon codicon-${pinned ? "eye" : "eye-closed"}`}
-                      />
-                    </button>
-                  )}
-                  {/* Trailing controls are a fixed-column grid (see theme.css):
+                    )}
+                    {s.status === "unauthed" && s.connect && (
+                      <button
+                        type="button"
+                        className="row-action ext-col-conn"
+                        aria-label={`Connect ${s.name}`}
+                        title={s.connect.command}
+                        onClick={() => {
+                          const c = s.connect?.command;
+                          if (c) useApp.getState().runInNewTerminal(c);
+                        }}
+                      >
+                        <i className="codicon codicon-plug" />
+                      </button>
+                    )}
+                    {s.tier === "connected" && s.status === "unauthed" && (
+                      <button
+                        type="button"
+                        className="row-action ext-col-conn"
+                        aria-label={`Connect ${s.name}`}
+                        title={`Connect ${s.name}`}
+                        onClick={() => {
+                          if (s.authKind === "oauth2")
+                            setModal({
+                              oauthDevice: { id: s.id, name: s.name },
+                            });
+                          else if (s.id === "slack") setModal("connect-slack");
+                        }}
+                      >
+                        <i className="codicon codicon-plug" />
+                      </button>
+                    )}
+                    {s.tier === "connected" && s.status === "connected" && (
+                      <>
+                        {s.id === "slack" && (
+                          <button
+                            type="button"
+                            className="row-action ext-col-swap"
+                            aria-label="Change Slack workspace"
+                            title="Change workspace"
+                            onClick={() =>
+                              setModal({
+                                oauthDevice: {
+                                  id: s.id,
+                                  name: s.name,
+                                  manage: true,
+                                },
+                              })
+                            }
+                          >
+                            <i className="codicon codicon-arrow-swap" />
+                          </button>
+                        )}
+                        {/* Configure: only when the extension actually has a
+                          config schema (hasConfig). Slack = channel allow-list;
+                          GitHub has none yet (Phase A), so no gear -- it was a
+                          dead button that did nothing on click. */}
+                        {s.hasConfig && (
+                          <button
+                            type="button"
+                            className="row-action ext-col-config"
+                            aria-label={`Configure ${s.name}`}
+                            title={`Configure ${s.name}`}
+                            onClick={() => {
+                              if (s.id === "slack") setModal("slack-channels");
+                            }}
+                          >
+                            <i className="codicon codicon-settings-gear" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="row-action ext-col-conn"
+                          aria-label={`Disconnect ${s.name}`}
+                          title={`Disconnect ${s.name}`}
+                          onClick={() => disconnect(s.id)}
+                        >
+                          <i className="codicon codicon-debug-disconnect" />
+                        </button>
+                      </>
+                    )}
+                    {s.category && (
+                      <button
+                        type="button"
+                        className={`row-action ext-col-pin${pinned ? "" : " reveal"}`}
+                        aria-label={`${pinned ? "Hide" : "Show"} ${s.name} ${
+                          pinned ? "from" : "in"
+                        } sidebar`}
+                        title={
+                          pinned
+                            ? `Shown in ${s.category}`
+                            : `Show in ${s.category}`
+                        }
+                        onClick={() => applyPref(s.id, { pinned: !pinned })}
+                      >
+                        <i
+                          className={`codicon codicon-${pinned ? "eye" : "eye-closed"}`}
+                        />
+                      </button>
+                    )}
+                    {/* Trailing controls are a fixed-column grid (see theme.css):
                       each action type owns a column (swap / configure /
                       connect-or-disconnect / pin), so the same icon lines up
                       vertically across rows. The enable checkbox is the last
                       column -- flush-right on every row. */}
-                  <input
-                    type="checkbox"
-                    aria-label={`Enable ${s.name}`}
-                    checked={enabled}
-                    onChange={(e) =>
-                      applyPref(s.id, { enabled: e.target.checked })
-                    }
+                    <input
+                      type="checkbox"
+                      aria-label={`Enable ${s.name}`}
+                      checked={enabled}
+                      onChange={(e) =>
+                        applyPref(s.id, { enabled: e.target.checked })
+                      }
+                    />
+                  </span>
+                </div>
+                {steadyConnected && isOpen && (
+                  <ExtensionResources
+                    id={s.id}
+                    name={s.name}
+                    category={s.category ?? ""}
                   />
-                </span>
+                )}
               </div>
             );
           })}
         </div>
       ))}
+    </div>
+  );
+}
+
+// The expanded body under a connected steady row: fetches that integration's
+// resources on demand (account-wide, relevance-independent) and renders them
+// with the shared ResourceRow (details + Portal/Start/Stop). Polls while open,
+// stops on unmount (collapse). `items === null` = still loading.
+function ExtensionResources({
+  id,
+  name,
+  category,
+}: {
+  id: string;
+  name: string;
+  category: string;
+}) {
+  const [items, setItems] = useState<IntegrationItem[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      void window.airlock
+        .integrationsResources(id)
+        .then((r) => {
+          if (!cancelled) setItems(r?.resources ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setItems([]);
+        });
+    load();
+    const t = setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [id]);
+
+  const viewLabel = category
+    ? category.charAt(0).toUpperCase() + category.slice(1)
+    : "sidebar";
+  return (
+    <div className="neon-children ext-resources">
+      {items === null ? (
+        <div className="section-note">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="section-note">No resources</div>
+      ) : (
+        items.map((r) => <ResourceRow key={r.id} r={r} />)
+      )}
+      <div className="section-note">
+        Also shown in the {viewLabel} view for projects that use {name}.
+      </div>
     </div>
   );
 }

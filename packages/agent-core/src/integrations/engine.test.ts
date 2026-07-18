@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { CliRunner } from "./engine";
 import {
   detectStatus,
+  detectWithOutput,
   isCommandMissing,
   isRelevant,
   type PollCache,
+  parseAccount,
   pollIntegrations,
   pollSteady,
   runManifest,
@@ -323,5 +325,53 @@ describe("isRelevant", () => {
         rootFiles: ["src", "package.json"],
       }),
     ).toBe(false);
+  });
+});
+
+describe("detectWithOutput", () => {
+  const m = VERCEL; // any manifest; only its detect.authCheck is exercised
+  it("returns ready + the auth check's stdout", async () => {
+    const run: CliRunner = async () => '{"name":"My-Sub"}';
+    expect(await detectWithOutput(m, undefined, 8000, run)).toEqual({
+      status: "ready",
+      stdout: '{"name":"My-Sub"}',
+    });
+  });
+  it("returns absent + empty stdout when the binary is missing (ENOENT)", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("nope"), { code: "ENOENT" });
+    };
+    expect(await detectWithOutput(m, undefined, 8000, run)).toEqual({
+      status: "absent",
+      stdout: "",
+    });
+  });
+  it("returns unauthed + empty stdout on a non-ENOENT failure", async () => {
+    const run: CliRunner = async () => {
+      throw Object.assign(new Error("not logged in"), { code: 1 });
+    };
+    expect(await detectWithOutput(m, undefined, 8000, run)).toEqual({
+      status: "unauthed",
+      stdout: "",
+    });
+  });
+});
+
+describe("parseAccount", () => {
+  it("extracts a string label at the JSONPath", () => {
+    expect(
+      parseAccount('{"name":"My-Sub","user":{"name":"me"}}', "$.name"),
+    ).toBe("My-Sub");
+    expect(parseAccount('{"user":{"name":"me@x"}}', "$.user.name")).toBe(
+      "me@x",
+    );
+  });
+  it("stringifies a numeric value", () => {
+    expect(parseAccount('{"id":42}', "$.id")).toBe("42");
+  });
+  it("returns null on non-JSON, a missing path, or an empty string", () => {
+    expect(parseAccount("not json", "$.name")).toBeNull();
+    expect(parseAccount('{"other":1}', "$.name")).toBeNull();
+    expect(parseAccount('{"name":""}', "$.name")).toBeNull();
   });
 });
