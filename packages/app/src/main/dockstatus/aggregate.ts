@@ -8,11 +8,13 @@ export interface SessionEntry {
   ts: number; // epoch seconds of the emitting hook
 }
 
-// A `working` older than this (with no `Stop`) is treated as no-longer-working.
-// The only case that leaves a dangling `working` is an Esc-interrupt (Claude
-// Code does not fire `Stop` on interrupt); the session's next prompt or
-// SessionEnd re-syncs sooner in practice, so this is just a last-resort net.
-export const WORKING_STALE_SECONDS = 900;
+// A `working` not re-stamped within this window is treated as no-longer-working.
+// The PostToolUse hook re-stamps `working` on every tool call, so an actively
+// working session stays fresh; once activity stops (turn done, Esc-interrupt, or
+// a crash where `Stop`/`SessionEnd` never fire) the dot clears to idle within
+// this window. Kept comfortably above a typical no-tool gap (model thinking /
+// one long command) so a live turn does not flicker to idle mid-work.
+export const WORKING_STALE_SECONDS = 90;
 
 // Parse one side-channel line "<state> <epoch>" -> entry, or null if malformed.
 export function parseSessionLine(line: string): SessionEntry | null {

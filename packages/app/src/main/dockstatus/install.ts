@@ -19,6 +19,12 @@ const LABEL =
   "AirLock dock-status indicator - safe to remove if AirLock is uninstalled";
 const HOOK_EVENTS: { event: string; state: string }[] = [
   { event: "UserPromptSubmit", state: "working" },
+  // PostToolUse is the "still working" heartbeat: it re-stamps `working` on every
+  // tool call so the state stays fresh through a long turn, and (crucially) lets
+  // WORKING_STALE_SECONDS clear it soon after activity stops even when `Stop`
+  // never fires (Claude Code omits Stop on interrupt, and it proved unreliable in
+  // practice). Without this the dot dangled yellow.
+  { event: "PostToolUse", state: "working" },
   { event: "Stop", state: "done" },
   { event: "Notification", state: "done" },
   { event: "SessionEnd", state: "gone" },

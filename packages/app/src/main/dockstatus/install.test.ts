@@ -30,11 +30,12 @@ const readSettings = async () =>
   };
 
 describe("installDockStatusHooks", () => {
-  it("registers our four events with AirLock-labeled commands", async () => {
+  it("registers our five events with AirLock-labeled commands", async () => {
     await installDockStatusHooks(p);
     const s = await readSettings();
     for (const ev of [
       "UserPromptSubmit",
+      "PostToolUse",
       "Stop",
       "Notification",
       "SessionEnd",
@@ -90,6 +91,7 @@ describe("uninstallDockStatusHooks", () => {
     expect(JSON.stringify(stop)).toContain("user-thing");
     // events we added that had no user hook are removed entirely
     expect(s.hooks?.UserPromptSubmit).toBeUndefined();
+    expect(s.hooks?.PostToolUse).toBeUndefined();
     expect(await isDockStatusInstalled(p)).toBe(false);
   });
 });
