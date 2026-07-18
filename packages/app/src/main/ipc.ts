@@ -1782,6 +1782,19 @@ export function registerIpc(
     return out.filter((r) => r.category);
   });
 
+  // extensions:resourcesFor -> ONE connected extension's granted resources,
+  // root-scoped and PIN-INDEPENDENT (unlike extensions:resources). Powers the
+  // Extension Hub's expand for Tier-2 rows: Slack -> allow-listed channels,
+  // GitHub -> this repo's issues/PRs. [] with no focused project / unknown id /
+  // provider error.
+  ipcMain.handle("extensions:resourcesFor", async (e, id: string) => {
+    const root = rootForEvent(e);
+    if (!root) return [];
+    const provider = CONNECTED_PROVIDERS[id];
+    if (!provider) return [];
+    return provider.listResources(root).catch(() => []);
+  });
+
   // extensions:getConfig/setConfig -> a connected extension's PER-PROJECT config
   // (non-secret; e.g. Slack's channel allow-list = the permission wall). Stored
   // in .airlock/config.json under extensions.<id>. Secrets (tokens) never go here
