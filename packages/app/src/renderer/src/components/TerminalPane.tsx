@@ -7,7 +7,7 @@ import { isExternalFileDrag } from "../lib/externalDrop";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalDropText } from "../lib/terminalDrop";
 import { terminalKeyBytes } from "../lib/terminalKeys";
-import { linksForRows, resolveRel } from "../lib/terminalLinks";
+import { linksForRows, resolveRel, urlLinksForRows } from "../lib/terminalLinks";
 import {
   keepsSelection,
   planSelection,
@@ -206,6 +206,43 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         ).then((links) =>
           callback(links.filter((x): x is NonNullable<typeof x> => x !== null)),
         );
+      },
+    });
+
+    // Cmd+click URL links: http(s) URLs underline + show a pointer on hover;
+    // Cmd+click opens them in the default browser (hostOpenExternal). A SECOND
+    // link provider (xterm supports several); the file provider above already
+    // excludes URLs, so the two never double-match. Wrap-aware like the file one.
+    term.registerLinkProvider({
+      provideLinks(lineNo, callback) {
+        const buf = term.buffer.active;
+        const cols = term.cols;
+        const y0 = lineNo - 1;
+        let start = y0;
+        while (start > 0 && buf.getLine(start)?.isWrapped) start--;
+        let end = y0;
+        while (buf.getLine(end + 1)?.isWrapped) end++;
+        const RADIUS = 3;
+        const winStart = Math.max(start, y0 - RADIUS);
+        const winEnd = Math.min(end, y0 + RADIUS);
+        const rows: string[] = [];
+        for (let r = winStart; r <= winEnd; r++)
+          rows.push(buf.getLine(r)?.translateToString(false) ?? "");
+        const links = urlLinksForRows(rows, cols, winStart)
+          .filter((l) => l.startY <= lineNo && lineNo <= l.endY)
+          .map((l) => ({
+            text: l.text,
+            range: {
+              start: { x: l.startX, y: l.startY },
+              end: { x: l.endX, y: l.endY },
+            },
+            decorations: { pointerCursor: true, underline: true },
+            activate: (event: MouseEvent) => {
+              if (!event.metaKey) return; // Cmd+click only
+              void window.airlock.hostOpenExternal(l.url);
+            },
+          }));
+        callback(links.length > 0 ? links : undefined);
       },
     });
 
