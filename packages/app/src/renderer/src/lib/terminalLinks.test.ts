@@ -1,9 +1,11 @@
 import { expect, it } from "vitest";
 import {
   findPathCandidates,
+  findUrlCandidates,
   linksForRows,
   type PathCandidate,
   resolveRel,
+  urlLinksForRows,
 } from "./terminalLinks";
 
 // Convenience: the substring a candidate's start..end range covers.
@@ -119,4 +121,43 @@ it("resolveRel makes an absolute path under root relative", () => {
 it("resolveRel returns null for an absolute path outside root, or the root itself", () => {
   expect(resolveRel("/root", "/other/x.ts")).toBeNull();
   expect(resolveRel("/root", "/root")).toBeNull();
+});
+
+it("findUrlCandidates detects an http(s) URL and its exact range", () => {
+  const line = "open http://localhost:3000/admin now";
+  const cs = findUrlCandidates(line);
+  expect(cs).toHaveLength(1);
+  const c = cs[0];
+  if (!c) throw new Error("no url");
+  expect(c.url).toBe("http://localhost:3000/admin");
+  expect(line.slice(c.start, c.end + 1)).toBe("http://localhost:3000/admin");
+});
+
+it("strips trailing sentence punctuation but keeps a trailing slash", () => {
+  expect(findUrlCandidates("see http://localhost:3000.")[0]?.url).toBe(
+    "http://localhost:3000",
+  );
+  expect(findUrlCandidates("at (https://x.com/)")[0]?.url).toBe(
+    "https://x.com/",
+  );
+  expect(findUrlCandidates("root https://x.com/")[0]?.url).toBe(
+    "https://x.com/",
+  );
+});
+
+it("finds multiple URLs and ignores non-http schemes", () => {
+  expect(
+    findUrlCandidates("a http://x b https://y c file:///z").map((c) => c.url),
+  ).toEqual(["http://x", "https://y"]);
+});
+
+it("urlLinksForRows maps a URL wrapped across rows to a 1-based cell range", () => {
+  // width 10: "see http:/" | "/a.b/cd ok" -> "see http://a.b/cd ok"
+  const links = urlLinksForRows(["see http:/", "/a.b/cd ok"], 10, 0);
+  expect(links).toHaveLength(1);
+  const l = links[0];
+  if (!l) throw new Error("no link");
+  expect(l.url).toBe("http://a.b/cd");
+  expect([l.startX, l.startY]).toEqual([5, 1]); // 'h' at col 5 of row 1
+  expect(l.endY).toBe(2); // wraps onto the second row
 });

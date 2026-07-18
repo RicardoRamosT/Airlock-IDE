@@ -158,3 +158,62 @@ export function resolveRel(root: string, path: string): string | null {
   }
   return p.length > 0 ? p : null;
 }
+
+// --- URL links (Cmd+click -> open in the default browser) --------------------
+// Mirrors the path-link pipeline, for http(s) URLs. http/https ONLY, so a
+// Cmd+click always targets a real browser page (not file:// or an arbitrary
+// scheme). Pure/testable; TerminalPane wires urlLinksForRows into a second xterm
+// link provider (underline + pointer on hover, Cmd+click -> hostOpenExternal).
+
+export interface UrlCandidate {
+  start: number; // 0-based, inclusive first char
+  end: number; // 0-based, inclusive last char
+  url: string;
+}
+
+const URL_LINK_RE = /\bhttps?:\/\/[^\s]+/gi;
+// Trailing chars that are almost always prose, not the URL (e.g. the period in
+// "...localhost:3000."). A trailing "/" is KEPT -- it is part of the URL.
+const URL_TRAIL_RE = /[.,;:!?)\]}'"]+$/;
+
+export function findUrlCandidates(line: string): UrlCandidate[] {
+  const out: UrlCandidate[] = [];
+  for (const m of line.matchAll(URL_LINK_RE)) {
+    const start = m.index ?? 0;
+    let url = m[0];
+    const trail = URL_TRAIL_RE.exec(url);
+    if (trail) url = url.slice(0, url.length - trail[0].length);
+    if (url.length === 0) continue;
+    out.push({ start, end: start + url.length - 1, url });
+  }
+  return out;
+}
+
+export interface UrlBufferLink {
+  url: string;
+  text: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
+// Reconstruct consecutive rows into one logical line and map each URL's offsets
+// back to 1-based, end-inclusive cell ranges (so a URL that WRAPPED across rows
+// is detected whole). Same shape/convention as linksForRows. (ASCII: 1 char == 1 cell.)
+export function urlLinksForRows(
+  rows: string[],
+  cols: number,
+  firstRowAbs: number,
+): UrlBufferLink[] {
+  const width = cols > 0 ? cols : 1;
+  const full = rows.map((r) => r.padEnd(width, " ").slice(0, width)).join("");
+  return findUrlCandidates(full).map((c) => ({
+    url: c.url,
+    text: full.slice(c.start, c.end + 1),
+    startX: (c.start % width) + 1,
+    startY: firstRowAbs + Math.floor(c.start / width) + 1,
+    endX: (c.end % width) + 1,
+    endY: firstRowAbs + Math.floor(c.end / width) + 1,
+  }));
+}
