@@ -91,6 +91,8 @@ export interface SessionMeta {
 const num = (v: unknown): number =>
   typeof v === "number" && Number.isFinite(v) ? v : 0;
 
+const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
 // Extract one session's usage from a raw statusLine payload. Since Claude Code
 // 2.1.132, context_window.total_* is the CURRENT context (occupancy from the
 // most recent API response), NOT cumulative session totals -- the cumulative
@@ -181,4 +183,61 @@ export function parseSessionMeta(text: string): SessionMeta {
   } catch {
     return { sessionId: null, transcriptPath: null };
   }
+}
+
+// --- Ledger persistence (pure) ----------------------------------------------
+// The Usage dashboard's per-session ledger is persisted to disk so it survives
+// relaunches (see quota/watch.ts). These two functions are the pure JSON
+// boundary; all disk I/O lives in watch.ts.
+
+// Serialize the ledger for on-disk storage: just the SessionUsage values as an
+// array (each value carries its own sessionId, which is the Map key).
+export function serializeLedger(ledger: Map<string, SessionUsage>): string {
+  return JSON.stringify([...ledger.values()]);
+}
+
+// Coerce one parsed array element into a SessionUsage, or null if it lacks a
+// usable session id. Numeric fields fall back to 0 and string fields to null
+// (mirrors parseSessionUsage's tolerance) so a slightly-off entry is repaired
+// rather than discarded; only a missing/empty sessionId drops the entry.
+function coerceSessionUsage(raw: unknown): SessionUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.sessionId !== "string" || r.sessionId.length === 0) return null;
+  const modelsSeen = Array.isArray(r.modelsSeen)
+    ? r.modelsSeen.filter((m): m is string => typeof m === "string")
+    : [];
+  return {
+    sessionId: r.sessionId,
+    model: str(r.model),
+    cwd: str(r.cwd),
+    modelsSeen,
+    contextTokens: num(r.contextTokens),
+    contextWindowSize: num(r.contextWindowSize),
+    costUsd: num(r.costUsd),
+    apiMs: num(r.apiMs),
+    linesAdded: num(r.linesAdded),
+    linesRemoved: num(r.linesRemoved),
+    lastEmitAt: num(r.lastEmitAt),
+    lastProgressAt: num(r.lastProgressAt),
+  };
+}
+
+// Rebuild a ledger Map from serialized JSON. Defensive: a parse error, a
+// non-array root, or a malformed entry never throws -- the file degrades to an
+// empty Map (or drops just the bad entries). A later duplicate id wins.
+export function deserializeLedger(text: string): Map<string, SessionUsage> {
+  const out = new Map<string, SessionUsage>();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return out;
+  }
+  if (!Array.isArray(json)) return out;
+  for (const raw of json) {
+    const s = coerceSessionUsage(raw);
+    if (s) out.set(s.sessionId, s);
+  }
+  return out;
 }
