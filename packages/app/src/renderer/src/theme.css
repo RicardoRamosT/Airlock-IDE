@@ -1381,6 +1381,13 @@ body.resizing-col {
   gap: 20px;
 }
 
+/* Usage-page type scale -- keep to THREE tiers so the page reads as one system,
+   not a pile of ad-hoc sizes:
+     - 18px/600  hero values  (.usage-kpi-value: the big KPI + memory numbers)
+     - 12px      body/content (tables, notes, list, the Plan-windows row)
+     - 11px      titles/labels (.usage-section h3, .usage-kpi-label, uppercase)
+   A new element belongs in one of these; do not invent a fourth size. */
+
 /* KPI summary cards across the top of the dashboard. */
 .usage-kpis {
   display: grid;
@@ -1445,9 +1452,19 @@ body.resizing-col {
   border-radius: 4px;
 }
 
+/* Keep the whole Plan-windows row on the same 12px body tier as the tables and
+   notes -- the label (5h/7d), the percentage, and the reset annotation. Without
+   this the label/percentage inherit the larger app-default size and read as
+   oversized next to everything below. Scoped to .usage-scale so the sidebar
+   quota meter is untouched. */
+.usage-scale .quota-row-label,
+.usage-scale .quota-pct {
+  font-size: 12px;
+}
+
 .usage-reset {
   flex: none;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-dim);
   margin-left: 8px;
 }
