@@ -86,7 +86,7 @@ export function editorChrome(): Extension[] {
         const dom = document.createElement("div");
         return { dom };
       },
-      displayText: "blocks",
+      displayText: "characters",
       showOverlay: "always",
     })),
     indentationMarkers({ highlightActiveBlock: true }),

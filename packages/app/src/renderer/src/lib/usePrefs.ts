@@ -8,6 +8,7 @@ export function usePrefs(): void {
   const setSidebarWidth = useApp((s) => s.setSidebarWidth);
   const setTheme = useApp((s) => s.setTheme);
   const setClipboardClearSeconds = useApp((s) => s.setClipboardClearSeconds);
+  const setEditorFontSize = useApp((s) => s.setEditorFontSize);
   const setOpenProjectsAsTabs = useApp((s) => s.setOpenProjectsAsTabs);
   const setShowRunningProcessNotice = useApp(
     (s) => s.setShowRunningProcessNotice,
@@ -40,6 +41,7 @@ export function usePrefs(): void {
         setSidebarWidth(p.sidebarWidth);
         setTheme(p.theme);
         setClipboardClearSeconds(p.clipboardClearSeconds);
+        setEditorFontSize(p.editorFontSize);
         setOpenProjectsAsTabs(p.openProjectsAsTabs);
         setShowRunningProcessNotice(p.showRunningProcessNotice);
         setSectionVisibility(p.sectionVisibility);
@@ -63,6 +65,7 @@ export function usePrefs(): void {
     setSidebarWidth,
     setTheme,
     setClipboardClearSeconds,
+    setEditorFontSize,
     setOpenProjectsAsTabs,
     setShowRunningProcessNotice,
     setSectionVisibility,

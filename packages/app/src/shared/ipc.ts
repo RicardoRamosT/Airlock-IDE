@@ -488,6 +488,7 @@ export interface AppPrefs {
   sectionVisibility: SectionVisibility; // app-global; default all true
   activeView: Section; // app-global; the sidebar view the activity bar shows
   clipboardClearSeconds: number; // app-global; 0 = never auto-clear the clipboard
+  editorFontSize: number; // app-global; editor font size in px (pinch / Cmd +- to zoom)
   openProjectsAsTabs: boolean; // app-global; true = open folders as tabs, false = separate windows
   showRunningProcessNotice: boolean; // app-global; show the kept-busy-terminal notice when opening a folder
   recentFolders: string[]; // app-global; most-recent-first, capped, deduped

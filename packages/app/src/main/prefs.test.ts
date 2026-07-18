@@ -33,6 +33,7 @@ describe("app prefs", () => {
       activeView: "files",
       claudeAutoStart: "first",
       clipboardClearSeconds: 30,
+      editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
@@ -97,6 +98,7 @@ describe("app prefs", () => {
       activeView: "files",
       claudeAutoStart: "first",
       clipboardClearSeconds: 30,
+      editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
@@ -215,6 +217,7 @@ describe("app prefs", () => {
       activeView: "files",
       claudeAutoStart: "first",
       clipboardClearSeconds: 30,
+      editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
@@ -257,6 +260,7 @@ describe("app prefs", () => {
       activeView: "files",
       claudeAutoStart: "first",
       clipboardClearSeconds: 30,
+      editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
       recentFolders: [],
@@ -401,6 +405,26 @@ describe("clipboardClearSeconds", () => {
     const frac = path.join(dir, "frac.json");
     await writeFile(frac, JSON.stringify({ clipboardClearSeconds: 45.7 }));
     expect((await loadPrefs(frac)).clipboardClearSeconds).toBe(45);
+  });
+});
+
+describe("editorFontSize", () => {
+  it("defaults to 13, clamps to [8,40], and floors non-integers", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-font-"));
+    const absent = path.join(dir, "absent.json");
+    expect((await loadPrefs(absent)).editorFontSize).toBe(13);
+    const low = path.join(dir, "low.json");
+    await writeFile(low, JSON.stringify({ editorFontSize: 2 }));
+    expect((await loadPrefs(low)).editorFontSize).toBe(8);
+    const high = path.join(dir, "high.json");
+    await writeFile(high, JSON.stringify({ editorFontSize: 999 }));
+    expect((await loadPrefs(high)).editorFontSize).toBe(40);
+    const frac = path.join(dir, "frac.json");
+    await writeFile(frac, JSON.stringify({ editorFontSize: 15.9 }));
+    expect((await loadPrefs(frac)).editorFontSize).toBe(15);
+    const wrong = path.join(dir, "wrong.json");
+    await writeFile(wrong, JSON.stringify({ editorFontSize: "big" }));
+    expect((await loadPrefs(wrong)).editorFontSize).toBe(13);
   });
 });
 

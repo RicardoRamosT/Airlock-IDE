@@ -62,6 +62,7 @@ const DEFAULTS: AppPrefs = {
   sectionVisibility: { ...DEFAULT_SECTION_VISIBILITY },
   activeView: "files",
   clipboardClearSeconds: 30,
+  editorFontSize: 13,
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
   recentFolders: [],
@@ -259,6 +260,10 @@ function sanitize(raw: unknown): AppPrefs {
       Number.isFinite(r.clipboardClearSeconds)
         ? Math.min(3600, Math.max(0, Math.floor(r.clipboardClearSeconds)))
         : DEFAULTS.clipboardClearSeconds,
+    editorFontSize:
+      typeof r.editorFontSize === "number" && Number.isFinite(r.editorFontSize)
+        ? Math.min(40, Math.max(8, Math.floor(r.editorFontSize)))
+        : DEFAULTS.editorFontSize,
     openProjectsAsTabs:
       typeof r.openProjectsAsTabs === "boolean"
         ? r.openProjectsAsTabs
