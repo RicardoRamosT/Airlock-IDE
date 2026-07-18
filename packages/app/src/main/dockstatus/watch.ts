@@ -4,7 +4,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { type FSWatcher, watch } from "chokidar";
-import { app } from "electron";
+import { app, BrowserWindow } from "electron";
 import {
   aggregateDockState,
   parseSessionLine,
@@ -35,6 +35,11 @@ async function recompute(): Promise<void> {
   } catch {
     // dir vanished between event and read; treat as no sessions
   }
+  // If an AirLock window is focused RIGHT NOW, treat any "done" as already seen:
+  // a session finishing while you're looking should go straight to idle, not
+  // flash green until you re-focus. (onFocus only fires on the focus transition,
+  // so being already-there wasn't acknowledged without this.)
+  if (BrowserWindow.getFocusedWindow()) ackAt = nowSec();
   paintDock(aggregateDockState(entries, ackAt, nowSec()), iconsDirRef);
 }
 
