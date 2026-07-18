@@ -43,7 +43,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
-      dockStatus: { enabled: false },
+      dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
@@ -107,7 +107,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
-      dockStatus: { enabled: false },
+      dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
@@ -225,7 +225,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
-      dockStatus: { enabled: false },
+      dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
@@ -267,7 +267,7 @@ describe("app prefs", () => {
         privilege: "block",
       },
       quotaMeter: { enabled: true },
-      dockStatus: { enabled: false },
+      dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
@@ -452,6 +452,21 @@ describe("quotaMeter", () => {
       quotaMeter: { enabled: "yes" } as unknown as { enabled: boolean },
     });
     expect((await loadPrefs(f)).quotaMeter).toEqual({ enabled: true });
+  });
+});
+
+describe("dockStatus", () => {
+  it("defaults dockStatus to enabled (opt-out), honors explicit false, sanitizes bad input", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "prefs-dock-"));
+    const f = path.join(dir, "prefs.json");
+    expect((await loadPrefs(f)).dockStatus).toEqual({ enabled: true }); // default on
+    await savePrefs(f, { dockStatus: { enabled: false } });
+    expect((await loadPrefs(f)).dockStatus).toEqual({ enabled: false }); // explicit off honored
+    // Non-boolean enabled -> falls back to the default (enabled).
+    await savePrefs(f, {
+      dockStatus: { enabled: "yes" } as unknown as { enabled: boolean },
+    });
+    expect((await loadPrefs(f)).dockStatus).toEqual({ enabled: true });
   });
 });
 

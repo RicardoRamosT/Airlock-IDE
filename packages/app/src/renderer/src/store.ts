@@ -781,7 +781,7 @@ export const useApp = create<AppState>((set) => ({
   setQuota: (q) => set({ quota: q }),
   quotaMeterEnabled: false,
   setQuotaMeterEnabled: (v) => set({ quotaMeterEnabled: v }),
-  dockStatusEnabled: false,
+  dockStatusEnabled: true,
   setDockStatusEnabled: (v) => set({ dockStatusEnabled: v }),
   runAppSkillEnabled: true,
   setRunAppSkillEnabled: (v) => set({ runAppSkillEnabled: v }),
