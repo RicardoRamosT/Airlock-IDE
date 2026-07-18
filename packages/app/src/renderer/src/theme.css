@@ -2020,6 +2020,21 @@ button.quota-meter:hover {
   margin: 2px 0 6px;
 }
 
+/* The Usage page's explainer as a scannable bulleted list rather than a
+   run-on note (same dimmed prose look as .settings-note). */
+.usage-note-list {
+  font-size: 12px;
+  color: var(--fg-dim);
+  max-width: 860px;
+  line-height: 1.5;
+  margin: 2px 0 6px;
+  padding-left: 18px;
+}
+
+.usage-note-list li {
+  margin: 3px 0;
+}
+
 .settings-footer-note {
   font-size: 12px;
   color: var(--fg-dim);

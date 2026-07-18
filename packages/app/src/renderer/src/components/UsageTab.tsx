@@ -155,7 +155,7 @@ export function UsageTab() {
           {quota?.sevenDay && windowRow("7d", quota.sevenDay)}
           {!quota?.available && (
             <p className="settings-note">
-              No account data yet — send a message in any Claude session.
+              No account data yet. Send a message in any Claude session.
             </p>
           )}
         </section>
@@ -164,7 +164,7 @@ export function UsageTab() {
           <h3>By model</h3>
           {models.length === 0 ? (
             <p className="settings-note">
-              No sessions recorded yet — open a Claude terminal.
+              No sessions recorded yet. Open a Claude terminal.
             </p>
           ) : (
             <table className="usage-table">
@@ -194,7 +194,7 @@ export function UsageTab() {
             <p className="settings-note">
               Cost and API time are attributed to each session's most recent
               model. A session that switched models books its whole total to its
-              final model — any other model it used is counted here but its cost
+              final model. Any other model it used is counted here, but its cost
               is approximate (often $0), because the statusLine reports one
               cumulative cost per session and can't split it across models.
               {onSubscription &&
@@ -329,19 +329,34 @@ export function UsageTab() {
           )}
         </section>
 
-        <p className="settings-note">
-          Figures come straight from each Claude session's own reporting (the
-          statusLine) — AirLock does not estimate them. On a subscription the
-          cost shown is the pay-as-you-go equivalent, not what you're charged.
-          API time, lines, and costs are each session's cumulative reporting;
-          Context is the session's current context-window occupancy (a snapshot,
-          not usage). A session is shown as live only while its usage is still
-          advancing — an open but idle session (or a background/forked one)
-          reads as idle even though it keeps emitting. Sessions update on
-          conversation activity — work done by background subagents shows up
-          when its result lands in the conversation. — under Cost means the
-          session reports $0 (covered by your subscription plan).
-        </p>
+        <ul className="usage-note-list">
+          <li>
+            Figures come straight from each Claude session's own reporting (the
+            statusLine). AirLock does not estimate them.
+          </li>
+          <li>
+            On a subscription, the cost shown is the pay-as-you-go equivalent,
+            not what you're charged.
+          </li>
+          <li>
+            API time, lines, and cost are each session's cumulative reporting.
+            Context is the session's current context-window occupancy (a
+            snapshot, not usage).
+          </li>
+          <li>
+            A session shows as live only while its usage is still advancing. An
+            open but idle session (or a background or forked one) reads as idle
+            even though it keeps emitting.
+          </li>
+          <li>
+            Sessions update on conversation activity, so work done by background
+            subagents appears when its result lands in the conversation.
+          </li>
+          <li>
+            Cost shows a dash when the session reports $0 (covered by your
+            subscription plan).
+          </li>
+        </ul>
       </div>
     </div>
   );
