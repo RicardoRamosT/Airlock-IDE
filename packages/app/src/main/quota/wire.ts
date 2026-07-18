@@ -7,7 +7,7 @@ import {
   type QuotaPaths,
   uninstallQuotaStatusLine,
 } from "./install";
-import { startQuotaWatch, stopQuotaWatch } from "./watch";
+import { clearUsageLedger, startQuotaWatch, stopQuotaWatch } from "./watch";
 
 // Resolve every path + the emitter location. Centralized so startup and the
 // prefs:set reconcile share identical wiring. The emitter ships via
@@ -23,6 +23,7 @@ export function quotaPaths(): QuotaPaths {
     bookkeepingPath: path.join(quotaDir, "install.json"),
     emitConfigPath: path.join(quotaDir, "emit-config.sh"),
     outPath: path.join(quotaDir, "rate-limits.json"),
+    ledgerPath: path.join(quotaDir, "usage-ledger.json"),
     emitScript,
   };
 }
@@ -51,13 +52,16 @@ async function reconcileNow(enabled: boolean): Promise<void> {
   const p = quotaPaths();
   if (enabled) {
     await installQuotaStatusLine(p);
-    startQuotaWatch(p.outPath);
+    startQuotaWatch(p.outPath, p.ledgerPath);
   } else {
     // Opt-out default: only touch disk if we actually installed before, so the
     // feature is a true no-op (no userData state, no ~/.claude read/write) for
     // users who never enable it. Stop the watcher and drop the cached status so
     // re-enabling shows "waiting" rather than flashing stale numbers.
-    if (await isQuotaInstalled(p)) await uninstallQuotaStatusLine(p);
+    if (await isQuotaInstalled(p)) {
+      await uninstallQuotaStatusLine(p);
+      await clearUsageLedger(p.ledgerPath);
+    }
     await stopQuotaWatch();
   }
 }
