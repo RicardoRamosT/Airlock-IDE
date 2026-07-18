@@ -8,6 +8,7 @@ export interface QuotaPaths {
   bookkeepingPath: string; // <userData>/quota/install.json (main-only state)
   emitConfigPath: string; // <userData>/quota/emit-config.sh (shell-sourceable; read by the emitter)
   outPath: string; // <userData>/quota/rate-limits.json (side-channel)
+  ledgerPath: string; // <userData>/quota/usage-ledger.json (persisted Usage ledger)
   emitScript: string; // absolute path to statusline-emit.sh
 }
 

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { SessionUsage } from "../../shared/ipc";
 import {
+  deserializeLedger,
   mergeQuota,
   parseQuota,
   parseSessionMeta,
   parseSessionUsage,
   recordUsage,
+  serializeLedger,
 } from "./parse";
 
 describe("parseSessionUsage", () => {
@@ -264,4 +266,77 @@ it("mergeQuota fills only the missing window independently", () => {
   const merged = mergeQuota(good, onlySeven);
   expect(merged.fiveHour).toEqual(good.fiveHour); // carried forward
   expect(merged.sevenDay?.usedPercentage).toBe(60); // updated
+});
+
+describe("serializeLedger / deserializeLedger", () => {
+  const mkSession = (
+    id: string,
+    over: Partial<SessionUsage> = {},
+  ): SessionUsage => ({
+    sessionId: id,
+    model: "Opus 4.8",
+    cwd: `/proj/${id}`,
+    modelsSeen: ["Opus 4.8"],
+    contextTokens: 1000,
+    contextWindowSize: 200000,
+    costUsd: 1.5,
+    apiMs: 2000,
+    linesAdded: 10,
+    linesRemoved: 3,
+    lastEmitAt: 100,
+    lastProgressAt: 100,
+    ...over,
+  });
+
+  it("round-trips a ledger through serialize -> deserialize", () => {
+    const ledger = new Map<string, SessionUsage>([
+      ["a", mkSession("a")],
+      [
+        "b",
+        mkSession("b", {
+          model: null,
+          cwd: null,
+          modelsSeen: ["Fable 5", "Opus 4.8"],
+        }),
+      ],
+    ]);
+    const restored = deserializeLedger(serializeLedger(ledger));
+    expect([...restored.keys()].sort()).toEqual(["a", "b"]);
+    expect(restored.get("a")).toEqual(ledger.get("a"));
+    expect(restored.get("b")).toEqual(ledger.get("b"));
+  });
+
+  it("degrades to an empty Map on non-JSON, non-array, or empty input", () => {
+    expect(deserializeLedger("not json").size).toBe(0);
+    expect(deserializeLedger("").size).toBe(0);
+    expect(deserializeLedger("{}").size).toBe(0); // object, not array
+    expect(deserializeLedger("null").size).toBe(0);
+  });
+
+  it("drops malformed entries but keeps the valid ones", () => {
+    const text = JSON.stringify([
+      mkSession("good"),
+      { model: "x" }, // no sessionId
+      42, // not an object
+      { sessionId: "" }, // empty id
+    ]);
+    const restored = deserializeLedger(text);
+    expect([...restored.keys()]).toEqual(["good"]);
+  });
+
+  it("coerces bad numeric fields to 0 and tolerates missing arrays/strings", () => {
+    const text = JSON.stringify([
+      {
+        sessionId: "a",
+        costUsd: "lots",
+        modelsSeen: "nope",
+        contextTokens: null,
+      },
+    ]);
+    const s = deserializeLedger(text).get("a");
+    expect(s?.costUsd).toBe(0);
+    expect(s?.contextTokens).toBe(0);
+    expect(s?.modelsSeen).toEqual([]);
+    expect(s?.model).toBeNull();
+  });
 });

@@ -17,10 +17,10 @@ import {
 } from "../lib/quotaFormat";
 import {
   aggregateByModel,
+  costLabel,
   formatApiTime,
   formatModels,
   formatTokens,
-  formatUsd,
   isSessionActive,
   visibleSessions,
 } from "../lib/usageFormat";
@@ -84,9 +84,11 @@ export function UsageTab() {
   const totalApiMs = visible.reduce((a, s) => a + s.apiMs, 0);
   const totalAdded = visible.reduce((a, s) => a + s.linesAdded, 0);
   const totalRemoved = visible.reduce((a, s) => a + s.linesRemoved, 0);
-  // "Live" = usage advanced recently, not merely re-emitted on the refresh
-  // timer (an open-but-idle session keeps emitting unchanged numbers).
-  const liveCount = visible.filter((s) => isSessionActive(s, now)).length;
+  // rate_limits present => a Pro/Max subscription, where the reported cost is
+  // the pay-as-you-go EQUIVALENT (not billed). Drives every cost label below.
+  // (Per-session liveness stays as the Active dot in the Sessions table, keyed
+  // off isSessionActive -- no aggregate "live count", which read as broken.)
+  const onSubscription = quota?.available === true;
 
   const windowRow = (label: string, w: QuotaWindow) => {
     const awaiting = isWindowAwaiting(w, now);
@@ -125,10 +127,6 @@ export function UsageTab() {
       <div className="usage-body">
         <div className="usage-kpis">
           <div className="usage-kpi">
-            <span className="usage-kpi-value">{formatUsd(totalCost)}</span>
-            <span className="usage-kpi-label">total cost</span>
-          </div>
-          <div className="usage-kpi">
             <span className="usage-kpi-value">{formatApiTime(totalApiMs)}</span>
             <span className="usage-kpi-label">API time</span>
           </div>
@@ -139,11 +137,16 @@ export function UsageTab() {
             <span className="usage-kpi-label">lines changed</span>
           </div>
           <div className="usage-kpi">
+            <span className="usage-kpi-value">{visible.length}</span>
+            <span className="usage-kpi-label">sessions</span>
+          </div>
+          <div className="usage-kpi usage-kpi-muted">
             <span className="usage-kpi-value">
-              {liveCount}
-              <span className="usage-kpi-sub">/{visible.length}</span>
+              {costLabel(totalCost, onSubscription)}
             </span>
-            <span className="usage-kpi-label">live sessions</span>
+            <span className="usage-kpi-label">
+              {onSubscription ? "API-equivalent · not billed" : "total cost"}
+            </span>
           </div>
         </div>
         <section className="usage-section">
@@ -152,7 +155,7 @@ export function UsageTab() {
           {quota?.sevenDay && windowRow("7d", quota.sevenDay)}
           {!quota?.available && (
             <p className="settings-note">
-              No account data yet — send a message in any Claude session.
+              No account data yet. Send a message in any Claude session.
             </p>
           )}
         </section>
@@ -161,7 +164,7 @@ export function UsageTab() {
           <h3>By model</h3>
           {models.length === 0 ? (
             <p className="settings-note">
-              No sessions seen since AirLock started — open a Claude terminal.
+              No sessions recorded yet. Open a Claude terminal.
             </p>
           ) : (
             <table className="usage-table">
@@ -179,7 +182,9 @@ export function UsageTab() {
                     <td>{m.model}</td>
                     <td className="num">{m.sessions}</td>
                     <td className="num">{formatApiTime(m.apiMs)}</td>
-                    <td className="num">{formatUsd(m.costUsd)}</td>
+                    <td className="num">
+                      {costLabel(m.costUsd, onSubscription)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -189,15 +194,17 @@ export function UsageTab() {
             <p className="settings-note">
               Cost and API time are attributed to each session's most recent
               model. A session that switched models books its whole total to its
-              final model — any other model it used is counted here but its cost
+              final model. Any other model it used is counted here, but its cost
               is approximate (often $0), because the statusLine reports one
               cumulative cost per session and can't split it across models.
+              {onSubscription &&
+                " On your subscription the cost is the pay-as-you-go equivalent, not money billed."}
             </p>
           )}
         </section>
 
         <section className="usage-section">
-          <h3>Sessions (since AirLock launched)</h3>
+          <h3>Recent sessions</h3>
           {visible.length > 0 && (
             <table className="usage-table">
               <thead>
@@ -230,7 +237,9 @@ export function UsageTab() {
                     <td className="num">
                       +{s.linesAdded} −{s.linesRemoved}
                     </td>
-                    <td className="num">{formatUsd(s.costUsd)}</td>
+                    <td className="num">
+                      {costLabel(s.costUsd, onSubscription)}
+                    </td>
                     <td>
                       <span
                         className={`status-dot${isSessionActive(s, now) ? " running" : ""}`}
@@ -320,16 +329,34 @@ export function UsageTab() {
           )}
         </section>
 
-        <p className="settings-note">
-          API time, lines, and costs are each Claude Code session's own
-          cumulative reporting; Context is the session's current context-window
-          occupancy (a snapshot, not usage). A session is shown as live only
-          while its usage is still advancing — an open but idle session (or a
-          background/forked one) reads as idle even though it keeps emitting.
-          Sessions update on conversation activity — work done by background
-          subagents shows up when its result lands in the conversation. — under
-          Cost means the session reports $0 (covered by your subscription plan).
-        </p>
+        <ul className="usage-note-list">
+          <li>
+            Figures come straight from each Claude session's own reporting (the
+            statusLine). AirLock does not estimate them.
+          </li>
+          <li>
+            On a subscription, the cost shown is the pay-as-you-go equivalent,
+            not what you're charged.
+          </li>
+          <li>
+            API time, lines, and cost are each session's cumulative reporting.
+            Context is the session's current context-window occupancy (a
+            snapshot, not usage).
+          </li>
+          <li>
+            A session shows as live only while its usage is still advancing. An
+            open but idle session (or a background or forked one) reads as idle
+            even though it keeps emitting.
+          </li>
+          <li>
+            Sessions update on conversation activity, so work done by background
+            subagents appears when its result lands in the conversation.
+          </li>
+          <li>
+            Cost shows a dash when the session reports $0 (covered by your
+            subscription plan).
+          </li>
+        </ul>
       </div>
     </div>
   );

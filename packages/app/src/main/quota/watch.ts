@@ -1,12 +1,15 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFile, rm, stat } from "node:fs/promises";
 import { type FSWatcher, watch } from "chokidar";
 import { BrowserWindow } from "electron";
 import type { QuotaStatus, SessionUsage } from "../../shared/ipc";
 import {
+  deserializeLedger,
   parseQuota,
   parseSessionMeta,
   parseSessionUsage,
   recordUsage,
+  serializeLedger,
 } from "./parse";
 import { QuotaTracker } from "./tracker";
 
@@ -19,9 +22,15 @@ let latest: QuotaStatus | null = null;
 let tracker = new QuotaTracker();
 
 // Per-session usage ledger for the Usage dashboard: latest snapshot per
-// session since launch (capped; oldest-emit evicted). Unlike the tracker it
-// is NOT pruned on idle -- history is the point.
+// session (capped; oldest-emit evicted). Unlike the tracker it is NOT pruned
+// on idle -- history is the point -- and it is PERSISTED to disk so it survives
+// relaunches (loaded on start, atomically written after each fold).
 let usageLedger = new Map<string, SessionUsage>();
+
+// Where the ledger is persisted, and a debounce handle so an emit burst writes
+// once. Both set by startQuotaWatch; null before it runs (writes are no-ops).
+let ledgerPath: string | null = null;
+let ledgerWriteTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function getUsageLedger(): SessionUsage[] {
   // Busiest sessions first, by cumulative API time (context occupancy is
@@ -53,7 +62,10 @@ async function readAndBroadcast(outPath: string): Promise<void> {
   const meta = parseSessionMeta(text);
   const status = parseQuota(text, emitAt);
   const usage = parseSessionUsage(text, emitAt);
-  if (usage) recordUsage(usageLedger, usage);
+  if (usage) {
+    recordUsage(usageLedger, usage);
+    scheduleLedgerWrite();
+  }
   // The tracker folds window values monotonically (account usage only climbs
   // within a window), so per-session activity ranking -- and the transcript
   // mtime stat it needed -- is gone.
@@ -62,6 +74,43 @@ async function readAndBroadcast(outPath: string): Promise<void> {
     latest = best;
     broadcast(best);
   }
+}
+
+// Read the persisted ledger, or an empty Map if the file is absent/unreadable.
+// Synchronous so the ledger is populated BEFORE the watcher can fire its first
+// fold (an async load would race the first emit and lose it).
+function loadLedger(p: string): Map<string, SessionUsage> {
+  try {
+    return deserializeLedger(readFileSync(p, "utf8"));
+  } catch {
+    return new Map(); // no file yet (first launch) or unreadable
+  }
+}
+
+// Persist the ledger atomically (temp file -> rename) so a reader never sees a
+// half-written file. Synchronous + best-effort: the file is tiny, running it
+// sync means it still completes when called during shutdown/opt-out, and a
+// write failure must never crash the app. Also cancels any pending debounce.
+function flushLedger(): void {
+  if (ledgerWriteTimer) {
+    clearTimeout(ledgerWriteTimer);
+    ledgerWriteTimer = null;
+  }
+  if (!ledgerPath) return;
+  try {
+    const tmp = `${ledgerPath}.tmp`;
+    writeFileSync(tmp, serializeLedger(usageLedger));
+    renameSync(tmp, ledgerPath);
+  } catch {
+    // best-effort; the in-memory ledger is still correct for this run
+  }
+}
+
+// Coalesce an emit burst into a single write ~1s after the last fold.
+function scheduleLedgerWrite(): void {
+  if (!ledgerPath) return;
+  if (ledgerWriteTimer) clearTimeout(ledgerWriteTimer);
+  ledgerWriteTimer = setTimeout(flushLedger, 1000);
 }
 
 // Watch the side-channel file. Idempotent: re-pointing to the same path is a
@@ -78,10 +127,14 @@ async function readAndBroadcast(outPath: string): Promise<void> {
 // the file on an interval and holds no handle to invalidate, so it self-heals
 // on wake (the next poll reads the live file). The file is tiny and a 2s cadence
 // is well within the meter's staleness horizon, so the cost is negligible.
-export function startQuotaWatch(outPath: string): void {
+export function startQuotaWatch(outPath: string, ledgerPathArg: string): void {
   if (watchedPath === outPath && watcher) return;
   void stopQuotaWatch();
   watchedPath = outPath;
+  ledgerPath = ledgerPathArg;
+  // Load persisted history so the dashboard shows sessions from prior launches
+  // (all projects, machine-wide); live emits fold onto it via recordUsage.
+  usageLedger = loadLedger(ledgerPathArg);
   watcher = watch(outPath, {
     ignoreInitial: false,
     usePolling: true,
@@ -93,6 +146,7 @@ export function startQuotaWatch(outPath: string): void {
 }
 
 export async function stopQuotaWatch(): Promise<void> {
+  flushLedger(); // persist any pending fold before tearing down
   if (watcher) {
     await watcher.close();
     watcher = null;
@@ -100,5 +154,24 @@ export async function stopQuotaWatch(): Promise<void> {
   watchedPath = null;
   latest = null;
   tracker = new QuotaTracker();
+  // usageLedger is intentionally NOT reset here -- it persists across a
+  // reconcile (disk is the source of truth; startQuotaWatch reloads it). Only
+  // an explicit opt-out (clearUsageLedger) wipes it.
+}
+
+// Opt-out only: wipe the persisted ledger in memory AND on disk. A plain meter
+// toggle keeps history; this runs solely from wire.ts's uninstall path. Sets
+// ledgerPath to null first so a subsequent flush cannot resurrect the file.
+export async function clearUsageLedger(ledgerFilePath: string): Promise<void> {
   usageLedger = new Map();
+  ledgerPath = null;
+  if (ledgerWriteTimer) {
+    clearTimeout(ledgerWriteTimer);
+    ledgerWriteTimer = null;
+  }
+  try {
+    await rm(ledgerFilePath, { force: true });
+  } catch {
+    // best-effort
+  }
 }

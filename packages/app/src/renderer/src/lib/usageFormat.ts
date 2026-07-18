@@ -93,3 +93,15 @@ export function formatUsd(n: number): string {
   if (n < 0.01) return "<$0.01";
   return `$${n.toFixed(2)}`;
 }
+
+// The cost figure for display. On a subscription the reported USD is the
+// pay-as-you-go EQUIVALENT Claude Code computes regardless of plan -- not money
+// billed -- so it is prefixed "≈" to read as an estimate. Off a subscription
+// (real API billing) it is shown verbatim. Number formatting + the zero/small
+// placeholders are delegated to formatUsd, and the "—" placeholder is never
+// prefixed (there is nothing to approximate).
+export function costLabel(usd: number, onSubscription: boolean): string {
+  const base = formatUsd(usd);
+  if (!onSubscription || base === "—") return base;
+  return `≈ ${base}`;
+}

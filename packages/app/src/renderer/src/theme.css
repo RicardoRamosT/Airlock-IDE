@@ -1381,6 +1381,13 @@ body.resizing-col {
   gap: 20px;
 }
 
+/* Usage-page type scale -- keep to THREE tiers so the page reads as one system,
+   not a pile of ad-hoc sizes:
+     - 18px/600  hero values  (.usage-kpi-value: the big KPI + memory numbers)
+     - 12px      body/content (tables, notes, list, the Plan-windows row)
+     - 11px      titles/labels (.usage-section h3, .usage-kpi-label, uppercase)
+   A new element belongs in one of these; do not invent a fourth size. */
+
 /* KPI summary cards across the top of the dashboard. */
 .usage-kpis {
   display: grid;
@@ -1405,8 +1412,9 @@ body.resizing-col {
   font-variant-numeric: tabular-nums;
 }
 
-.usage-kpi-sub {
-  font-size: 12px;
+/* The cost tile is intentionally de-emphasized: on a subscription it is an
+   API-equivalent estimate, not a bill, so it must not read as the headline. */
+.usage-kpi-muted .usage-kpi-value {
   font-weight: 500;
   color: var(--fg-dim);
 }
@@ -1444,9 +1452,19 @@ body.resizing-col {
   border-radius: 4px;
 }
 
+/* Keep the whole Plan-windows row on the same 12px body tier as the tables and
+   notes -- the label (5h/7d), the percentage, and the reset annotation. Without
+   this the label/percentage inherit the larger app-default size and read as
+   oversized next to everything below. Scoped to .usage-scale so the sidebar
+   quota meter is untouched. */
+.usage-scale .quota-row-label,
+.usage-scale .quota-pct {
+  font-size: 12px;
+}
+
 .usage-reset {
   flex: none;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-dim);
   margin-left: 8px;
 }
@@ -2017,6 +2035,21 @@ button.quota-meter:hover {
   max-width: 860px;
   line-height: 1.5;
   margin: 2px 0 6px;
+}
+
+/* The Usage page's explainer as a scannable bulleted list rather than a
+   run-on note (same dimmed prose look as .settings-note). */
+.usage-note-list {
+  font-size: 12px;
+  color: var(--fg-dim);
+  max-width: 860px;
+  line-height: 1.5;
+  margin: 2px 0 6px;
+  padding-left: 18px;
+}
+
+.usage-note-list li {
+  margin: 3px 0;
 }
 
 .settings-footer-note {

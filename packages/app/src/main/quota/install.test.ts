@@ -19,6 +19,7 @@ beforeEach(async () => {
     bookkeepingPath: path.join(dir, "install.json"),
     emitConfigPath: path.join(dir, "emit-config.sh"),
     outPath: path.join(dir, "rate-limits.json"),
+    ledgerPath: path.join(dir, "usage-ledger.json"),
     emitScript: "/fake/Resources/statusline-emit.sh",
   };
 });
