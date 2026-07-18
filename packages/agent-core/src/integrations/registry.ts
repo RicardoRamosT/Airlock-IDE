@@ -89,6 +89,9 @@ export const AZURE: IntegrationManifest = {
     files: ["azure.yaml", "azure.yml", ".azure"],
   },
   detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
+  // `az account show` emits { name: "<subscription>", user: {...}, ... }; the
+  // subscription is the useful "where you're connected" label for the Hub row.
+  account: { path: "$.name" },
   poll: {
     everyMs: 30000,
     cli: { cmd: "az", args: ["webapp", "list", "--output", "json"] },

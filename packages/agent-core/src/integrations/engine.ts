@@ -1,6 +1,7 @@
 // packages/agent-core/src/integrations/engine.ts
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { evalExpr } from "./expr";
 import type { IntegrationItem, IntegrationManifest } from "./manifest";
 import { mapToItems } from "./map";
 
@@ -34,23 +35,52 @@ export function isCommandMissing(e: unknown): boolean {
   );
 }
 
-// Run a manifest's auth check: exit 0 -> ready; ENOENT -> absent (not
-// installed); any other failure (incl. timeout) -> unauthed (a mild hint).
+// Run a manifest's auth check, keeping its stdout: exit 0 -> ready (+ stdout);
+// ENOENT -> absent (not installed); any other failure (incl. timeout) ->
+// unauthed. stdout is "" on any failure. parseAccount consumes the stdout for a
+// connected-account label.
+export async function detectWithOutput(
+  m: IntegrationManifest,
+  cwd: string | undefined,
+  timeoutMs: number,
+  run: CliRunner,
+): Promise<{ status: DetectStatus; stdout: string }> {
+  try {
+    const stdout = await run(m.detect.authCheck.cmd, m.detect.authCheck.args, {
+      cwd,
+      timeoutMs,
+    });
+    return { status: "ready", stdout };
+  } catch (e) {
+    return { status: isCommandMissing(e) ? "absent" : "unauthed", stdout: "" };
+  }
+}
+
+// Just the status (the common case). Thin wrapper over detectWithOutput.
 export async function detectStatus(
   m: IntegrationManifest,
   cwd: string | undefined,
   timeoutMs: number,
   run: CliRunner,
 ): Promise<DetectStatus> {
+  return (await detectWithOutput(m, cwd, timeoutMs, run)).status;
+}
+
+// Extract a connected-account label from an auth check's JSON stdout using a
+// tiny JSONPath (evalExpr). Total: bad JSON, a missing path, or a non-string/
+// empty value yields null (the row just shows no account). A finite number is
+// stringified so e.g. an account id can be a label.
+export function parseAccount(stdout: string, path: string): string | null {
+  let doc: unknown;
   try {
-    await run(m.detect.authCheck.cmd, m.detect.authCheck.args, {
-      cwd,
-      timeoutMs,
-    });
-    return "ready";
-  } catch (e) {
-    return isCommandMissing(e) ? "absent" : "unauthed";
+    doc = JSON.parse(stdout);
+  } catch {
+    return null;
   }
+  const v = evalExpr(doc, path);
+  if (typeof v === "string") return v.length > 0 ? v : null;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return null;
 }
 
 // Classify a manifest's surface: the target sidebar view for a steady-state
