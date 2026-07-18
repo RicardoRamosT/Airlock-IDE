@@ -3269,6 +3269,38 @@ textarea:focus-visible {
   opacity: 0.55;
 }
 
+/* Extension Hub row + its optional expanded resource body. */
+.ext-item {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Leading expand chevron, with an equal-width spacer on non-expandable rows so
+   every row's icon / dot / name stay column-aligned. */
+.ext-expand,
+.ext-expand-spacer {
+  width: 16px;
+  flex: none;
+}
+.ext-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--fg-dim);
+}
+.ext-expand:hover {
+  color: var(--fg);
+}
+
+/* Resource list under the row; .neon-children gives the indent + row gap. */
+.ext-resources {
+  margin-top: 2px;
+}
+
 /* Slack channel allow-list picker (in the SlackChannelsModal). */
 .slack-channel-list {
   max-height: 280px;

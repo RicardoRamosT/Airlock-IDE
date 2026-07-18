@@ -7,7 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { ExtensionSummary } from "../../../shared/ipc";
+import type { ExtensionSummary, IntegrationItem } from "../../../shared/ipc";
 import { useApp } from "../store";
 import { ExtensionsSection } from "./ExtensionsSection";
 
@@ -170,4 +170,48 @@ it("shows an empty-state note when there are no integrations", async () => {
   const { container } = render(<ExtensionsSection />);
   await waitFor(() => expect(window.airlock.extensionsList).toHaveBeenCalled());
   expect(container.querySelector(".section-empty")).toBeTruthy();
+});
+
+it("expands a connected steady row and lists its resources on demand", async () => {
+  const resources: IntegrationItem[] = [
+    {
+      id: "int:azure:web1",
+      title: "web1",
+      subtitle: "rg1",
+      state: "running",
+      details: [{ label: "URL", value: "web1.azurewebsites.net" }],
+      actions: [],
+    },
+  ];
+  const integrationsResources = vi.fn(() =>
+    Promise.resolve({
+      id: "azure",
+      name: "Azure",
+      view: "host",
+      status: "ready" as const,
+      resources,
+    }),
+  );
+  (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+    extensionsList: vi.fn(() =>
+      Promise.resolve([
+        summary({
+          id: "azure",
+          name: "Azure",
+          category: "host",
+          status: "ready",
+          account: "My-Sub",
+        }),
+      ]),
+    ),
+    integrationsResources,
+    prefsSet,
+  };
+  render(<ExtensionsSection />);
+  // account label renders on the row
+  await screen.findByText(/Azure · My-Sub/);
+  // expand -> fetches + lists the web app
+  fireEvent.click(await screen.findByRole("button", { name: /expand azure/i }));
+  await screen.findByText("web1");
+  expect(integrationsResources).toHaveBeenCalledWith("azure");
 });
