@@ -7,7 +7,11 @@ import { isExternalFileDrag } from "../lib/externalDrop";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalDropText } from "../lib/terminalDrop";
 import { terminalKeyBytes } from "../lib/terminalKeys";
-import { linksForRows, resolveRel, urlLinksForRows } from "../lib/terminalLinks";
+import {
+  linksForRows,
+  resolveRel,
+  urlLinksForRows,
+} from "../lib/terminalLinks";
 import {
   keepsSelection,
   planSelection,
