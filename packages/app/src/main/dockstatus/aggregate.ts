@@ -13,8 +13,10 @@ export interface SessionEntry {
 // working session stays fresh; once activity stops (turn done, Esc-interrupt, or
 // a crash where `Stop`/`SessionEnd` never fire) the dot clears to idle within
 // this window. Kept comfortably above a typical no-tool gap (model thinking /
-// one long command) so a live turn does not flicker to idle mid-work.
-export const WORKING_STALE_SECONDS = 90;
+// one long command) so a live turn does not flicker to idle mid-work. The watcher
+// re-checks on a ~10s timer, so the dot clears to grey ~this window + one tick
+// after a session goes quiet.
+export const WORKING_STALE_SECONDS = 45;
 
 // Parse one side-channel line "<state> <epoch>" -> entry, or null if malformed.
 export function parseSessionLine(line: string): SessionEntry | null {

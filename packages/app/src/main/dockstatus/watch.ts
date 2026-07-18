@@ -17,6 +17,7 @@ let watchedDir: string | null = null;
 let iconsDirRef = "";
 let ackAt = 0;
 let focusHooked = false;
+let tick: ReturnType<typeof setInterval> | null = null;
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -62,6 +63,12 @@ export function startDockWatch(sessionsDir: string, iconsDir: string): void {
     app.on("browser-window-focus", onFocus);
     focusHooked = true;
   }
+  // Periodic re-check: a `working` entry goes stale purely by time passing, and
+  // NO file event fires when a session simply stops writing (turn ended, crash,
+  // interrupt). Without this timer nothing re-runs the aggregation, so the dot
+  // would stay yellow forever after activity stops. Re-aggregating on a tick lets
+  // WORKING_STALE_SECONDS actually clear it to idle (grey).
+  tick = setInterval(() => void recompute(), 10_000);
   void recompute();
 }
 
@@ -69,6 +76,10 @@ export async function stopDockWatch(): Promise<void> {
   if (watcher) {
     await watcher.close();
     watcher = null;
+  }
+  if (tick) {
+    clearInterval(tick);
+    tick = null;
   }
   watchedDir = null;
   resetPainted();
