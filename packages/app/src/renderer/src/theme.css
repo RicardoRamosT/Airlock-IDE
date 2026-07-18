@@ -1405,8 +1405,9 @@ body.resizing-col {
   font-variant-numeric: tabular-nums;
 }
 
-.usage-kpi-sub {
-  font-size: 12px;
+/* The cost tile is intentionally de-emphasized: on a subscription it is an
+   API-equivalent estimate, not a bill, so it must not read as the headline. */
+.usage-kpi-muted .usage-kpi-value {
   font-weight: 500;
   color: var(--fg-dim);
 }
