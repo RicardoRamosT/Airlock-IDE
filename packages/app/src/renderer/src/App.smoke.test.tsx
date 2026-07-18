@@ -92,6 +92,7 @@ const DEFAULT_PREFS: AppPrefs = {
   activeView: "files",
   claudeAutoStart: "off",
   clipboardClearSeconds: 30,
+  editorFontSize: 13,
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
   recentFolders: [],

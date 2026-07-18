@@ -301,6 +301,7 @@ export interface AppState {
   sidebarWidth: number; // app-global (persisted), px width of the shared sidebar
   theme: "dark" | "light"; // app-global (persisted), drives data-theme on <html>
   clipboardClearSeconds: number; // app-global (persisted), seconds before clipboard auto-clears (0 = never)
+  editorFontSize: number; // app-global (persisted), editor font size in px
   quota: QuotaStatus | null;
   setQuota: (q: QuotaStatus) => void;
   quotaMeterEnabled: boolean;
@@ -488,6 +489,7 @@ export interface AppState {
   setSidebarWidth: (w: number) => void;
   setTheme: (t: "dark" | "light") => void;
   setClipboardClearSeconds: (n: number) => void;
+  setEditorFontSize: (n: number) => void;
   setSectionVisibility: (v: SectionVisibility) => void;
   setActiveView: (v: Section) => void;
   setExtensionsPrefs: (
@@ -777,6 +779,7 @@ export const useApp = create<AppState>((set) => ({
   sidebarWidth: 230,
   theme: "dark",
   clipboardClearSeconds: 30,
+  editorFontSize: 13,
   quota: null,
   setQuota: (q) => set({ quota: q }),
   quotaMeterEnabled: false,
@@ -1584,6 +1587,8 @@ export const useApp = create<AppState>((set) => ({
   setTheme: (theme) => set({ theme }),
   setClipboardClearSeconds: (clipboardClearSeconds) =>
     set({ clipboardClearSeconds }),
+  setEditorFontSize: (n) =>
+    set({ editorFontSize: Math.min(40, Math.max(8, Math.round(n))) }),
   setSectionVisibility: (sectionVisibility) => set({ sectionVisibility }),
   setActiveView: (activeView) => set({ activeView }),
   setExtensionsPrefs: (extensionsPrefs) => set({ extensionsPrefs }),

@@ -6,7 +6,7 @@ import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
 import { editorChrome } from "../lib/editorChrome";
 import { openEditorFile } from "../lib/editorFiles";
@@ -33,6 +33,14 @@ import { StickyScroll } from "./StickyScroll";
 const AUTOSAVE_MS = 800;
 // Debounce window for pushing full-text changes to the language server.
 const LSP_DEBOUNCE_MS = 300;
+
+// Editor font size applied via a Compartment (like the theme) so pinch/Cmd zoom
+// reconfigures it in place -- never a construction-effect dep, so a zoom never
+// rebuilds the editor or drops unsaved edits (PB-H1). Bounds match the pref clamp.
+const FONT_MIN = 8;
+const FONT_MAX = 40;
+const fontSizeTheme = (px: number): Extension =>
+  EditorView.theme({ "&": { fontSize: `${px}px` } });
 
 // LSP completion + hover for one open file. Both first call `sync` to push the
 // current document to the server, THEN query at the cursor. The sync is what
@@ -193,6 +201,23 @@ export function EditorPane({
   // the construction effect (which would reintroduce the rebuild).
   const themeRef = useRef(theme);
   themeRef.current = theme;
+  // Font size: a persisted app pref in its own Compartment, mirroring the theme
+  // compartment (reconfigure in place; not a construction dep). (audit PB-H1)
+  const fontSizeCompartment = useRef(new Compartment()).current;
+  const editorFontSize = useApp((s) => s.editorFontSize);
+  const fontSizeRef = useRef(editorFontSize);
+  fontSizeRef.current = editorFontSize;
+  const persistFontTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Clamp + apply a size to the store (live) and persist it (debounced). Stable
+  // (empty deps) so the construction effect and keymap can close over it safely.
+  const applyFontSize = useCallback((px: number) => {
+    const clamped = Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(px)));
+    useApp.getState().setEditorFontSize(clamped);
+    if (persistFontTimer.current) clearTimeout(persistFontTimer.current);
+    persistFontTimer.current = setTimeout(() => {
+      void window.airlock.prefsSet({ editorFontSize: clamped });
+    }, 400);
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -250,8 +275,44 @@ export function EditorPane({
         extensions: [
           basicSetup,
           themeCompartment.of(editorTheme(themeRef.current)),
+          fontSizeCompartment.of(fontSizeTheme(fontSizeRef.current)),
           EditorView.theme({ "&": { height: "100%" } }),
           ...editorChrome(),
+          // Cmd +/-/0 font zoom (pinch is wired via a wheel listener below).
+          keymap.of([
+            {
+              key: "Mod-=",
+              preventDefault: true,
+              run: () => {
+                applyFontSize(useApp.getState().editorFontSize + 1);
+                return true;
+              },
+            },
+            {
+              key: "Mod-Shift-=",
+              preventDefault: true,
+              run: () => {
+                applyFontSize(useApp.getState().editorFontSize + 1);
+                return true;
+              },
+            },
+            {
+              key: "Mod--",
+              preventDefault: true,
+              run: () => {
+                applyFontSize(useApp.getState().editorFontSize - 1);
+                return true;
+              },
+            },
+            {
+              key: "Mod-0",
+              preventDefault: true,
+              run: () => {
+                applyFontSize(13);
+                return true;
+              },
+            },
+          ]),
           // Track the cursor's line for the breadcrumb's symbol trail.
           // Unconditional (not gated on `editable`): a read-only/truncated
           // view still allows moving the selection, and the breadcrumb should
@@ -419,6 +480,8 @@ export function EditorPane({
     lspLang,
     tabId,
     themeCompartment,
+    fontSizeCompartment,
+    applyFontSize,
     setReferences,
   ]);
 
@@ -432,6 +495,39 @@ export function EditorPane({
       effects: themeCompartment.reconfigure(editorTheme(theme)),
     });
   }, [theme, themeCompartment]);
+
+  // Apply the font size by reconfiguring its compartment in place (pinch / Cmd
+  // zoom updates the store -> this reflects it on the live view). (audit PB-H1)
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: fontSizeCompartment.reconfigure(fontSizeTheme(editorFontSize)),
+    });
+  }, [editorFontSize, fontSizeCompartment]);
+
+  // Trackpad pinch-zoom: Chromium delivers a pinch as wheel events with
+  // ctrlKey=true. Accumulate the delta and step the font size by whole px;
+  // preventDefault stops Chromium's page zoom. Normal scroll (no ctrlKey) is
+  // untouched. Cmd +/-/0 are handled by the keymap above.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    let accum = 0;
+    const STEP = 18; // wheel units per 1px of change (tuned for trackpad feel)
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      accum += e.deltaY;
+      if (Math.abs(accum) < STEP) return;
+      const steps = Math.trunc(accum / STEP);
+      accum -= steps * STEP;
+      // deltaY < 0 (pinch out) -> zoom in (bigger); > 0 (pinch in) -> smaller.
+      applyFontSize(useApp.getState().editorFontSize - steps);
+    };
+    host.addEventListener("wheel", onWheel, { passive: false });
+    return () => host.removeEventListener("wheel", onWheel);
+  }, [applyFontSize]);
 
   // When a caller (e.g. search) reveals this file in this pane, scroll + select
   // to the line. The nonce in `reveal` is in the deps so repeated reveals of the
