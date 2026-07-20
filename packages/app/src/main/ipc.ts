@@ -122,7 +122,13 @@ import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels } from "./extensions/slack";
 import { slackWorkspacePatch } from "./extensions/slackWorkspace";
 import { syncWindowWatchers } from "./fsWatch";
-import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
+import {
+  applyCredentialHelper,
+  autoSwitchForFocus,
+  ensureIdentityFor,
+  resolveFor,
+  tokenFor,
+} from "./github/account";
 import {
   dockerStatus,
   gitStatusFor,
@@ -1127,8 +1133,18 @@ export function registerIpc(
           : undefined; // null/invalid => clear the override (back to auto)
       await writeProjectConfig(resolved, { githubAccount: acct });
       await ensureIdentityFor(resolved); // apply the new account's identity now
+      await applyCredentialHelper(resolved, acct ?? null); // pin/unpin the push credential
     },
   );
+
+  // Fired by the renderer when the focused project changes. Best-effort global
+  // gh account switch for NON-PINNED projects, gated by the githubAutoSwitch
+  // pref. Pinned projects are untouched (they carry their own credential helper).
+  ipcMain.handle("github:autoSwitchOnFocus", async (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    const prefs = await loadPrefs(prefsFile);
+    await autoSwitchForFocus(resolved, prefs.githubAutoSwitch);
+  });
 
   // Databases. The connection string (with its password) is resolved MAIN-SIDE
   // from the broker by secret name and used ONLY to open a short-lived pg

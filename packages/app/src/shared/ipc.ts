@@ -804,6 +804,9 @@ export interface AirlockApi {
     root: string,
     account: { host: string; username: string } | null,
   ): Promise<void>;
+  // Fired when the focused project changes: best-effort switch of the machine's
+  // active gh account to a NON-PINNED project's detected account (pref-gated).
+  githubAutoSwitchOnFocus(root: string): Promise<void>;
   // Databases: id is the secret NAME; no password ever crosses these. dbList
   // returns redacted projections; ping/tables/rows return data or a
   // message-only error -- never the connection string.
