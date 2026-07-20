@@ -215,3 +215,35 @@ it("expands a connected steady row and lists its resources on demand", async () 
   await screen.findByText("web1");
   expect(integrationsResources).toHaveBeenCalledWith("azure");
 });
+
+it("expands a connected extension (Slack) and lists its resources", async () => {
+  const resources: IntegrationItem[] = [
+    {
+      id: "int:slack:C1",
+      title: "#general",
+      subtitle: "channel",
+      state: "idle",
+    },
+  ];
+  const extensionsResourcesFor = vi.fn(() => Promise.resolve(resources));
+  (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+    extensionsList: vi.fn(() =>
+      Promise.resolve([
+        summary({
+          id: "slack",
+          name: "Slack",
+          tier: "connected",
+          status: "connected",
+          category: "activity",
+        }),
+      ]),
+    ),
+    extensionsResourcesFor,
+    extensionsDisconnect: vi.fn(),
+    prefsSet,
+  };
+  render(<ExtensionsSection />);
+  fireEvent.click(await screen.findByRole("button", { name: /expand slack/i }));
+  await screen.findByText("#general");
+  expect(extensionsResourcesFor).toHaveBeenCalledWith("slack");
+});

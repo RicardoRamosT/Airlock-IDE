@@ -879,6 +879,7 @@ export interface AirlockApi {
   activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
   integrationsResources(id: string): Promise<SteadyIntegration | null>;
+  extensionsResourcesFor(id: string): Promise<IntegrationItem[]>;
   extensionsList(): Promise<ExtensionSummary[]>;
   // Eye-on connected extensions' granted resources, grouped by target section.
   extensionsResources(): Promise<ExtensionResources[]>;

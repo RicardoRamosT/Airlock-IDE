@@ -124,18 +124,20 @@ export function ExtensionsSection() {
           {groups[bucket].map((s) => {
             const enabled = prefs[s.id]?.enabled ?? s.enabled;
             const pinned = prefs[s.id]?.pinned ?? s.pinned;
-            // A connected CLI (status) integration that surfaces into a steady
-            // view (Host/Databases) can expand in place to show its resources.
-            const steadyConnected =
-              s.tier === "status" &&
-              (s.status === "ready" || s.status === "connected") &&
-              !!s.category &&
-              s.category !== "activity";
+            // Rows that can expand to a resource list: Tier-1 steady CLI
+            // integrations (Azure/Snowflake, under Host/Databases) and Tier-2
+            // connected extensions (Slack/GitHub) once connected.
+            const expandable =
+              (s.tier === "status" &&
+                (s.status === "ready" || s.status === "connected") &&
+                !!s.category &&
+                s.category !== "activity") ||
+              (s.tier === "connected" && s.status === "connected");
             const isOpen = open.has(s.id);
             return (
               <div key={s.id} className="ext-item">
                 <div className={`db-row ext-row${enabled ? "" : " disabled"}`}>
-                  {steadyConnected ? (
+                  {expandable ? (
                     <button
                       type="button"
                       className="ext-expand"
@@ -285,11 +287,12 @@ export function ExtensionsSection() {
                     />
                   </span>
                 </div>
-                {steadyConnected && isOpen && (
+                {expandable && isOpen && (
                   <ExtensionResources
                     id={s.id}
                     name={s.name}
                     category={s.category ?? ""}
+                    connected={s.tier === "connected"}
                   />
                 )}
               </div>
@@ -301,38 +304,47 @@ export function ExtensionsSection() {
   );
 }
 
-// The expanded body under a connected steady row: fetches that integration's
-// resources on demand (account-wide, relevance-independent) and renders them
-// with the shared ResourceRow (details + Portal/Start/Stop). Polls while open,
-// stops on unmount (collapse). `items === null` = still loading.
+// The expanded body under an expandable row: fetches that integration's
+// resources on demand and renders them with the shared ResourceRow. The source
+// depends on the tier -- Tier-2 connected extensions (Slack/GitHub) are
+// root-scoped via extensions:resourcesFor; Tier-1 steady CLI integrations
+// (Azure/Snowflake) are account-wide via integrations:resources. Polls while
+// open, stops on unmount (collapse). `items === null` = still loading.
 function ExtensionResources({
   id,
   name,
   category,
+  connected,
 }: {
   id: string;
   name: string;
   category: string;
+  connected: boolean;
 }) {
   const [items, setItems] = useState<IntegrationItem[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    const load = () =>
-      void window.airlock
-        .integrationsResources(id)
-        .then((r) => {
-          if (!cancelled) setItems(r?.resources ?? []);
+    const load = () => {
+      const p = connected
+        ? window.airlock.extensionsResourcesFor(id)
+        : window.airlock
+            .integrationsResources(id)
+            .then((r) => r?.resources ?? []);
+      void p
+        .then((rs) => {
+          if (!cancelled) setItems(rs);
         })
         .catch(() => {
           if (!cancelled) setItems([]);
         });
+    };
     load();
     const t = setInterval(load, 5000);
     return () => {
       cancelled = true;
       clearInterval(t);
     };
-  }, [id]);
+  }, [id, connected]);
 
   const viewLabel = category
     ? category.charAt(0).toUpperCase() + category.slice(1)
@@ -347,7 +359,9 @@ function ExtensionResources({
         items.map((r) => <ResourceRow key={r.id} r={r} />)
       )}
       <div className="section-note">
-        Also shown in the {viewLabel} view for projects that use {name}.
+        {connected
+          ? `Also shown in the ${viewLabel} section when pinned.`
+          : `Also shown in the ${viewLabel} view for projects that use ${name}.`}
       </div>
     </div>
   );

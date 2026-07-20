@@ -149,6 +149,8 @@ const api: AirlockApi = {
   integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
   integrationsResources: (id: string) =>
     ipcRenderer.invoke("integrations:resources", id),
+  extensionsResourcesFor: (id: string) =>
+    ipcRenderer.invoke("extensions:resourcesFor", id),
   extensionsList: () => ipcRenderer.invoke("extensions:list"),
   extensionsResources: () => ipcRenderer.invoke("extensions:resources"),
   extensionsGetConfig: (root, id) =>
