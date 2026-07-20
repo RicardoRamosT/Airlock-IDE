@@ -8,13 +8,13 @@ import {
 } from "./accounts";
 
 const REAL = `github.com
-  ✓ Logged in to github.com account RicardoRamosT (keyring)
+  ✓ Logged in to github.com account octocat (keyring)
   - Active account: true
   - Git operations protocol: https
   - Token: gho_************************************
   - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
 
-  ✓ Logged in to github.com account vnricardotrevino (keyring)
+  ✓ Logged in to github.com account hubber (keyring)
   - Active account: false
   - Git operations protocol: https
   - Token: gho_************************************
@@ -24,8 +24,8 @@ const REAL = `github.com
 describe("parseGhAuthStatus", () => {
   it("parses multiple accounts with the active marker", () => {
     expect(parseGhAuthStatus(REAL)).toEqual([
-      { host: "github.com", username: "RicardoRamosT", active: true },
-      { host: "github.com", username: "vnricardotrevino", active: false },
+      { host: "github.com", username: "octocat", active: true },
+      { host: "github.com", username: "hubber", active: false },
     ]);
   });
 
@@ -86,7 +86,7 @@ it("ghToken requests the token for a specific account", async () => {
     seen = args;
     return "gho_TESTTOKEN\n";
   };
-  const tok = await ghToken("github.com", "RicardoRamosT", run);
+  const tok = await ghToken("github.com", "octocat", run);
   expect(tok).toBe("gho_TESTTOKEN");
   expect(seen).toEqual([
     "auth",
@@ -94,7 +94,7 @@ it("ghToken requests the token for a specific account", async () => {
     "--hostname",
     "github.com",
     "--user",
-    "RicardoRamosT",
+    "octocat",
   ]);
 });
 

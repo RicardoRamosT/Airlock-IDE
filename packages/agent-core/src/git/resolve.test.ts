@@ -4,19 +4,19 @@ import { parseRemote } from "./remote";
 import { resolveProjectAccount } from "./resolve";
 
 const accounts: GhAccount[] = [
-  { host: "github.com", username: "RicardoRamosT", active: true },
-  { host: "github.com", username: "vnricardotrevino", active: false },
+  { host: "github.com", username: "octocat", active: true },
+  { host: "github.com", username: "hubber", active: false },
 ];
 const origin = (u: string) => parseRemote(u);
 
 it("auto-detects the account whose login matches the origin owner", () => {
   const r = resolveProjectAccount(
     undefined,
-    origin("https://github.com/RicardoRamosT/Airlock-IDE.git"),
+    origin("https://github.com/octocat/hello-world.git"),
     accounts,
   );
   expect(r).toEqual({
-    account: { host: "github.com", username: "RicardoRamosT" },
+    account: { host: "github.com", username: "octocat" },
     source: "auto",
     protocol: "https",
   });
@@ -25,7 +25,7 @@ it("auto-detects the account whose login matches the origin owner", () => {
 it("returns none for an org repo with no matching login", () => {
   const r = resolveProjectAccount(
     undefined,
-    origin("https://github.com/ViewNear/lend.git"),
+    origin("https://github.com/acme/widgets.git"),
     accounts,
   );
   expect(r.account).toBeNull();
@@ -34,29 +34,29 @@ it("returns none for an org repo with no matching login", () => {
 
 it("prefers a valid override over auto-detect", () => {
   const r = resolveProjectAccount(
-    { host: "github.com", username: "vnricardotrevino" },
-    origin("https://github.com/RicardoRamosT/Airlock-IDE.git"),
+    { host: "github.com", username: "hubber" },
+    origin("https://github.com/octocat/hello-world.git"),
     accounts,
   );
-  expect(r.account?.username).toBe("vnricardotrevino");
+  expect(r.account?.username).toBe("hubber");
   expect(r.source).toBe("override");
 });
 
 it("ignores an override pointing at a logged-out account", () => {
   const r = resolveProjectAccount(
     { host: "github.com", username: "ghost" },
-    origin("https://github.com/RicardoRamosT/x.git"),
+    origin("https://github.com/octocat/x.git"),
     accounts,
   );
   expect(r.source).toBe("auto");
-  expect(r.account?.username).toBe("RicardoRamosT");
+  expect(r.account?.username).toBe("octocat");
 });
 
 it("reports ssh protocol and no remote", () => {
   expect(
     resolveProjectAccount(
       undefined,
-      origin("git@github.com:RicardoRamosT/x.git"),
+      origin("git@github.com:octocat/x.git"),
       accounts,
     ).protocol,
   ).toBe("ssh");

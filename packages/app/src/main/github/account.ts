@@ -111,8 +111,8 @@ export async function autoSwitchForFocus(
       // NON-pinned: best-effort, gated by the pref. Owner-detected account, else
       // FALL BACK to the repo's configured commit name matching a logged-in
       // account -- what makes an ORG repo work (origin owner is the org, but
-      // `git config user.name` is the account you commit as, e.g.
-      // "vnricardotrevino", which does match a gh account).
+      // `git config user.name` is the account you commit as, which does match a
+      // logged-in gh account).
       target = r.account;
       if (!target) {
         const name = (

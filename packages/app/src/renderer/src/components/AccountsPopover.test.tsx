@@ -82,25 +82,25 @@ it("keeps rows switchable when the active account doesn't match the pin", async 
         gh: {
           installed: true,
           accounts: [
-            { host: "github.com", username: "RicardoRamosT", active: false },
-            { host: "github.com", username: "vnricardotrevino", active: true },
+            { host: "github.com", username: "octocat", active: false },
+            { host: "github.com", username: "hubber", active: true },
           ],
         },
-        identity: { name: "RicardoRamosT", email: null },
+        identity: { name: "octocat", email: null },
       }),
     ),
     resolveGithubAccount: vi.fn(() =>
       Promise.resolve({
-        account: { host: "github.com", username: "RicardoRamosT" },
+        account: { host: "github.com", username: "octocat" },
         source: "override",
         protocol: "https",
       }),
     ),
   });
   render(<AccountsPopover onClose={() => {}} />);
-  // Pinned to RicardoRamosT but active is vnricardotrevino: the pinned row must
+  // Pinned to octocat but active is hubber: the pinned row must
   // stay clickable so the user can set it active (never a locked wrong state).
-  const row = await screen.findByRole("button", { name: /RicardoRamosT/i });
+  const row = await screen.findByRole("button", { name: /octocat/i });
   expect((row as HTMLButtonElement).disabled).toBe(false);
 });
 
