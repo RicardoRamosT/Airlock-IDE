@@ -1840,10 +1840,34 @@ button.quota-meter:hover {
   margin-left: 16px;
 }
 
+/* Themes submenu: a flyout card anchored to the RIGHT of its parent item (like
+   a native menu), not an inline block stacked below it. .menu-sub is the
+   relative anchor wrapping the parent .menu-item + this submenu; the negative
+   top offsets the card's own padding+border so its first row lines up with the
+   parent row. */
+.menu-sub {
+  position: relative;
+}
 .submenu {
-  margin-left: 8px;
-  padding-left: 4px;
-  border-left: 1px solid var(--border);
+  position: absolute;
+  left: 100%;
+  top: -7px;
+  margin-left: 4px;
+  min-width: 160px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  z-index: 21;
+}
+/* Right-hand rail: the popover hugs the window's right edge, so flip the flyout
+   to the LEFT of the parent to keep it on-screen. */
+.workspace.sidebar-right .settings-menu .submenu {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
 }
 
 /* Settings tab (opens in the viewer-pane). Padded sections with headings and

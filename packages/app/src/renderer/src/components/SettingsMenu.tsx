@@ -34,32 +34,34 @@ export function SettingsMenu({ onClose }: { onClose: () => void }) {
         <span>Settings</span>
         <span className="menu-shortcut">{"⌘,"}</span>
       </button>
-      <button
-        type="button"
-        className="menu-item"
-        onClick={() => setThemesOpen(!themesOpen)}
-      >
-        <span>Themes</span>
-        <span className="menu-shortcut">{"›"}</span>
-      </button>
-      {themesOpen && (
-        <div className="submenu">
-          <button
-            type="button"
-            className="menu-item"
-            onClick={() => chooseTheme("dark")}
-          >
-            <span>Dark{theme === "dark" ? " ✓" : ""}</span>
-          </button>
-          <button
-            type="button"
-            className="menu-item"
-            onClick={() => chooseTheme("light")}
-          >
-            <span>Light{theme === "light" ? " ✓" : ""}</span>
-          </button>
-        </div>
-      )}
+      <div className="menu-sub">
+        <button
+          type="button"
+          className="menu-item"
+          onClick={() => setThemesOpen(!themesOpen)}
+        >
+          <span>Themes</span>
+          <span className="menu-shortcut">{"›"}</span>
+        </button>
+        {themesOpen && (
+          <div className="submenu">
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => chooseTheme("dark")}
+            >
+              <span>Dark{theme === "dark" ? " ✓" : ""}</span>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => chooseTheme("light")}
+            >
+              <span>Light{theme === "light" ? " ✓" : ""}</span>
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
