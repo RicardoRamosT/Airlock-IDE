@@ -41,6 +41,15 @@ export function AccountsPopover(_props: { onClose: () => void }) {
   const active = info?.gh.accounts.find((a) => a.active) ?? null;
   // "override" => the project is pinned to a specific account.
   const pinned = resolved?.source === "override";
+  const pinnedAccount = pinned ? (resolved?.account ?? null) : null;
+  // Lock the account rows ONLY when the active account already matches the pin.
+  // If they differ (a switch failed or is pending), keep the rows clickable so
+  // the user can set the pinned account active -- never a locked wrong state.
+  const pinnedConsistent =
+    !!pinnedAccount &&
+    !!active &&
+    active.host === pinnedAccount.host &&
+    active.username === pinnedAccount.username;
   const isSsh = resolved != null && resolved.protocol !== "https";
   const mismatch =
     !pinned &&
@@ -103,9 +112,9 @@ export function AccountsPopover(_props: { onClose: () => void }) {
           key={`${a.host}:${a.username}`}
           type="button"
           className={`account-row${a.active ? " active" : ""}`}
-          disabled={busy || a.active || pinned}
+          disabled={busy || a.active || pinnedConsistent}
           title={
-            pinned
+            pinnedConsistent
               ? "Unpin to switch the active account"
               : a.active
                 ? "Active account"

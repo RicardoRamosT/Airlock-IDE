@@ -98,30 +98,36 @@ export async function autoSwitchForFocus(
   root: string,
   enabled: boolean,
 ): Promise<void> {
-  if (!enabled) return;
   try {
     const r = await resolveFor(root);
-    if (r.source === "override") return; // pinned: immune
     const gh = await ghAccounts();
-    // Target = the owner-detected account; else FALL BACK to the repo's
-    // configured commit name matching a logged-in account. That fallback is
-    // what makes an ORG repo work: the origin owner is the org (no login
-    // match), but `git config user.name` is the account you commit as (e.g.
-    // "vnricardotrevino"), which does match a gh account.
-    let target = r.account;
-    if (!target) {
-      const name = (
-        await runGit(root, ["config", "user.name"]).catch(() => "")
-      ).trim();
-      const m =
-        name.length > 0
-          ? gh.accounts.find(
-              (a) => a.username.toLowerCase() === name.toLowerCase(),
-            )
-          : undefined;
-      if (m) target = { host: m.host, username: m.username };
+    let target: { host: string; username: string } | null = null;
+    if (r.source === "override" && r.account) {
+      // PINNED: the pin is authoritative -- always make it the active account
+      // on focus (independent of the pref), so the active account matches the
+      // pin and the dialog's row-lock is coherent.
+      target = r.account;
+    } else if (enabled) {
+      // NON-pinned: best-effort, gated by the pref. Owner-detected account, else
+      // FALL BACK to the repo's configured commit name matching a logged-in
+      // account -- what makes an ORG repo work (origin owner is the org, but
+      // `git config user.name` is the account you commit as, e.g.
+      // "vnricardotrevino", which does match a gh account).
+      target = r.account;
+      if (!target) {
+        const name = (
+          await runGit(root, ["config", "user.name"]).catch(() => "")
+        ).trim();
+        const m =
+          name.length > 0
+            ? gh.accounts.find(
+                (a) => a.username.toLowerCase() === name.toLowerCase(),
+              )
+            : undefined;
+        if (m) target = { host: m.host, username: m.username };
+      }
     }
-    if (!target) return; // nothing detected either way
+    if (!target) return; // nothing to apply
     const active = gh.accounts.find((a) => a.active);
     if (
       active &&

@@ -74,6 +74,36 @@ it("shows Unpin (not Pin) when the project is already pinned", async () => {
   expect(screen.queryByRole("button", { name: /^pin octocat$/i })).toBeNull();
 });
 
+it("keeps rows switchable when the active account doesn't match the pin", async () => {
+  focusProject("/repo");
+  mockApi({
+    githubInfo: vi.fn(() =>
+      Promise.resolve({
+        gh: {
+          installed: true,
+          accounts: [
+            { host: "github.com", username: "RicardoRamosT", active: false },
+            { host: "github.com", username: "vnricardotrevino", active: true },
+          ],
+        },
+        identity: { name: "RicardoRamosT", email: null },
+      }),
+    ),
+    resolveGithubAccount: vi.fn(() =>
+      Promise.resolve({
+        account: { host: "github.com", username: "RicardoRamosT" },
+        source: "override",
+        protocol: "https",
+      }),
+    ),
+  });
+  render(<AccountsPopover onClose={() => {}} />);
+  // Pinned to RicardoRamosT but active is vnricardotrevino: the pinned row must
+  // stay clickable so the user can set it active (never a locked wrong state).
+  const row = await screen.findByRole("button", { name: /RicardoRamosT/i });
+  expect((row as HTMLButtonElement).disabled).toBe(false);
+});
+
 it("persists the auto-switch toggle via prefsSet", async () => {
   focusProject("/repo");
   mockApi();
