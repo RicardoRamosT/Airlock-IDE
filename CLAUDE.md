@@ -155,3 +155,33 @@ like the rest instead of drifting into ad-hoc styles. Defined in `theme.css`;
 
 Spec: `docs/superpowers/specs/2026-06-15-sidebar-layout-standardization-design.md` ·
 Plan: `docs/superpowers/plans/2026-06-15-sidebar-layout-standardization.md`.
+
+## GitHub account per project
+
+Two layers keep the right GitHub account in play, because the agent pushes by
+running `git push` in a **terminal** (there is no MCP `git_push` tool — only
+`git_commit`, which already routes through the per-project account). A terminal
+push uses whatever `gh` account is **globally active**, so a wrong active account
+→ GitHub 404 "repo not found".
+
+- **Pin (the fix).** The accounts popover's "Pin to this project" writes the
+  `ProjectConfig.githubAccount` override AND installs a **local, uncommitted** git
+  credential helper in the repo (`buildCredentialHelperConfig` in
+  `agent-core/git/auth.ts` → `applyCredentialHelper` in `main/github/account.ts`
+  via `git config --local`). The helper serves the pinned account's token from
+  `gh auth token --user <pinned>`, so **every** push from that repo — terminal,
+  agent, or GUI — uses the pinned account regardless of the active account or
+  which project is focused (background-safe). Unpin removes both. HTTPS only (SSH
+  pushes by key; pin still sets commit identity via `ensureIdentityFor`).
+- **Auto-switch (the convenience).** App pref `githubAutoSwitch` (default on,
+  toggle in the dialog). On focusing a **non-pinned** project, `autoSwitchForFocus`
+  runs `gh auth switch` to its auto-detected account (fired by
+  `useGithubFocusSync` → `github:autoSwitchOnFocus`). **Pinned projects are
+  skipped** (immune).
+- **Accepted limitation:** a **non-pinned** project pushing in the **background**
+  while a **different-account** project is focused uses the wrong account — the
+  machine has one active account. Remedy: **pin it** (pinned repos are immune).
+  Auto-switch resolves the common ~80%; pinning resolves the rest.
+
+Spec: `docs/superpowers/specs/2026-07-18-github-account-per-project-design.md` ·
+Plan: `docs/superpowers/plans/2026-07-18-github-account-per-project.md`.
