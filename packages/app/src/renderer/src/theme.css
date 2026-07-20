@@ -1812,15 +1812,10 @@ button.quota-meter:hover {
 .identity-warning {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 5px;
   font-size: 11px;
   color: #d29922;
   padding: 4px 6px;
-}
-.identity-warning .section-toolbar {
-  margin: 0;
-  flex-basis: 100%;
 }
 
 /* Per-project account pin control + the auto-switch toggle in the accounts
@@ -1835,6 +1830,14 @@ button.quota-meter:hover {
   width: 100%;
   justify-content: center;
 }
+/* Inline mismatch caption under the pin CTA (amber, no separate box/button). */
+.account-warn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #d29922;
+}
 .account-toggle {
   display: flex;
   align-items: center;
@@ -1846,6 +1849,12 @@ button.quota-meter:hover {
 }
 .account-toggle input {
   cursor: pointer;
+}
+/* Sub-section heads inside the accounts popover get breathing room above so the
+   Accounts / This project / Settings groups read as distinct. */
+.accounts-popover .sb-section-head {
+  margin-top: 8px;
+  padding: 0 6px;
 }
 
 /* Click-away backdrop: transparent full-screen layer that closes an open

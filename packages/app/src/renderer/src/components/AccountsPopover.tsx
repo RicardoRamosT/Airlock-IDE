@@ -20,9 +20,7 @@ export function AccountsPopover(_props: { onClose: () => void }) {
       window.airlock
         .resolveGithubAccount(root)
         .then(setResolved)
-        .catch(() => {
-          setResolved(null);
-        });
+        .catch(() => setResolved(null));
     } else {
       setResolved(null);
     }
@@ -31,9 +29,7 @@ export function AccountsPopover(_props: { onClose: () => void }) {
     refresh();
   }, [refresh]);
 
-  // gh auth status emits the active account first, so its order changes on
-  // switch. Render in a STABLE order (host, then username) so only the dot
-  // moves between rows -- the list never reshuffles.
+  // Stable order (host, then username) so only the active dot moves on switch.
   const orderedAccounts = info
     ? [...info.gh.accounts].sort(
         (a, b) =>
@@ -64,8 +60,8 @@ export function AccountsPopover(_props: { onClose: () => void }) {
     }
   };
 
-  // Pin (account) or unpin (null) the focused project to an account: persists
-  // the override AND installs/removes the per-repo credential helper main-side.
+  // Pin (account) or unpin (null) the focused project: persists the override AND
+  // installs/removes the per-repo credential helper main-side.
   const setPin = async (account: { host: string; username: string } | null) => {
     if (!root) return;
     setBusy(true);
@@ -98,13 +94,23 @@ export function AccountsPopover(_props: { onClose: () => void }) {
           No accounts. Run `gh auth login` in the terminal.
         </div>
       )}
+
+      {/* Account list. While the focused project is PINNED it is locked: the
+          pin governs its git regardless of the active account, so switching
+          here would be pointless/confusing. Unpin to switch. */}
       {orderedAccounts.map((a) => (
         <button
           key={`${a.host}:${a.username}`}
           type="button"
           className={`account-row${a.active ? " active" : ""}`}
-          disabled={busy || a.active}
-          title={a.active ? "Active account" : `Switch to ${a.username}`}
+          disabled={busy || a.active || pinned}
+          title={
+            pinned
+              ? "Unpin to switch the active account"
+              : a.active
+                ? "Active account"
+                : `Switch to ${a.username}`
+          }
           onClick={() => switchTo(a.host, a.username)}
         >
           <span className={`status-dot${a.active ? " on" : ""}`} />
@@ -112,22 +118,28 @@ export function AccountsPopover(_props: { onClose: () => void }) {
           <span className="account-host">{a.host}</span>
         </button>
       ))}
-      {info?.identity.name && (
-        <div className="identity-line">
-          commits as <strong>{info.identity.name}</strong>
-          {info.identity.email ? ` <${info.identity.email}>` : ""}
-        </div>
-      )}
 
-      {/* Pin: bind THIS project to an account so its pushes ALWAYS use it,
-          regardless of the active account or which project is focused. */}
-      {root && info?.gh.installed && (
-        <div className="account-pin">
-          {pinned && resolved?.account ? (
-            <>
+      {/* This project: commit identity + the single pin control. */}
+      {info?.gh.installed && (
+        <>
+          <div className="sb-section-head">
+            <span>This project</span>
+          </div>
+          {info?.identity.name && (
+            <div className="identity-line">
+              commits as <strong>{info.identity.name}</strong>
+              {info.identity.email ? ` <${info.identity.email}>` : ""}
+            </div>
+          )}
+          {!root ? (
+            <div className="section-note">
+              Open a project to pin an account.
+            </div>
+          ) : pinned && resolved?.account ? (
+            <div className="account-pin">
               <span className="section-note">
-                Pinned to <strong>{resolved.account.username}</strong> for this
-                project
+                Pinned to <strong>{resolved.account.username}</strong> — this
+                project&rsquo;s git always uses it.
               </span>
               <button
                 type="button"
@@ -137,58 +149,51 @@ export function AccountsPopover(_props: { onClose: () => void }) {
               >
                 Unpin
               </button>
-            </>
+            </div>
           ) : active ? (
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy}
-              title={`Always use ${active.username} for this project's git`}
-              onClick={() =>
-                setPin({ host: active.host, username: active.username })
-              }
-            >
-              Pin {active.username} to this project
-            </button>
-          ) : null}
-          {isSsh && (
-            <span className="section-note">
-              SSH remote — pin sets commit identity only (push uses your SSH
-              key).
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Non-pinned projects follow focus: switch the active account to match. */}
-      <label className="account-toggle">
-        <input
-          type="checkbox"
-          checked={autoSwitch}
-          onChange={(e) => toggleAutoSwitch(e.target.checked)}
-        />
-        Auto-switch account to match the project
-      </label>
-
-      {mismatch && (
-        <div className="identity-warning">
-          <i className="codicon codicon-warning" /> active account (
-          {active?.username}) doesn&rsquo;t match this repo
-          {root && active && (
-            <div className="section-toolbar">
+            <div className="account-pin">
               <button
                 type="button"
-                className="btn"
+                className="btn primary"
                 disabled={busy}
+                title={`Always use ${active.username} for this project's git`}
                 onClick={() =>
                   setPin({ host: active.host, username: active.username })
                 }
               >
-                Pin
+                Pin {active.username} to this project
               </button>
+              {mismatch && (
+                <span className="account-warn">
+                  <i className="codicon codicon-warning" /> Active account
+                  doesn&rsquo;t match this repo — pin to fix.
+                </span>
+              )}
+              {isSsh && (
+                <span className="section-note">
+                  SSH remote — pin sets commit identity only.
+                </span>
+              )}
             </div>
-          )}
-        </div>
+          ) : null}
+        </>
+      )}
+
+      {/* Settings. Governs NON-pinned projects (a pinned project ignores it). */}
+      {info?.gh.installed && (
+        <>
+          <div className="sb-section-head">
+            <span>Settings</span>
+          </div>
+          <label className="account-toggle">
+            <input
+              type="checkbox"
+              checked={autoSwitch}
+              onChange={(e) => toggleAutoSwitch(e.target.checked)}
+            />
+            Auto-switch account to match the project
+          </label>
+        </>
       )}
     </div>
   );
