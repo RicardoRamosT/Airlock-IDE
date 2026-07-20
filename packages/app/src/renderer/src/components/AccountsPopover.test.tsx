@@ -47,7 +47,7 @@ it("pins the active account to the focused project", async () => {
   mockApi();
   render(<AccountsPopover onClose={() => {}} />);
   fireEvent.click(
-    await screen.findByRole("button", { name: /pin octocat to this project/i }),
+    await screen.findByRole("button", { name: /^pin octocat$/i }),
   );
   await waitFor(() =>
     expect(window.airlock.setProjectGithubAccount).toHaveBeenCalledWith(
@@ -71,9 +71,7 @@ it("shows Unpin (not Pin) when the project is already pinned", async () => {
   render(<AccountsPopover onClose={() => {}} />);
   expect(await screen.findByText(/pinned to/i)).toBeTruthy();
   expect(screen.getByRole("button", { name: /unpin/i })).toBeTruthy();
-  expect(
-    screen.queryByRole("button", { name: /pin .* to this project/i }),
-  ).toBeNull();
+  expect(screen.queryByRole("button", { name: /^pin octocat$/i })).toBeNull();
 });
 
 it("persists the auto-switch toggle via prefsSet", async () => {

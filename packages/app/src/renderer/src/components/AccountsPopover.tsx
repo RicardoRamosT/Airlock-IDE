@@ -156,12 +156,12 @@ export function AccountsPopover(_props: { onClose: () => void }) {
                 type="button"
                 className="btn primary"
                 disabled={busy}
-                title={`Always use ${active.username} for this project's git`}
+                title={`Pin this project to ${active.username} (always use it for git here)`}
                 onClick={() =>
                   setPin({ host: active.host, username: active.username })
                 }
               >
-                Pin {active.username} to this project
+                Pin {active.username}
               </button>
               {mismatch && (
                 <span className="account-warn">

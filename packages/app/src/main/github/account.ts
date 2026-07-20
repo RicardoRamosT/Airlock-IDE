@@ -101,17 +101,36 @@ export async function autoSwitchForFocus(
   if (!enabled) return;
   try {
     const r = await resolveFor(root);
-    if (r.source === "override" || !r.account) return;
+    if (r.source === "override") return; // pinned: immune
     const gh = await ghAccounts();
+    // Target = the owner-detected account; else FALL BACK to the repo's
+    // configured commit name matching a logged-in account. That fallback is
+    // what makes an ORG repo work: the origin owner is the org (no login
+    // match), but `git config user.name` is the account you commit as (e.g.
+    // "vnricardotrevino"), which does match a gh account.
+    let target = r.account;
+    if (!target) {
+      const name = (
+        await runGit(root, ["config", "user.name"]).catch(() => "")
+      ).trim();
+      const m =
+        name.length > 0
+          ? gh.accounts.find(
+              (a) => a.username.toLowerCase() === name.toLowerCase(),
+            )
+          : undefined;
+      if (m) target = { host: m.host, username: m.username };
+    }
+    if (!target) return; // nothing detected either way
     const active = gh.accounts.find((a) => a.active);
     if (
       active &&
-      active.host === r.account.host &&
-      active.username === r.account.username
+      active.host === target.host &&
+      active.username === target.username
     ) {
       return; // already correct
     }
-    await switchGhAccount(r.account.host, r.account.username);
+    await switchGhAccount(target.host, target.username);
   } catch {
     // best-effort
   }

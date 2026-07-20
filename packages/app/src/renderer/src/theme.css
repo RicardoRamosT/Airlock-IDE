@@ -1829,6 +1829,15 @@ button.quota-meter:hover {
 .account-pin .btn {
   width: 100%;
   justify-content: center;
+  text-align: center;
+  /* Grow to fit a long account name instead of clipping the fixed control
+     height (the label wraps to a second line cleanly). */
+  height: auto;
+  min-height: var(--control-h);
+  padding: 4px 10px;
+  line-height: 1.3;
+  white-space: normal;
+  word-break: break-word;
 }
 /* Inline mismatch caption under the pin CTA (amber, no separate box/button). */
 .account-warn {
