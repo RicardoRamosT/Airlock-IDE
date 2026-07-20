@@ -51,3 +51,35 @@ export async function runGitAuthed(
     );
   }
 }
+
+// Persisted per-repo credential routing (git config --local) so EVERY git push
+// from this repo -- terminal, agent, or GUI -- authenticates as a specific gh
+// account, independent of the machine's active account. Unlike CREDENTIAL_HELPER
+// above (which reads $AIRLOCK_GH_TOKEN for a single in-process op), this helper
+// fetches the token itself via `gh auth token --user`, so it works in a plain
+// terminal. host/username are validated so they cannot break out of the string.
+export interface CredentialHelperConfig {
+  set: Array<{ key: string; value: string }>; // apply in order (reset first)
+  unset: string[]; // keys to remove on unpin
+}
+
+export function buildCredentialHelperConfig(
+  host: string,
+  username: string,
+): CredentialHelperConfig {
+  if (!/^[A-Za-z0-9.-]+$/.test(host) || !/^[A-Za-z0-9-]+$/.test(username)) {
+    throw new Error("Invalid host or username");
+  }
+  const scopedKey = `credential.https://${host}.helper`;
+  // Fetch this account's token from gh on each `get`; print nothing otherwise.
+  const helper = `!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$(gh auth token --hostname ${host} --user ${username})"; }; f`;
+  return {
+    // Empty helper first RESETS the inherited list (suppresses gh's global
+    // helper for this repo); the host-scoped one then serves our account.
+    set: [
+      { key: "credential.helper", value: "" },
+      { key: scopedKey, value: helper },
+    ],
+    unset: ["credential.helper", scopedKey],
+  };
+}
