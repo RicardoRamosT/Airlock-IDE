@@ -1281,9 +1281,11 @@ body,
 }
 
 /* Popovers anchored in a right-side rail must open leftward. */
+/* Right-hand rail: open the flyout to the LEFT of the rail (mirror of the
+   default right-opening below) so it stays on-screen. */
 .workspace.sidebar-right .activity-bar-bottom .popover {
   left: auto;
-  right: 8px;
+  right: calc(100% + 4px);
 }
 
 /* Sidebar hidden: drop only the sidebar column; the rail stays. */
@@ -1678,6 +1680,15 @@ button.quota-meter:hover {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
   padding: 6px;
   z-index: 20;
+}
+
+/* Bottom-rail flyouts (Accounts, Settings) open to the RIGHT of the rail,
+   bottom-aligned with the buttons — like VS Code's activity-bar menus — rather
+   than stacked above them. Scoped to the bottom rail so the base .popover
+   (shared by 10 other menus) is unaffected. */
+.activity-bar-bottom .popover {
+  bottom: 6px;
+  left: calc(100% + 4px);
 }
 
 .popover-title {
