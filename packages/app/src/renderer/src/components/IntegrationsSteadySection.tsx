@@ -40,11 +40,11 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
     };
   }, [view, hostRefreshNonce, root]);
 
-  // Absent/unauthed integrations are shown (rather than hidden) as a full-width
-  // action button -- matching the "Connect Neon"/"Connect Render" buttons -- so a
-  // missing or unconnected CLI reads as actionable, not broken. A `.btn` stretches
-  // to full width as a flex child of `.databases`. The button RUNS the install/
-  // connect command in a new terminal (user-initiated; nothing background-runs).
+  // Absent/unauthed integrations are shown (rather than hidden) as a .sb-card
+  // with an explainer + a full-width primary CTA -- matching the carded
+  // "Connect Neon"/"Connect Render" states -- so a missing or unconnected CLI
+  // reads as actionable, not broken. The button RUNS the install/connect
+  // command in a new terminal (user-initiated; nothing background-runs).
   if (items.length === 0) return null;
 
   return (
@@ -52,10 +52,13 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
       {items.map((s) => {
         if (s.status === "absent") {
           return (
-            <div key={s.id} className="section-toolbar">
+            <div key={s.id} className="sb-card">
+              <span className="section-note">
+                {s.name} CLI isn't installed.
+              </span>
               <button
                 type="button"
-                className="btn"
+                className="btn primary"
                 title={s.install?.command}
                 onClick={() => {
                   const c = s.install?.command;
@@ -69,10 +72,13 @@ export function IntegrationsSteadySection({ view }: { view: string }) {
         }
         if (s.status === "unauthed") {
           return (
-            <div key={s.id} className="section-toolbar">
+            <div key={s.id} className="sb-card">
+              <span className="section-note">
+                Sign in to {s.name} to see its resources.
+              </span>
               <button
                 type="button"
-                className="btn"
+                className="btn primary"
                 title={s.connect?.command}
                 onClick={() => {
                   const c = s.connect?.command;

@@ -261,13 +261,18 @@ export function NeonSection() {
   if (!account) {
     return (
       <div className="databases">
-        <button
-          type="button"
-          className="btn"
-          onClick={() => useApp.getState().setModal("connect-neon")}
-        >
-          {accounts.length > 0 ? "Pick a Neon account" : "Connect Neon"}
-        </button>
+        <div className="sb-card">
+          <span className="section-note">
+            Connect a Neon account to browse its projects and branches.
+          </span>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => useApp.getState().setModal("connect-neon")}
+          >
+            {accounts.length > 0 ? "Pick a Neon account" : "Connect Neon"}
+          </button>
+        </div>
       </div>
     );
   }
