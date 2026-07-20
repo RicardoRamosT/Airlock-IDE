@@ -104,6 +104,7 @@ const DEFAULT_PREFS: AppPrefs = {
   },
   quotaMeter: { enabled: false },
   dockStatus: { enabled: false },
+  githubAutoSwitch: true,
   runAppSkill: { enabled: true },
   eventLog: { enabled: true, minLevel: "debug" },
   defaultTerminal: "airlock",

@@ -72,6 +72,7 @@ const DEFAULTS: AppPrefs = {
   runAppSkill: { enabled: true },
   eventLog: { enabled: true, minLevel: "debug" as Level },
   claudeAutoStart: "first",
+  githubAutoSwitch: true,
   defaultTerminal: "airlock",
   restoreSession: true,
 };
@@ -180,6 +181,12 @@ function sanitizeDockStatus(raw: unknown): { enabled: boolean } {
 // runAppSkill is app-global and ON by default. A real boolean `enabled` (incl.
 // explicit false to turn it off) is honored; anything else (absent, partial,
 // wrong type) -> enabled.
+// githubAutoSwitch is app-global and ON by default. A real boolean (incl.
+// explicit false) is honored; anything else (absent, wrong type) -> true.
+function sanitizeGithubAutoSwitch(raw: unknown): boolean {
+  return typeof raw === "boolean" ? raw : true;
+}
+
 function sanitizeRunAppSkill(raw: unknown): { enabled: boolean } {
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
@@ -276,6 +283,7 @@ function sanitize(raw: unknown): AppPrefs {
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
     dockStatus: sanitizeDockStatus(r.dockStatus),
+    githubAutoSwitch: sanitizeGithubAutoSwitch(r.githubAutoSwitch),
     runAppSkill: sanitizeRunAppSkill(r.runAppSkill),
     eventLog: sanitizeEventLog(r.eventLog),
     claudeAutoStart: CLAUDE_AUTO_MODES.includes(

@@ -310,6 +310,8 @@ export interface AppState {
   setDockStatusEnabled: (v: boolean) => void;
   runAppSkillEnabled: boolean;
   setRunAppSkillEnabled: (v: boolean) => void;
+  githubAutoSwitch: boolean;
+  setGithubAutoSwitch: (v: boolean) => void;
   anthropicStatus: AnthropicStatus | null;
   setAnthropicStatus: (s: AnthropicStatus) => void;
   update: UpdateStatus | null;
@@ -788,6 +790,8 @@ export const useApp = create<AppState>((set) => ({
   setDockStatusEnabled: (v) => set({ dockStatusEnabled: v }),
   runAppSkillEnabled: true,
   setRunAppSkillEnabled: (v) => set({ runAppSkillEnabled: v }),
+  githubAutoSwitch: true,
+  setGithubAutoSwitch: (v) => set({ githubAutoSwitch: v }),
   anthropicStatus: null,
   setAnthropicStatus: (s) => set({ anthropicStatus: s }),
   update: null,

@@ -21,6 +21,7 @@ export function usePrefs(): void {
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const setDockStatusEnabled = useApp((s) => s.setDockStatusEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
+  const setGithubAutoSwitch = useApp((s) => s.setGithubAutoSwitch);
   const setExtensionsPrefs = useApp((s) => s.setExtensionsPrefs);
   const theme = useApp((s) => s.theme);
 
@@ -52,6 +53,7 @@ export function usePrefs(): void {
         setQuotaMeterEnabled(p.quotaMeter.enabled);
         setDockStatusEnabled(p.dockStatus.enabled);
         setRunAppSkillEnabled(p.runAppSkill.enabled);
+        setGithubAutoSwitch(p.githubAutoSwitch);
         setExtensionsPrefs(p.extensions ?? {});
         useApp.getState().setLayoutHydrated(true);
       })
@@ -76,6 +78,7 @@ export function usePrefs(): void {
     setQuotaMeterEnabled,
     setDockStatusEnabled,
     setRunAppSkillEnabled,
+    setGithubAutoSwitch,
     setExtensionsPrefs,
   ]);
 
