@@ -847,6 +847,57 @@ body,
   text-decoration: underline;
 }
 
+/* A bordered, rounded callout container for status / empty / connect states
+   (NOT list rows). Its lone button stretches full-width, like VS Code's
+   "Get started" card CTA. Compact padding keeps the sidebar's density. */
+.sb-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 10px 12px;
+  margin-bottom: var(--sb-block-gap);
+}
+.sb-card .section-note {
+  padding: 0;
+}
+.sb-card .btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* A sub-section header inside a view (e.g. the Extension Hub's status buckets):
+   an uppercase label plus an optional count badge. Same type as the view title
+   so the sidebar reads as one system. */
+.sb-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--sb-row-gap);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+/* A small count pill after a section-head label, e.g. "Connected · 3". */
+.sb-badge {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--fg-dim);
+  letter-spacing: 0;
+}
+
 /* Fill the section body: without this the tree's height collapses to its rows
    and the visually empty space below the last row belongs to the scroll parent
    (.sidebar-view-body), making the background affordances -- drop-to-root
@@ -3218,8 +3269,16 @@ textarea:focus-visible {
 /* Separate the stacked Databases-view groups (Neon, the integrations panel, the
    secrets/databases list) so they read as distinct sections instead of one
    piled-up block. */
-.sidebar-view-body > .databases + .databases {
-  margin-top: 14px;
+/* Crisp separation between stacked sub-sections in composed views (Host =
+   Local + Render + Azure; Databases = Neon + Snowflake + …). `+` only matches
+   present siblings, so a section that renders null adds no stray divider. */
+.sidebar-view-body > .databases + .databases,
+.sidebar-view-body > .databases + .docker,
+.sidebar-view-body > .docker + .databases,
+.sidebar-view-body > .docker + .docker {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 /* Row header: the expand button (.db-row) plus a hover-revealed Remove button. */
