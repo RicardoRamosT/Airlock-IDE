@@ -1812,10 +1812,40 @@ button.quota-meter:hover {
 .identity-warning {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 5px;
   font-size: 11px;
   color: #d29922;
   padding: 4px 6px;
+}
+.identity-warning .section-toolbar {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+/* Per-project account pin control + the auto-switch toggle in the accounts
+   popover. Full-width primary CTA for the pin, matching the sidebar cards. */
+.account-pin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  padding: 4px 6px 2px;
+}
+.account-pin .btn {
+  width: 100%;
+  justify-content: center;
+}
+.account-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.account-toggle input {
+  cursor: pointer;
 }
 
 /* Click-away backdrop: transparent full-screen layer that closes an open

@@ -25,6 +25,7 @@ import { TerminalSlotsProvider } from "./lib/terminalSlots";
 import { useAgentCommands } from "./lib/useAgentCommands";
 import { useAnthropicStatus } from "./lib/useAnthropicStatus";
 import { useFsWatch } from "./lib/useFsWatch";
+import { useGithubFocusSync } from "./lib/useGithubFocusSync";
 import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
 import { usePrefs } from "./lib/usePrefs";
@@ -45,6 +46,7 @@ export function App() {
   useQuota();
   useAnthropicStatus();
   useUpdate();
+  useGithubFocusSync();
   const modal = useApp((s) => s.modal);
   const activeTabId = useApp((s) => s.activeTabId);
   const searchOpen = useApp((s) => s.searchOpen);
