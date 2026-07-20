@@ -120,7 +120,10 @@ export function ExtensionsSection() {
     <div className="databases">
       {BUCKET_ORDER.filter((b) => groups[b].length > 0).map((bucket) => (
         <div key={bucket} className="db-entry">
-          <div className="section-note">{bucket}</div>
+          <div className="sb-section-head">
+            <span>{bucket}</span>
+            <span className="sb-badge">{groups[bucket].length}</span>
+          </div>
           {groups[bucket].map((s) => {
             const enabled = prefs[s.id]?.enabled ?? s.enabled;
             const pinned = prefs[s.id]?.pinned ?? s.pinned;

@@ -165,6 +165,19 @@ it("offers no eye control for a category-less integration", async () => {
   ).toBeNull();
 });
 
+it("shows a count badge on each bucket header", async () => {
+  mockApi([
+    summary({ id: "a", name: "A", category: "host", status: "ready" }),
+    summary({ id: "b", name: "B", category: "host", status: "ready" }),
+    summary({ id: "c", name: "C", status: "unauthed" }),
+  ]);
+  const { container } = render(<ExtensionsSection />);
+  await screen.findByText("Connected");
+  const heads = Array.from(container.querySelectorAll(".sb-section-head"));
+  const connected = heads.find((h) => h.textContent?.startsWith("Connected"));
+  expect(connected?.querySelector(".sb-badge")?.textContent).toBe("2");
+});
+
 it("shows an empty-state note when there are no integrations", async () => {
   mockApi([]);
   const { container } = render(<ExtensionsSection />);
