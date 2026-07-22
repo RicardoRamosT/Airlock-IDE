@@ -163,8 +163,10 @@ export interface ToolDeps {
   getProjectInfo: (root: string) => Promise<unknown>;
   // Managed dev-server deps for start_dev_server/stop_dev_server: status
   // metadata only (status/url/port/terminalId/command/startedBy/exitCode) --
-  // never a secret value. start takes no arbitrary command: it runs only the
-  // project's CONFIGURED devCommand (manager enforces this). startedBy is
+  // never a secret value. start takes no arbitrary command: it runs the
+  // project's dev command -- the configured cfg.devCommand, or the command
+  // resolved from the project's OWN package.json (never an agent-supplied
+  // command); needsCommand only when nothing is derivable. startedBy is
   // always "agent" for the MCP tool path (never caller-supplied).
   getDevServerState: (root: string) => DevServerState;
   startDevServer: (
@@ -794,15 +796,16 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
   // --- Managed dev-server tools -------------------------------------------
   // Both tools return only dev-server metadata (status/url/port/terminalId/
   // command/startedBy/exitCode) -- NEVER a secret value. start_dev_server
-  // takes NO arbitrary-command argument: it runs only the project's CONFIGURED
-  // cfg.devCommand (the manager enforces this and returns needsCommand when
-  // unset). This matches the security invariant for all other tools here.
+  // takes NO arbitrary-command argument: it runs the project's dev command --
+  // the configured cfg.devCommand, or the command resolved from the project's
+  // OWN package.json (never an agent-supplied command); it returns needsCommand
+  // only when nothing is derivable. This matches the security invariant here.
 
   mcp.registerTool(
     "start_dev_server",
     {
       description:
-        "Start this project's local dev server — ALWAYS use this to run, boot, or \"turn on\" the app locally. Do NOT run `npm run dev` (or the dev command) yourself in a terminal, and do NOT detach/background it to keep it alive: this tool runs the command in a SEPARATE AirLock-owned terminal that already survives across turns (it is NOT a background task the environment will SIGTERM) and that the IDE shows and manages (status, Stop/Restart). A server you start by hand is invisible and unmanaged here, and a detached one cannot be detected at all. If a dev server is ALREADY running but was not started through this tool, offer to stop it and start it here so the IDE can manage it. Runs only the project's configured dev command; returns status metadata (status/url/port) — never a secret value. If it returns needsCommand, ask the user to set the dev command in the Host section (do not fall back to a raw shell command).",
+        "Start this project's local dev server — ALWAYS use this to run, boot, or \"turn on\" the app locally. Do NOT run `npm run dev` (or the dev command) yourself in a terminal, and do NOT detach/background it to keep it alive: this tool runs the command in a SEPARATE AirLock-owned terminal that already survives across turns (it is NOT a background task the environment will SIGTERM) and that the IDE shows and manages (status, Stop/Restart). A server you start by hand is invisible and unmanaged here, and a detached one cannot be detected at all. If a dev server is ALREADY running but was not started through this tool, offer to stop it and start it here so the IDE can manage it. Starts the project's dev command — the one configured in Host, or otherwise the command resolved from the project's own package.json (e.g. `npm run dev`); returns status metadata (status/url/port) — never a secret value. It returns needsCommand ONLY when no command can be resolved (no package.json, or no dev/start script); only then, ask the user to set the dev command in the Host section (do not fall back to a raw shell command).",
     },
     async () => {
       const root = deps.getWorkspaceRoot();

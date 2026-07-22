@@ -195,9 +195,12 @@ async function resolveCommand(root: string): Promise<string | null> {
   return resolveDevCommand(cfg, pkgJson, lockfiles);
 }
 
-// Start: only a CONFIGURED cfg.devCommand runs. An unset command yields a
-// needs-command result carrying the guess (the UI confirms+persists it; the
-// agent surfaces it). Idempotent while active.
+// Start: a CONFIGURED cfg.devCommand runs for either caller. With no configured
+// command, the AGENT path falls back to the resolved guess (the project's own
+// <pm> run dev|start) and runs it -- zero-touch; the USER path returns a
+// needs-command result carrying the guess for the UI's confirm-once prompt.
+// needsCommand reaches the agent only when no command is derivable at all.
+// Idempotent while active.
 export async function startDevServer(
   root: string,
   startedBy: "user" | "agent",
@@ -207,8 +210,19 @@ export async function startDevServer(
     return { ok: true, state: cur };
   const cfg = await readProjectConfig(root);
   const command = cfg.devCommand?.trim() ?? null;
-  if (!command)
-    return { ok: false, needsCommand: true, guess: await resolveCommand(root) };
+  if (!command) {
+    // No human-blessed command. The agent path (owner asked for zero-touch
+    // start) runs the resolved guess -- derived from the project's OWN
+    // package.json, never an agent-supplied command; the guess stays ephemeral
+    // (NOT persisted). The user/UI path is unchanged: return the guess for the
+    // confirm-once prompt (which persists it via setDevServerCommand).
+    const guess = await resolveCommand(root);
+    if (startedBy === "agent" && guess) {
+      await getDeps().runStart(guess, "agent");
+      return { ok: true, state: get(root) };
+    }
+    return { ok: false, needsCommand: true, guess };
+  }
   // Ask the renderer to open a dev terminal + run the command; it calls
   // registerDevServer once the pty adopts (so state is 'starting' by return).
   await getDeps().runStart(command, startedBy);
