@@ -151,6 +151,10 @@ export function createWindow(): BrowserWindow {
       sandbox: true,
       nodeIntegration: false,
       plugins: true,
+      // Keep painting while unfocused/backgrounded so webContents.capturePage()
+      // (the capture_screenshot MCP tool) returns the CURRENT frame -- throttled
+      // renderers return stale frames when the agent drives from a terminal.
+      backgroundThrottling: false,
     },
   });
 

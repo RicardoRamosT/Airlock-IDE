@@ -201,7 +201,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(34);
+    expect(names).toHaveLength(36);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {

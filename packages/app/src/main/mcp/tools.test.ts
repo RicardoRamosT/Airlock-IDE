@@ -70,6 +70,9 @@ function fakeServer(): { mcp: McpServer; tools: Recorded[] } {
 const baseDeps = {
   prefsFile: "/tmp/airlock-test-prefs.json",
   getWorkspaceRoot: () => null as string | null,
+  selfVerifyEnabled: vi.fn(async () => false),
+  captureScreenshot: vi.fn(async () => null as string | null),
+  setPref: vi.fn(async () => ({ ok: true }) as { ok: boolean; error?: string }),
   getBaseEnv: () => ({}) as Record<string, string>,
   requestSecretFromUser: vi.fn(async () => ({ vaulted: true })),
   // Terminal deps now take root as the third/first param (scoped to calling
@@ -169,13 +172,13 @@ describe("registerTools allowlist guard", () => {
   // twenty-nine allowlisted tools (twenty read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the thirty-four allowlisted tools and nothing else", () => {
+  it("registers exactly the thirty-six allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(34);
+    expect(registered).toHaveLength(36);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");
@@ -1029,5 +1032,55 @@ describe("list_secret_names tool", () => {
       root: "/repo",
       secrets: [],
     });
+  });
+});
+
+describe("self-verification tools gate on selfVerify", () => {
+  function getTool(name: string, deps = baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const t = tools.find((x) => x.name === name);
+    if (!t) throw new Error(`${name} not registered`);
+    return t.handler;
+  }
+
+  it("capture_screenshot + set_pref refuse when self-verify is off", async () => {
+    const shot = (await getTool("capture_screenshot")({})) as {
+      isError?: boolean;
+    };
+    expect(shot.isError).toBe(true);
+    const pref = (await getTool("set_pref")({
+      key: "quotaMeter",
+      value: { enabled: true },
+    })) as { isError?: boolean };
+    expect(pref.isError).toBe(true);
+  });
+
+  it("capture_screenshot returns image content when enabled", async () => {
+    const handler = getTool("capture_screenshot", {
+      ...baseDeps,
+      selfVerifyEnabled: vi.fn(async () => true),
+      captureScreenshot: vi.fn(async () => "AAAA"),
+    });
+    const res = (await handler({})) as {
+      content: { type: string; data?: string }[];
+    };
+    expect(res.content[0]?.type).toBe("image");
+    expect(res.content[0]?.data).toBe("AAAA");
+  });
+
+  it("set_pref forwards to deps.setPref when enabled", async () => {
+    const setPref = vi.fn(async () => ({ ok: true }));
+    const handler = getTool("set_pref", {
+      ...baseDeps,
+      selfVerifyEnabled: vi.fn(async () => true),
+      setPref,
+    });
+    const res = (await handler({
+      key: "quotaMeter",
+      value: { enabled: true },
+    })) as { isError?: boolean };
+    expect(setPref).toHaveBeenCalledWith("quotaMeter", { enabled: true });
+    expect(res.isError).toBeUndefined();
   });
 });
