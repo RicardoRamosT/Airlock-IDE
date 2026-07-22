@@ -432,8 +432,19 @@ export function LocalHostSection() {
         <div className="section-note">
           A server is running here, but AirLock didn&rsquo;t start it and
           can&rsquo;t confirm it&rsquo;s this project&rsquo;s — so it
-          can&rsquo;t manage it. To let AirLock Stop/Restart it, restart it
-          through AirLock (e.g. ask &ldquo;in airlock, restart the app&rdquo;).
+          can&rsquo;t Stop/Restart it. Start runs this project&rsquo;s dev
+          server through AirLock so it can manage it (if this port is taken,
+          your dev command picks another).
+        </div>
+        <div className="section-toolbar">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void onStart()}
+            title="Start this project's dev server through AirLock (managed)"
+          >
+            Start
+          </button>
         </div>
       </div>
     );

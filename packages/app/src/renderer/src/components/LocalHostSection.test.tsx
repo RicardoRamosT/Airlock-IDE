@@ -55,6 +55,29 @@ it("shows a Start button on a down dev-URL host and wires it to start", async ()
   expect(devServerStart).toHaveBeenCalledWith("/fake/root");
 });
 
+it("shows a Start button on an unverified server and wires it to start", async () => {
+  const devServerStart = vi.fn(() =>
+    Promise.resolve({ ok: true as const, state: {} }),
+  );
+  (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+    hostLocalUrl: vi.fn(() => Promise.resolve(null)),
+    hostProbe: vi.fn(() => Promise.resolve({ up: false })),
+    devServerDetectUnmanaged: vi.fn(() => Promise.resolve(null)),
+    hostUnverifiedServers: vi.fn(() => Promise.resolve([3000])),
+    devServerStatus: vi.fn(() => Promise.resolve(null)),
+    onDevServerChanged: vi.fn(() => () => {}),
+    devServerStart,
+    hostOpenExternal: vi.fn(),
+  };
+  seedRoot();
+  render(<LocalHostSection />);
+  // The unverified row renders once the async scan resolves.
+  expect(await screen.findByText(/· unverified/)).toBeTruthy();
+  const start = await screen.findByRole("button", { name: "Start" });
+  fireEvent.click(start);
+  expect(devServerStart).toHaveBeenCalledWith("/fake/root");
+});
+
 it("shows no Start button when the dev-URL host is reachable", async () => {
   stubHost({ url: "http://localhost:3004", up: true });
   seedRoot();
