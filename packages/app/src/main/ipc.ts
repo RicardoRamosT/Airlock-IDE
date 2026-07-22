@@ -110,6 +110,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { reconcileDockStatus } from "./dockstatus/wire";
+import { toRendererErrorEvent } from "./eventlog/rendererError";
 import { emitEvent, queryEvents } from "./eventlog/wire";
 import { normalizeTeamId, runBrokerFlow } from "./extensions/oauth/broker";
 import {
@@ -887,6 +888,24 @@ export function registerIpc(
   // (async, serialized, best-effort) and hold it for the synchronous quit flush.
   // App-global (NOT root-gated). Value-free: roots + booleans only.
   ipcMain.handle("session:get", () => readSession(sessionFile()));
+  // Renderer-reported errors (window.onerror / unhandledrejection) -> the event
+  // log, so read_events surfaces frontend crashes too. Fire-and-forget.
+  ipcMain.on("events:report", (_e, p: unknown) => {
+    if (!p || typeof p !== "object") return;
+    const r = p as Record<string, unknown>;
+    const kind =
+      r.kind === "unhandledrejection" ? "unhandledrejection" : "error";
+    emitEvent(
+      toRendererErrorEvent({
+        kind,
+        message: typeof r.message === "string" ? r.message : "unknown error",
+        source: typeof r.source === "string" ? r.source : undefined,
+        line: typeof r.line === "number" ? r.line : undefined,
+        col: typeof r.col === "number" ? r.col : undefined,
+        stack: typeof r.stack === "string" ? r.stack : undefined,
+      }),
+    );
+  });
   ipcMain.on("session:save", (_e, snap: SessionSnapshot) => {
     latestSnapshot = snap;
     void writeSession(sessionFile(), snap); // async, serialized, best-effort

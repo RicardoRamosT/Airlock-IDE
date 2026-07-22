@@ -674,6 +674,16 @@ export interface AirlockApi {
   // keeps the latest for the synchronous quit flush. Value-free (roots+booleans).
   sessionGet(): Promise<SessionSnapshot | null>;
   sessionSave(snap: SessionSnapshot): void;
+  // Report a renderer runtime error (window.onerror / unhandledrejection) to the
+  // main event log so read_events surfaces frontend crashes too. Fire-and-forget.
+  reportRendererError(p: {
+    kind: "error" | "unhandledrejection";
+    message: string;
+    source?: string;
+    line?: number;
+    col?: number;
+    stack?: string;
+  }): void;
   openFile(): Promise<string | null>;
   onMenuAction(cb: (a: MenuAction) => void): () => void;
   // Per-project methods below take a leading `root` (the calling pane's): two
