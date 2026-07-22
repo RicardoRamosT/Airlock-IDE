@@ -1,5 +1,5 @@
 // Pure mapping of the Anthropic Statuspage summary onto a friendly indicator.
-// Source shape (status.anthropic.com/api/v2/status.json):
+// Source shape (status.claude.com/api/v2/status.json):
 //   { status: { indicator: "none"|"minor"|"major"|"critical"|"maintenance",
 //               description: string } }
 export type AnthropicIndicator =

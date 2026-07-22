@@ -69,11 +69,9 @@ export function StatusBar() {
           <button
             type="button"
             className="statusbar-item statusbar-status"
-            title={`${anthropicStatus.description || "Anthropic status"} — opens status.anthropic.com`}
+            title={`${anthropicStatus.description || "Anthropic status"} — opens status.claude.com`}
             onClick={() =>
-              void window.airlock.hostOpenExternal(
-                "https://status.anthropic.com",
-              )
+              void window.airlock.hostOpenExternal("https://status.claude.com")
             }
           >
             <span className={dotClass(anthropicStatus.indicator)} />

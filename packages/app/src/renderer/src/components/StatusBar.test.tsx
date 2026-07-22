@@ -37,7 +37,7 @@ it("shows the Claude status label and opens the status page on click", () => {
   useApp.setState({ anthropicStatus: status("operational") });
   const { getByText } = render(<StatusBar />);
   fireEvent.click(getByText(/Claude:/));
-  expect(hostOpenExternal).toHaveBeenCalledWith("https://status.anthropic.com");
+  expect(hostOpenExternal).toHaveBeenCalledWith("https://status.claude.com");
 });
 
 it("renders the indicator word for each state", () => {

@@ -8,7 +8,7 @@ describe("fetchAnthropicStatus", () => {
     }));
     const result = await fetchAnthropicStatus({ transport: { get } });
     expect(get).toHaveBeenCalledWith(
-      "https://status.anthropic.com/api/v2/status.json",
+      "https://status.claude.com/api/v2/status.json",
     );
     expect(result).toEqual({ indicator: "degraded", description: "Degraded" });
   });
