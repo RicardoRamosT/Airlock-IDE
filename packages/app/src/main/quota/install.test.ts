@@ -21,6 +21,7 @@ beforeEach(async () => {
     outPath: path.join(dir, "rate-limits.json"),
     ledgerPath: path.join(dir, "usage-ledger.json"),
     emitScript: "/fake/Resources/statusline-emit.sh",
+    dockLiveDir: path.join(dir, "dockstatus", "live"),
   };
 });
 
@@ -57,6 +58,9 @@ it("installs into an empty settings dir with a shell-sourceable config (prior em
   const cfg = await readFile(paths.emitConfigPath, "utf8");
   expect(cfg).toContain(`OUT='${paths.outPath}'`);
   expect(cfg).toMatch(/PRIOR=''/); // no prior -> empty
+  // Dock-liveness target: the emitter writes here only when the dir exists (dock
+  // feature on), so it is inert for quota-only users.
+  expect(cfg).toContain(`DOCK_LIVE_DIR='${paths.dockLiveDir}'`);
   expect((await readJson(paths.bookkeepingPath)).installed).toBe(true);
 });
 

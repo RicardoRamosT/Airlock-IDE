@@ -1,5 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,11 +28,15 @@ afterEach(() => {
 
 // Write the shell-sourceable config (OUT/PRIOR) the way install.ts does, then run
 // the emitter via /bin/sh with `input` on stdin.
-function run(input: string, opts: { out?: string; prior?: string }) {
+function run(
+  input: string,
+  opts: { out?: string; prior?: string; dockLiveDir?: string },
+) {
   const cfgPath = path.join(dir, "cfg.sh");
   writeFileSync(
     cfgPath,
-    `OUT='${opts.out ?? ""}'\nPRIOR='${opts.prior ?? ""}'\n`,
+    `OUT='${opts.out ?? ""}'\nPRIOR='${opts.prior ?? ""}'\n` +
+      `DOCK_LIVE_DIR='${opts.dockLiveDir ?? ""}'\n`,
   );
   return spawnSync("/bin/sh", [EMIT, cfgPath], { input, encoding: "utf8" });
 }
@@ -53,4 +64,29 @@ it("does not crash when the config file is missing", () => {
     encoding: "utf8",
   });
   expect(r.status).toBe(0);
+});
+
+it("stamps a per-session dock liveness file when the live dir exists", () => {
+  const out = path.join(dir, "rate-limits.json");
+  const live = path.join(dir, "live");
+  mkdirSync(live);
+  const sid = "abc-123.def";
+  const payload = JSON.stringify({ session_id: sid, rate_limits: {} });
+  const r = run(payload, { out, dockLiveDir: live });
+  expect(r.status).toBe(0);
+  const f = path.join(live, sid);
+  expect(existsSync(f)).toBe(true);
+  expect(readFileSync(f, "utf8").trim()).toMatch(/^\d+$/); // an epoch second
+  // quota siphon still happened alongside it
+  expect(readFileSync(out, "utf8")).toBe(payload);
+});
+
+it("writes NO liveness when the live dir is absent (dock feature off)", () => {
+  const out = path.join(dir, "rate-limits.json");
+  const live = path.join(dir, "live-absent"); // intentionally never created
+  const payload = JSON.stringify({ session_id: "x", rate_limits: {} });
+  const r = run(payload, { out, dockLiveDir: live });
+  expect(r.status).toBe(0);
+  expect(existsSync(live)).toBe(false); // the [ -d ] guard held; nothing created
+  expect(readFileSync(out, "utf8")).toBe(payload); // siphon unaffected
 });

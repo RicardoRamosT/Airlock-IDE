@@ -10,7 +10,8 @@ export interface DockStatusPaths {
   settingsPath: string; // ~/.claude/settings.json
   bookkeepingPath: string; // <userData>/dockstatus/install.json
   emitConfigPath: string; // <userData>/dockstatus/emit-config.sh (sourced by the emitter)
-  sessionsDir: string; // <userData>/dockstatus/sessions
+  sessionsDir: string; // <userData>/dockstatus/sessions (hook-written PHASE files)
+  liveDir: string; // <userData>/dockstatus/live (statusLine-written LIVENESS files)
   emitScript: string; // absolute path to airlock-dock-status.sh
 }
 
@@ -92,9 +93,19 @@ export async function installDockStatusHooks(
   settings.hooks = hooks;
   await writeJsonAtomic(p.settingsPath, settings);
   await mkdir(p.sessionsDir, { recursive: true });
+  // The live dir's mere EXISTENCE is what tells the quota statusLine emitter to
+  // write per-session liveness heartbeats into it (the emitter guards on
+  // `[ -d ]`). Creating it here / removing it on uninstall is how the dock
+  // feature switches that heartbeat on and off without the quota pipeline needing
+  // to know our pref -- see statusline-emit.sh.
+  await mkdir(p.liveDir, { recursive: true });
+  // DIR = where hooks write PHASE files; LIVE = where the SessionEnd hook clears
+  // this session's liveness file (the emitter writes it, we remove it on end).
   await writeTextAtomic(
     p.emitConfigPath,
-    `# AirLock dock-status hook config -- sourced by airlock-dock-status.sh\nDIR=${shQuote(p.sessionsDir)}\n`,
+    `# AirLock dock-status hook config -- sourced by airlock-dock-status.sh\n` +
+      `DIR=${shQuote(p.sessionsDir)}\n` +
+      `LIVE=${shQuote(p.liveDir)}\n`,
   );
   await writeJsonAtomic(p.bookkeepingPath, { installed: true });
 }
@@ -118,6 +129,9 @@ export async function uninstallDockStatusHooks(
     await writeJsonAtomic(p.settingsPath, settings);
   }
   await rm(p.emitConfigPath, { force: true });
+  // Remove the live dir so the quota statusLine emitter stops writing heartbeats
+  // (its `[ -d "$DOCK_LIVE_DIR" ]` guard goes false).
+  await rm(p.liveDir, { recursive: true, force: true });
   await writeJsonAtomic(p.bookkeepingPath, { installed: false });
 }
 

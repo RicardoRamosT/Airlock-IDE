@@ -25,6 +25,10 @@ export function quotaPaths(): QuotaPaths {
     outPath: path.join(quotaDir, "rate-limits.json"),
     ledgerPath: path.join(quotaDir, "usage-ledger.json"),
     emitScript,
+    // Sibling of quotaDir; mirror of dockStatusPaths().liveDir (dockstatus/wire.ts).
+    // The statusLine emitter stamps per-session dock liveness here, but ONLY when
+    // this dir exists (the dock feature creates it while enabled).
+    dockLiveDir: path.join(app.getPath("userData"), "dockstatus", "live"),
   };
 }
 
