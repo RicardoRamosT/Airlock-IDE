@@ -177,6 +177,7 @@ import { reconcileQuotaMeter } from "./quota/wire";
 import { reconcileRunSkill } from "./runskill/wire";
 import { guardedCommit } from "./secrets/commit";
 import { sectionStatuses } from "./sectionStatus";
+import { reconcileSelfVerify } from "./selfverify/wire";
 import { readSession, writeSession } from "./session-store";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
@@ -945,6 +946,12 @@ export function registerIpc(
       const p = await loadPrefs(prefsFile);
       await reconcileRunSkill(p.runAppSkill.enabled).catch((e) =>
         console.warn("[airlock] run-app skill reconcile failed", e),
+      );
+    }
+    if ("selfVerify" in (patch as object)) {
+      const p = await loadPrefs(prefsFile);
+      await reconcileSelfVerify(p.selfVerify.enabled).catch((e) =>
+        console.warn("[airlock] self-verify skill reconcile failed", e),
       );
     }
     return publicPrefs(saved);

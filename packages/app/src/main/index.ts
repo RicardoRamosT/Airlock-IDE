@@ -57,6 +57,7 @@ import { loadPrefs, savePrefs } from "./prefs";
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
 import { reconcileRunSkill } from "./runskill/wire";
+import { reconcileSelfVerify } from "./selfverify/wire";
 import { startUpdateCheck, stopUpdateCheck } from "./update/check";
 import { allOpenRoots, createWindow } from "./window";
 
@@ -167,6 +168,11 @@ function bootstrap(): void {
     // Best-effort -- a failure to touch ~/.claude/skills must never break startup.
     await reconcileRunSkill(prefs.runAppSkill.enabled).catch((e) =>
       console.warn("[airlock] run-app skill wiring failed", e),
+    );
+    // Self-verification: install/remove the airlock-verify skill to match the
+    // opt-in pref. Best-effort -- never break startup.
+    await reconcileSelfVerify(prefs.selfVerify.enabled).catch((e) =>
+      console.warn("[airlock] self-verify skill wiring failed", e),
     );
     applyAppMenu(
       prefsFile,
