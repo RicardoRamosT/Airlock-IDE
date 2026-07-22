@@ -4,6 +4,7 @@ import type {
   AgentCommandResult,
   AirlockApi,
   AnthropicStatus,
+  AppPrefs,
   DevServerState,
   FsChangedEvent,
   LspDiagnostic,
@@ -222,6 +223,7 @@ const api: AirlockApi = {
     ipcRenderer.invoke("sections:set", id, visible),
   onSectionsChanged: (cb) =>
     subscribe<SectionVisibility>("sections:changed", cb),
+  onPrefsChanged: (cb) => subscribe<AppPrefs>("prefs:changed", cb),
   getAgentPolicy: () => ipcRenderer.invoke("agentPolicy:get"),
   setAgentPolicy: (policy) => ipcRenderer.invoke("agentPolicy:set", policy),
   onRequestSecret: (cb) =>

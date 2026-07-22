@@ -1004,6 +1004,9 @@ export interface AirlockApi {
     visible: boolean,
   ): Promise<SectionVisibility>;
   onSectionsChanged(cb: (v: SectionVisibility) => void): () => void;
+  // App-global prefs changed from the backend (e.g. the set_pref MCP tool); the
+  // renderer re-applies them live so the UI reflects the change without a restart.
+  onPrefsChanged(cb: (p: AppPrefs) => void): () => void;
   getAgentPolicy(): Promise<AgentCommandPolicy>;
   setAgentPolicy(policy: AgentCommandPolicy): Promise<AgentCommandPolicy>;
   // Agent-requested secret: main pushes agent:request-secret when the

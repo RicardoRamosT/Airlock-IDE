@@ -49,6 +49,8 @@ export function SettingsTab() {
   const setDockStatusEnabled = useApp((s) => s.setDockStatusEnabled);
   const runAppSkillEnabled = useApp((s) => s.runAppSkillEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
+  const selfVerifyEnabled = useApp((s) => s.selfVerifyEnabled);
+  const setSelfVerifyEnabled = useApp((s) => s.setSelfVerifyEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
   const restoreSession = useApp((s) => s.restoreSession);
@@ -379,6 +381,32 @@ export function SettingsTab() {
                 nothing when idle. Enabling installs AirLock-labeled hooks into{" "}
                 <code>~/.claude/settings.json</code> (any Claude session on this
                 Mac); turning it off removes them completely.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="self-verify">
+                  Let Claude verify AirLock (self-test tools)
+                </label>
+                <input
+                  id="self-verify"
+                  type="checkbox"
+                  checked={selfVerifyEnabled}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setSelfVerifyEnabled(v);
+                    void window.airlock.prefsSet({
+                      selfVerify: { enabled: v },
+                    });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Installs an <code>airlock-verify</code> skill and lets the
+                Claude you run inside AirLock drive the app, read its debug
+                event log, screenshot the UI, and toggle feature settings to
+                verify features end-to-end. Off by default. Screenshots can
+                capture whatever is on screen (including a revealed secret);
+                Claude can never change security settings.
               </p>
               <div className="settings-row">
                 <label htmlFor="run-app-skill">
