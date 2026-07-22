@@ -339,6 +339,13 @@ export {
   updateFetchTransport,
 } from "./update/client";
 export { chooseUpdateAction } from "./update/decide";
+export {
+  type DevManifest,
+  isLocalBuildNewer,
+  parseDevManifest,
+  pickUpdateSource,
+  type UpdateSource,
+} from "./update/devManifest";
 export { compareVersions, isNewer } from "./update/version";
 export {
   createDir,
