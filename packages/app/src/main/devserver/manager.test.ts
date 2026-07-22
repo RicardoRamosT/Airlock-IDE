@@ -1,5 +1,9 @@
+import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { DevServerState } from "@airlock/agent-core";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   _resetForTest,
   _setDepsForTest,
@@ -7,6 +11,7 @@ import {
   getDevServerState,
   onPtyExitForDevServer,
   registerDevServer,
+  startDevServer,
   stopDevServer,
 } from "./manager";
 
@@ -14,6 +19,7 @@ import {
 function makeFakeDeps() {
   const broadcasts: Array<{ root: string; state: DevServerState }> = [];
   const inputs: Array<{ ptyId: string; data: string }> = [];
+  const starts: Array<{ command: string; startedBy: "user" | "agent" }> = [];
   _setDepsForTest({
     broadcast(root, state) {
       broadcasts.push({ root, state });
@@ -22,11 +28,11 @@ function makeFakeDeps() {
       inputs.push({ ptyId, data });
       return true;
     },
-    async runStart(_command, _startedBy) {
-      // no-op in unit tests; the renderer path is not exercised here
+    async runStart(command, startedBy) {
+      starts.push({ command, startedBy });
     },
   });
-  return { broadcasts, inputs };
+  return { broadcasts, inputs, starts };
 }
 
 const ROOT = "/fake/project";
@@ -126,5 +132,59 @@ describe("manager container (smoke)", () => {
     const stopBroadcast = broadcasts.find((b) => b.state.status === "idle");
     expect(startBroadcast).toBeDefined();
     expect(stopBroadcast).toBeDefined();
+  });
+});
+
+// startDevServer reads .airlock/config.json and package.json from the ROOT, so
+// these tests use a real temp dir: no config file => devCommand unset (the
+// "no configured command" case), and the presence/shape of package.json drives
+// the resolved guess (resolveDevCommand: <pm> run dev|start, npm when no lockfile).
+describe("startDevServer command resolution", () => {
+  let dir: string;
+  let deps: ReturnType<typeof makeFakeDeps>;
+
+  beforeEach(async () => {
+    _resetForTest();
+    deps = makeFakeDeps();
+    dir = await mkdtemp(path.join(tmpdir(), "airlock-devserver-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("agent start with no configured command runs the resolved guess", async () => {
+    await writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ scripts: { dev: "vite" } }),
+    );
+    const r = await startDevServer(dir, "agent");
+    expect(r.ok).toBe(true);
+    expect(deps.starts).toEqual([
+      { command: "npm run dev", startedBy: "agent" },
+    ]);
+    // Ephemeral: the agent guess is NOT persisted to project config.
+    expect(existsSync(path.join(dir, ".airlock", "config.json"))).toBe(false);
+  });
+
+  it("agent start with no resolvable command returns needsCommand and runs nothing", async () => {
+    // No package.json in the temp dir => resolveDevCommand returns null.
+    const r = await startDevServer(dir, "agent");
+    expect(r).toEqual({ ok: false, needsCommand: true, guess: null });
+    expect(deps.starts).toEqual([]);
+  });
+
+  it("user start with no configured command returns needsCommand + guess (no auto-run)", async () => {
+    await writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ scripts: { dev: "vite" } }),
+    );
+    const r = await startDevServer(dir, "user");
+    expect(r).toEqual({
+      ok: false,
+      needsCommand: true,
+      guess: "npm run dev",
+    });
+    expect(deps.starts).toEqual([]);
   });
 });
