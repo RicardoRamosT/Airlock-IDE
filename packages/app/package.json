@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "package": "electron-vite build && electron-builder --dir && node build/sign-airlock.cjs",
+    "package:dev": "AIRLOCK_DEV_UPDATE=1 electron-vite build && electron-builder --dir && node build/sign-airlock.cjs && node build/write-dev-manifest.cjs",
     "dist:mac": "electron-vite build && electron-builder --mac"
   },
   "build": {

@@ -12,7 +12,7 @@ import { access, constants, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { chooseUpdateAction } from "@airlock/agent-core";
+import { chooseUpdateAction, pickUpdateSource } from "@airlock/agent-core";
 import { app, BrowserWindow, shell } from "electron";
 import type { UpdateProgress } from "../../shared/ipc";
 import { getUpdate } from "./check";
@@ -82,7 +82,10 @@ export async function applyUpdate(): Promise<void> {
     emit({ phase: "error", message: "Updates only apply to the packaged app" });
     return;
   }
-  if (!u?.available || !u.dmgUrl) {
+  const source = u
+    ? pickUpdateSource({ localAppPath: u.localAppPath, dmgUrl: u.dmgUrl })
+    : null;
+  if (!u?.available || !source) {
     emit({ phase: "error", message: "No update available" });
     return;
   }
@@ -90,10 +93,17 @@ export async function applyUpdate(): Promise<void> {
   applying = true;
   let mountPoint: string | null = null;
   try {
-    const dmg = await downloadDmg(u.dmgUrl);
-    emit({ phase: "mounting" });
-    mountPoint = await mount(dmg);
-    const srcApp = path.join(mountPoint, "AirLock.app");
+    // Resolve the new bundle. Local dev channel: use the built .app directly (no
+    // download / mount). GitHub: download the DMG and mount it.
+    let srcApp: string;
+    if (source.kind === "local") {
+      srcApp = source.appPath;
+    } else {
+      const dmg = await downloadDmg(source.url);
+      emit({ phase: "mounting" });
+      mountPoint = await mount(dmg);
+      srcApp = path.join(mountPoint, "AirLock.app");
+    }
 
     // The running bundle: exe is <bundle>/Contents/MacOS/AirLock.
     const appBundle = path.resolve(app.getPath("exe"), "..", "..", "..");
@@ -103,40 +113,39 @@ export async function applyUpdate(): Promise<void> {
       .catch(() => false);
 
     if (chooseUpdateAction({ installDirWritable: writable }) === "reveal") {
-      await detach(mountPoint);
-      shell.showItemInFolder(dmg);
+      if (mountPoint) await detach(mountPoint);
+      shell.showItemInFolder(srcApp);
       emit({ phase: "revealed" });
       applying = false;
       return;
     }
 
     emit({ phase: "swapping" });
-    // Detached relaunch script: wait for THIS process to exit, replace the
-    // bundle, strip quarantine, detach, relaunch. Runs after app.quit().
+    // Detached relaunch script: wait for THIS process to exit, stage the new
+    // bundle as a sibling, strip quarantine, atomic mv swap, relaunch. Runs
+    // after app.quit().
     //
     // Copy the new bundle to a temp SIBLING first, then swap it in with `mv`
     // (an atomic rename within the same volume). This avoids the data-loss
     // window of an `rm` of the live bundle followed by a multi-second `cp`: if
     // the copy fails (disk full, mount lost, sleep/power-loss), the old bundle
     // is still intact and we exit non-zero rather than leaving NO app
-    // installed. The remaining rm->mv gap is a sub-millisecond rename.
+    // installed. The remaining rm->mv gap is a sub-millisecond rename. The
+    // hdiutil detach lines are included only when we mounted a DMG.
     const script = path.join(tmpdir(), "airlock-update.sh");
-    await writeFile(
-      script,
-      [
-        "#!/bin/bash",
-        `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.3; done`,
-        `staged="${appBundle}.new.$$"`,
-        `rm -rf "$staged"`,
-        `cp -R "${srcApp}" "$staged" || { hdiutil detach "${mountPoint}" 2>/dev/null; exit 1; }`,
-        `xattr -dr com.apple.quarantine "$staged" 2>/dev/null`,
-        `rm -rf "${appBundle}"`,
-        `mv "$staged" "${appBundle}"`,
-        `hdiutil detach "${mountPoint}" 2>/dev/null`,
-        `open "${appBundle}"`,
-      ].join("\n"),
-      { mode: 0o755 },
-    );
+    const lines = [
+      "#!/bin/bash",
+      `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.3; done`,
+      `staged="${appBundle}.new.$$"`,
+      `rm -rf "$staged"`,
+      `cp -R "${srcApp}" "$staged" || { ${mountPoint ? `hdiutil detach "${mountPoint}" 2>/dev/null; ` : ""}exit 1; }`,
+      `xattr -dr com.apple.quarantine "$staged" 2>/dev/null`,
+      `rm -rf "${appBundle}"`,
+      `mv "$staged" "${appBundle}"`,
+    ];
+    if (mountPoint) lines.push(`hdiutil detach "${mountPoint}" 2>/dev/null`);
+    lines.push(`open "${appBundle}"`);
+    await writeFile(script, lines.join("\n"), { mode: 0o755 });
     const child = spawn("/bin/bash", [script], {
       detached: true,
       stdio: "ignore",

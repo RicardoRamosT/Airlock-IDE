@@ -401,6 +401,9 @@ export interface UpdateStatus {
   latestVersion: string | null;
   htmlUrl: string | null;
   dmgUrl: string | null;
+  // Dev channel only: absolute path to a locally built AirLock.app. null on the
+  // GitHub path. Optional so existing constructors stay valid.
+  localAppPath?: string | null;
 }
 
 export type UpdateProgress =

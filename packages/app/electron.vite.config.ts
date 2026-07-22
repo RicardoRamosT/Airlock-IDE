@@ -3,6 +3,13 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 export default defineConfig({
   main: {
+    // Compile-time gate for the local dev self-update path. false in release
+    // (dead-code-eliminated); true only under `npm run package:dev`.
+    define: {
+      __AIRLOCK_DEV_UPDATE__: JSON.stringify(
+        process.env.AIRLOCK_DEV_UPDATE === "1",
+      ),
+    },
     // Bundle agent-core from TS source; keep the native module external.
     plugins: [externalizeDepsPlugin({ exclude: ["@airlock/agent-core"] })],
     // An explicit external array here OVERRIDES (does not merge with) the
