@@ -6,7 +6,9 @@ import {
 
 export type { AnthropicIndicator, ParsedAnthropicStatus };
 
-const STATUS_URL = "https://status.anthropic.com/api/v2/status.json";
+// status.anthropic.com now 302-redirects here; point straight at the new
+// domain so polling survives the old host eventually being retired.
+const STATUS_URL = "https://status.claude.com/api/v2/status.json";
 
 // DI transport so the HTTP edge is swappable in tests (mirrors render/client).
 export interface AnthropicStatusTransport {
