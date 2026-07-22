@@ -10,6 +10,8 @@ export interface QuotaPaths {
   outPath: string; // <userData>/quota/rate-limits.json (side-channel)
   ledgerPath: string; // <userData>/quota/usage-ledger.json (persisted Usage ledger)
   emitScript: string; // absolute path to statusline-emit.sh
+  dockLiveDir: string; // <userData>/dockstatus/live -- where the emitter stamps
+  // per-session dock liveness, but only while that dir exists (dock feature on)
 }
 
 // A statusLine command is OURS iff it references our emitter script. Matches both
@@ -119,7 +121,11 @@ export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
     p.emitConfigPath,
     `# AirLock quota statusLine config -- sourced by statusline-emit.sh\n` +
       `OUT=${shQuote(p.outPath)}\n` +
-      `PRIOR=${shQuote(priorCommand(prior))}\n`,
+      `PRIOR=${shQuote(priorCommand(prior))}\n` +
+      // Where the emitter stamps per-session dock liveness. It only writes when
+      // this dir exists, which the dock-status feature controls, so this path is
+      // harmless (and inert) whenever the dock badge is off.
+      `DOCK_LIVE_DIR=${shQuote(p.dockLiveDir)}\n`,
   );
   await writeJsonAtomic(p.bookkeepingPath, {
     installed: true,

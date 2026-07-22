@@ -13,6 +13,7 @@
 # argv: $1 = shell-sourceable config (DIR=<sessions dir>); $2 = state (working|done|gone)
 
 DIR=""
+LIVE=""
 [ -n "$1" ] && [ -f "$1" ] && . "$1"
 STATE="$2"
 
@@ -30,6 +31,8 @@ SID=$(printf '%s' "$SID" | tr -cd 'A-Za-z0-9._-')
 F="$DIR/$SID"
 if [ "$STATE" = "gone" ]; then
   rm -f "$F" 2>/dev/null
+  # Also drop this session's liveness heartbeat (written by the quota emitter).
+  [ -n "$LIVE" ] && rm -f "$LIVE/$SID" 2>/dev/null
 else
   mkdir -p "$DIR" 2>/dev/null
   t="$F.$$.tmp"

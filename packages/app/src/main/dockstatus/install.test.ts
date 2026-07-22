@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -19,10 +19,17 @@ beforeEach(async () => {
     bookkeepingPath: path.join(dir, "install.json"),
     emitConfigPath: path.join(dir, "emit-config.sh"),
     sessionsDir: path.join(dir, "sessions"),
+    liveDir: path.join(dir, "live"),
     emitScript: "/opt/AirLock/resources/airlock-dock-status.sh",
   };
 });
 afterEach(() => rm(dir, { recursive: true, force: true }));
+
+const exists = async (f: string) =>
+  access(f).then(
+    () => true,
+    () => false,
+  );
 
 const readSettings = async () =>
   JSON.parse(await readFile(p.settingsPath, "utf8")) as {
@@ -47,7 +54,13 @@ describe("installDockStatusHooks", () => {
       expect(cmd).toContain("# AirLock dock-status indicator");
     }
     expect(await isDockStatusInstalled(p)).toBe(true);
-    expect(await readFile(p.emitConfigPath, "utf8")).toContain("DIR=");
+    const cfg = await readFile(p.emitConfigPath, "utf8");
+    expect(cfg).toContain("DIR=");
+    // LIVE lets the SessionEnd hook clear the session's liveness file.
+    expect(cfg).toContain(`LIVE='${p.liveDir}'`);
+    // The live dir must exist -- its existence is what enables the quota emitter's
+    // per-session liveness heartbeat.
+    expect(await exists(p.liveDir)).toBe(true);
   });
 
   it("preserves a user's existing hook on the same event", async () => {
@@ -93,5 +106,7 @@ describe("uninstallDockStatusHooks", () => {
     expect(s.hooks?.UserPromptSubmit).toBeUndefined();
     expect(s.hooks?.PostToolUse).toBeUndefined();
     expect(await isDockStatusInstalled(p)).toBe(false);
+    // The live dir is gone, so the quota emitter stops writing heartbeats.
+    expect(await exists(p.liveDir)).toBe(false);
   });
 });

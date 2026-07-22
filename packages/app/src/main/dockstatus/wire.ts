@@ -21,6 +21,7 @@ export function dockStatusPaths(): DockStatusPaths & { iconsDir: string } {
     bookkeepingPath: path.join(base, "install.json"),
     emitConfigPath: path.join(base, "emit-config.sh"),
     sessionsDir: path.join(base, "sessions"),
+    liveDir: path.join(base, "live"),
     emitScript: path.join(resources, "airlock-dock-status.sh"),
     iconsDir: path.join(resources, "dock"),
   };
@@ -44,7 +45,7 @@ async function reconcileNow(enabled: boolean): Promise<void> {
   const p = dockStatusPaths();
   if (enabled) {
     await installDockStatusHooks(p);
-    startDockWatch(p.sessionsDir, p.iconsDir);
+    startDockWatch(p.sessionsDir, p.liveDir, p.iconsDir);
   } else {
     // Opt-in default: only touch disk if we actually installed before, so the
     // feature is a true no-op for users who never enable it.
