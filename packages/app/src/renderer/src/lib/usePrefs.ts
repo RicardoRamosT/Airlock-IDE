@@ -21,6 +21,7 @@ export function usePrefs(): void {
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const setDockStatusEnabled = useApp((s) => s.setDockStatusEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
+  const setSelfVerifyEnabled = useApp((s) => s.setSelfVerifyEnabled);
   const setExtensionsPrefs = useApp((s) => s.setExtensionsPrefs);
   const theme = useApp((s) => s.theme);
 
@@ -52,6 +53,7 @@ export function usePrefs(): void {
         setQuotaMeterEnabled(p.quotaMeter.enabled);
         setDockStatusEnabled(p.dockStatus.enabled);
         setRunAppSkillEnabled(p.runAppSkill.enabled);
+        setSelfVerifyEnabled(p.selfVerify.enabled);
         setExtensionsPrefs(p.extensions ?? {});
         useApp.getState().setLayoutHydrated(true);
       })
@@ -76,6 +78,7 @@ export function usePrefs(): void {
     setQuotaMeterEnabled,
     setDockStatusEnabled,
     setRunAppSkillEnabled,
+    setSelfVerifyEnabled,
     setExtensionsPrefs,
   ]);
 
@@ -86,6 +89,35 @@ export function usePrefs(): void {
     return window.airlock.onSectionsChanged((v) => {
       useApp.getState().setLayoutHydrated(true);
       useApp.getState().setSectionVisibility(v);
+    });
+  }, []);
+
+  // Live app-global prefs push (e.g. the set_pref MCP tool changing a pref from
+  // the backend): re-apply the slices so the UI reflects it without a restart.
+  // Authoritative like onSectionsChanged -- mark hydrated so a late startup
+  // prefsGet cannot clobber it. getState() setters are stable, so deps are empty.
+  useEffect(() => {
+    return window.airlock.onPrefsChanged((p) => {
+      const s = useApp.getState();
+      s.setLayoutHydrated(true);
+      s.setSidebarVisible(p.sidebarVisible);
+      s.setSidebarPosition(p.sidebarPosition);
+      s.setSidebarWidth(p.sidebarWidth);
+      s.setTheme(p.theme);
+      s.setClipboardClearSeconds(p.clipboardClearSeconds);
+      s.setEditorFontSize(p.editorFontSize);
+      s.setOpenProjectsAsTabs(p.openProjectsAsTabs);
+      s.setShowRunningProcessNotice(p.showRunningProcessNotice);
+      s.setSectionVisibility(p.sectionVisibility);
+      s.setActiveView(p.activeView);
+      s.setClaudeAutoStart(p.claudeAutoStart);
+      s.setRestoreSession(p.restoreSession);
+      s.setDefaultTerminal(p.defaultTerminal);
+      s.setQuotaMeterEnabled(p.quotaMeter.enabled);
+      s.setDockStatusEnabled(p.dockStatus.enabled);
+      s.setRunAppSkillEnabled(p.runAppSkill.enabled);
+      s.setSelfVerifyEnabled(p.selfVerify.enabled);
+      s.setExtensionsPrefs(p.extensions ?? {});
     });
   }, []);
 

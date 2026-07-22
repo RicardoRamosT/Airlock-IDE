@@ -506,6 +506,9 @@ export interface AppPrefs {
   // Auto-install the Claude "run the app" routing skill (steers Claude to the
   // managed dev server). Default on; toggled in Settings -> Claude.
   runAppSkill: { enabled: boolean };
+  // Self-verification toolkit (opt-in, default OFF): installs the airlock-verify
+  // skill + enables the capture_screenshot/set_pref MCP tools. App-global.
+  selfVerify: { enabled: boolean };
   // Event log display. ON by default at "debug" level (shows all events).
   // minLevel filters which events are shown; "error" = only errors. App-global.
   eventLog: { enabled: boolean; minLevel: Level };
@@ -671,6 +674,16 @@ export interface AirlockApi {
   // keeps the latest for the synchronous quit flush. Value-free (roots+booleans).
   sessionGet(): Promise<SessionSnapshot | null>;
   sessionSave(snap: SessionSnapshot): void;
+  // Report a renderer runtime error (window.onerror / unhandledrejection) to the
+  // main event log so read_events surfaces frontend crashes too. Fire-and-forget.
+  reportRendererError(p: {
+    kind: "error" | "unhandledrejection";
+    message: string;
+    source?: string;
+    line?: number;
+    col?: number;
+    stack?: string;
+  }): void;
   openFile(): Promise<string | null>;
   onMenuAction(cb: (a: MenuAction) => void): () => void;
   // Per-project methods below take a leading `root` (the calling pane's): two
@@ -991,6 +1004,9 @@ export interface AirlockApi {
     visible: boolean,
   ): Promise<SectionVisibility>;
   onSectionsChanged(cb: (v: SectionVisibility) => void): () => void;
+  // App-global prefs changed from the backend (e.g. the set_pref MCP tool); the
+  // renderer re-applies them live so the UI reflects the change without a restart.
+  onPrefsChanged(cb: (p: AppPrefs) => void): () => void;
   getAgentPolicy(): Promise<AgentCommandPolicy>;
   setAgentPolicy(policy: AgentCommandPolicy): Promise<AgentCommandPolicy>;
   // Agent-requested secret: main pushes agent:request-secret when the

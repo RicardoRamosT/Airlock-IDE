@@ -85,6 +85,8 @@ export const TOOL_NAMES: string[] = [
   "slack_list_allowed_channels",
   "slack_read_channel",
   "github_read_issue",
+  "capture_screenshot",
+  "set_pref",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -93,6 +95,13 @@ export const TOOL_NAMES: string[] = [
 export interface ToolDeps {
   prefsFile: string;
   getWorkspaceRoot: () => string | null;
+  // Self-verification toolkit (opt-in): the gate + the two power tools' backends.
+  selfVerifyEnabled: () => Promise<boolean>;
+  captureScreenshot: () => Promise<string | null>; // base64 PNG of the focused window
+  setPref: (
+    key: string,
+    value: unknown,
+  ) => Promise<{ ok: boolean; error?: string }>;
   getBaseEnv: () => Record<string, string>;
   requestSecretFromUser: (
     name: string,
@@ -211,6 +220,13 @@ export interface ToolDeps {
 // Wrap any JSON-able result in the SDK text-content shape the ping tool uses.
 function ok(result: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(result) }] };
+}
+
+// Return a PNG (base64) as MCP image content so the client (Claude) can see it.
+function okImage(base64: string) {
+  return {
+    content: [{ type: "image" as const, data: base64, mimeType: "image/png" }],
+  };
 }
 
 // A clean tool error (e.g. no workspace open): a text content flagged isError so
@@ -409,6 +425,53 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       },
     },
     async (args) => eventsToolHandler(args),
+  );
+
+  // Self-verification (opt-in): screenshot the focused window as image content so
+  // Claude can see the UI. Refuses when selfVerify is off. Captures whatever is on
+  // screen (including a revealed secret) -- hence the opt-in gate.
+  mcp.registerTool(
+    "capture_screenshot",
+    {
+      description:
+        "Capture a PNG screenshot of AirLock's focused window (returned as an image) to visually verify the UI. Requires Self-verification enabled (Settings > Claude). Captures whatever is on screen, including any revealed secret.",
+      inputSchema: {},
+    },
+    async () => {
+      if (!(await deps.selfVerifyEnabled())) {
+        return err(
+          "Self-verification is disabled. Enable it in Settings > Claude.",
+        );
+      }
+      const png = await deps.captureScreenshot();
+      return png ? okImage(png) : err("No AirLock window to capture.");
+    },
+  );
+
+  // Self-verification (opt-in): set an app-global pref to drive a feature. Only a
+  // safe allow-list of UI/feature toggles (never security settings), enforced in
+  // deps.setPref (prefWrite.applyPrefPatch).
+  mcp.registerTool(
+    "set_pref",
+    {
+      description:
+        "Set an app-global AirLock preference to drive a feature (e.g. { key: 'quotaMeter', value: { enabled: true } }). Requires Self-verification enabled. Only UI/feature toggles are allowed; security settings are refused.",
+      inputSchema: {
+        key: z.string(),
+        value: z.any(),
+      },
+    },
+    async ({ key, value }) => {
+      if (!(await deps.selfVerifyEnabled())) {
+        return err(
+          "Self-verification is disabled. Enable it in Settings > Claude.",
+        );
+      }
+      const r = await deps.setPref(key, value);
+      return r.ok
+        ? ok({ ok: true, key })
+        : err(r.error ?? "Cannot set that preference.");
+    },
   );
 
   mcp.registerTool(

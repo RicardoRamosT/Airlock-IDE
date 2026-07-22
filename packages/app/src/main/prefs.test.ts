@@ -46,6 +46,7 @@ describe("app prefs", () => {
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
+      selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
@@ -111,6 +112,7 @@ describe("app prefs", () => {
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
+      selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
@@ -124,6 +126,16 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).activeView).toBe("files");
     await savePrefs(file, { activeView: "git" });
     expect((await loadPrefs(file)).activeView).toBe("git");
+  });
+
+  it("selfVerify defaults OFF and only honors a real boolean", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    expect((await loadPrefs(file)).selfVerify).toEqual({ enabled: false });
+    await writeFile(file, JSON.stringify({ selfVerify: "yes" }));
+    expect((await loadPrefs(file)).selfVerify).toEqual({ enabled: false });
+    await savePrefs(file, { selfVerify: { enabled: true } });
+    expect((await loadPrefs(file)).selfVerify).toEqual({ enabled: true });
   });
 
   it("sanitizes claudeAutoStart to a known mode", async () => {
@@ -230,6 +242,7 @@ describe("app prefs", () => {
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
+      selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
@@ -273,6 +286,7 @@ describe("app prefs", () => {
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
       runAppSkill: { enabled: true },
+      selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,

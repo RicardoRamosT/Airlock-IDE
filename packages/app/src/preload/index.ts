@@ -4,6 +4,7 @@ import type {
   AgentCommandResult,
   AirlockApi,
   AnthropicStatus,
+  AppPrefs,
   DevServerState,
   FsChangedEvent,
   LspDiagnostic,
@@ -32,6 +33,7 @@ const api: AirlockApi = {
   workspaceRoots: (roots) => ipcRenderer.invoke("workspace:roots", roots),
   sessionGet: () => ipcRenderer.invoke("session:get"),
   sessionSave: (snap) => ipcRenderer.send("session:save", snap),
+  reportRendererError: (p) => ipcRenderer.send("events:report", p),
   openFile: () => ipcRenderer.invoke("dialog:openFile"),
   onMenuAction: (cb) => subscribe<MenuAction>("menu:action", cb),
   listDir: (root, relPath) => ipcRenderer.invoke("fs:listDir", root, relPath),
@@ -221,6 +223,7 @@ const api: AirlockApi = {
     ipcRenderer.invoke("sections:set", id, visible),
   onSectionsChanged: (cb) =>
     subscribe<SectionVisibility>("sections:changed", cb),
+  onPrefsChanged: (cb) => subscribe<AppPrefs>("prefs:changed", cb),
   getAgentPolicy: () => ipcRenderer.invoke("agentPolicy:get"),
   setAgentPolicy: (policy) => ipcRenderer.invoke("agentPolicy:set", policy),
   onRequestSecret: (cb) =>

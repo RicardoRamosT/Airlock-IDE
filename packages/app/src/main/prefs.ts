@@ -70,6 +70,7 @@ const DEFAULTS: AppPrefs = {
   quotaMeter: { enabled: true },
   dockStatus: { enabled: true },
   runAppSkill: { enabled: true },
+  selfVerify: { enabled: false },
   eventLog: { enabled: true, minLevel: "debug" as Level },
   claudeAutoStart: "first",
   defaultTerminal: "airlock",
@@ -188,6 +189,17 @@ function sanitizeRunAppSkill(raw: unknown): { enabled: boolean } {
   return { enabled: true };
 }
 
+// selfVerify is app-global and OFF by default (opt-in: enabling installs the
+// airlock-verify skill + arms the capture_screenshot/set_pref MCP tools). Only a
+// real boolean is honored; anything else (absent, partial, wrong type) -> off.
+function sanitizeSelfVerify(raw: unknown): { enabled: boolean } {
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (typeof r.enabled === "boolean") return { enabled: r.enabled };
+  }
+  return { enabled: false };
+}
+
 const EVENT_LEVELS: readonly Level[] = ["debug", "info", "warn", "error"];
 function sanitizeEventLog(raw: unknown): { enabled: boolean; minLevel: Level } {
   const def = { enabled: true, minLevel: "debug" as Level };
@@ -277,6 +289,7 @@ function sanitize(raw: unknown): AppPrefs {
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
     dockStatus: sanitizeDockStatus(r.dockStatus),
     runAppSkill: sanitizeRunAppSkill(r.runAppSkill),
+    selfVerify: sanitizeSelfVerify(r.selfVerify),
     eventLog: sanitizeEventLog(r.eventLog),
     claudeAutoStart: CLAUDE_AUTO_MODES.includes(
       r.claudeAutoStart as ClaudeAutoStart,
