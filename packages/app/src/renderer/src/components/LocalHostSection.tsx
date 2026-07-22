@@ -470,29 +470,43 @@ export function LocalHostSection() {
           </button>
         </div>
       ) : url ? (
-        <div className="docker-row" title={url}>
-          <span className={dotClass} />
-          <span className="docker-name host-url">{url}</span>
-          <button
-            type="button"
-            className="row-action"
-            onClick={() => void window.airlock.hostOpenExternal(url)}
-            title="Open in browser"
-          >
-            <i className="codicon codicon-link-external" />
-          </button>
-          <button
-            type="button"
-            className="row-action"
-            onClick={() => {
-              setDraft(url);
-              setEditing(true);
-            }}
-            title="Edit dev server URL"
-          >
-            <i className="codicon codicon-edit" />
-          </button>
-        </div>
+        <>
+          <div className="docker-row" title={url}>
+            <span className={dotClass} />
+            <span className="docker-name host-url">{url}</span>
+            <button
+              type="button"
+              className="row-action"
+              onClick={() => void window.airlock.hostOpenExternal(url)}
+              title="Open in browser"
+            >
+              <i className="codicon codicon-link-external" />
+            </button>
+            <button
+              type="button"
+              className="row-action"
+              onClick={() => {
+                setDraft(url);
+                setEditing(true);
+              }}
+              title="Edit dev server URL"
+            >
+              <i className="codicon codicon-edit" />
+            </button>
+          </div>
+          {up === false && (
+            <div className="section-toolbar">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void onStart()}
+                title="Start dev server"
+              >
+                Start
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <>
           <div className="section-note">No dev server detected</div>
