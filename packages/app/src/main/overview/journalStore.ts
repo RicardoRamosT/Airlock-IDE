@@ -32,8 +32,9 @@ export async function appendJournalEntry(
   text: unknown,
   tag: unknown,
   nowMs: number,
+  details?: unknown,
 ): Promise<{ ok: true; entry: JournalEntry } | { ok: false; error: string }> {
-  const entry = sanitizeNewEntry(text, tag, nowMs);
+  const entry = sanitizeNewEntry(text, tag, nowMs, details);
   if (!entry)
     return { ok: false, error: "Changelog text is empty or too long." };
   try {

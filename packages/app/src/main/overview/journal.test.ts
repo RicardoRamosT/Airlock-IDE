@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   capEntries,
+  MAX_DETAILS,
   parseJournalLine,
   readJournal,
   sanitizeNewEntry,
@@ -64,5 +65,53 @@ describe("readJournal + capEntries + serialize", () => {
   it("serialize round-trips through parse", () => {
     const e = { ts: 7, tag: "decision" as const, text: "why" };
     expect(parseJournalLine(serializeEntry(e))).toEqual(e);
+  });
+});
+
+describe("details field", () => {
+  it("parses an entry WITH details and round-trips", () => {
+    const line = serializeEntry({
+      ts: 5,
+      tag: "change",
+      text: "t",
+      details: "why\n- a",
+    });
+    expect(line).toContain('"details"');
+    expect(parseJournalLine(line)).toEqual({
+      ts: 5,
+      tag: "change",
+      text: "t",
+      details: "why\n- a",
+    });
+  });
+  it("omits details when absent (round-trip has no details key)", () => {
+    const line = serializeEntry({ ts: 5, tag: "note", text: "t" });
+    expect(line).not.toContain("details");
+    expect(parseJournalLine(line)).toEqual({ ts: 5, tag: "note", text: "t" });
+  });
+  it("parse drops empty / non-string details", () => {
+    expect(
+      parseJournalLine('{"ts":5,"tag":"note","text":"t","details":""}'),
+    ).toEqual({ ts: 5, tag: "note", text: "t" });
+    expect(
+      parseJournalLine('{"ts":5,"tag":"note","text":"t","details":42}'),
+    ).toEqual({ ts: 5, tag: "note", text: "t" });
+  });
+  it("sanitizeNewEntry trims details, drops empty, clips to MAX_DETAILS", () => {
+    expect(sanitizeNewEntry("t", "fix", 9, "  ctx  ")).toEqual({
+      ts: 9,
+      tag: "fix",
+      text: "t",
+      details: "ctx",
+    });
+    expect(sanitizeNewEntry("t", "fix", 9, "   ")).toEqual({
+      ts: 9,
+      tag: "fix",
+      text: "t",
+    });
+    expect(
+      sanitizeNewEntry("t", "note", 9, "x".repeat(MAX_DETAILS + 500))?.details
+        ?.length,
+    ).toBe(MAX_DETAILS);
   });
 });

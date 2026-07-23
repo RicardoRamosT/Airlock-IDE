@@ -4690,3 +4690,24 @@ button.docker-row .codicon-chevron-right {
 .changelog-text {
   white-space: pre-wrap;
 }
+
+/* Changelog: expandable details toggle + rendered markdown body. */
+.changelog-toggle {
+  margin-left: 8px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.changelog-toggle:hover {
+  color: var(--fg);
+}
+.changelog-details {
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+  color: var(--fg-dim);
+}

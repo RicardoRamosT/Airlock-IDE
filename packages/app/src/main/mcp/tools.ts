@@ -108,6 +108,7 @@ export interface ToolDeps {
     root: string,
     text: string,
     tag?: string,
+    details?: string,
   ) => Promise<
     | { ok: true; entry: import("../../shared/ipc").JournalEntry }
     | { ok: false; error: string }
@@ -583,17 +584,19 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     {
       description:
         "Append an entry to this project's Changelog (shown in the Overview page). " +
-        "Use it on-demand to record a change, fix, or decision. tag is one of " +
+        "Use it on-demand to record a change, fix, or decision. `text` is the one-line " +
+        "title; optional `details` is a markdown body for the why/what. tag is one of " +
         "change|fix|decision|note (default note).",
       inputSchema: {
         text: z.string(),
         tag: z.enum(["change", "fix", "decision", "note"]).optional(),
+        details: z.string().optional(),
       },
     },
-    async ({ text, tag }) => {
+    async ({ text, tag, details }) => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
-      const r = await deps.addChangelogEntry(root, text, tag);
+      const r = await deps.addChangelogEntry(root, text, tag, details);
       return r.ok ? ok({ added: true, entry: r.entry }) : err(r.error);
     },
   );
