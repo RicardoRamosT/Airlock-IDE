@@ -154,17 +154,6 @@ body,
   display: inline-block;
   white-space: nowrap;
 }
-/* When a project is active the name is right-clickable (project menu); the
-   hover pill + context-menu cursor signal that. no-drag so the hover/click are
-   reliable inside the draggable bar. */
-.titlebar-title.interactive {
-  -webkit-app-region: no-drag;
-  cursor: context-menu;
-}
-.titlebar-title.interactive:hover {
-  filter: brightness(1.15);
-  color: var(--fg);
-}
 
 .layout-controls {
   display: flex;
@@ -336,6 +325,11 @@ body,
   padding: 0 4px 0 6px;
   font-family: inherit;
   max-width: 160px;
+  /* Crossfade the master-card fill/border in/out as the tab gains/loses focus,
+     in sync with the Overview segment's width animation. */
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
 }
 
 .project-tab.active .project-tab-label {
@@ -4876,22 +4870,35 @@ button.docker-row .codicon-chevron-right {
 }
 /* Overview segment: fixed width so the SVG roof maps ~1:1; the label centers
    vertically (aligned with the master name) over the flat part of its roof. */
+/* The Overview segment is a CLIP container whose width animates 0 <-> 96 as the
+   tab gains/loses focus (.has-overview), so the folder smoothly expands and
+   collapses. The inner is a fixed 96px so its roof + label never squish -- the
+   width transition just reveals/hides them. */
 .project-tab-overview {
-  position: relative;
   align-self: stretch;
+  width: 0;
+  overflow: hidden;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: width 200ms ease;
+}
+.project-tab.has-overview .project-tab-overview {
   width: 96px;
+}
+.ov-inner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 96px;
+  height: 100%;
   /* 6px top pad centers the label under the LOWER roof; small left pad keeps it
      clear of the diagonal divider while staying ~centered in the segment. */
   padding: 6px 0 0 8px;
-  background: none;
-  border: none;
   color: var(--fg-dim);
   font: inherit;
   font-size: 11px;
-  cursor: pointer;
 }
 .project-tab-overview:hover .ov-text {
   color: var(--fg);

@@ -66,9 +66,6 @@ function TabRenameInput({
   );
 }
 
-// The inline Overview entry on the focused ("master") project folder. Opens
-// rightward inside the strip; clicking it shows the full Overview in the main
-// area. Highlighted while that project's overview is shown.
 // The Overview segment of the master folder: an SVG "lower roof" (a curved
 // shoulder stepping down from the master's full-height roof, then the overview
 // roof + top-right corner + right side) with the label centered over it. The
@@ -77,7 +74,17 @@ function TabRenameInput({
 // C=7 curve, R=6 corner. See the master-label styling in theme.css.
 const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28 L0 28 Z";
 const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28";
-function OverviewEntry({ root }: { root: string }) {
+// Rendered for every project tab, but only the FOCUSED tab's (.has-overview)
+// expands to its 96px width -- the button is a clip container whose width
+// transitions 0<->96, revealing the fixed-width inner content (so the roof never
+// squishes). `expanded` gates a11y/click on collapsed (non-focused) copies.
+function OverviewEntry({
+  root,
+  expanded,
+}: {
+  root: string;
+  expanded: boolean;
+}) {
   const active = useApp(
     (s) => s.appPage === "overview" && s.overviewRoot === root,
   );
@@ -86,35 +93,39 @@ function OverviewEntry({ root }: { root: string }) {
       type="button"
       className={`project-tab-overview${active ? " active" : ""}`}
       title="Overview"
+      aria-hidden={!expanded}
+      tabIndex={expanded ? 0 : -1}
       onClick={(e) => {
         e.stopPropagation();
-        useApp.getState().showOverview(root);
+        if (expanded) useApp.getState().showOverview(root);
       }}
     >
-      <svg
-        className="ov-roof"
-        viewBox="0 0 96 28"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path className="ov-fill" d={OV_FILL} />
-        {/* Dotted diagonal separating master from Overview, matching the roof's
-            visible shoulder diagonal (tuned in the mockup). */}
-        <line
-          className="ov-divider"
-          x1="1.5"
-          y1="0"
-          x2="19.5"
-          y2="28"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          className="ov-stroke"
-          d={OV_STROKE}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span className="ov-text">Overview</span>
+      <span className="ov-inner">
+        <svg
+          className="ov-roof"
+          viewBox="0 0 96 28"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path className="ov-fill" d={OV_FILL} />
+          {/* Dotted diagonal separating master from Overview, matching the
+              roof's visible shoulder diagonal (tuned in the mockup). */}
+          <line
+            className="ov-divider"
+            x1="1.5"
+            y1="0"
+            x2="19.5"
+            y2="28"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            className="ov-stroke"
+            d={OV_STROKE}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <span className="ov-text">Overview</span>
+      </span>
     </button>
   );
 }
@@ -324,7 +335,7 @@ export function ProjectTabs() {
     return (
       <div
         key="__split__"
-        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
+        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${activeTabId === pair.a || activeTabId === pair.b ? " has-overview" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
         {...dropTarget("pair")}
       >
         <button
@@ -353,7 +364,7 @@ export function ProjectTabs() {
         {(() => {
           const r = tabs.find((t) => t.id === activeTabId)?.root;
           return (activeTabId === pair.a || activeTabId === pair.b) && r ? (
-            <OverviewEntry root={r} />
+            <OverviewEntry root={r} expanded={true} />
           ) : null;
         })()}
       </div>
@@ -403,8 +414,8 @@ export function ProjectTabs() {
             <span className="project-tab-title">{displayLabel(tab)}</span>
           </button>
         )}
-        {tab.id === activeTabId && tab.root ? (
-          <OverviewEntry root={tab.root} />
+        {tab.root ? (
+          <OverviewEntry root={tab.root} expanded={tab.id === activeTabId} />
         ) : null}
       </div>
     );
