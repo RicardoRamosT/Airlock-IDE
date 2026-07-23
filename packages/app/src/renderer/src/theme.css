@@ -4797,12 +4797,20 @@ button.docker-row .codicon-chevron-right {
     background 140ms ease,
     border-color 140ms ease;
 }
-.project-tab:not(.page-tab):hover {
-  background: var(--hover);
+/* Every project folder is a persistently visible tab (not just on hover): a
+   border + a slightly recessed fill so the row always reads as distinct
+   folders. */
+.project-tab:not(.page-tab) {
+  background: var(--bg);
+  border-color: var(--border);
+}
+.project-tab:not(.page-tab):not(.folder-open):not(.working):hover {
+  background: var(--bg-panel);
+  border-color: var(--fg-dim);
 }
 .project-tab.folder-open {
   background: var(--selected);
-  border-color: var(--border);
+  border-color: var(--accent);
   border-bottom-color: transparent;
 }
 /* Claude working in a tab -> the whole folder takes the amber working color

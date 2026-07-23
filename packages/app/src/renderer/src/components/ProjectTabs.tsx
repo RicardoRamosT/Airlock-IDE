@@ -76,7 +76,6 @@ function OverviewEntry({ root }: { root: string }) {
         useApp.getState().showOverview(root);
       }}
     >
-      <i className="codicon codicon-book" />
       <span>Overview</span>
     </button>
   );
@@ -336,7 +335,6 @@ export function ProjectTabs() {
       >
         {renaming === tab.id ? (
           <span className="project-tab-label">
-            <i className="codicon codicon-folder" />
             <TabRenameInput
               initial={displayLabel(tab)}
               onCommit={(name) => {
@@ -364,9 +362,6 @@ export function ProjectTabs() {
             }}
             title={tab.root ?? "New Tab"}
           >
-            <i
-              className={`codicon codicon-${tab.id === activeTabId ? "folder-opened" : "folder"}`}
-            />
             <span className="project-tab-title">{displayLabel(tab)}</span>
           </button>
         )}
