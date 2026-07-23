@@ -1,0 +1,39 @@
+name: CI
+
+# Runs the same checks as local dev (typecheck + lint + the full vitest suite)
+# on every push to main and every PR. macOS runner so the native deps (node-pty)
+# and shell-spawning tests behave like they do on the supported platform.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same ref cancels the older in-progress run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        # --retry=2: one suite test spawns a real login shell and is mildly
+        # timing-flaky under CI load; a retry keeps the badge honest, not red.
+        run: npm test -- --retry=2

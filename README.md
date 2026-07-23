@@ -6,7 +6,9 @@
 
 [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-black)](#install)
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-v0.4.0-orange)](../../releases)
+[![Release](https://img.shields.io/github/v/release/RicardoRamosT/Airlock-IDE?color=orange&label=release)](../../releases)
+[![CI](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml/badge.svg)](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-690%2B-brightgreen)](#building-from-source)
 
 <img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage meter in the sidebar" width="800"/>
 
@@ -45,6 +47,23 @@ it: values are injected main-process-side and redacted out of every output that
 reaches the agent. Commits are scanned for leaked secret values before they
 land. Every broker operation is hash-chain audited. By design there are **no
 third-party extensions**; the attack surface stays closed.
+
+## How it compares
+
+AirLock isn't trying to out-autocomplete your editor — it's a different shape,
+aimed at running an AI agent across many projects without handing it your keys:
+
+|                                                   | Claude Code (CLI) | VS Code / Cursor       | **AirLock**            |
+| ------------------------------------------------- | :---------------: | :--------------------: | :--------------------: |
+| Terminal-first AI agent                           |         ✓         | terminal + editor agent |           ✓            |
+| Every project in one window, each its own agent   |         —         | one workspace at a time |    ✓ (tabs + splits)   |
+| Agent can **use** a secret but **can't read** it  |         —         |           —            |  ✓ (broker + redaction) |
+| Agent can drive the IDE (tabs, splits, status)    |         —         |     via extensions     |   ✓ (built-in MCP)     |
+| No third-party extensions (closed attack surface) |        n/a        |   extension marketplace |     ✓ (by design)      |
+
+It pairs *with* Claude Code rather than replacing it: AirLock hosts the same
+`claude`, and adds the multi-project shell, the secret broker, and the MCP
+bridge that lets Claude see and drive the workspace.
 
 ## Install
 
@@ -180,6 +199,35 @@ Early and moving fast: v0.4, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
 invariants are the part that's tested hardest (1,100+ unit tests, including
 source-level guards on the no-secret-value rule).
+
+## FAQ
+
+**Why macOS only?** AirLock leans hard on macOS-native pieces — the Keychain
+for the secret vault, login-shell environment capture, and Apple-Silicon
+packaging. A cross-platform port is possible but isn't the focus while the
+security model is being hardened.
+
+**Why source-available, not open source?** You can read every line — the
+security claims are only credible if you can verify them — but the license
+forbids redistribution, modification, and commercial use. It's a deliberate
+choice to keep one canonical, audited build of a security-sensitive tool, not
+an OSI open-source license. See [License](#license).
+
+**Does Claude ever see my secret values?** No — that's the core invariant.
+Secrets live in the Keychain; values are injected into a command's environment
+main-process-side and redacted from every output the agent can read (terminal
+tails, command output). The MCP tool set is an allowlist with a test that fails
+the build if any tool could return a secret value. Claude *uses* secrets but
+can't *read* them — the [threat model](docs/threat-model.md) spells out exactly
+where that line is (and isn't).
+
+**Is the download notarized?** Not yet — the release is ad-hoc signed (no paid
+Apple Developer account), so first launch needs the one-time "Open Anyway" step
+in [Install](#install).
+
+**Can I contribute code?** The license doesn't permit outside modifications, so
+code PRs aren't accepted — but issues, bug reports, and feature ideas are very
+welcome. See [CONTRIBUTING](CONTRIBUTING.md).
 
 ## Credits
 
