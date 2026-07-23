@@ -74,17 +74,10 @@ function TabRenameInput({
 // C=7 curve, R=6 corner. See the master-label styling in theme.css.
 const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28 L0 28 Z";
 const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28";
-// Rendered for every project tab, but only the FOCUSED tab's (.has-overview)
-// expands to its 96px width -- the button is a clip container whose width
-// transitions 0<->96, revealing the fixed-width inner content (so the roof never
-// squishes). `expanded` gates a11y/click on collapsed (non-focused) copies.
-function OverviewEntry({
-  root,
-  expanded,
-}: {
-  root: string;
-  expanded: boolean;
-}) {
+// Rendered ONLY on the focused (master) tab. The button is a clip container over
+// fixed-width inner content; a grow-in keyframe animates its width 0->96 on mount
+// (when the tab gains focus) so the folder eases open without squishing the roof.
+function OverviewEntry({ root }: { root: string }) {
   const active = useApp(
     (s) => s.appPage === "overview" && s.overviewRoot === root,
   );
@@ -93,11 +86,9 @@ function OverviewEntry({
       type="button"
       className={`project-tab-overview${active ? " active" : ""}`}
       title="Overview"
-      aria-hidden={!expanded}
-      tabIndex={expanded ? 0 : -1}
       onClick={(e) => {
         e.stopPropagation();
-        if (expanded) useApp.getState().showOverview(root);
+        useApp.getState().showOverview(root);
       }}
     >
       <span className="ov-inner">
@@ -364,7 +355,7 @@ export function ProjectTabs() {
         {(() => {
           const r = tabs.find((t) => t.id === activeTabId)?.root;
           return (activeTabId === pair.a || activeTabId === pair.b) && r ? (
-            <OverviewEntry root={r} expanded={true} />
+            <OverviewEntry root={r} />
           ) : null;
         })()}
       </div>
@@ -414,8 +405,8 @@ export function ProjectTabs() {
             <span className="project-tab-title">{displayLabel(tab)}</span>
           </button>
         )}
-        {tab.root ? (
-          <OverviewEntry root={tab.root} expanded={tab.id === activeTabId} />
+        {tab.id === activeTabId && tab.root ? (
+          <OverviewEntry root={tab.root} />
         ) : null}
       </div>
     );

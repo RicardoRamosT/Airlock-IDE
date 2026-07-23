@@ -4881,22 +4881,25 @@ button.docker-row .codicon-chevron-right {
    width transition just reveals/hides them. */
 .project-tab-overview {
   align-self: stretch;
-  width: 0;
-  min-width: 0; /* let the flex item actually collapse to 0 */
+  width: 96px;
   overflow: hidden;
-  /* Collapsed = fully transparent, so any hairline the clip can't catch is
-     invisible; it fades in as the segment expands (both directions animate). */
-  opacity: 0;
   background: none;
   border: none;
   cursor: pointer;
-  transition:
-    width 200ms ease,
-    opacity 160ms ease;
+  /* Grow-in on mount (when the tab gains focus): the segment eases from 0 to its
+     96px width, revealing the fixed-width inner without squishing the roof. Only
+     the focused tab renders this, so non-focused tabs are untouched. */
+  animation: overview-grow 200ms ease;
 }
-.project-tab.has-overview .project-tab-overview {
-  width: 96px;
-  opacity: 1;
+@keyframes overview-grow {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: 96px;
+    opacity: 1;
+  }
 }
 .ov-inner {
   position: relative;
