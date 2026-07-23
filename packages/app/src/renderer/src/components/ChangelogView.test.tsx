@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { useApp } from "../store";
 import { ChangelogView } from "./ChangelogView";
 
 afterEach(cleanup);
@@ -50,12 +51,31 @@ it("search filters the active tab", async () => {
   expect(screen.getByText("beta ships")).toBeTruthy();
 });
 
-it("shows an empty state when there are no entries", async () => {
+it("shows an empty state with a CTA when there are no entries", async () => {
   stub([]);
   render(<ChangelogView root="/repo" />);
   await waitFor(() =>
-    expect(screen.getByText(/No changelog entries yet/)).toBeTruthy(),
+    expect(screen.getByText(/No changelog yet/)).toBeTruthy(),
   );
+  expect(
+    screen.getByRole("button", { name: /ask claude to write the changelog/i }),
+  ).toBeTruthy();
+});
+
+it("empty-state CTA pastes a seed prompt into the project's terminal", async () => {
+  stub([]);
+  useApp.setState({ tabs: [{ id: "t1", root: "/repo" }] });
+  const spy = vi
+    .spyOn(useApp.getState(), "sendToClaudeTerminal")
+    .mockReturnValue(true);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: /ask claude to write the changelog/i,
+    }),
+  );
+  expect(spy).toHaveBeenCalledWith(expect.stringContaining("changelog"), "t1");
+  spy.mockRestore();
 });
 
 it("expands details markdown on toggle; no toggle without details", async () => {
