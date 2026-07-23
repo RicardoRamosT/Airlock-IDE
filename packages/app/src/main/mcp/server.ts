@@ -177,8 +177,8 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
       slackReadChannelTool(root, channel, limit),
     githubReadIssue: (root, owner, repo, issue) =>
       githubReadIssueTool(root, owner, repo, issue),
-    addChangelogEntry: async (root, text, tag) => {
-      const r = await appendJournalEntry(root, text, tag, Date.now());
+    addChangelogEntry: async (root, text, tag, details) => {
+      const r = await appendJournalEntry(root, text, tag, Date.now(), details);
       // Broadcast so an open Overview/Changelog view refreshes live.
       if (r.ok) {
         for (const w of BrowserWindow.getAllWindows()) {

@@ -28,3 +28,10 @@ it("refuses empty text", async () => {
 it("missing journal reads as empty", async () => {
   expect(await readRecentJournal(root, 10)).toEqual([]);
 });
+
+it("stores and reads back details", async () => {
+  await appendJournalEntry(root, "title", "change", 1000, "the **why**");
+  const [e] = await readRecentJournal(root, 1);
+  expect(e?.text).toBe("title");
+  expect(e?.details).toBe("the **why**");
+});

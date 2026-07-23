@@ -1116,7 +1116,12 @@ describe("add_changelog_entry", () => {
     const res = (await handler({ text: "did X", tag: "change" })) as {
       content: { text: string }[];
     };
-    expect(addChangelogEntry).toHaveBeenCalledWith("/repo", "did X", "change");
+    expect(addChangelogEntry).toHaveBeenCalledWith(
+      "/repo",
+      "did X",
+      "change",
+      undefined,
+    );
     expect(JSON.parse(res.content[0]?.text ?? "{}").added).toBe(true);
   });
   it("errors when deps refuse (empty text)", async () => {
@@ -1130,5 +1135,18 @@ describe("add_changelog_entry", () => {
     });
     const res = (await handler({ text: "" })) as { isError?: boolean };
     expect(res.isError).toBe(true);
+  });
+  it("passes details through to deps", async () => {
+    const addChangelogEntry = vi.fn(async () => ({
+      ok: true as const,
+      entry: { ts: 1, tag: "change" as const, text: "t", details: "d" },
+    }));
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      addChangelogEntry,
+    });
+    await handler({ text: "t", tag: "change", details: "d" });
+    expect(addChangelogEntry).toHaveBeenCalledWith("/repo", "t", "change", "d");
   });
 });
