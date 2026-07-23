@@ -410,32 +410,38 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       if (t.trim()) setTerminalTitle(terminalId, t, false);
     });
 
-    // Trailing debounce so a window drag does not fire dozens of fit() +
-    // ptyResize IPC calls; the 0x0 hidden-pane guard stays inside the
-    // debounced fn so a tab hidden mid-drag is still skipped.
-    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-    const ro = new ResizeObserver(() => {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (host.clientWidth === 0 || host.clientHeight === 0) return; // hidden tab
-        fit.fit();
-        if (idRef.current)
-          window.airlock.ptyResize(idRef.current, term.cols, term.rows);
-      }, 50);
-    });
-    ro.observe(host);
-
-    // The layout heights (and font metrics) can finish settling a frame after
-    // mount, so the initial fit() above may leave xterm one row too tall --
-    // Claude Code then draws its bottom line under the pane's clip edge. Re-fit
-    // after the next paint and once fonts are ready; fit() is idempotent, so a
-    // correct initial fit makes these no-ops.
+    // Fit to the pane, then guard against a subtle bottom clip: xterm renders
+    // its rows a few px taller than FitAddon's measured height (the css cell
+    // height rounds up), so FitAddon can pick one row too many and the last row
+    // spills past the pane's overflow:hidden edge -- cutting Claude Code's
+    // bottom line, which (on the alt-screen) can't be scrolled to. If the
+    // rendered screen overshoots the host box, drop a row. (A fixed bottom
+    // padding can't fix this: the overshoot scales with row count.)
     const refit = () => {
       if (disposed || host.clientWidth === 0 || host.clientHeight === 0) return;
       fit.fit();
+      const screen = host.querySelector<HTMLElement>(".xterm-screen");
+      if (
+        screen &&
+        term.rows > 1 &&
+        screen.getBoundingClientRect().bottom >
+          host.getBoundingClientRect().bottom + 1
+      ) {
+        term.resize(term.cols, term.rows - 1);
+      }
       if (idRef.current)
         window.airlock.ptyResize(idRef.current, term.cols, term.rows);
     };
+    // Trailing debounce so a window drag does not fire dozens of fit() +
+    // ptyResize IPC calls; refit's 0x0 hidden-pane guard skips a hidden tab.
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(refit, 50);
+    });
+    ro.observe(host);
+    // Layout heights + font metrics can settle a frame after mount, so re-fit
+    // after the next paint and once fonts are ready (fit() is idempotent).
     requestAnimationFrame(refit);
     void document.fonts?.ready.then(refit);
 

@@ -2470,12 +2470,7 @@ button.quota-meter:hover {
 
 .terminal-host {
   height: 100%;
-  /* Bottom padding is a slack buffer: xterm's rendered rows can total a few px
-     more than FitAddon's measured height (cell-height rounds up vs the measured
-     css cell), and with 0 bottom room that overshoot spilled past the pane's
-     overflow:hidden clip -- cutting Claude Code's last line. The buffer lets fit
-     reserve space so the rows always land above the clip edge. */
-  padding: 6px 0 8px 8px;
+  padding: 6px 0 0 8px;
 }
 
 .secrets {
