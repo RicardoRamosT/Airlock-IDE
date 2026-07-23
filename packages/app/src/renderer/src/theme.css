@@ -474,18 +474,33 @@ body,
 .statusbar-update {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 2px 12px;
   background: var(--accent);
   border: none;
-  border-radius: 4px;
+  border-radius: 999px; /* pill */
   color: #fff;
   font-size: 11px;
-  padding: 1px 8px;
+  font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 1px 5px var(--accent-glow);
+  transition:
+    filter 120ms ease,
+    box-shadow 120ms ease,
+    transform 80ms ease;
+}
+.statusbar-update:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow: 0 2px 9px var(--accent-glow);
+}
+.statusbar-update:active:not(:disabled) {
+  transform: translateY(0.5px);
 }
 .statusbar-update:disabled {
   opacity: 0.7;
   cursor: default;
+  box-shadow: none;
 }
 
 /* Window-level workspace row: icon rail | ONE shared sidebar | panes. The rail

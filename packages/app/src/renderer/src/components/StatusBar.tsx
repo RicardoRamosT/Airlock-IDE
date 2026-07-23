@@ -32,8 +32,6 @@ function updateLabel(progress: UpdateProgress): string {
 
 export function StatusBar() {
   const gitStatus = useApp((s) => s.gitStatus);
-  const secrets = useApp((s) => s.secrets);
-  const config = useApp((s) => s.config);
   const anthropicStatus = useApp((s) => s.anthropicStatus);
   const update = useApp((s) => s.update);
   const updateProgress = useApp((s) => s.updateProgress);
@@ -77,20 +75,6 @@ export function StatusBar() {
             <span className={dotClass(anthropicStatus.indicator)} />
             Claude: {anthropicStatus.indicator}
           </button>
-        )}
-        {secrets.length > 0 && (
-          <span className="statusbar-item">
-            <i className="codicon codicon-key" />
-            {secrets.length}
-          </span>
-        )}
-        {config && (
-          <span
-            className="statusbar-item"
-            title="Whether new terminal sessions start with this project's secrets as environment variables"
-          >
-            terminal secrets {config.injectSecretsIntoTerminal ? "on" : "off"}
-          </span>
         )}
         {update?.available && (
           <button
