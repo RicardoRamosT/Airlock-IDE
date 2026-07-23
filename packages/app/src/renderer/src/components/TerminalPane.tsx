@@ -415,19 +415,33 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // height rounds up), so FitAddon can pick one row too many and the last row
     // spills past the pane's overflow:hidden edge -- cutting Claude Code's
     // bottom line, which (on the alt-screen) can't be scrolled to. If the
-    // rendered screen overshoots the host box, drop a row. (A fixed bottom
-    // padding can't fix this: the overshoot scales with row count.)
+    // rendered screen overshoots the host's CONTENT box, drop rows until it fits.
+    //
+    // Measure against the content box (host bottom MINUS its bottom padding), not
+    // the padding/border box: `.terminal-host` carries a bottom padding for the
+    // gap above the status bar, and comparing to the padded bottom let the last
+    // row spill into that padding -- straight under the status bar's opaque
+    // overlay -- so it read as clipped. (A fixed padding can't fix this alone:
+    // the overshoot scales with row count.)
     const refit = () => {
       if (disposed || host.clientWidth === 0 || host.clientHeight === 0) return;
       fit.fit();
       const screen = host.querySelector<HTMLElement>(".xterm-screen");
-      if (
-        screen &&
-        term.rows > 1 &&
-        screen.getBoundingClientRect().bottom >
-          host.getBoundingClientRect().bottom + 1
-      ) {
-        term.resize(term.cols, term.rows - 1);
+      if (screen && term.rows > 1) {
+        // One measurement, deterministic drop (no re-measure loop: xterm's
+        // repaint can lag a resize, so re-reading would over-drop). cellH is the
+        // real rendered row height; overshoot is how far the screen spills past
+        // the content box (host bottom minus its bottom padding).
+        const rect = screen.getBoundingClientRect();
+        const cellH = rect.height / term.rows;
+        const padBottom =
+          parseFloat(getComputedStyle(host).paddingBottom) || 0;
+        const overshoot =
+          rect.bottom - (host.getBoundingClientRect().bottom - padBottom);
+        if (cellH > 0 && overshoot > 1) {
+          const drop = Math.min(term.rows - 1, Math.ceil(overshoot / cellH));
+          if (drop > 0) term.resize(term.cols, term.rows - drop);
+        }
       }
       if (idRef.current)
         window.airlock.ptyResize(idRef.current, term.cols, term.rows);
