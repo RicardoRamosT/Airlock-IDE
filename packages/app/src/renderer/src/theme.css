@@ -2458,7 +2458,9 @@ button.quota-meter:hover {
 
 .terminal-host {
   height: 100%;
-  padding: 6px 0 0 8px;
+  /* Bottom pad keeps the last line off the status bar (the tighter 28px strip
+     freed height the terminal absorbed, so its bottom row was flush). */
+  padding: 6px 0 4px 8px;
 }
 
 .secrets {
@@ -4711,6 +4713,9 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   cursor: pointer;
   font: inherit;
+  /* One step smaller than the Overview|Changelog nav above (which inherits the
+     base size); 1em resolves against the parent, so this is base - 1px. */
+  font-size: calc(1em - 1px);
 }
 .changelog-tab:hover {
   color: var(--fg);
