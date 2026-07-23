@@ -75,8 +75,8 @@ function TabRenameInput({
 // fill/outline read --tab-fill/--tab-outline so it recolors with the tab state.
 // viewBox is 96x32 (preserveAspectRatio:none lets it fill the segment); D=6 drop,
 // C=7 curve, R=6 corner. See the master-label styling in theme.css.
-const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 32 L0 32 Z";
-const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 32";
+const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28 L0 28 Z";
+const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28";
 function OverviewEntry({ root }: { root: string }) {
   const active = useApp(
     (s) => s.appPage === "overview" && s.overviewRoot === root,
@@ -93,7 +93,7 @@ function OverviewEntry({ root }: { root: string }) {
     >
       <svg
         className="ov-roof"
-        viewBox="0 0 96 32"
+        viewBox="0 0 96 28"
         preserveAspectRatio="none"
         aria-hidden="true"
       >

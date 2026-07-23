@@ -182,7 +182,7 @@ body,
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 28px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   padding: 0 6px;
@@ -4790,7 +4790,10 @@ button.docker-row .codicon-chevron-right {
   border-color: var(--accent);
   border-bottom-color: transparent;
 }
-.project-tab:not(.page-tab):not(.working):hover {
+/* Rectangular hover fill only for plain (full-card) tabs. The shaped master
+   folder (has-overview) is transparent + drawn by the label/SVG, so a box fill
+   would show as an ugly rectangle behind the folder -- exclude it. */
+.project-tab:not(.page-tab):not(.working):not(.has-overview):hover {
   background: var(--accent-glow);
 }
 /* Claude working in a tab -> the whole folder takes the amber working color
