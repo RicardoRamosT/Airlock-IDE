@@ -4840,6 +4840,9 @@ button.docker-row .codicon-chevron-right {
   border-right: none;
   border-bottom: none;
   border-radius: 6px 0 0 0;
+  /* Drop the name to align with the Overview label (which is centered under its
+     lower roof) -- 6px top pad re-centers it ~3px lower. */
+  padding-top: 6px;
 }
 /* Overview segment: fixed width so the SVG roof maps ~1:1; the label centers
    vertically (aligned with the master name) over the flat part of its roof. */
@@ -4850,6 +4853,9 @@ button.docker-row .codicon-chevron-right {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Center the label under the LOWER roof: 6px top pad matches the roof drop so
+     the text sits equally spaced above/below its own roof. */
+  padding-top: 6px;
   background: none;
   border: none;
   color: var(--fg-dim);
