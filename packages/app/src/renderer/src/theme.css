@@ -4733,9 +4733,9 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   cursor: pointer;
   font: inherit;
-  /* One step smaller than the Overview|Changelog nav above (which inherits the
-     base size); 1em resolves against the parent, so this is base - 1px. */
-  font-size: calc(1em - 1px);
+  /* Clearly smaller than the Overview|Changelog nav above (which inherits the
+     base size); 1em resolves against the parent, so this is base - 2px. */
+  font-size: calc(1em - 2px);
 }
 .changelog-tab:hover {
   color: var(--fg);

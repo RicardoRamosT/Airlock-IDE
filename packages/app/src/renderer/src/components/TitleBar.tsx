@@ -1,8 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../store";
 
+// Title-case the folder name so the titlebar matches the project tabs.
+const titleCase = (s: string): string =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
 const basename = (root: string | null): string =>
-  root ? (root.split("/").pop() ?? "") : "";
+  root ? titleCase(root.split("/").pop() ?? "") : "";
 
 export function TitleBar() {
   const activeTabId = useApp((s) => s.activeTabId);
