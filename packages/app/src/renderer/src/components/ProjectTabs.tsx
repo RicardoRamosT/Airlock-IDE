@@ -176,7 +176,6 @@ export function ProjectTabs() {
     stripLiveKeys(tabs, split, {
       settings: settingsTabOpen,
       usage: usageTabOpen,
-      overviews: openOverviews,
     }),
   );
 
