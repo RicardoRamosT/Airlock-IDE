@@ -847,6 +847,57 @@ body,
   text-decoration: underline;
 }
 
+/* A bordered, rounded callout container for status / empty / connect states
+   (NOT list rows). Its lone button stretches full-width, like VS Code's
+   "Get started" card CTA. Compact padding keeps the sidebar's density. */
+.sb-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 10px 12px;
+  margin-bottom: var(--sb-block-gap);
+}
+.sb-card .section-note {
+  padding: 0;
+}
+.sb-card .btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* A sub-section header inside a view (e.g. the Extension Hub's status buckets):
+   an uppercase label plus an optional count badge. Same type as the view title
+   so the sidebar reads as one system. */
+.sb-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--sb-row-gap);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+/* A small count pill after a section-head label, e.g. "Connected · 3". */
+.sb-badge {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--fg-dim);
+  letter-spacing: 0;
+}
+
 /* Fill the section body: without this the tree's height collapses to its rows
    and the visually empty space below the last row belongs to the scroll parent
    (.sidebar-view-body), making the background affordances -- drop-to-root
@@ -1230,9 +1281,11 @@ body,
 }
 
 /* Popovers anchored in a right-side rail must open leftward. */
+/* Right-hand rail: open the flyout to the LEFT of the rail (mirror of the
+   default right-opening below) so it stays on-screen. */
 .workspace.sidebar-right .activity-bar-bottom .popover {
   left: auto;
-  right: 8px;
+  right: calc(100% + 4px);
 }
 
 /* Sidebar hidden: drop only the sidebar column; the rail stays. */
@@ -1629,6 +1682,57 @@ button.quota-meter:hover {
   z-index: 20;
 }
 
+/* Bottom-rail flyouts (Accounts, Settings) open to the RIGHT of the rail —
+   like VS Code's activity-bar menus — rather than stacked above them. Scoped to
+   the bottom rail so the base .popover (shared by 10 other menus) is unaffected. */
+.activity-bar-bottom .popover {
+  left: calc(100% + 4px);
+}
+/* Anchor each flyout's bottom to ITS trigger button's bottom so the caret below
+   points at the right button: Settings = the bottom gear (6px container pad),
+   Accounts = one button up (6px pad + 22px gear + 2px gap = 30px). */
+.activity-bar-bottom .popover.settings-menu {
+  bottom: 6px;
+}
+.activity-bar-bottom .popover.accounts-popover {
+  bottom: 30px;
+}
+/* Caret linking the flyout to its button (mirrors the Themes submenu): a
+   border-colored ::before + panel-fill ::after triangle on the left edge, whose
+   center sits 11px above the popover bottom = the trigger button's center. */
+.activity-bar-bottom .popover::before,
+.activity-bar-bottom .popover::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+}
+.activity-bar-bottom .popover::before {
+  left: -7px;
+  border-right: 7px solid var(--border);
+}
+.activity-bar-bottom .popover::after {
+  left: -6px;
+  border-right: 7px solid var(--bg-panel);
+}
+/* Right-hand rail: caret on the right edge, pointing right. */
+.workspace.sidebar-right .activity-bar-bottom .popover::before,
+.workspace.sidebar-right .activity-bar-bottom .popover::after {
+  left: auto;
+  border-right: 0;
+}
+.workspace.sidebar-right .activity-bar-bottom .popover::before {
+  right: -7px;
+  border-left: 7px solid var(--border);
+}
+.workspace.sidebar-right .activity-bar-bottom .popover::after {
+  right: -6px;
+  border-left: 7px solid var(--bg-panel);
+}
+
 .popover-title {
   font-size: 11px;
   font-weight: 600;
@@ -1789,10 +1893,70 @@ button.quota-meter:hover {
   margin-left: 16px;
 }
 
+/* Themes submenu: a flyout card anchored to the RIGHT of its parent item (like
+   a native menu), not an inline block stacked below it. .menu-sub is the
+   relative anchor wrapping the parent .menu-item + this submenu; the negative
+   top offsets the card's own padding+border so its first row lines up with the
+   parent row. */
+.menu-sub {
+  position: relative;
+}
 .submenu {
-  margin-left: 8px;
-  padding-left: 4px;
-  border-left: 1px solid var(--border);
+  position: absolute;
+  left: 100%;
+  top: -7px;
+  margin-left: 7px;
+  min-width: 160px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  padding: 6px;
+  z-index: 21;
+}
+/* A caret pointing back at the parent row, so the flyout reads as connected to
+   the button it opened from. Two stacked triangles: the ::before is the
+   border-colored outer, the ::after the panel-colored fill inset 1px over it
+   (the classic tooltip-caret trick). Vertically aligned with the first row. */
+.submenu::before,
+.submenu::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+}
+.submenu::before {
+  left: -7px;
+  border-right: 7px solid var(--border);
+}
+.submenu::after {
+  left: -6px;
+  border-right: 7px solid var(--bg-panel);
+}
+/* Right-hand rail: the popover hugs the window's right edge, so flip the flyout
+   to the LEFT of the parent — and flip the caret to the right edge, pointing
+   right — to keep it on-screen. */
+.workspace.sidebar-right .settings-menu .submenu {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 7px;
+}
+.workspace.sidebar-right .settings-menu .submenu::before,
+.workspace.sidebar-right .settings-menu .submenu::after {
+  left: auto;
+  border-right: 0;
+}
+.workspace.sidebar-right .settings-menu .submenu::before {
+  right: -7px;
+  border-left: 7px solid var(--border);
+}
+.workspace.sidebar-right .settings-menu .submenu::after {
+  right: -6px;
+  border-left: 7px solid var(--bg-panel);
 }
 
 /* Settings tab (opens in the viewer-pane). Padded sections with headings and
@@ -3218,8 +3382,16 @@ textarea:focus-visible {
 /* Separate the stacked Databases-view groups (Neon, the integrations panel, the
    secrets/databases list) so they read as distinct sections instead of one
    piled-up block. */
-.sidebar-view-body > .databases + .databases {
-  margin-top: 14px;
+/* Crisp separation between stacked sub-sections in composed views (Host =
+   Local + Render + Azure; Databases = Neon + Snowflake + …). `+` only matches
+   present siblings, so a section that renders null adds no stray divider. */
+.sidebar-view-body > .databases + .databases,
+.sidebar-view-body > .databases + .docker,
+.sidebar-view-body > .docker + .databases,
+.sidebar-view-body > .docker + .docker {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 /* Row header: the expand button (.db-row) plus a hover-revealed Remove button. */

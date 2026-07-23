@@ -137,7 +137,12 @@ like the rest instead of drifting into ad-hoc styles. Defined in `theme.css`;
   reveal trigger is wired per row container, currently only `.db-entry-head` for
   Databases' remove), `.sb-control` (a `select`/`input` sized to `--control-h`
   that fills its flex row), `.section-empty` (the empty-state note; works as a
-  clickable `<button>` too).
+  clickable `<button>` too), `.sb-card` (a bordered/rounded/padded callout
+  container for status / empty / **connect** states — NOT list rows; its lone
+  `.btn` stretches full-width, so pair it with `.btn.primary` for a prominent
+  CTA), `.sb-section-head` (an uppercase sub-section header) + `.sb-badge` (a
+  count pill after its label, e.g. `Connected · 3`; used by the Extension Hub
+  buckets).
 - **Skeleton per section:** shared header (`.sidebar-view-header`) → optional
   `.section-toolbar` → body (list rows at `--sb-row-gap`, control blocks at
   `--sb-block-gap`) → optional footer. Block-style sections (e.g. Git) set their

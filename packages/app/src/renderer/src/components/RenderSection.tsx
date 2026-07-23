@@ -296,10 +296,13 @@ export function RenderSection() {
   if (connected === false) {
     return (
       <div className="databases">
-        <div className="section-toolbar">
+        <div className="sb-card">
+          <span className="section-note">
+            Connect Render to see this project's services and deploys.
+          </span>
           <button
             type="button"
-            className="btn"
+            className="btn primary"
             onClick={() => useApp.getState().setModal("connect-render")}
           >
             Connect Render
