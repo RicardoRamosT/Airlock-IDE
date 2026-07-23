@@ -305,23 +305,9 @@ body,
 /* Finish glow: a brief attention pulse on a tab whose Claude session finished
    while it was NOT active. Set in store.tabGlow; cleared when the tab is
    activated (or resumes working). A few pulses then it settles. */
-.project-tab.glow {
-  /* Pulse until the tab is activated -- switchTab clears the glow flag, which
-     removes this class and stops the animation. INSET so the glow follows the
-     tab's border-radius and stays inside the element (an outer box-shadow gets
-     clipped by .project-tabs-list's overflow and shows as cut-off slivers). */
-  animation: tab-finish-glow 1.5s ease-in-out infinite;
-}
-
-@keyframes tab-finish-glow {
-  0%,
-  100% {
-    box-shadow: inset 0 0 0 0 transparent;
-  }
-  50% {
-    box-shadow: inset 0 0 6px 1px var(--accent);
-  }
-}
+/* The finished ("done") tab is colored GREEN (mirroring the dock badge) in the
+   folder-tab block below -- see .project-tab.glow there. The flag is set in
+   store.tabGlow and cleared when the tab is activated (or resumes working). */
 
 .project-tab-label {
   display: flex;
@@ -4086,12 +4072,6 @@ button.docker-row .codicon-chevron-right {
   .step-spin {
     animation: none;
   }
-  /* No pulse under reduced motion, but keep a STATIC inset ring so a finished
-     background tab is still visibly marked until the user opens it. */
-  .project-tab.glow {
-    animation: none;
-    box-shadow: inset 0 0 0 1.5px var(--accent);
-  }
   .progress-bar.indeterminate .fill {
     transform: none;
     width: 100%;
@@ -4822,6 +4802,15 @@ button.docker-row .codicon-chevron-right {
   /* A working tab reads as a CLOSED folder: a solid amber line below it, unlike
      the open (blue) tabs whose bottom is transparent and merge into content. */
   border-bottom-color: #d2a106;
+}
+/* A finished ("done") background tab reads GREEN -- matching the dock badge
+   (green = done, amber = working) -- with a green line below, until you open it
+   (switchTab clears the glow flag). No pulse. Declared after :not(.page-tab) so
+   green wins over the default blue. */
+.project-tab.glow {
+  background: rgba(63, 185, 80, 0.14);
+  border-color: rgba(63, 185, 80, 0.6);
+  border-bottom-color: #3fb950;
 }
 /* The inline Overview entry on the master folder: a rounded pill that slides
    out when the folder opens. Active state mirrors .page-tab.active (soft fill +
