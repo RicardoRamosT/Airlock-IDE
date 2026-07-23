@@ -425,6 +425,20 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     });
     ro.observe(host);
 
+    // The layout heights (and font metrics) can finish settling a frame after
+    // mount, so the initial fit() above may leave xterm one row too tall --
+    // Claude Code then draws its bottom line under the pane's clip edge. Re-fit
+    // after the next paint and once fonts are ready; fit() is idempotent, so a
+    // correct initial fit makes these no-ops.
+    const refit = () => {
+      if (disposed || host.clientWidth === 0 || host.clientHeight === 0) return;
+      fit.fit();
+      if (idRef.current)
+        window.airlock.ptyResize(idRef.current, term.cols, term.rows);
+    };
+    requestAnimationFrame(refit);
+    void document.fonts?.ready.then(refit);
+
     return () => {
       disposed = true;
       if (resizeTimer) clearTimeout(resizeTimer);
