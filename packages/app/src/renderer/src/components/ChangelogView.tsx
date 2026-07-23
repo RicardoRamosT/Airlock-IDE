@@ -193,17 +193,17 @@ function NoteRow({
           {relativeTime(note.ts, Date.now())}
         </span>
         <span className="note-actions">
-          <button type="button" className="row-action" onClick={onEdit}>
+          <button type="button" className="note-action" onClick={onEdit}>
             Edit
           </button>
           {confirming ? (
             <>
-              <button type="button" className="row-action" onClick={onDelete}>
+              <button type="button" className="note-action" onClick={onDelete}>
                 Confirm
               </button>
               <button
                 type="button"
-                className="row-action"
+                className="note-action"
                 onClick={() => setConfirming(false)}
               >
                 Cancel
@@ -212,7 +212,7 @@ function NoteRow({
           ) : (
             <button
               type="button"
-              className="row-action"
+              className="note-action"
               onClick={() => setConfirming(true)}
             >
               Delete
