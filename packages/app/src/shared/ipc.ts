@@ -612,6 +612,13 @@ export interface OverviewStats {
   languages: { id: string; name: string; files: number }[]; // top langs + "Other"
 }
 
+export type JournalTag = "change" | "fix" | "decision" | "note";
+export interface JournalEntry {
+  ts: number; // epoch ms
+  tag: JournalTag;
+  text: string;
+}
+
 export interface OverviewResult {
   profile: ProjectProfile;
   summary: string | null;
