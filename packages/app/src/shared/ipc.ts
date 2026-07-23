@@ -621,6 +621,7 @@ export interface JournalEntry {
   ts: number; // epoch ms
   tag: JournalTag;
   text: string;
+  details?: string; // optional markdown context (the why/what)
 }
 
 export interface OverviewResult {

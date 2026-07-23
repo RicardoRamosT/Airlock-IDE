@@ -14,6 +14,7 @@ export const JOURNAL_TAGS: readonly JournalTag[] = [
 ];
 export const MAX_ENTRIES = 500;
 const MAX_TEXT = 2000;
+export const MAX_DETAILS = 8000;
 
 function isTag(v: unknown): v is JournalTag {
   return (
@@ -36,11 +37,20 @@ export function parseJournalLine(line: string): JournalEntry | null {
   if (typeof r.ts !== "number" || !Number.isFinite(r.ts) || r.ts <= 0)
     return null;
   if (typeof r.text !== "string" || r.text.trim() === "") return null;
-  return { ts: r.ts, tag: isTag(r.tag) ? r.tag : "note", text: r.text };
+  const entry: JournalEntry = {
+    ts: r.ts,
+    tag: isTag(r.tag) ? r.tag : "note",
+    text: r.text,
+  };
+  if (typeof r.details === "string" && r.details.trim() !== "")
+    entry.details = r.details;
+  return entry;
 }
 
 export function serializeEntry(e: JournalEntry): string {
-  return JSON.stringify({ ts: e.ts, tag: e.tag, text: e.text });
+  const o: Record<string, unknown> = { ts: e.ts, tag: e.tag, text: e.text };
+  if (e.details) o.details = e.details;
+  return JSON.stringify(o);
 }
 
 // Validate/normalize an incoming append. Empty/oversize/non-string text -> null.
@@ -48,11 +58,21 @@ export function sanitizeNewEntry(
   text: unknown,
   tag: unknown,
   nowMs: number,
+  details?: unknown,
 ): JournalEntry | null {
   if (typeof text !== "string") return null;
   const trimmed = text.trim();
   if (trimmed === "" || trimmed.length > MAX_TEXT) return null;
-  return { ts: nowMs, tag: isTag(tag) ? tag : "note", text: trimmed };
+  const entry: JournalEntry = {
+    ts: nowMs,
+    tag: isTag(tag) ? tag : "note",
+    text: trimmed,
+  };
+  if (typeof details === "string") {
+    const d = details.trim();
+    if (d !== "") entry.details = d.slice(0, MAX_DETAILS);
+  }
+  return entry;
 }
 
 export function readJournal(fileText: string): JournalEntry[] {
