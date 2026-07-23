@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { JournalEntry } from "../../shared/ipc";
 import {
   capEntries,
+  deleteNote,
   MAX_DETAILS,
   parseJournalLine,
   readJournal,
   sanitizeNewEntry,
   serializeEntry,
+  uniqueTs,
+  updateNote,
 } from "./journal";
 
 describe("parseJournalLine", () => {
@@ -113,5 +117,47 @@ describe("details field", () => {
       sanitizeNewEntry("t", "note", 9, "x".repeat(MAX_DETAILS + 500))?.details
         ?.length,
     ).toBe(MAX_DETAILS);
+  });
+});
+
+describe("note mutators", () => {
+  it("uniqueTs returns ts when free, else the next free ts", () => {
+    const es: JournalEntry[] = [
+      { ts: 1000, tag: "note", text: "a" },
+      { ts: 1001, tag: "note", text: "b" },
+    ];
+    expect(uniqueTs(es, 999)).toBe(999);
+    expect(uniqueTs(es, 1000)).toBe(1002); // 1000 & 1001 taken -> 1002
+  });
+
+  it("updateNote replaces text/details, clears empty details, keeps ts/tag", () => {
+    const es: JournalEntry[] = [
+      { ts: 5, tag: "note", text: "old", details: "d" },
+    ];
+    expect(updateNote(es, 5, "new", "")).toEqual([
+      { ts: 5, tag: "note", text: "new" },
+    ]);
+    expect(updateNote(es, 5, "new", "why")).toEqual([
+      { ts: 5, tag: "note", text: "new", details: "why" },
+    ]);
+  });
+
+  it("updateNote refuses a non-note ts and empty/missing entries", () => {
+    const es: JournalEntry[] = [
+      { ts: 5, tag: "change", text: "c" },
+      { ts: 6, tag: "note", text: "n" },
+    ];
+    expect(updateNote(es, 5, "x")).toBeNull(); // change is immutable
+    expect(updateNote(es, 6, "   ")).toBeNull(); // empty text
+    expect(updateNote(es, 99, "x")).toBeNull(); // no such entry
+  });
+
+  it("deleteNote removes exactly the note, refuses non-note", () => {
+    const es: JournalEntry[] = [
+      { ts: 5, tag: "change", text: "c" },
+      { ts: 6, tag: "note", text: "n" },
+    ];
+    expect(deleteNote(es, 5)).toBeNull(); // change immutable
+    expect(deleteNote(es, 6)).toEqual([{ ts: 5, tag: "change", text: "c" }]);
   });
 });
