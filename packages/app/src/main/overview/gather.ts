@@ -4,6 +4,7 @@ import path from "node:path";
 import { buildProfile, type DetectInputs } from "@airlock/agent-core";
 import type { OverviewResult } from "../../shared/ipc";
 import { listSecretNames } from "../ide-state";
+import { readRecentJournal } from "./journalStore";
 import { languageBreakdown } from "./languages";
 
 const CONFIG_FILES = [
@@ -211,5 +212,8 @@ export async function gatherProfile(root: string): Promise<OverviewResult> {
     fileCount: names.length,
     languages: languageBreakdown(names),
   };
-  return { profile, summary, summaryMtimeMs, stats, readme };
+  // Recent Changelog entries (newest-first) so project_info surfaces them for
+  // read-back and the Overview page seeds the Changelog view.
+  const journal = await readRecentJournal(root, 20);
+  return { profile, summary, summaryMtimeMs, stats, readme, journal };
 }

@@ -45,6 +45,7 @@ import {
   slackReadChannelTool,
 } from "../extensions/slackTools";
 import { gatherProfile } from "../overview/gather";
+import { appendJournalEntry } from "../overview/journalStore";
 import { loadPrefs, publicPrefs, savePrefs } from "../prefs";
 import { applyPrefPatch } from "./prefWrite";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
@@ -176,6 +177,17 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
       slackReadChannelTool(root, channel, limit),
     githubReadIssue: (root, owner, repo, issue) =>
       githubReadIssueTool(root, owner, repo, issue),
+    addChangelogEntry: async (root, text, tag) => {
+      const r = await appendJournalEntry(root, text, tag, Date.now());
+      // Broadcast so an open Overview/Changelog view refreshes live.
+      if (r.ok) {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.webContents.isDestroyed())
+            w.webContents.send("journal:changed", { root });
+        }
+      }
+      return r;
+    },
     selfVerifyEnabled: async () =>
       (await loadPrefs(deps.prefsFile)).selfVerify.enabled,
     captureScreenshot: async () => {

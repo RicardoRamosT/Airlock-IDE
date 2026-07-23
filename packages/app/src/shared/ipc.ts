@@ -625,6 +625,7 @@ export interface OverviewResult {
   summaryMtimeMs: number;
   stats: OverviewStats;
   readme: string | null; // project README.md content (capped), or null if absent
+  journal: JournalEntry[]; // recent Changelog entries, newest-first
 }
 
 export interface FsChangedEvent {

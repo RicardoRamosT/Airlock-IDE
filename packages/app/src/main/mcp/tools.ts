@@ -87,6 +87,7 @@ export const TOOL_NAMES: string[] = [
   "github_read_issue",
   "capture_screenshot",
   "set_pref",
+  "add_changelog_entry",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -102,6 +103,15 @@ export interface ToolDeps {
     key: string,
     value: unknown,
   ) => Promise<{ ok: boolean; error?: string }>;
+  // Append an entry to the project's Changelog journal (.airlock/journal.jsonl).
+  addChangelogEntry: (
+    root: string,
+    text: string,
+    tag?: string,
+  ) => Promise<
+    | { ok: true; entry: import("../../shared/ipc").JournalEntry }
+    | { ok: false; error: string }
+  >;
   getBaseEnv: () => Record<string, string>;
   requestSecretFromUser: (
     name: string,
@@ -562,6 +572,29 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
       return ok({ root, ...((await deps.getProjectInfo(root)) as object) });
+    },
+  );
+
+  // Append an entry to the project's Changelog journal (.airlock/journal.jsonl),
+  // shown in the Overview page. Benign + per-project -> not gated. On-demand: the
+  // agent calls it when a change/decision/fix is worth recording.
+  mcp.registerTool(
+    "add_changelog_entry",
+    {
+      description:
+        "Append an entry to this project's Changelog (shown in the Overview page). " +
+        "Use it on-demand to record a change, fix, or decision. tag is one of " +
+        "change|fix|decision|note (default note).",
+      inputSchema: {
+        text: z.string(),
+        tag: z.enum(["change", "fix", "decision", "note"]).optional(),
+      },
+    },
+    async ({ text, tag }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      const r = await deps.addChangelogEntry(root, text, tag);
+      return r.ok ? ok({ added: true, entry: r.entry }) : err(r.error);
     },
   );
 
