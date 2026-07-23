@@ -612,12 +612,20 @@ export interface OverviewStats {
   languages: { id: string; name: string; files: number }[]; // top langs + "Other"
 }
 
+export type JournalTag = "change" | "fix" | "decision" | "note";
+export interface JournalEntry {
+  ts: number; // epoch ms
+  tag: JournalTag;
+  text: string;
+}
+
 export interface OverviewResult {
   profile: ProjectProfile;
   summary: string | null;
   summaryMtimeMs: number;
   stats: OverviewStats;
   readme: string | null; // project README.md content (capped), or null if absent
+  journal: JournalEntry[]; // recent Changelog entries, newest-first
 }
 
 export interface FsChangedEvent {
@@ -990,6 +998,8 @@ export interface AirlockApi {
   memoryGet(): Promise<MemorySample>;
   // Project overview: live tech-stack profile + optional .airlock/overview.md summary.
   overviewGet(root: string): Promise<OverviewResult>;
+  // The project's Changelog journal (recent, newest-first) for the Overview page.
+  journalGet(root: string): Promise<JournalEntry[]>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   anthropicStatusGet(): Promise<AnthropicStatus | null>;
   onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;
@@ -1007,6 +1017,8 @@ export interface AirlockApi {
   // App-global prefs changed from the backend (e.g. the set_pref MCP tool); the
   // renderer re-applies them live so the UI reflects the change without a restart.
   onPrefsChanged(cb: (p: AppPrefs) => void): () => void;
+  // Main broadcasts when a project's Changelog journal changes (add_changelog_entry).
+  onJournalChanged(cb: (e: { root: string }) => void): () => void;
   getAgentPolicy(): Promise<AgentCommandPolicy>;
   setAgentPolicy(policy: AgentCommandPolicy): Promise<AgentCommandPolicy>;
   // Agent-requested secret: main pushes agent:request-secret when the

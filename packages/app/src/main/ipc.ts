@@ -164,6 +164,7 @@ import {
   resolveProjectAccountId,
 } from "./neon/accounts";
 import { gatherProfile } from "./overview/gather";
+import { readRecentJournal } from "./overview/journalStore";
 import {
   loadPrefs,
   publicPrefs,
@@ -540,6 +541,11 @@ export function registerIpc(
     // secret/audit write. Idempotent + best-effort (never blocks the gather).
     await ensureAirlockDir(root).catch(() => {});
     return gatherProfile(root);
+  });
+  // The project's Changelog journal (recent, newest-first) for the Overview page.
+  ipcMain.handle("journal:get", async (e, root: unknown) => {
+    if (typeof root !== "string" || !isOpenRoot(e, root)) return [];
+    return readRecentJournal(root, 100);
   });
 
   ipcMain.handle("fs:readImage", (e, root: unknown, relPath: unknown) => {

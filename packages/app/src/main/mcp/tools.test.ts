@@ -9,6 +9,7 @@ import type {
   AgentCommandResult,
   DevServerStartResult,
   EnvFileImport,
+  JournalEntry,
   QuotaStatus,
   SecretMeta,
   Section,
@@ -165,6 +166,11 @@ const baseDeps = {
   slackListAllowedChannels: vi.fn(async () => ({ channels: [] })),
   slackReadChannel: vi.fn(async () => ({ error: "not connected" })),
   githubReadIssue: vi.fn(async () => ({ error: "not connected" })),
+  addChangelogEntry: vi.fn(
+    async (): Promise<
+      { ok: true; entry: JournalEntry } | { ok: false; error: string }
+    > => ({ ok: true, entry: { ts: 1, tag: "note", text: "x" } }),
+  ),
 };
 
 describe("registerTools allowlist guard", () => {
@@ -172,13 +178,13 @@ describe("registerTools allowlist guard", () => {
   // twenty-nine allowlisted tools (twenty read/curate/run/commit + the nine
   // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
   // removed one fails this immediately.
-  it("registers exactly the thirty-six allowlisted tools and nothing else", () => {
+  it("registers exactly the thirty-seven allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(36);
+    expect(registered).toHaveLength(37);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");
@@ -1082,5 +1088,47 @@ describe("self-verification tools gate on selfVerify", () => {
     })) as { isError?: boolean };
     expect(setPref).toHaveBeenCalledWith("quotaMeter", { enabled: true });
     expect(res.isError).toBeUndefined();
+  });
+});
+
+describe("add_changelog_entry", () => {
+  function getTool(deps = baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const t = tools.find((x) => x.name === "add_changelog_entry");
+    if (!t) throw new Error("add_changelog_entry not registered");
+    return t.handler;
+  }
+  it("NO_WORKSPACE when no root", async () => {
+    const res = (await getTool()({ text: "hi" })) as { isError?: boolean };
+    expect(res.isError).toBe(true);
+  });
+  it("appends via deps when a root is open", async () => {
+    const addChangelogEntry = vi.fn(async () => ({
+      ok: true as const,
+      entry: { ts: 1, tag: "change" as const, text: "did X" },
+    }));
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      addChangelogEntry,
+    });
+    const res = (await handler({ text: "did X", tag: "change" })) as {
+      content: { text: string }[];
+    };
+    expect(addChangelogEntry).toHaveBeenCalledWith("/repo", "did X", "change");
+    expect(JSON.parse(res.content[0]?.text ?? "{}").added).toBe(true);
+  });
+  it("errors when deps refuse (empty text)", async () => {
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      addChangelogEntry: vi.fn(async () => ({
+        ok: false as const,
+        error: "empty",
+      })),
+    });
+    const res = (await handler({ text: "" })) as { isError?: boolean };
+    expect(res.isError).toBe(true);
   });
 });
