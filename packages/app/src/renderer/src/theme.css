@@ -192,7 +192,10 @@ body,
 
 .project-tabs-list {
   display: flex;
-  align-items: center;
+  /* Fill the strip height so tabs stretch to the bottom seam -- their left/right
+     sides reach the content edge (a folder connected to the content below). */
+  align-self: stretch;
+  align-items: stretch;
   gap: 6px;
   overflow-x: auto;
   min-width: 0;
@@ -202,7 +205,6 @@ body,
   display: flex;
   align-items: center;
   border-radius: 4px;
-  height: 24px;
   position: relative; /* positioning context for the drag drop indicator */
   transition: margin 110ms ease; /* smooth "make room" slide while dragging */
 }
@@ -4816,7 +4818,10 @@ button.docker-row .codicon-chevron-right {
    when a focused folder is also working. */
 .project-tab.working {
   background: rgba(210, 161, 6, 0.14);
-  border-color: rgba(210, 161, 6, 0.55);
+  border-color: rgba(210, 161, 6, 0.6);
+  /* A working tab reads as a CLOSED folder: a solid amber line below it, unlike
+     the open (blue) tabs whose bottom is transparent and merge into content. */
+  border-bottom-color: #d2a106;
 }
 /* The inline Overview entry on the master folder: a rounded pill that slides
    out when the folder opens. Active state mirrors .page-tab.active (soft fill +
