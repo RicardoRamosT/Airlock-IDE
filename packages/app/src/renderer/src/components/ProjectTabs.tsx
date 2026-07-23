@@ -240,8 +240,16 @@ export function ProjectTabs() {
     const lefts = new Map<string, number>();
     for (const el of els) lefts.set(el.dataset.tabkey ?? "", el.offsetLeft);
     const removed = prevKeys.current.some((k) => !lefts.has(k));
+    // A bulk change (>=2 brand-new entries at once -- session restore on launch,
+    // or opening several) isn't a close-reflow; skip it so the trailing + and
+    // neighbors don't slide in from stale positions. A normal close adds 0 (or 1,
+    // when the last tab is replaced by a fresh blank), so those still animate.
+    let addedCount = 0;
+    for (const k of lefts.keys())
+      if (!prevKeys.current.includes(k)) addedCount++;
     if (
       removed &&
+      addedCount < 2 &&
       dragKey.current === null &&
       dragging === null &&
       typeof HTMLElement.prototype.animate === "function"
@@ -262,7 +270,7 @@ export function ProjectTabs() {
             { transform: `translateX(${dx}px)` },
             { transform: "translateX(0)" },
           ],
-          { duration: 220, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
+          { duration: 240, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
         );
         anim.id = "tab-close-slide";
       }
