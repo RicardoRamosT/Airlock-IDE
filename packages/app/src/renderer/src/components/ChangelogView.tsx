@@ -129,21 +129,171 @@ export function ChangelogView({ root }: { root: string }) {
   );
 }
 
-// Placeholder read-only Notes list (CRUD lands in the next task).
-function NotesTab({
-  root: _root,
-  notes,
+// Add/edit form for a note: a title + optional markdown details.
+function NoteComposer({
+  initial,
+  onSave,
+  onCancel,
 }: {
-  root: string;
-  notes: JournalEntry[];
+  initial?: JournalEntry;
+  onSave: (text: string, details: string | undefined) => void;
+  onCancel: () => void;
 }) {
+  const [text, setText] = useState(initial?.text ?? "");
+  const [details, setDetails] = useState(initial?.details ?? "");
   return (
-    <div className="changelog-list">
-      {notes.length === 0 ? (
-        <div className="section-empty">No notes.</div>
+    <div className="note-composer">
+      <input
+        className="sb-control"
+        placeholder="Title"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <textarea
+        className="note-details-input"
+        placeholder="Details (markdown, optional)"
+        value={details}
+        onChange={(e) => setDetails(e.target.value)}
+      />
+      <div className="note-composer-actions">
+        <button type="button" className="btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={text.trim() === ""}
+          onClick={() => onSave(text.trim(), details.trim() || undefined)}
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// A single editable note row: expandable details + Edit / Delete (delete
+// asks an inline confirm first).
+function NoteRow({
+  note,
+  onEdit,
+  onDelete,
+}: {
+  note: JournalEntry;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className="changelog-entry">
+      <div className="changelog-meta">
+        <span className="changelog-tag tag-note">note</span>
+        <span className="changelog-time">
+          {relativeTime(note.ts, Date.now())}
+        </span>
+        <span className="note-actions">
+          <button type="button" className="row-action" onClick={onEdit}>
+            Edit
+          </button>
+          {confirming ? (
+            <>
+              <button type="button" className="row-action" onClick={onDelete}>
+                Confirm
+              </button>
+              <button
+                type="button"
+                className="row-action"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="row-action"
+              onClick={() => setConfirming(true)}
+            >
+              Delete
+            </button>
+          )}
+        </span>
+      </div>
+      <div className="changelog-text">
+        {note.text}
+        {note.details ? (
+          <button
+            type="button"
+            className="changelog-toggle"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "▾ hide" : "▸ details"}
+          </button>
+        ) : null}
+      </div>
+      {note.details && open ? (
+        <div className="changelog-details">
+          <OverviewMarkdown md={note.details} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// The Notes tab: an add-note composer plus editable/deletable note rows.
+function NotesTab({ root, notes }: { root: string; notes: JournalEntry[] }) {
+  const [adding, setAdding] = useState(false);
+  const [editingTs, setEditingTs] = useState<number | null>(null);
+  return (
+    <div className="notes-tab">
+      {adding ? (
+        <NoteComposer
+          onCancel={() => setAdding(false)}
+          onSave={(text, details) => {
+            void window.airlock.journalAddNote(root, text, details);
+            setAdding(false);
+          }}
+        />
       ) : (
-        notes.map((n) => <EntryRow key={`${n.ts}-${n.text}`} entry={n} />)
+        <button type="button" className="btn" onClick={() => setAdding(true)}>
+          ＋ Add note
+        </button>
       )}
+      <div className="changelog-list">
+        {notes.length === 0 ? (
+          <div className="section-empty">No notes.</div>
+        ) : (
+          notes.map((n) =>
+            editingTs === n.ts ? (
+              <NoteComposer
+                key={n.ts}
+                initial={n}
+                onCancel={() => setEditingTs(null)}
+                onSave={(text, details) => {
+                  void window.airlock.journalUpdateNote(
+                    root,
+                    n.ts,
+                    text,
+                    details,
+                  );
+                  setEditingTs(null);
+                }}
+              />
+            ) : (
+              <NoteRow
+                key={n.ts}
+                note={n}
+                onEdit={() => setEditingTs(n.ts)}
+                onDelete={() => {
+                  void window.airlock.journalDeleteNote(root, n.ts);
+                }}
+              />
+            ),
+          )
+        )}
+      </div>
     </div>
   );
 }

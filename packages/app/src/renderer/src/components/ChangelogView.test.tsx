@@ -72,3 +72,68 @@ it("expands details markdown on toggle; no toggle without details", async () => 
     1,
   );
 });
+
+it("Add note -> composer -> calls journalAddNote", async () => {
+  stub([{ ts: 1000, tag: "note", text: "existing" }]);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  fireEvent.click(screen.getByRole("button", { name: /add note/i }));
+  fireEvent.change(screen.getByPlaceholderText("Title"), {
+    target: { value: "new note" },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/details/i), {
+    target: { value: "**why**" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  await waitFor(() =>
+    expect(api.journalAddNote).toHaveBeenCalledWith(
+      "/repo",
+      "new note",
+      "**why**",
+    ),
+  );
+});
+
+it("Edit note -> prefilled composer -> calls journalUpdateNote with ts", async () => {
+  stub([{ ts: 4242, tag: "note", text: "editable", details: "d" }]);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+  const title = screen.getByPlaceholderText("Title") as HTMLInputElement;
+  expect(title.value).toBe("editable");
+  fireEvent.change(title, { target: { value: "edited" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  await waitFor(() =>
+    expect(api.journalUpdateNote).toHaveBeenCalledWith(
+      "/repo",
+      4242,
+      "edited",
+      "d",
+    ),
+  );
+});
+
+it("Delete note -> confirm -> calls journalDeleteNote", async () => {
+  stub([{ ts: 77, tag: "note", text: "doomed" }]);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  await waitFor(() =>
+    expect(api.journalDeleteNote).toHaveBeenCalledWith("/repo", 77),
+  );
+});
+
+it("Changes tab has no note actions", async () => {
+  stub([{ ts: 1, tag: "change", text: "shipped" }]);
+  render(<ChangelogView root="/repo" />);
+  await screen.findByText("shipped");
+  expect(screen.queryByRole("button", { name: /add note/i })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
+});

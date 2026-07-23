@@ -4738,3 +4738,35 @@ button.docker-row .codicon-chevron-right {
   width: 100%;
   margin-bottom: 10px;
 }
+
+/* Notes composer + row actions. */
+.note-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.note-details-input {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px;
+  font: inherit;
+}
+.note-composer-actions {
+  display: flex;
+  gap: var(--sb-gap);
+  justify-content: flex-end;
+}
+.note-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: var(--sb-gap);
+}
