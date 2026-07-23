@@ -1,4 +1,10 @@
-import { type DragEvent, useEffect, useRef, useState } from "react";
+import {
+  type DragEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
@@ -191,6 +197,11 @@ export function ProjectTabs() {
   // tab can collapse OUT of the row while dragging -- otherwise its slot stays
   // and the make-room gap opens confusingly right next to it.
   const [dragging, setDragging] = useState<string | null>(null);
+  // Close-reflow FLIP (see the useLayoutEffect below): the strip element plus
+  // each entry's last-known left edge and the last-rendered key set.
+  const stripRef = useRef<HTMLDivElement>(null);
+  const prevLefts = useRef<Map<string, number>>(new Map());
+  const prevKeys = useRef<string[]>([]);
   // Close BOTH members of the split pair (the unified tab's X / "Close both").
   // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
   // null), so read both before closing; closeTab promotes/cleans up each tab.
@@ -209,6 +220,49 @@ export function ProjectTabs() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
+
+  // Close-reflow FLIP: when an entry is removed, its right-hand neighbors (and
+  // the trailing +) snap into the freed space. Animate that -- measure each
+  // surviving entry's old vs new left edge and ease the delta out (translateX
+  // dx -> 0). It plays ONLY on a removal, so opening/switching tabs and the
+  // Overview grow-in are untouched, and it's skipped mid-drag (drag has its own
+  // make-room motion). offsetLeft (not getBoundingClientRect) is measured so an
+  // in-flight transform never feeds back into the next measurement. No dep array:
+  // the FLIP must sample the DOM after every commit.
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const els = Array.from(
+      strip.querySelectorAll<HTMLElement>("[data-tabkey]"),
+    );
+    const lefts = new Map<string, number>();
+    for (const el of els) lefts.set(el.dataset.tabkey ?? "", el.offsetLeft);
+    const removed = prevKeys.current.some((k) => !lefts.has(k));
+    if (removed && dragKey.current === null && dragging === null) {
+      for (const el of els) {
+        const key = el.dataset.tabkey ?? "";
+        const prev = prevLefts.current.get(key);
+        const next = lefts.get(key);
+        if (prev === undefined || next === undefined) continue;
+        const dx = prev - next;
+        if (Math.abs(dx) < 0.5) continue;
+        el.style.transition = "none";
+        el.style.transform = `translateX(${dx}px)`;
+        el.getBoundingClientRect(); // flush: commit the inverted start position
+        el.style.transition =
+          "transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1)";
+        el.style.transform = "";
+        const clear = () => {
+          el.style.transition = "";
+          el.style.transform = "";
+          el.removeEventListener("transitionend", clear);
+        };
+        el.addEventListener("transitionend", clear);
+      }
+    }
+    prevLefts.current = lefts;
+    prevKeys.current = [...lefts.keys()];
+  });
 
   // Render gate: show the strip in tabs mode, while >1 tab exists, or while an
   // IDE page-tab is open (it has nowhere else to live). When hidden, returning
@@ -326,6 +380,7 @@ export function ProjectTabs() {
     return (
       <div
         key="__split__"
+        data-tabkey="pair"
         className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${activeTabId === pair.a || activeTabId === pair.b ? " has-overview" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
         {...dropTarget("pair")}
       >
@@ -370,6 +425,7 @@ export function ProjectTabs() {
     return (
       <div
         key={tab.id}
+        data-tabkey={tab.id}
         className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${tab.id === activeTabId && tab.root ? " has-overview" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
         {...dropTarget(tab.id)}
       >
@@ -423,6 +479,7 @@ export function ProjectTabs() {
     return (
       <div
         key={`page:${kind}`}
+        data-tabkey={`page:${kind}`}
         className={`project-tab page-tab${appPage === kind ? " active" : ""}${dragging === `page:${kind}` ? " dragging" : ""}${dropClass(`page:${kind}`)}`}
         {...dropTarget(`page:${kind}`)}
       >
@@ -460,13 +517,14 @@ export function ProjectTabs() {
   };
 
   return (
-    <div className="project-tabs">
+    <div className="project-tabs" ref={stripRef}>
       <div className="project-tabs-list" {...listDropZone}>
         {orderedKeys.map(renderEntry)}
       </div>
       <button
         type="button"
         className="project-tab-action"
+        data-tabkey="__add__"
         title="New tab"
         onClick={() => useApp.getState().openBlankTab()}
       >
