@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JournalEntry } from "../../../shared/ipc";
 import { relativeTime } from "../lib/overviewFreshness";
+import { useApp } from "../store";
 import { OverviewMarkdown } from "./OverviewMarkdown";
+
+// Single-line prompt (no newline -> pasted into Claude's input, NOT submitted,
+// so the user reviews then presses Enter) that asks Claude to seed the changelog
+// from git history.
+const SEED_CHANGELOG_PROMPT =
+  "Please populate this project's changelog: review the git history and call the add_changelog_entry tool for each notable change, with a concise title, the right tag (change/fix/decision/note), and a markdown details body explaining the why and what.";
 
 // One Changelog row: title + tag + time, with an optional expand toggle that
 // reveals the markdown `details` (rendered by the safe OverviewMarkdown).
@@ -87,8 +94,30 @@ export function ChangelogView({ root }: { root: string }) {
   if (entries.length === 0) {
     return (
       <div className="overview empty">
-        No changelog entries yet — Claude adds them with{" "}
-        <code>add_changelog_entry</code>.
+        <div className="changelog-empty">
+          <i className="codicon codicon-book changelog-empty-icon" />
+          <h3 className="changelog-empty-title">No changelog yet</h3>
+          <p className="changelog-empty-text">
+            Let Claude document this project&rsquo;s history — it&rsquo;ll
+            review the git log and add an entry for each notable change.
+          </p>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => {
+              const s = useApp.getState();
+              const tabId = s.tabs.find((t) => t.root === root)?.id;
+              if (s.sendToClaudeTerminal(SEED_CHANGELOG_PROMPT, tabId))
+                s.closeOverview(); // reveal the terminal with the pasted prompt
+            }}
+          >
+            Ask Claude to write the changelog
+          </button>
+          <p className="changelog-empty-hint">
+            Claude also records changes anytime with{" "}
+            <code>add_changelog_entry</code>.
+          </p>
+        </div>
       </div>
     );
   }

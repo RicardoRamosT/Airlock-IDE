@@ -4859,3 +4859,40 @@ button.docker-row .codicon-chevron-right {
     transform: translateX(0);
   }
 }
+
+/* Changelog empty-state: a centered card with an icon, blurb, and a CTA that
+   pastes a "seed the changelog" prompt into the project's Claude terminal. */
+.changelog-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  max-width: 380px;
+}
+.changelog-empty-icon {
+  font-size: 30px;
+  color: var(--fg-dim);
+  opacity: 0.75;
+}
+.changelog-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.changelog-empty-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-dim);
+}
+.changelog-empty .btn.primary {
+  margin-top: 2px;
+}
+.changelog-empty-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fg-dim);
+  opacity: 0.8;
+}
