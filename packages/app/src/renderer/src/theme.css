@@ -193,7 +193,7 @@ body,
 .project-tabs-list {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   overflow-x: auto;
   min-width: 0;
 }
@@ -4784,4 +4784,44 @@ button.docker-row .codicon-chevron-right {
 .note-action:hover {
   color: var(--fg);
   background: var(--hover);
+}
+
+/* Project tabs as folders: a defined boundary + rounded top so each reads as a
+   distinct folder; the focused ("master") folder is "open" (stronger fill +
+   border) and holds its inline Overview entry. */
+.project-tab {
+  border: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+}
+.project-tab:not(.page-tab):hover {
+  background: var(--hover);
+}
+.project-tab.folder-open {
+  background: var(--selected);
+  border-color: var(--border);
+  border-bottom-color: transparent;
+}
+/* The inline Overview entry on the master folder (opens rightward in-strip). */
+.project-tab-overview {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: stretch;
+  margin-left: 2px;
+  padding: 0 8px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.project-tab-overview:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+.project-tab-overview.active {
+  color: var(--fg);
+  background: var(--accent, var(--selected));
 }

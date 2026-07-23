@@ -59,6 +59,29 @@ function TabRenameInput({
   );
 }
 
+// The inline Overview entry on the focused ("master") project folder. Opens
+// rightward inside the strip; clicking it shows the full Overview in the main
+// area. Highlighted while that project's overview is shown.
+function OverviewEntry({ root }: { root: string }) {
+  const active = useApp(
+    (s) => s.appPage === "overview" && s.overviewRoot === root,
+  );
+  return (
+    <button
+      type="button"
+      className={`project-tab-overview${active ? " active" : ""}`}
+      title="Overview"
+      onClick={(e) => {
+        e.stopPropagation();
+        useApp.getState().showOverview(root);
+      }}
+    >
+      <i className="codicon codicon-book" />
+      <span>Overview</span>
+    </button>
+  );
+}
+
 // The project-tab strip (Chrome-style). One tab per project (or blank tab).
 // A SPLIT pair renders as ONE combined tab (both names) -- you switch to it as a
 // unit; clicking it shows the two panes side by side, clicking any other tab
@@ -82,7 +105,6 @@ export function ProjectTabs() {
   const appPage = useApp((s) => s.appPage);
   const settingsTabOpen = useApp((s) => s.settingsTabOpen);
   const usageTabOpen = useApp((s) => s.usageTabOpen);
-  const openOverviews = useApp((s) => s.openOverviews);
   const overviewRoot = useApp((s) => s.overviewRoot);
   const stripOrder = useApp((s) => s.stripOrder);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
@@ -156,8 +178,7 @@ export function ProjectTabs() {
     !openProjectsAsTabs &&
     tabs.length <= 1 &&
     !settingsTabOpen &&
-    !usageTabOpen &&
-    openOverviews.length === 0
+    !usageTabOpen
   )
     return null;
 
@@ -176,7 +197,6 @@ export function ProjectTabs() {
     stripLiveKeys(tabs, split, {
       settings: settingsTabOpen,
       usage: usageTabOpen,
-      overviews: openOverviews,
     }),
   );
 
@@ -267,7 +287,7 @@ export function ProjectTabs() {
     return (
       <div
         key="__split__"
-        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
+        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
         {...dropTarget("pair")}
       >
         <button
@@ -294,6 +314,12 @@ export function ProjectTabs() {
             {labelB}
           </span>
         </button>
+        {(() => {
+          const r = tabs.find((t) => t.id === activeTabId)?.root;
+          return (activeTabId === pair.a || activeTabId === pair.b) && r ? (
+            <OverviewEntry root={r} />
+          ) : null;
+        })()}
         <button
           type="button"
           className="project-tab-close"
@@ -317,7 +343,7 @@ export function ProjectTabs() {
     return (
       <div
         key={tab.id}
-        className={`project-tab${active ? " active" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
+        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
         {...dropTarget(tab.id)}
       >
         {renaming === tab.id ? (
@@ -356,10 +382,15 @@ export function ProjectTabs() {
             <span
               className={`project-tab-status${working ? " working" : ""}`}
             />
-            <i className="codicon codicon-folder" />
+            <i
+              className={`codicon codicon-${tab.id === activeTabId ? "folder-opened" : "folder"}`}
+            />
             <span className="project-tab-title">{displayLabel(tab)}</span>
           </button>
         )}
+        {tab.id === activeTabId && tab.root ? (
+          <OverviewEntry root={tab.root} />
+        ) : null}
         <button
           type="button"
           className="project-tab-close"
@@ -414,48 +445,10 @@ export function ProjectTabs() {
     );
   };
 
-  // One Overview chip per open root. Active when it is the shown overview.
-  const renderOverviewPage = (root: string) => {
-    const label = root.split("/").pop() ?? "Overview";
-    const active = appPage === "overview" && overviewRoot === root;
-    const key = `page:overview:${root}`;
-    return (
-      <div
-        key={key}
-        className={`project-tab page-tab${active ? " active" : ""}${dragging === key ? " dragging" : ""}${dropClass(key)}`}
-        {...dropTarget(key)}
-      >
-        <button
-          type="button"
-          className="project-tab-label"
-          {...dragSource(key)}
-          title={`Overview — ${root}`}
-          onClick={() => useApp.getState().showOverview(root)}
-        >
-          <i className="codicon codicon-book" />
-          <span className="project-tab-title">{label}</span>
-        </button>
-        <button
-          type="button"
-          className="project-tab-close"
-          title="Close overview"
-          onClick={(e) => {
-            e.stopPropagation();
-            useApp.getState().closeOverview(root);
-          }}
-        >
-          <i className="codicon codicon-close" />
-        </button>
-      </div>
-    );
-  };
-
   const renderEntry = (key: string) => {
     if (key === "pair") return renderPair();
     if (key === "page:settings") return renderPage("settings");
     if (key === "page:usage") return renderPage("usage");
-    if (key.startsWith("page:overview:"))
-      return renderOverviewPage(key.slice("page:overview:".length));
     const tab = tabs.find((t) => t.id === key);
     return tab ? renderSingle(tab) : null;
   };
@@ -496,19 +489,6 @@ export function ProjectTabs() {
           <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
             {menu.kind === "tab" ? (
               <>
-                {tabs.find((t) => t.id === menu.tabId)?.root ? (
-                  <button
-                    type="button"
-                    className="menu-item"
-                    onClick={() => {
-                      const r = tabs.find((t) => t.id === menu.tabId)?.root;
-                      if (r) useApp.getState().openOverviewPage(r);
-                      setMenu(null);
-                    }}
-                  >
-                    <span>Overview</span>
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   className="menu-item"

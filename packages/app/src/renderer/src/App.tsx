@@ -100,9 +100,7 @@ export function App() {
                   <button
                     type="button"
                     className="app-page-back"
-                    onClick={() =>
-                      useApp.getState().closeOverview(overviewRoot)
-                    }
+                    onClick={() => useApp.getState().closeOverview()}
                   >
                     <i className="codicon codicon-arrow-left" />
                     Back

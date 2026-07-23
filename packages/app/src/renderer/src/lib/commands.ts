@@ -64,7 +64,7 @@ export function buildCommands(s: AppState, goToFiles: () => void): Command[] {
       title: "Close Editor",
       run: async () => {
         if (s.appPage === "overview") {
-          if (s.overviewRoot) s.closeOverview(s.overviewRoot);
+          s.closeOverview();
         } else if (s.appPage) s.closeAppPage(s.appPage);
         else if (s.diff) s.setDiff(null);
         else if (s.dbView) s.setDbView(null);

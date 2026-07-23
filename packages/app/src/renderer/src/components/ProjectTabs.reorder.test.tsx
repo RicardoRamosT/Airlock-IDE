@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // Project-strip drag-to-reorder: every entry -- project tabs AND the IDE
-// page-tabs (Settings/Usage/Overview) -- reorders within one row via stripOrder.
+// page-tabs (Settings/Usage) -- reorders within one row via stripOrder.
 
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";

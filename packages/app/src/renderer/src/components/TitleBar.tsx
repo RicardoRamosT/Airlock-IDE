@@ -35,12 +35,9 @@ export function TitleBar() {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const openOverview = (): void => {
     if (!activeRoot) return;
-    const s = useApp.getState();
-    // Tabs ON: open the Overview as a tab (a chip in the project strip).
-    // Tabs OFF: just SHOW it as a sub-page (no chip) — App renders a Back
-    // button so there's a way home without a tab to close.
-    if (openProjectsAsTabs) s.openOverviewPage(activeRoot);
-    else s.showOverview(activeRoot);
+    // Overview is focus-bound: show the active project's Overview in the main
+    // area (the focused project tab also carries an inline Overview entry).
+    useApp.getState().showOverview(activeRoot);
   };
   return (
     <header className="titlebar">
