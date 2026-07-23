@@ -209,6 +209,7 @@ const api: AirlockApi = {
   usageGet: () => ipcRenderer.invoke("usage:get"),
   memoryGet: () => ipcRenderer.invoke("memory:get"),
   overviewGet: (root) => ipcRenderer.invoke("overview:get", root),
+  journalGet: (root) => ipcRenderer.invoke("journal:get", root),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
   anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
   onAnthropicStatusChanged: (cb) =>
@@ -224,6 +225,7 @@ const api: AirlockApi = {
   onSectionsChanged: (cb) =>
     subscribe<SectionVisibility>("sections:changed", cb),
   onPrefsChanged: (cb) => subscribe<AppPrefs>("prefs:changed", cb),
+  onJournalChanged: (cb) => subscribe<{ root: string }>("journal:changed", cb),
   getAgentPolicy: () => ipcRenderer.invoke("agentPolicy:get"),
   setAgentPolicy: (policy) => ipcRenderer.invoke("agentPolicy:set", policy),
   onRequestSecret: (cb) =>
