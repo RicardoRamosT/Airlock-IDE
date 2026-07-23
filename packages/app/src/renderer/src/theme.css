@@ -4711,3 +4711,30 @@ button.docker-row .codicon-chevron-right {
   border-left: 1px solid var(--border);
   color: var(--fg-dim);
 }
+
+/* Changelog tabs + per-tab searchbar. */
+.changelog-tabs {
+  display: flex;
+  gap: var(--sb-gap);
+  margin-bottom: 8px;
+}
+.changelog-tab {
+  padding: 4px 10px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font: inherit;
+}
+.changelog-tab:hover {
+  color: var(--fg);
+}
+.changelog-tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent, var(--fg));
+}
+.changelog-search {
+  width: 100%;
+  margin-bottom: 10px;
+}

@@ -15,18 +15,39 @@ function stub(entries: unknown) {
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     journalGet: vi.fn(() => Promise.resolve(entries)),
     onJournalChanged: vi.fn(() => () => {}),
+    journalAddNote: vi.fn(() => Promise.resolve({ ok: true })),
+    journalUpdateNote: vi.fn(() => Promise.resolve({ ok: true })),
+    journalDeleteNote: vi.fn(() => Promise.resolve({ ok: true })),
   };
 }
 
-it("renders entries newest-first with tag + text", async () => {
+it("Changes tab shows change-family entries; Notes tab shows notes", async () => {
   stub([
-    { ts: 2000, tag: "change", text: "did X" },
-    { ts: 1000, tag: "note", text: "noted Y" },
+    { ts: 3000, tag: "change", text: "shipped X" },
+    { ts: 2000, tag: "fix", text: "fixed Y" },
+    { ts: 1000, tag: "note", text: "noted Z" },
   ]);
   render(<ChangelogView root="/repo" />);
-  expect(await screen.findByText("did X")).toBeTruthy();
-  expect(screen.getByText("noted Y")).toBeTruthy();
-  expect(screen.getByText("change")).toBeTruthy();
+  expect(await screen.findByText("shipped X")).toBeTruthy();
+  expect(screen.getByText("fixed Y")).toBeTruthy();
+  expect(screen.queryByText("noted Z")).toBeNull(); // note hidden on Changes
+  fireEvent.click(screen.getByRole("button", { name: "Notes" }));
+  expect(await screen.findByText("noted Z")).toBeTruthy();
+  expect(screen.queryByText("shipped X")).toBeNull(); // change hidden on Notes
+});
+
+it("search filters the active tab", async () => {
+  stub([
+    { ts: 3000, tag: "change", text: "alpha ships" },
+    { ts: 2000, tag: "change", text: "beta ships" },
+  ]);
+  render(<ChangelogView root="/repo" />);
+  await screen.findByText("alpha ships");
+  fireEvent.change(screen.getByPlaceholderText(/search/i), {
+    target: { value: "beta" },
+  });
+  expect(screen.queryByText("alpha ships")).toBeNull();
+  expect(screen.getByText("beta ships")).toBeTruthy();
 });
 
 it("shows an empty state when there are no entries", async () => {
@@ -40,14 +61,13 @@ it("shows an empty state when there are no entries", async () => {
 it("expands details markdown on toggle; no toggle without details", async () => {
   stub([
     { ts: 3000, tag: "change", text: "with ctx", details: "the **reason**" },
-    { ts: 2000, tag: "note", text: "no ctx" },
+    { ts: 2000, tag: "change", text: "no ctx" },
   ]);
   render(<ChangelogView root="/repo" />);
   expect(await screen.findByText("with ctx")).toBeTruthy();
-  expect(screen.queryByText(/reason/)).toBeNull(); // hidden until toggled
+  expect(screen.queryByText(/reason/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /details/i }));
   expect(screen.getByText(/reason/)).toBeTruthy();
-  // the no-details entry has no toggle -> exactly one toggle total (now "hide")
   expect(screen.getAllByRole("button", { name: /details|hide/i })).toHaveLength(
     1,
   );
