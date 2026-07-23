@@ -69,6 +69,14 @@ function TabRenameInput({
 // The inline Overview entry on the focused ("master") project folder. Opens
 // rightward inside the strip; clicking it shows the full Overview in the main
 // area. Highlighted while that project's overview is shown.
+// The Overview segment of the master folder: an SVG "lower roof" (a curved
+// shoulder stepping down from the master's full-height roof, then the overview
+// roof + top-right corner + right side) with the label centered over it. The
+// fill/outline read --tab-fill/--tab-outline so it recolors with the tab state.
+// viewBox is 96x32 (preserveAspectRatio:none lets it fill the segment); D=6 drop,
+// C=7 curve, R=6 corner. See the master-label styling in theme.css.
+const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 32 L0 32 Z";
+const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 32";
 function OverviewEntry({ root }: { root: string }) {
   const active = useApp(
     (s) => s.appPage === "overview" && s.overviewRoot === root,
@@ -83,7 +91,20 @@ function OverviewEntry({ root }: { root: string }) {
         useApp.getState().showOverview(root);
       }}
     >
-      <span>Overview</span>
+      <svg
+        className="ov-roof"
+        viewBox="0 0 96 32"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path className="ov-fill" d={OV_FILL} />
+        <path
+          className="ov-stroke"
+          d={OV_STROKE}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span className="ov-text">Overview</span>
     </button>
   );
 }
@@ -337,7 +358,7 @@ export function ProjectTabs() {
     return (
       <div
         key={tab.id}
-        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
+        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${tab.id === activeTabId && tab.root ? " has-overview" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
         {...dropTarget(tab.id)}
       >
         {renaming === tab.id ? (

@@ -4813,45 +4813,73 @@ button.docker-row .codicon-chevron-right {
 /* The inline Overview entry on the master folder: a rounded pill that slides
    out when the folder opens. Active state mirrors .page-tab.active (soft fill +
    inset accent ring), not a hard accent rectangle. */
+/* Focused master folder with an inline Overview: a two-level roof. The master
+   (project name) keeps a full-height roof; the Overview roof drops with a curved
+   shoulder (the SVG in OverviewEntry). Built from the master label (left card)
+   + the SVG segment. --tab-outline/--tab-fill recolor for the working state;
+   the focused tab is never in the done/green state. */
+.project-tab.folder-open.has-overview {
+  --tab-outline: var(--accent);
+  --tab-fill: var(--selected);
+  background: transparent;
+  border: 0;
+}
+.project-tab.folder-open.has-overview.working {
+  --tab-outline: rgba(210, 161, 6, 0.7);
+  --tab-fill: rgba(210, 161, 6, 0.14);
+}
+/* Master (project name) = the left card: full-height, top-left rounded, no right
+   or bottom border -- it joins the Overview segment and opens into the content. */
+.project-tab.folder-open.has-overview .project-tab-label {
+  align-self: stretch;
+  background: var(--tab-fill);
+  border: 1px solid var(--tab-outline);
+  border-right: none;
+  border-bottom: none;
+  border-radius: 6px 0 0 0;
+}
+/* Overview segment: fixed width so the SVG roof maps ~1:1; the label centers
+   vertically (aligned with the master name) over the flat part of its roof. */
 .project-tab-overview {
-  display: inline-flex;
+  position: relative;
+  align-self: stretch;
+  width: 96px;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  margin: 0 3px 0 6px;
-  padding: 2px 8px;
+  justify-content: center;
   background: none;
   border: none;
-  border-radius: 5px;
   color: var(--fg-dim);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
-  overflow: hidden;
-  white-space: nowrap;
-  animation: overview-entry-in 160ms ease;
 }
-.project-tab-overview:hover {
+.project-tab-overview:hover .ov-text {
   color: var(--fg);
-  background: var(--hover);
 }
-.project-tab-overview.active {
-  color: var(--accent);
-  background: var(--selected);
-  box-shadow: inset 0 0 0 1px var(--accent);
+.project-tab-overview.active .ov-text {
+  color: var(--tab-outline);
 }
-@keyframes overview-entry-in {
-  from {
-    opacity: 0;
-    max-width: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    max-width: 160px;
-    transform: translateX(0);
-  }
+.ov-roof {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
-
+.ov-fill {
+  fill: var(--tab-fill);
+}
+.ov-stroke {
+  fill: none;
+  stroke: var(--tab-outline);
+  stroke-width: 1;
+}
+.ov-text {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
 /* Changelog empty-state: a centered card with an icon, blurb, and a CTA that
    pastes a "seed the changelog" prompt into the project's Claude terminal. */
 .changelog-empty {
