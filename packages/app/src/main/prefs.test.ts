@@ -45,12 +45,23 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
+      githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
       defaultTerminal: "airlock",
       restoreSession: true,
     });
+  });
+
+  it("defaults githubAutoSwitch true, honors explicit false, ignores garbage", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const off = path.join(dir, "off.json");
+    await writeFile(off, JSON.stringify({ githubAutoSwitch: false }));
+    expect((await loadPrefs(off)).githubAutoSwitch).toBe(false);
+    const junk = path.join(dir, "junk.json");
+    await writeFile(junk, JSON.stringify({ githubAutoSwitch: "nope" }));
+    expect((await loadPrefs(junk)).githubAutoSwitch).toBe(true);
   });
 
   // PB-H13: concurrent saves of distinct fields must ALL survive. Unserialized,
@@ -111,6 +122,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
+      githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
@@ -241,6 +253,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
+      githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },
@@ -285,6 +298,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
+      githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
       eventLog: { enabled: true, minLevel: "debug" },

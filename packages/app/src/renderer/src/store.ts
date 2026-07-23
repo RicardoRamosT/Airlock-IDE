@@ -312,6 +312,8 @@ export interface AppState {
   setRunAppSkillEnabled: (v: boolean) => void;
   selfVerifyEnabled: boolean;
   setSelfVerifyEnabled: (v: boolean) => void;
+  githubAutoSwitch: boolean;
+  setGithubAutoSwitch: (v: boolean) => void;
   anthropicStatus: AnthropicStatus | null;
   setAnthropicStatus: (s: AnthropicStatus) => void;
   update: UpdateStatus | null;
@@ -792,6 +794,8 @@ export const useApp = create<AppState>((set) => ({
   setRunAppSkillEnabled: (v) => set({ runAppSkillEnabled: v }),
   selfVerifyEnabled: false,
   setSelfVerifyEnabled: (v) => set({ selfVerifyEnabled: v }),
+  githubAutoSwitch: true,
+  setGithubAutoSwitch: (v) => set({ githubAutoSwitch: v }),
   anthropicStatus: null,
   setAnthropicStatus: (s) => set({ anthropicStatus: s }),
   update: null,

@@ -101,7 +101,12 @@ export {
   type Sink,
   type WriterOpts,
 } from "./events/writer";
-export { buildAuthedArgs, runGitAuthed } from "./git/auth";
+export {
+  buildAuthedArgs,
+  buildCredentialHelperConfig,
+  type CredentialHelperConfig,
+  runGitAuthed,
+} from "./git/auth";
 export { ensureCommitIdentity, type GitIdentity } from "./git/identity";
 export {
   commitStaged,

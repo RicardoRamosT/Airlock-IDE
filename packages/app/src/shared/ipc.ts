@@ -516,6 +516,10 @@ export interface AppPrefs {
   // no other terminal in the tab holds the auto-Claude claim; blank tabs are
   // always exempt. App-global.
   claudeAutoStart: ClaudeAutoStart;
+  // Auto-switch the machine's active gh account to a NON-PINNED project's
+  // detected account on focus (default on). Pinned projects are unaffected
+  // (they carry their own per-repo credential helper). App-global.
+  githubAutoSwitch: boolean;
   // App-global: which terminal "open a terminal" uses. "airlock" = the
   // integrated terminal (default); otherwise a KNOWN_TERMINALS id -> that
   // external app is launched at the project folder instead of an embedded pane.
@@ -824,6 +828,9 @@ export interface AirlockApi {
     root: string,
     account: { host: string; username: string } | null,
   ): Promise<void>;
+  // Fired when the focused project changes: best-effort switch of the machine's
+  // active gh account to a NON-PINNED project's detected account (pref-gated).
+  githubAutoSwitchOnFocus(root: string): Promise<void>;
   // Databases: id is the secret NAME; no password ever crosses these. dbList
   // returns redacted projections; ping/tables/rows return data or a
   // message-only error -- never the connection string.

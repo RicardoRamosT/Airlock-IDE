@@ -2,33 +2,31 @@ import { expect, it } from "vitest";
 import { parseRemote } from "./remote";
 
 it("parses https remotes with and without .git", () => {
-  expect(
-    parseRemote("https://github.com/RicardoRamosT/Airlock-IDE.git"),
-  ).toEqual({
+  expect(parseRemote("https://github.com/octocat/hello-world.git")).toEqual({
     host: "github.com",
-    owner: "RicardoRamosT",
-    repo: "Airlock-IDE",
+    owner: "octocat",
+    repo: "hello-world",
     protocol: "https",
   });
-  expect(parseRemote("https://github.com/ViewNear/lend")).toEqual({
+  expect(parseRemote("https://github.com/acme/widgets")).toEqual({
     host: "github.com",
-    owner: "ViewNear",
-    repo: "lend",
+    owner: "acme",
+    repo: "widgets",
     protocol: "https",
   });
 });
 
 it("parses scp-style and ssh:// remotes as ssh", () => {
-  expect(parseRemote("git@github.com:RicardoRamosT/Airlock-IDE.git")).toEqual({
+  expect(parseRemote("git@github.com:octocat/hello-world.git")).toEqual({
     host: "github.com",
-    owner: "RicardoRamosT",
-    repo: "Airlock-IDE",
+    owner: "octocat",
+    repo: "hello-world",
     protocol: "ssh",
   });
-  expect(parseRemote("ssh://git@github.com/ViewNear/lend.git")).toEqual({
+  expect(parseRemote("ssh://git@github.com/acme/widgets.git")).toEqual({
     host: "github.com",
-    owner: "ViewNear",
-    repo: "lend",
+    owner: "acme",
+    repo: "widgets",
     protocol: "ssh",
   });
 });

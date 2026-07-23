@@ -1818,6 +1818,54 @@ button.quota-meter:hover {
   padding: 4px 6px;
 }
 
+/* Per-project account pin control + the auto-switch toggle in the accounts
+   popover. Full-width primary CTA for the pin, matching the sidebar cards. */
+.account-pin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  padding: 4px 6px 2px;
+}
+.account-pin .btn {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+  /* Grow to fit a long account name instead of clipping the fixed control
+     height (the label wraps to a second line cleanly). */
+  height: auto;
+  min-height: var(--control-h);
+  padding: 4px 10px;
+  line-height: 1.3;
+  white-space: normal;
+  word-break: break-word;
+}
+/* Inline mismatch caption under the pin CTA (amber, no separate box/button). */
+.account-warn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #d29922;
+}
+.account-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.account-toggle input {
+  cursor: pointer;
+}
+/* Sub-section heads inside the accounts popover get breathing room above so the
+   Accounts / This project / Settings groups read as distinct. */
+.accounts-popover .sb-section-head {
+  margin-top: 8px;
+  padding: 0 6px;
+}
+
 /* Click-away backdrop: transparent full-screen layer that closes an open
    popover when clicked. Sits below the popover (z-index 20) but above the
    rest of the app so any outside click is captured. */

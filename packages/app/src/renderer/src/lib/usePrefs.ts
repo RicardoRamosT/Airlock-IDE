@@ -22,6 +22,7 @@ export function usePrefs(): void {
   const setDockStatusEnabled = useApp((s) => s.setDockStatusEnabled);
   const setRunAppSkillEnabled = useApp((s) => s.setRunAppSkillEnabled);
   const setSelfVerifyEnabled = useApp((s) => s.setSelfVerifyEnabled);
+  const setGithubAutoSwitch = useApp((s) => s.setGithubAutoSwitch);
   const setExtensionsPrefs = useApp((s) => s.setExtensionsPrefs);
   const theme = useApp((s) => s.theme);
 
@@ -54,6 +55,7 @@ export function usePrefs(): void {
         setDockStatusEnabled(p.dockStatus.enabled);
         setRunAppSkillEnabled(p.runAppSkill.enabled);
         setSelfVerifyEnabled(p.selfVerify.enabled);
+        setGithubAutoSwitch(p.githubAutoSwitch);
         setExtensionsPrefs(p.extensions ?? {});
         useApp.getState().setLayoutHydrated(true);
       })
@@ -79,6 +81,7 @@ export function usePrefs(): void {
     setDockStatusEnabled,
     setRunAppSkillEnabled,
     setSelfVerifyEnabled,
+    setGithubAutoSwitch,
     setExtensionsPrefs,
   ]);
 

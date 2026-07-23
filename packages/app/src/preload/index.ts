@@ -116,6 +116,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("github:resolveAccount", root),
   setProjectGithubAccount: (root, account) =>
     ipcRenderer.invoke("github:setProjectAccount", root, account),
+  githubAutoSwitchOnFocus: (root) =>
+    ipcRenderer.invoke("github:autoSwitchOnFocus", root),
   dbList: (root) => ipcRenderer.invoke("db:list", root),
   dbPing: (root, id) => ipcRenderer.invoke("db:ping", root, id),
   dbTables: (root, id) => ipcRenderer.invoke("db:tables", root, id),

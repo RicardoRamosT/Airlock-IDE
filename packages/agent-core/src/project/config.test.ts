@@ -27,11 +27,11 @@ describe("project config", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "cfg-gh-"));
     expect((await readProjectConfig(dir)).githubAccount).toBeUndefined();
     await writeProjectConfig(dir, {
-      githubAccount: { host: "github.com", username: "RicardoRamosT" },
+      githubAccount: { host: "github.com", username: "octocat" },
     });
     expect((await readProjectConfig(dir)).githubAccount).toEqual({
       host: "github.com",
-      username: "RicardoRamosT",
+      username: "octocat",
     });
     // Passing undefined clears it (JSON.stringify omits undefined keys).
     await writeProjectConfig(dir, { githubAccount: undefined });

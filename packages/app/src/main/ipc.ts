@@ -123,7 +123,13 @@ import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels } from "./extensions/slack";
 import { slackWorkspacePatch } from "./extensions/slackWorkspace";
 import { syncWindowWatchers } from "./fsWatch";
-import { ensureIdentityFor, resolveFor, tokenFor } from "./github/account";
+import {
+  applyCredentialHelper,
+  autoSwitchForFocus,
+  ensureIdentityFor,
+  resolveFor,
+  tokenFor,
+} from "./github/account";
 import {
   dockerStatus,
   gitStatusFor,
@@ -206,6 +212,13 @@ const extDetectCache: Record<
   string,
   { at: number; status: DetectStatus; account?: string }
 > = {};
+
+// Serialize gh account auto-switches: rapid project-focus changes must not spawn
+// concurrent `gh auth switch` subprocesses that complete OUT OF ORDER and leave
+// the wrong account active. In-order execution => the last-focused project's
+// switch is applied last (wins). Same read-modify-write hazard the quota
+// reconcile chain guards.
+let ghAutoSwitchChain: Promise<void> = Promise.resolve();
 
 // Per-PTY owning window (sessionId -> BrowserWindow id). Terminal-reading agent
 // tools are scoped to the agent's (last-focused) window, so a window only ever
@@ -1159,8 +1172,27 @@ export function registerIpc(
           : undefined; // null/invalid => clear the override (back to auto)
       await writeProjectConfig(resolved, { githubAccount: acct });
       await ensureIdentityFor(resolved); // apply the new account's identity now
+      await applyCredentialHelper(resolved, acct ?? null); // pin/unpin the push credential
     },
   );
+
+  // Fired by the renderer when the focused project changes. Best-effort global
+  // gh account switch for NON-PINNED projects, gated by the githubAutoSwitch
+  // pref. Pinned projects are untouched (they carry their own credential helper).
+  ipcMain.handle("github:autoSwitchOnFocus", (e, root: unknown) => {
+    const resolved = resolveRoot(e, root);
+    // Chain onto the prior switch so they run one at a time, in focus order.
+    const run = ghAutoSwitchChain.then(async () => {
+      const prefs = await loadPrefs(prefsFile);
+      await autoSwitchForFocus(resolved, prefs.githubAutoSwitch);
+    });
+    // Non-rejecting tail so one failed switch can't wedge the queue.
+    ghAutoSwitchChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  });
 
   // Databases. The connection string (with its password) is resolved MAIN-SIDE
   // from the broker by secret name and used ONLY to open a short-lived pg
