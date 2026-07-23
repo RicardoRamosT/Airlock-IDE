@@ -4811,6 +4811,11 @@ button.docker-row .codicon-chevron-right {
    connected to the content below -- regardless of focus. Focus is shown solely
    by the inline Overview entry appearing (see renderSingle), not a tab color. */
 .project-tab:not(.page-tab) {
+  /* Define the Overview-segment colors on EVERY project tab (not just the
+     focused one) so the always-mounted, collapsed segment never falls back to
+     black fill/stroke -- any hairline leak blends with the tab instead. */
+  --tab-outline: var(--accent);
+  --tab-fill: var(--selected);
   background: var(--selected);
   border-color: var(--accent);
   border-bottom-color: transparent;
@@ -4877,6 +4882,7 @@ button.docker-row .codicon-chevron-right {
 .project-tab-overview {
   align-self: stretch;
   width: 0;
+  min-width: 0; /* let the flex item actually collapse to 0 */
   overflow: hidden;
   background: none;
   border: none;
