@@ -4797,21 +4797,16 @@ button.docker-row .codicon-chevron-right {
     background 140ms ease,
     border-color 140ms ease;
 }
-/* Every project folder is a persistently visible tab (not just on hover): a
-   border + a slightly recessed fill so the row always reads as distinct
-   folders. */
+/* Every project folder always looks "open": accent border + selected fill,
+   connected to the content below -- regardless of focus. Focus is shown solely
+   by the inline Overview entry appearing (see renderSingle), not a tab color. */
 .project-tab:not(.page-tab) {
-  background: var(--bg);
-  border-color: var(--border);
-}
-.project-tab:not(.page-tab):not(.folder-open):not(.working):hover {
-  background: var(--bg-panel);
-  border-color: var(--fg-dim);
-}
-.project-tab.folder-open {
   background: var(--selected);
   border-color: var(--accent);
   border-bottom-color: transparent;
+}
+.project-tab:not(.page-tab):not(.working):hover {
+  background: var(--accent-glow);
 }
 /* Claude working in a tab -> the whole folder takes the amber working color
    (replaces the removed status dot). Declared after .folder-open so it wins
