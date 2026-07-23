@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useApp } from "../store";
-import { LayoutControls } from "./LayoutControls";
 
 const basename = (root: string | null): string =>
   root ? (root.split("/").pop() ?? "") : "";
@@ -64,7 +63,6 @@ export function TitleBar() {
           <i className="codicon codicon-book" />
         </button>
       )}
-      <LayoutControls />
       {menu && activeRoot && (
         <>
           <button

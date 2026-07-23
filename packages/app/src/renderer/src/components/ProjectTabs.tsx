@@ -470,18 +470,6 @@ export function ProjectTabs() {
       >
         <i className="codicon codicon-add" />
       </button>
-      {/* Split toggle: always visible, pushed to the FAR RIGHT (above the
-          terminal split button). Splits the active project with a new blank pane,
-          or un-splits when the split is showing. */}
-      <button
-        type="button"
-        className={`project-tab-action project-split-toggle${splitShowing ? " active" : ""}`}
-        title={splitShowing ? "Close split" : "Split with a new pane"}
-        aria-pressed={splitShowing}
-        onClick={() => useApp.getState().toggleProjectSplit()}
-      >
-        <i className="codicon codicon-split-horizontal" />
-      </button>
       {menu && (
         <>
           <button

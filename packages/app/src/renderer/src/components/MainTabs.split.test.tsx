@@ -92,48 +92,6 @@ it("clicking a split-member tab shows that split", () => {
   });
 });
 
-it("toolbar split on a single file pane yields [file | new terminal]", () => {
-  const tabId = get().tabs[0]?.id;
-  if (!tabId) throw new Error("no initial tab");
-  get().openFile(
-    "a.ts",
-    { content: "x", truncated: false, binary: false, size: 1 },
-    tabId,
-  );
-  expect(get().tabState[tabId]?.mainSecondary).toBeNull();
-
-  const { getByTitle } = render(<MainTabs tabId={tabId} />);
-  fireEvent.click(getByTitle("Split with a new terminal"));
-
-  const st = get().tabState[tabId];
-  expect(st?.mainPrimary).toBe("editor"); // file stays primary (left)
-  expect(st?.selectedFile).toBe("a.ts");
-  expect(st?.mainSecondary?.kind).toBe("terminal"); // new terminal beside it
-});
-
-it("toolbar toggles: Unsplit while showing a split, Split otherwise", () => {
-  const tabId = get().tabs[0]?.id;
-  if (!tabId) throw new Error("no initial tab");
-  const t1 = get().addTerminal(tabId);
-  const t2 = get().addTerminal(tabId);
-  get().splitItems(
-    { kind: "terminal", id: t1 },
-    { kind: "terminal", id: t2 },
-    tabId,
-  ); // showing [t1 | t2]
-
-  const { queryByTitle, rerender } = render(<MainTabs tabId={tabId} />);
-  // Showing the 2-pane split -> only Unsplit (it is 2-pane max; no "2nd split").
-  expect(queryByTitle("Single pane (unsplit)")).not.toBeNull();
-  expect(queryByTitle("Split with a new terminal")).toBeNull();
-
-  // Focus a 3rd terminal alone -> the Split button returns.
-  get().addTerminal(tabId);
-  rerender(<MainTabs tabId={tabId} />);
-  expect(queryByTitle("Split with a new terminal")).not.toBeNull();
-  expect(queryByTitle("Single pane (unsplit)")).toBeNull();
-});
-
 it("a new terminal tab is appended at the far-right end, after files", () => {
   const tabId = get().tabs[0]?.id;
   if (!tabId) throw new Error("no initial tab");

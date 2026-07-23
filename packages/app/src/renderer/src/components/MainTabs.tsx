@@ -106,15 +106,6 @@ export function MainTabs({ tabId }: { tabId: string }) {
     if (defaultTerminal === "airlock") addTerminal(tabId);
     else openExternalTerminal(tabId);
   };
-  // Toolbar "split": pair the FOCUSED tab with a new terminal (only reachable
-  // when a single pane is showing). With nothing focused, just add a terminal.
-  const splitWithNewTerminal = () => {
-    if (!current) {
-      addTerminal(tabId);
-      return;
-    }
-    splitItems(current, { kind: "terminal", id: addTerminal(tabId) }, tabId);
-  };
   // Right-click "Split (open beside current)": pair the focused tab with the
   // clicked one (a fresh terminal if you clicked the focused tab itself).
   const splitPrimaryWith = (item: PaneItem) => {
@@ -413,31 +404,6 @@ export function MainTabs({ tabId }: { tabId: string }) {
         >
           <i className="codicon codicon-add" />
         </button>
-      </div>
-      <div className="main-tabs-actions">
-        {/* One button, toggling on what is ON SCREEN: a 2-pane split shows
-            Unsplit; a single pane shows Split-with-a-new-terminal. Splitting
-            pairs the FOCUSED tab with a new terminal as a new coexisting split;
-            unsplit breaks only the split you are looking at. */}
-        {showingSplit ? (
-          <button
-            type="button"
-            className="main-tab-action"
-            title="Single pane (unsplit)"
-            onClick={() => unsplitCurrent(tabId)}
-          >
-            <i className="codicon codicon-screen-normal" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="main-tab-action"
-            title="Split with a new terminal"
-            onClick={splitWithNewTerminal}
-          >
-            <i className="codicon codicon-split-horizontal" />
-          </button>
-        )}
       </div>
       {menu && (
         <>
