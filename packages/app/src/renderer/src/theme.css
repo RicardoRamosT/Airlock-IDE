@@ -4884,13 +4884,19 @@ button.docker-row .codicon-chevron-right {
   width: 0;
   min-width: 0; /* let the flex item actually collapse to 0 */
   overflow: hidden;
+  /* Collapsed = fully transparent, so any hairline the clip can't catch is
+     invisible; it fades in as the segment expands (both directions animate). */
+  opacity: 0;
   background: none;
   border: none;
   cursor: pointer;
-  transition: width 200ms ease;
+  transition:
+    width 200ms ease,
+    opacity 160ms ease;
 }
 .project-tab.has-overview .project-tab-overview {
   width: 96px;
+  opacity: 1;
 }
 .ov-inner {
   position: relative;
