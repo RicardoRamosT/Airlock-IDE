@@ -98,6 +98,16 @@ function OverviewEntry({ root }: { root: string }) {
         aria-hidden="true"
       >
         <path className="ov-fill" d={OV_FILL} />
+        {/* Dotted diagonal separating master from Overview -- starts at the
+            roof's step-down (0,0) and leans to the seam. */}
+        <line
+          className="ov-divider"
+          x1="0"
+          y1="0"
+          x2="12"
+          y2="28"
+          vectorEffect="non-scaling-stroke"
+        />
         <path
           className="ov-stroke"
           d={OV_STROKE}
