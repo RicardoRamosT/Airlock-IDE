@@ -40,3 +40,18 @@ it("a blank focused tab shows no Overview entry", () => {
   render(<ProjectTabs />);
   expect(screen.queryByRole("button", { name: /overview/i })).toBeNull();
 });
+
+it("title-cases auto tab names but shows manual renames verbatim", () => {
+  useApp.setState({
+    tabs: [
+      { id: "t1", root: "/Users/me/ElArqui" },
+      { id: "t2", root: "/Users/me/myProj" },
+    ],
+    tabRenames: { t2: "myProj-KEEP" },
+    openProjectsAsTabs: true,
+    activeTabId: "t1",
+  });
+  render(<ProjectTabs />);
+  expect(screen.getByText("Elarqui")).toBeTruthy(); // auto name -> title-cased
+  expect(screen.getByText("myProj-KEEP")).toBeTruthy(); // rename shown as typed
+});

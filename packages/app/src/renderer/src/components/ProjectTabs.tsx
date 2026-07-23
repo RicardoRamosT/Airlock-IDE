@@ -4,9 +4,16 @@ import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
 import { useApp } from "../store";
 
-// Label for a tab: its folder basename, or "New Tab" for a blank tab.
+// Title-case a folder name for display (first letter up, rest down) so tab
+// labels read consistently regardless of the folder's own casing.
+const titleCase = (s: string): string =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+
+// Label for a tab: its folder basename (title-cased), or "New Tab" for a blank
+// tab. Only the AUTO name is normalized -- a manual rename is shown verbatim via
+// displayLabel (tabRenames), so this never overrides what the user typed.
 const tabLabel = (root: string | null): string =>
-  root ? (root.split("/").pop() ?? root) : "New Tab";
+  root ? titleCase(root.split("/").pop() ?? root) : "New Tab";
 
 // Inline tab-rename input (swapped in for the label). Mirrors FileTree's
 // inline-edit shape, EXCEPT blur COMMITS here (FileTree cancels on blur

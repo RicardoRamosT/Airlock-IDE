@@ -78,9 +78,9 @@ function seedTabs(): void {
 it("dragging a project tab to the front reorders stripOrder", () => {
   seedTabs();
   const { getByText } = render(<ProjectTabs />);
-  const alpha = projTab(getByText("alpha"));
+  const alpha = projTab(getByText("Alpha"));
   stubRect(100, 40); // midpoint 120
-  fireDrag("dragstart", labelBtn(getByText("gamma"))); // source = label button
+  fireDrag("dragstart", labelBtn(getByText("Gamma"))); // source = label button
   fireDrag("dragover", alpha, 105); // before alpha
   fireDrag("drop", alpha, 105);
 
@@ -93,9 +93,9 @@ it("dropping on the strip background (the opened make-room gap) still reorders",
   // hovered insertion point.
   seedTabs();
   const { getByText, container } = render(<ProjectTabs />);
-  const alpha = projTab(getByText("alpha"));
+  const alpha = projTab(getByText("Alpha"));
   stubRect(100, 40); // midpoint 120
-  fireDrag("dragstart", labelBtn(getByText("gamma")));
+  fireDrag("dragstart", labelBtn(getByText("Gamma")));
   fireDrag("dragover", alpha, 105); // hover -> over = { alpha, before }
   const list = container.querySelector(".project-tabs-list");
   if (!list) throw new Error("no .project-tabs-list");
@@ -107,7 +107,7 @@ it("page-tabs are draggable among project tabs (everything draggable)", () => {
   seedTabs();
   useApp.setState({ settingsTabOpen: true, appPage: "settings" });
   const { getByText } = render(<ProjectTabs />);
-  const alpha = projTab(getByText("alpha"));
+  const alpha = projTab(getByText("Alpha"));
   stubRect(100, 40);
   fireDrag("dragstart", labelBtn(getByText("Settings"))); // source = label button
   fireDrag("dragover", alpha, 105); // before alpha
