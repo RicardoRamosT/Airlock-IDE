@@ -3,7 +3,7 @@
 // by the repo's vitest). The Worker entry (worker.ts) wires these to CF globals.
 // The broker exchanges an auth code for a token USING the client secret (the one
 // thing a distributed desktop app can't do), stashes the token under a one-time,
-// 30s ticket, and later hands it back once. It stores no user data.
+// 60s ticket, and later hands it back once. It stores no user data.
 
 // A minimal KV surface (Cloudflare KV implements this; tests use a Map).
 export interface KV {
@@ -44,8 +44,9 @@ export function extractToken(j: unknown): string | null {
 }
 
 // Exchange the auth code for a token (with the secret), stash it under a random
-// one-time ticket (30s TTL), return the ticket. null (storing nothing) if the
-// exchange fails.
+// one-time ticket (60s TTL -- Cloudflare KV's MINIMUM expirationTtl; a smaller
+// value makes kv.put throw at runtime), return the ticket. null (storing
+// nothing) if the exchange fails.
 export async function exchangeAndTicket(
   cfg: ProviderCfg,
   code: string,
@@ -69,7 +70,7 @@ export async function exchangeAndTicket(
   const token = extractToken(res.ok ? await res.json() : null);
   if (!token) return null;
   const ticket = deps.newTicket();
-  await deps.kv.put(`t:${ticket}`, token, { expirationTtl: 30 });
+  await deps.kv.put(`t:${ticket}`, token, { expirationTtl: 60 });
   return ticket;
 }
 

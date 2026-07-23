@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
-type Channel = { id: string; name: string; isPrivate: boolean };
+type Channel = {
+  id: string;
+  name: string;
+  kind: "public" | "private" | "im" | "mpim";
+};
 
 // The Slack permission wall: pick which channels Claude may read for THIS
 // project. Loads every channel the token can see + the current allow-list, and
@@ -63,7 +67,7 @@ export function SlackChannelsModal() {
     try {
       const allow = channels
         .filter((c) => selected.has(c.id))
-        .map((c) => ({ id: c.id, name: c.name }));
+        .map((c) => ({ id: c.id, name: c.name, kind: c.kind }));
       await window.airlock.extensionsSetConfig(root, "slack", {
         channels: allow,
       });
@@ -100,7 +104,13 @@ export function SlackChannelsModal() {
                   onChange={() => toggle(c.id)}
                 />
                 <span>
-                  {c.isPrivate ? "🔒 " : "#"}
+                  {c.kind === "im"
+                    ? "@ "
+                    : c.kind === "mpim"
+                      ? "👥 "
+                      : c.kind === "private"
+                        ? "🔒 "
+                        : "#"}
                   {c.name}
                 </span>
               </label>

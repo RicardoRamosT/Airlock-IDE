@@ -1,6 +1,6 @@
 import type { AuthSpec } from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildAuthorizeUrl, normalizeTeamId } from "./broker";
+import { buildAuthorizeUrl, normalizeTeamId, runBrokerFlow } from "./broker";
 
 const slack: Extract<AuthSpec, { flow: "broker" }> = {
   kind: "oauth2",
@@ -87,5 +87,25 @@ describe("normalizeTeamId", () => {
     expect(normalizeTeamId("https://app.slack.com/client/t0123abcd/c1")).toBe(
       "T0123ABCD",
     );
+  });
+});
+
+describe("runBrokerFlow", () => {
+  it("prefixes the state with the broker provider so the worker /callback can route it", async () => {
+    // The worker does providerFromState(state) = state.split(".")[0], expecting
+    // "<provider>.<random>". A bare random state made it read the whole string as
+    // the provider -> no config -> HTTP 400 "bad request" on every Slack redirect.
+    let openedUrl = "";
+    const token = await runBrokerFlow(slack, undefined, 1000, {
+      open: async (url: string) => {
+        openedUrl = url;
+      },
+      wait: async () => ({ ticket: "TKT" }),
+      fx: async () => ({ json: async () => ({ token: "TOK" }) }),
+    });
+    expect(token).toBe("TOK");
+    const state = new URL(openedUrl).searchParams.get("state") ?? "";
+    expect(state.split(".")[0]).toBe("slack");
+    expect(state.length).toBeGreaterThan("slack.".length);
   });
 });

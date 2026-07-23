@@ -3,6 +3,7 @@ import {
   CONNECTED_EXTENSIONS,
   connectedSummary,
   SLACK_DESCRIPTOR,
+  slackScopes,
 } from "./connected";
 
 describe("connectedSummary", () => {
@@ -41,5 +42,29 @@ describe("SLACK_DESCRIPTOR", () => {
       SLACK_DESCRIPTOR.configSchema.fields.some((f) => f.type === "channels"),
     ).toBe(true);
     expect(CONNECTED_EXTENSIONS.map((d) => d.id)).toContain("slack");
+  });
+
+  it("requests read+history scopes for all four conversation types", () => {
+    const spec = SLACK_DESCRIPTOR.authSpec;
+    const scopes = spec && "scopes" in spec ? spec.scopes : [];
+    for (const s of [
+      "channels:read",
+      "channels:history",
+      "groups:read",
+      "groups:history",
+      "im:read",
+      "im:history",
+      "mpim:read",
+      "mpim:history",
+      "users:read",
+    ]) {
+      expect(scopes).toContain(s);
+    }
+  });
+
+  it("slackScopes gates the scope tier on the opt-in", () => {
+    expect(slackScopes(false)).toEqual(["channels:read", "channels:history"]);
+    expect(slackScopes(true)).toContain("im:read");
+    expect(slackScopes(true).length).toBe(9);
   });
 });

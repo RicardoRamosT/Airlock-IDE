@@ -89,6 +89,21 @@ it("broker flow: shows the browser waiting state (no code), closes on success", 
   expect(useApp.getState().modal).toBeNull();
 });
 
+it("broker flow: toggling the private-access opt-in persists includePrivate", async () => {
+  mount("/proj", { kind: "browser" }, { id: "slack", name: "Slack" });
+  render(<OAuthDeviceModal />);
+  const box = (await screen.findByLabelText(
+    /Include private channels/i,
+  )) as HTMLInputElement;
+  expect(box.checked).toBe(false);
+  await act(async () => {
+    fireEvent.click(box);
+  });
+  expect(setConfig).toHaveBeenCalledWith("/proj", "slack", {
+    includePrivate: true,
+  });
+});
+
 it("manage mode: does not auto-begin; shows current workspace pre-filled", async () => {
   mount(
     "/proj",

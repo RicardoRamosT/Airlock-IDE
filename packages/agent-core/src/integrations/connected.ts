@@ -129,12 +129,19 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
     authorizeUrl: "https://slack.com/oauth/v2/authorize",
     brokerBaseUrl: SLACK_BROKER_URL,
     brokerProvider: "slack",
-    // User-token scopes: read the channels/groups the user can see + resolve
-    // member names. Slack requires these under `user_scope`, not `scope`.
+    // User-token scopes: read the channels, private channels, DMs, and group DMs
+    // the user can see + resolve member names. Slack requires these under
+    // `user_scope`, not `scope`. This is the FULL set (opted-in projects); a
+    // public-only project requests just SLACK_PUBLIC_SCOPES (see slackScopes).
     scopes: [
       "channels:history",
       "channels:read",
       "groups:history",
+      "groups:read",
+      "im:history",
+      "im:read",
+      "mpim:history",
+      "mpim:read",
       "users:read",
     ],
     scopeParam: "user_scope",
@@ -151,6 +158,22 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
     ],
   },
 };
+
+// Public-only scopes: list + read public channels. No private/DM/group, no user
+// directory. The DEFAULT tier for a project that has NOT opted into private
+// access (extensions.slack.includePrivate).
+export const SLACK_PUBLIC_SCOPES = ["channels:read", "channels:history"];
+
+// The scopes AirLock requests at connect, gated by the per-project opt-in.
+// Public-only by default; the full set (adds private/DM/group read+history +
+// users:read for DM name resolution) when opted in. Slack rejects a connect that
+// requests scopes the app hasn't declared, so the REQUEST itself must be
+// conditional -- not merely the listing.
+export function slackScopes(includePrivate: boolean): string[] {
+  const spec = SLACK_DESCRIPTOR.authSpec;
+  const full = spec && "scopes" in spec ? spec.scopes : [];
+  return includePrivate ? full : SLACK_PUBLIC_SCOPES;
+}
 
 // Every shipped connected extension. Adding one = a descriptor here + a provider
 // in app/main.

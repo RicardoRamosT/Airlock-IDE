@@ -5,10 +5,15 @@
 // (wired in mcp/server.ts). THE PERMISSION WALL lives here: a channel is
 // readable only if it is in the project's allow-list; the token is used to call
 // Slack and never returned; only channel names + message text leave main.
-import { getSecretValue, slackChannelHistory } from "@airlock/agent-core";
+import {
+  type ConvKind,
+  getSecretValue,
+  slackChannelHistory,
+} from "@airlock/agent-core";
 import {
   type AllowedChannel,
   allowedChannels,
+  convGlyph,
   SLACK_TOKEN_NAME,
 } from "./slack";
 
@@ -33,10 +38,12 @@ export interface SlackReadResult {
 
 export async function slackListAllowedChannelsTool(
   root: string | null,
-): Promise<{ channels: { id: string; name: string }[] }> {
+): Promise<{ channels: { id: string; name: string; kind: ConvKind }[] }> {
   if (!root) return { channels: [] };
   const allowed = await allowedChannels(root);
-  return { channels: allowed.map((c) => ({ id: c.id, name: c.name })) };
+  return {
+    channels: allowed.map((c) => ({ id: c.id, name: c.name, kind: c.kind })),
+  };
 }
 
 export async function slackReadChannelTool(
@@ -48,7 +55,9 @@ export async function slackReadChannelTool(
   const allowed = await allowedChannels(root);
   const match = resolveAllowedChannel(allowed, channel);
   if (!match) {
-    const list = allowed.map((c) => `#${c.name}`).join(", ") || "(none)";
+    const list =
+      allowed.map((c) => `${convGlyph(c.kind)}${c.name}`).join(", ") ||
+      "(none)";
     return {
       error: `Channel "${channel}" is not allowed. Allowed channels: ${list}.`,
     };
@@ -57,8 +66,12 @@ export async function slackReadChannelTool(
   if (!token) return { error: "Slack is not connected for this project." };
   try {
     const messages = await slackChannelHistory(token, match.id, limit);
-    return { channel: `#${match.name}`, messages };
-  } catch {
-    return { error: "Slack request failed." };
+    return { channel: `${convGlyph(match.kind)}${match.name}`, messages };
+  } catch (e) {
+    // Surface the reason (timeout/abort vs network) instead of a generic string
+    // -- a bare "failed" hid why reads were stalling.
+    return {
+      error: `Slack request failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
 }

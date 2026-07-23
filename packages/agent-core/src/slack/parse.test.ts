@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseAuthTest, parseChannels, parseHistory } from "./parse";
+import {
+  cleanMpimName,
+  labelConversations,
+  parseAuthTest,
+  parseChannels,
+  parseHistory,
+  parseUsers,
+} from "./parse";
 
 describe("parseAuthTest", () => {
   it("reads team/user on ok", () => {
@@ -31,24 +38,118 @@ describe("parseAuthTest", () => {
   });
 });
 
-describe("parseChannels", () => {
-  it("maps channels and skips archived", () => {
-    const chans = parseChannels({
-      ok: true,
-      channels: [
-        { id: "C1", name: "general", is_private: false, is_archived: false },
-        { id: "C2", name: "secret", is_private: true, is_archived: false },
-        { id: "C3", name: "old", is_private: false, is_archived: true },
-      ],
-    });
-    expect(chans).toEqual([
-      { id: "C1", name: "general", isPrivate: false },
-      { id: "C2", name: "secret", isPrivate: true },
-    ]);
+describe("parseChannels kind", () => {
+  it("public channel", () => {
+    expect(
+      parseChannels({ ok: true, channels: [{ id: "C1", name: "general" }] }),
+    ).toEqual([{ id: "C1", name: "general", kind: "public" }]);
   });
-  it("returns [] on a bad payload", () => {
+  it("private channel", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [{ id: "G1", name: "secret", is_private: true }],
+      }),
+    ).toEqual([{ id: "G1", name: "secret", kind: "private" }]);
+  });
+  it("group DM (mpim) -- is_mpim wins over is_private", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [
+          { id: "G2", name: "mpdm-a--b-1", is_private: true, is_mpim: true },
+        ],
+      }),
+    ).toEqual([{ id: "G2", name: "mpdm-a--b-1", kind: "mpim" }]);
+  });
+  it("1:1 DM (im) captures userId, no name", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [{ id: "D1", is_im: true, user: "U9" }],
+      }),
+    ).toEqual([{ id: "D1", name: "", kind: "im", userId: "U9" }]);
+  });
+  it("skips archived + non-string ids; [] on bad payload", () => {
+    expect(
+      parseChannels({
+        ok: true,
+        channels: [{ id: "C1", name: "a", is_archived: true }, { name: "b" }],
+      }),
+    ).toEqual([]);
     expect(parseChannels({ ok: false })).toEqual([]);
     expect(parseChannels(null)).toEqual([]);
+  });
+});
+
+describe("parseUsers", () => {
+  it("prefers display_name, then real_name, then name; skips deleted", () => {
+    expect(
+      parseUsers({
+        ok: true,
+        members: [
+          {
+            id: "U1",
+            name: "u1",
+            real_name: "Real One",
+            profile: { display_name: "Ally" },
+          },
+          { id: "U2", name: "u2", profile: {} },
+          { id: "U3", deleted: true, name: "gone" },
+        ],
+      }),
+    ).toEqual([
+      { id: "U1", name: "Ally" },
+      { id: "U2", name: "u2" },
+    ]);
+  });
+  it("non-ok -> []", () => {
+    expect(parseUsers({ ok: false })).toEqual([]);
+  });
+});
+
+describe("cleanMpimName", () => {
+  it("mpdm-alice--bob--carol-1 -> alice, bob, carol", () => {
+    expect(cleanMpimName("mpdm-alice--bob--carol-1")).toBe("alice, bob, carol");
+  });
+  it("passes unknown formats through split", () => {
+    expect(cleanMpimName("weird")).toBe("weird");
+  });
+});
+
+describe("labelConversations", () => {
+  const users = [{ id: "U9", name: "Alice" }];
+  it("labels im with the resolved user name", () => {
+    expect(
+      labelConversations(
+        [{ id: "D1", name: "", kind: "im", userId: "U9" }],
+        users,
+      ),
+    ).toEqual([{ id: "D1", name: "Alice (DM)", kind: "im" }]);
+  });
+  it("falls back to the user id when unresolved", () => {
+    expect(
+      labelConversations(
+        [{ id: "D2", name: "", kind: "im", userId: "U0" }],
+        users,
+      ),
+    ).toEqual([{ id: "D2", name: "U0 (DM)", kind: "im" }]);
+  });
+  it("labels mpim from the member slug", () => {
+    expect(
+      labelConversations(
+        [{ id: "G2", name: "mpdm-alice--bob-1", kind: "mpim" }],
+        users,
+      ),
+    ).toEqual([{ id: "G2", name: "alice, bob (group)", kind: "mpim" }]);
+  });
+  it("passes channels through unchanged", () => {
+    expect(
+      labelConversations(
+        [{ id: "C1", name: "general", kind: "public" }],
+        users,
+      ),
+    ).toEqual([{ id: "C1", name: "general", kind: "public" }]);
   });
 });
 

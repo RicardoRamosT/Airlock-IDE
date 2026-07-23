@@ -75,6 +75,7 @@ import {
   setGlobalSecret,
   setSecret,
   slackAuthTest,
+  slackScopes,
   stageFiles,
   switchBranch,
   switchGhAccount,
@@ -1976,6 +1977,15 @@ export function registerIpc(
         const team = normalizeTeamId(
           typeof cfg.workspacePin === "string" ? cfg.workspacePin : "",
         );
+        // Slack: gate the requested scopes on the per-project opt-in. Opted out
+        // (default) requests public-only scopes, so the token literally cannot
+        // read private/DM/group; opting in requests the full set. The REQUEST
+        // must be conditional -- Slack rejects a connect for scopes the app has
+        // not declared. Other broker providers keep their spec scopes as-is.
+        const effective =
+          id === "slack"
+            ? { ...spec, scopes: slackScopes(cfg.includePrivate === true) }
+            : spec;
         const capture =
           id === "slack"
             ? async (token: string) => {
@@ -1991,7 +2001,7 @@ export function registerIpc(
                 });
               }
             : undefined;
-        finish(runBrokerFlow(spec, team || undefined), capture);
+        finish(runBrokerFlow(effective, team || undefined), capture);
         return { kind: "browser" as const };
       }
       throw new Error(`No OAuth login configured for ${id}`);

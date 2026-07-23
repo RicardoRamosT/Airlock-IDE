@@ -182,6 +182,7 @@ export {
   connectedSummary,
   GITHUB_DESCRIPTOR,
   SLACK_DESCRIPTOR,
+  slackScopes,
 } from "./integrations/connected";
 export {
   type CliRunner,
@@ -319,13 +320,17 @@ export {
   authTest as slackAuthTest,
   channelHistory as slackChannelHistory,
   listChannels as slackListChannels,
+  listUsers as slackListUsers,
   type SlackTransport,
 } from "./slack/client";
 export type {
+  ConvKind,
   SlackAuth,
   SlackChannel,
   SlackMessage,
+  SlackUser,
 } from "./slack/parse";
+export { labelConversations } from "./slack/parse";
 export {
   detectInstalledTerminals,
   type ExternalTerminal,
