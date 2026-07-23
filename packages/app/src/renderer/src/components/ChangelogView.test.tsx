@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ChangelogView } from "./ChangelogView";
 
@@ -28,5 +34,21 @@ it("shows an empty state when there are no entries", async () => {
   render(<ChangelogView root="/repo" />);
   await waitFor(() =>
     expect(screen.getByText(/No changelog entries yet/)).toBeTruthy(),
+  );
+});
+
+it("expands details markdown on toggle; no toggle without details", async () => {
+  stub([
+    { ts: 3000, tag: "change", text: "with ctx", details: "the **reason**" },
+    { ts: 2000, tag: "note", text: "no ctx" },
+  ]);
+  render(<ChangelogView root="/repo" />);
+  expect(await screen.findByText("with ctx")).toBeTruthy();
+  expect(screen.queryByText(/reason/)).toBeNull(); // hidden until toggled
+  fireEvent.click(screen.getByRole("button", { name: /details/i }));
+  expect(screen.getByText(/reason/)).toBeTruthy();
+  // the no-details entry has no toggle -> exactly one toggle total (now "hide")
+  expect(screen.getAllByRole("button", { name: /details|hide/i })).toHaveLength(
+    1,
   );
 });
