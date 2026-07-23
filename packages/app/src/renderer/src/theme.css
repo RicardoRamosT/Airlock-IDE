@@ -4792,6 +4792,10 @@ button.docker-row .codicon-chevron-right {
 .project-tab {
   border: 1px solid transparent;
   border-radius: 6px 6px 0 0;
+  transition:
+    margin 110ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
 }
 .project-tab:not(.page-tab):hover {
   background: var(--hover);
@@ -4801,27 +4805,44 @@ button.docker-row .codicon-chevron-right {
   border-color: var(--border);
   border-bottom-color: transparent;
 }
-/* The inline Overview entry on the master folder (opens rightward in-strip). */
+/* The inline Overview entry on the master folder: a rounded pill that slides
+   out when the folder opens. Active state mirrors .page-tab.active (soft fill +
+   inset accent ring), not a hard accent rectangle. */
 .project-tab-overview {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  align-self: stretch;
-  margin-left: 2px;
-  padding: 0 8px;
+  margin: 0 3px 0 6px;
+  padding: 2px 8px;
   background: none;
   border: none;
-  border-left: 1px solid var(--border);
+  border-radius: 5px;
   color: var(--fg-dim);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: overview-entry-in 160ms ease;
 }
 .project-tab-overview:hover {
   color: var(--fg);
   background: var(--hover);
 }
 .project-tab-overview.active {
-  color: var(--fg);
-  background: var(--accent, var(--selected));
+  color: var(--accent);
+  background: var(--selected);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+@keyframes overview-entry-in {
+  from {
+    opacity: 0;
+    max-width: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    max-width: 160px;
+    transform: translateX(0);
+  }
 }
