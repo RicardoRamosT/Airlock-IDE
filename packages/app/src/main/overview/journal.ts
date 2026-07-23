@@ -90,3 +90,55 @@ export function capEntries(
 ): JournalEntry[] {
   return entries.length > max ? entries.slice(entries.length - max) : entries;
 }
+
+// Return ts if free, else the next ts+k (k>=1) not already used. Keeps ts a
+// stable per-entry key so edit/delete can target by ts without an id field.
+export function uniqueTs(entries: JournalEntry[], ts: number): number {
+  const used = new Set(entries.map((e) => e.ts));
+  let t = ts;
+  while (used.has(t)) t += 1;
+  return t;
+}
+
+// Replace a NOTE entry's text/details (by ts). Returns a new array, or null if
+// no note has that ts / text is empty|oversize. Non-note entries are never
+// touched -- the git-derived Changes record is read-only.
+export function updateNote(
+  entries: JournalEntry[],
+  ts: number,
+  text: unknown,
+  details?: unknown,
+): JournalEntry[] | null {
+  const trimmed = typeof text === "string" ? text.trim() : "";
+  if (trimmed === "" || trimmed.length > MAX_TEXT) return null;
+  let found = false;
+  const out = entries.map((e) => {
+    if (!found && e.ts === ts && e.tag === "note") {
+      found = true;
+      const next: JournalEntry = { ts: e.ts, tag: "note", text: trimmed };
+      if (typeof details === "string") {
+        const d = details.trim();
+        if (d !== "") next.details = d.slice(0, MAX_DETAILS);
+      }
+      return next;
+    }
+    return e;
+  });
+  return found ? out : null;
+}
+
+// Remove one NOTE entry (by ts). Returns a new array, or null if none matched.
+export function deleteNote(
+  entries: JournalEntry[],
+  ts: number,
+): JournalEntry[] | null {
+  let found = false;
+  const out = entries.filter((e) => {
+    if (!found && e.ts === ts && e.tag === "note") {
+      found = true;
+      return false;
+    }
+    return true;
+  });
+  return found ? out : null;
+}

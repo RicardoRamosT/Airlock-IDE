@@ -212,6 +212,12 @@ const api: AirlockApi = {
   memoryGet: () => ipcRenderer.invoke("memory:get"),
   overviewGet: (root) => ipcRenderer.invoke("overview:get", root),
   journalGet: (root) => ipcRenderer.invoke("journal:get", root),
+  journalAddNote: (root, text, details) =>
+    ipcRenderer.invoke("journal:addNote", root, text, details),
+  journalUpdateNote: (root, ts, text, details) =>
+    ipcRenderer.invoke("journal:updateNote", root, ts, text, details),
+  journalDeleteNote: (root, ts) =>
+    ipcRenderer.invoke("journal:deleteNote", root, ts),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
   anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
   onAnthropicStatusChanged: (cb) =>

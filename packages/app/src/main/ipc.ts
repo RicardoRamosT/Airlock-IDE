@@ -171,7 +171,13 @@ import {
   resolveProjectAccountId,
 } from "./neon/accounts";
 import { gatherProfile } from "./overview/gather";
-import { readRecentJournal } from "./overview/journalStore";
+import { MAX_ENTRIES } from "./overview/journal";
+import {
+  addNoteEntry,
+  deleteNoteEntry,
+  readRecentJournal,
+  updateNoteEntry,
+} from "./overview/journalStore";
 import {
   loadPrefs,
   publicPrefs,
@@ -556,11 +562,49 @@ export function registerIpc(
     await ensureAirlockDir(root).catch(() => {});
     return gatherProfile(root);
   });
-  // The project's Changelog journal (recent, newest-first) for the Overview page.
+  // The project's Changelog journal (newest-first) for the Overview page. Send
+  // the full capped set so the Notes tab + search see every entry.
   ipcMain.handle("journal:get", async (e, root: unknown) => {
     if (typeof root !== "string" || !isOpenRoot(e, root)) return [];
-    return readRecentJournal(root, 100);
+    return readRecentJournal(root, MAX_ENTRIES);
   });
+  const broadcastJournalChanged = (root: string) => {
+    for (const w of BrowserWindow.getAllWindows())
+      if (!w.webContents.isDestroyed())
+        w.webContents.send("journal:changed", { root });
+  };
+  ipcMain.handle(
+    "journal:addNote",
+    async (e, root: unknown, text: unknown, details: unknown) => {
+      if (typeof root !== "string" || !isOpenRoot(e, root))
+        return { ok: false, error: "No access" };
+      const r = await addNoteEntry(root, text, details, Date.now());
+      if (r.ok) broadcastJournalChanged(root);
+      return r;
+    },
+  );
+  ipcMain.handle(
+    "journal:updateNote",
+    async (e, root: unknown, ts: unknown, text: unknown, details: unknown) => {
+      if (typeof root !== "string" || !isOpenRoot(e, root))
+        return { ok: false, error: "No access" };
+      if (typeof ts !== "number") return { ok: false, error: "Bad ts" };
+      const r = await updateNoteEntry(root, ts, text, details);
+      if (r.ok) broadcastJournalChanged(root);
+      return r;
+    },
+  );
+  ipcMain.handle(
+    "journal:deleteNote",
+    async (e, root: unknown, ts: unknown) => {
+      if (typeof root !== "string" || !isOpenRoot(e, root))
+        return { ok: false, error: "No access" };
+      if (typeof ts !== "number") return { ok: false, error: "Bad ts" };
+      const r = await deleteNoteEntry(root, ts);
+      if (r.ok) broadcastJournalChanged(root);
+      return r;
+    },
+  );
 
   ipcMain.handle("fs:readImage", (e, root: unknown, relPath: unknown) => {
     if (typeof relPath !== "string") throw new Error("Invalid payload");

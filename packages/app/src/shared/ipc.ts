@@ -1010,6 +1010,22 @@ export interface AirlockApi {
   overviewGet(root: string): Promise<OverviewResult>;
   // The project's Changelog journal (recent, newest-first) for the Overview page.
   journalGet(root: string): Promise<JournalEntry[]>;
+  // Notes tab CRUD (note-tagged entries only; Changes stay read-only).
+  journalAddNote(
+    root: string,
+    text: string,
+    details?: string,
+  ): Promise<{ ok: boolean; error?: string; entry?: JournalEntry }>;
+  journalUpdateNote(
+    root: string,
+    ts: number,
+    text: string,
+    details?: string,
+  ): Promise<{ ok: boolean; error?: string }>;
+  journalDeleteNote(
+    root: string,
+    ts: number,
+  ): Promise<{ ok: boolean; error?: string }>;
   onQuotaChanged(cb: (s: QuotaStatus) => void): () => void;
   anthropicStatusGet(): Promise<AnthropicStatus | null>;
   onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;

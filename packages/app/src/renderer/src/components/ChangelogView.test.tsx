@@ -15,18 +15,39 @@ function stub(entries: unknown) {
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     journalGet: vi.fn(() => Promise.resolve(entries)),
     onJournalChanged: vi.fn(() => () => {}),
+    journalAddNote: vi.fn(() => Promise.resolve({ ok: true })),
+    journalUpdateNote: vi.fn(() => Promise.resolve({ ok: true })),
+    journalDeleteNote: vi.fn(() => Promise.resolve({ ok: true })),
   };
 }
 
-it("renders entries newest-first with tag + text", async () => {
+it("Changes tab shows change-family entries; Notes tab shows notes", async () => {
   stub([
-    { ts: 2000, tag: "change", text: "did X" },
-    { ts: 1000, tag: "note", text: "noted Y" },
+    { ts: 3000, tag: "change", text: "shipped X" },
+    { ts: 2000, tag: "fix", text: "fixed Y" },
+    { ts: 1000, tag: "note", text: "noted Z" },
   ]);
   render(<ChangelogView root="/repo" />);
-  expect(await screen.findByText("did X")).toBeTruthy();
-  expect(screen.getByText("noted Y")).toBeTruthy();
-  expect(screen.getByText("change")).toBeTruthy();
+  expect(await screen.findByText("shipped X")).toBeTruthy();
+  expect(screen.getByText("fixed Y")).toBeTruthy();
+  expect(screen.queryByText("noted Z")).toBeNull(); // note hidden on Changes
+  fireEvent.click(screen.getByRole("button", { name: "Notes" }));
+  expect(await screen.findByText("noted Z")).toBeTruthy();
+  expect(screen.queryByText("shipped X")).toBeNull(); // change hidden on Notes
+});
+
+it("search filters the active tab", async () => {
+  stub([
+    { ts: 3000, tag: "change", text: "alpha ships" },
+    { ts: 2000, tag: "change", text: "beta ships" },
+  ]);
+  render(<ChangelogView root="/repo" />);
+  await screen.findByText("alpha ships");
+  fireEvent.change(screen.getByPlaceholderText(/search/i), {
+    target: { value: "beta" },
+  });
+  expect(screen.queryByText("alpha ships")).toBeNull();
+  expect(screen.getByText("beta ships")).toBeTruthy();
 });
 
 it("shows an empty state when there are no entries", async () => {
@@ -40,15 +61,79 @@ it("shows an empty state when there are no entries", async () => {
 it("expands details markdown on toggle; no toggle without details", async () => {
   stub([
     { ts: 3000, tag: "change", text: "with ctx", details: "the **reason**" },
-    { ts: 2000, tag: "note", text: "no ctx" },
+    { ts: 2000, tag: "change", text: "no ctx" },
   ]);
   render(<ChangelogView root="/repo" />);
   expect(await screen.findByText("with ctx")).toBeTruthy();
-  expect(screen.queryByText(/reason/)).toBeNull(); // hidden until toggled
+  expect(screen.queryByText(/reason/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /details/i }));
   expect(screen.getByText(/reason/)).toBeTruthy();
-  // the no-details entry has no toggle -> exactly one toggle total (now "hide")
   expect(screen.getAllByRole("button", { name: /details|hide/i })).toHaveLength(
     1,
   );
+});
+
+it("Add note -> composer -> calls journalAddNote", async () => {
+  stub([{ ts: 1000, tag: "note", text: "existing" }]);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  fireEvent.click(screen.getByRole("button", { name: /add note/i }));
+  fireEvent.change(screen.getByPlaceholderText("Title"), {
+    target: { value: "new note" },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/details/i), {
+    target: { value: "**why**" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  await waitFor(() =>
+    expect(api.journalAddNote).toHaveBeenCalledWith(
+      "/repo",
+      "new note",
+      "**why**",
+    ),
+  );
+});
+
+it("Edit note -> prefilled composer -> calls journalUpdateNote with ts", async () => {
+  stub([{ ts: 4242, tag: "note", text: "editable", details: "d" }]);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+  const title = screen.getByPlaceholderText("Title") as HTMLInputElement;
+  expect(title.value).toBe("editable");
+  fireEvent.change(title, { target: { value: "edited" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  await waitFor(() =>
+    expect(api.journalUpdateNote).toHaveBeenCalledWith(
+      "/repo",
+      4242,
+      "edited",
+      "d",
+    ),
+  );
+});
+
+it("Delete note -> confirm -> calls journalDeleteNote", async () => {
+  stub([{ ts: 77, tag: "note", text: "doomed" }]);
+  render(<ChangelogView root="/repo" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  await waitFor(() =>
+    expect(api.journalDeleteNote).toHaveBeenCalledWith("/repo", 77),
+  );
+});
+
+it("Changes tab has no note actions", async () => {
+  stub([{ ts: 1, tag: "change", text: "shipped" }]);
+  render(<ChangelogView root="/repo" />);
+  await screen.findByText("shipped");
+  expect(screen.queryByRole("button", { name: /add note/i })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
 });

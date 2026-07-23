@@ -4711,3 +4711,62 @@ button.docker-row .codicon-chevron-right {
   border-left: 1px solid var(--border);
   color: var(--fg-dim);
 }
+
+/* Changelog tabs + per-tab searchbar. */
+.changelog-tabs {
+  display: flex;
+  gap: var(--sb-gap);
+  margin-bottom: 8px;
+}
+.changelog-tab {
+  padding: 4px 10px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  font: inherit;
+}
+.changelog-tab:hover {
+  color: var(--fg);
+}
+.changelog-tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent, var(--fg));
+}
+.changelog-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+/* Notes composer + row actions. */
+.note-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.note-details-input {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px;
+  font: inherit;
+}
+.note-composer-actions {
+  display: flex;
+  gap: var(--sb-gap);
+  justify-content: flex-end;
+}
+.note-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: var(--sb-gap);
+}
