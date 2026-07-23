@@ -124,22 +124,35 @@ body,
   padding-left: 78px; /* clear the macOS traffic lights */
   padding-right: 8px;
   background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
 }
 
 .titlebar-title {
-  /* True center of the WINDOW (not of the space between traffic lights and
-     the layout controls): absolutely centered so asymmetric chrome on either
-     side cannot skew it. The bar itself stays the drag region. */
+  /* An INVERTED folder card, hung from the window's top edge and centered: the
+     "roof" (rounded, closed edge) is BELOW the title; the open top merges into
+     the window top -- the mirror of the project tabs, which sit on the bottom
+     seam. Accent border + selected fill like a project tab. box-sizing:content-box
+     so the JS-set width is the text's own width; the width transition eases
+     between project names. */
   position: absolute;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  max-width: 60%;
+  box-sizing: content-box;
+  max-width: 55%;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 2px 12px;
   font-size: 12px;
   color: var(--fg-dim);
+  background: var(--selected);
+  border: 1px solid var(--accent);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  transition: width 220ms ease;
+}
+.titlebar-title-text {
+  display: inline-block;
+  white-space: nowrap;
 }
 /* When a project is active the name is right-clickable (project menu); the
    hover pill + context-menu cursor signal that. no-drag so the hover/click are
@@ -147,11 +160,9 @@ body,
 .titlebar-title.interactive {
   -webkit-app-region: no-drag;
   cursor: context-menu;
-  padding: 1px 8px;
-  border-radius: 5px;
 }
 .titlebar-title.interactive:hover {
-  background: rgba(255, 255, 255, 0.08);
+  filter: brightness(1.15);
   color: var(--fg);
 }
 

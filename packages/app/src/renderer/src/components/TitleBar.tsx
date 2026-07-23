@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../store";
 
 const basename = (root: string | null): string =>
@@ -38,11 +38,33 @@ export function TitleBar() {
     // area (the focused project tab also carries an inline Overview entry).
     useApp.getState().showOverview(activeRoot);
   };
+  const title = project ? `AirLock - ${project}` : "AirLock";
+  // Animate the title card's width to fit the name: measure the inner text and
+  // set the card width (a transition on width then eases between names). Remeasure
+  // on name change + once fonts are ready (metrics settle a frame after mount).
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [titleW, setTitleW] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const w = textRef.current?.offsetWidth;
+    if (w) setTitleW(w);
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: remeasure when the title text changes.
+  useLayoutEffect(() => {
+    const w = textRef.current?.offsetWidth;
+    if (w) setTitleW(w);
+  }, [title]);
+  useEffect(() => {
+    void document.fonts?.ready.then(() => {
+      const w = textRef.current?.offsetWidth;
+      if (w) setTitleW(w);
+    });
+  }, []);
   return (
     <header className="titlebar">
       {/* biome-ignore lint/a11y/noStaticElementInteractions: right-click affordance on the passive project-name label to open the Overview; not a focusable control (the titlebar book button + project-tab menu are the real controls) */}
       <span
         className={`titlebar-title${activeRoot ? " interactive" : ""}`}
+        style={titleW ? { width: `${titleW}px` } : undefined}
         onContextMenu={(e) => {
           // Right-click the project name -> project-level actions (Overview).
           // The title bar is always present, so this works with zero tabs.
@@ -51,7 +73,9 @@ export function TitleBar() {
           setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
-        {project ? `AirLock - ${project}` : "AirLock"}
+        <span className="titlebar-title-text" ref={textRef}>
+          {title}
+        </span>
       </span>
       {stripHidden && activeRoot && (
         <button
