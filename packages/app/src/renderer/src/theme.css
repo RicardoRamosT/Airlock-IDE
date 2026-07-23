@@ -4882,6 +4882,11 @@ button.docker-row .codicon-chevron-right {
 .project-tab-overview {
   align-self: stretch;
   width: 96px;
+  /* Zero the UA <button> padding/margin: the inner is a flush 96px layer and any
+     button padding would shove it (and its SVG roof) right of the seam, opening a
+     dark gap next to the master card and clipping the roof's right shoulder. */
+  padding: 0;
+  margin: 0;
   overflow: hidden;
   background: none;
   border: none;
