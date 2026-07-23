@@ -1353,61 +1353,28 @@ describe("showRunningProcessNotice", () => {
 
 // --- Overview page-tab ------------------------------------------------------
 
-it("openOverviewPage opens + shows an Overview tab, targeting the root", () => {
+it("showOverview sets the overview page + root", () => {
   const s = useApp.getState();
-  s.openProject("/p"); // gives the active tab a real root
-  s.openOverviewPage("/p");
+  s.showOverview("/p");
   const st = useApp.getState();
   expect(st.appPage).toBe("overview");
-  expect(st.openOverviews).toEqual(["/p"]);
   expect(st.overviewRoot).toBe("/p");
 });
 
-it("openOverviewPage adds a SECOND overview tab (not retarget); re-opening dedupes + re-shows", () => {
+it("closeOverview() returns to work (clears the page + root)", () => {
   const s = useApp.getState();
-  s.openOverviewPage("/a");
-  s.openOverviewPage("/b");
-  expect(useApp.getState().openOverviews).toEqual(["/a", "/b"]);
-  expect(useApp.getState().overviewRoot).toBe("/b");
-  s.openOverviewPage("/a"); // already open -> no duplicate, and re-shows /a
-  expect(useApp.getState().openOverviews).toEqual(["/a", "/b"]);
-  expect(useApp.getState().overviewRoot).toBe("/a");
-});
-
-it("showOverview re-shows an already-open overview without duplicating it", () => {
-  const s = useApp.getState();
-  s.openOverviewPage("/a");
-  s.openOverviewPage("/b");
-  s.showOverview("/a");
+  s.showOverview("/p");
+  s.closeOverview();
   const st = useApp.getState();
-  expect(st.overviewRoot).toBe("/a");
-  expect(st.openOverviews).toEqual(["/a", "/b"]);
-});
-
-it("showing another IDE page hides the Overview but keeps its tab open", () => {
-  const s = useApp.getState();
-  s.openOverviewPage("/p");
-  s.openAppPage("settings");
-  const st = useApp.getState();
-  expect(st.appPage).toBe("settings");
-  expect(st.openOverviews).toEqual(["/p"]); // chip persists
-  expect(st.overviewRoot).toBe("/p");
-});
-
-it("closeOverview removes one; closing the shown one clears the page", () => {
-  const s = useApp.getState();
-  s.openOverviewPage("/a");
-  s.openOverviewPage("/b"); // shown = /b
-  s.closeOverview("/a"); // not shown -> page intact
-  let st = useApp.getState();
-  expect(st.openOverviews).toEqual(["/b"]);
-  expect(st.appPage).toBe("overview");
-  expect(st.overviewRoot).toBe("/b");
-  s.closeOverview("/b"); // shown -> clears
-  st = useApp.getState();
-  expect(st.openOverviews).toEqual([]);
   expect(st.appPage).toBeNull();
   expect(st.overviewRoot).toBeNull();
+});
+
+it("showing another IDE page replaces the Overview", () => {
+  const s = useApp.getState();
+  s.showOverview("/p");
+  s.openAppPage("settings");
+  expect(useApp.getState().appPage).toBe("settings");
 });
 
 // --- Lazy-resume primitives (session restore) -------------------------------
