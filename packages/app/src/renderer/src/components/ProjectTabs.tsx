@@ -223,12 +223,14 @@ export function ProjectTabs() {
 
   // Close-reflow FLIP: when an entry is removed, its right-hand neighbors (and
   // the trailing +) snap into the freed space. Animate that -- measure each
-  // surviving entry's old vs new left edge and ease the delta out (translateX
-  // dx -> 0). It plays ONLY on a removal, so opening/switching tabs and the
-  // Overview grow-in are untouched, and it's skipped mid-drag (drag has its own
-  // make-room motion). offsetLeft (not getBoundingClientRect) is measured so an
-  // in-flight transform never feeds back into the next measurement. No dep array:
-  // the FLIP must sample the DOM after every commit.
+  // surviving entry's old vs new left edge and slide it from the delta back to 0.
+  // It plays ONLY on a removal, so opening/switching tabs and the Overview
+  // grow-in are untouched, and it's skipped mid-drag (drag has its own make-room
+  // motion). Uses the Web Animations API (explicit from->to keyframes) rather
+  // than the transition-toggle+forced-reflow dance, which didn't fire reliably.
+  // offsetLeft is measured (transforms don't affect it) so an in-flight slide
+  // never feeds back into the next measurement. No dep array: the FLIP must
+  // sample the DOM after every commit.
   useLayoutEffect(() => {
     const strip = stripRef.current;
     if (!strip) return;
@@ -238,7 +240,12 @@ export function ProjectTabs() {
     const lefts = new Map<string, number>();
     for (const el of els) lefts.set(el.dataset.tabkey ?? "", el.offsetLeft);
     const removed = prevKeys.current.some((k) => !lefts.has(k));
-    if (removed && dragKey.current === null && dragging === null) {
+    if (
+      removed &&
+      dragKey.current === null &&
+      dragging === null &&
+      typeof HTMLElement.prototype.animate === "function"
+    ) {
       for (const el of els) {
         const key = el.dataset.tabkey ?? "";
         const prev = prevLefts.current.get(key);
@@ -246,18 +253,18 @@ export function ProjectTabs() {
         if (prev === undefined || next === undefined) continue;
         const dx = prev - next;
         if (Math.abs(dx) < 0.5) continue;
-        el.style.transition = "none";
-        el.style.transform = `translateX(${dx}px)`;
-        el.getBoundingClientRect(); // flush: commit the inverted start position
-        el.style.transition =
-          "transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1)";
-        el.style.transform = "";
-        const clear = () => {
-          el.style.transition = "";
-          el.style.transform = "";
-          el.removeEventListener("transitionend", clear);
-        };
-        el.addEventListener("transitionend", clear);
+        // Cancel any in-flight close-slide on this element (rapid closes) so they
+        // don't stack; leave the Overview grow-in (a CSS animation) alone.
+        for (const a of el.getAnimations())
+          if (a.id === "tab-close-slide") a.cancel();
+        const anim = el.animate(
+          [
+            { transform: `translateX(${dx}px)` },
+            { transform: "translateX(0)" },
+          ],
+          { duration: 220, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
+        );
+        anim.id = "tab-close-slide";
       }
     }
     prevLefts.current = lefts;
