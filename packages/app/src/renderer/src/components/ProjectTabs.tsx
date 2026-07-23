@@ -287,7 +287,7 @@ export function ProjectTabs() {
     return (
       <div
         key="__split__"
-        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
+        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
         {...dropTarget("pair")}
       >
         <button
@@ -306,7 +306,6 @@ export function ProjectTabs() {
           }}
           title={`${labelA}  +  ${labelB} (split)`}
         >
-          <span className={`project-tab-status${working ? " working" : ""}`} />
           <i className="codicon codicon-split-horizontal" />
           <span className="project-tab-title">
             {labelA}
@@ -320,17 +319,6 @@ export function ProjectTabs() {
             <OverviewEntry root={r} />
           ) : null;
         })()}
-        <button
-          type="button"
-          className="project-tab-close"
-          title="Close both tabs"
-          onClick={(e) => {
-            e.stopPropagation();
-            closePair();
-          }}
-        >
-          <i className="codicon codicon-close" />
-        </button>
       </div>
     );
   };
@@ -343,14 +331,11 @@ export function ProjectTabs() {
     return (
       <div
         key={tab.id}
-        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
+        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
         {...dropTarget(tab.id)}
       >
         {renaming === tab.id ? (
           <span className="project-tab-label">
-            <span
-              className={`project-tab-status${working ? " working" : ""}`}
-            />
             <i className="codicon codicon-folder" />
             <TabRenameInput
               initial={displayLabel(tab)}
@@ -379,9 +364,6 @@ export function ProjectTabs() {
             }}
             title={tab.root ?? "New Tab"}
           >
-            <span
-              className={`project-tab-status${working ? " working" : ""}`}
-            />
             <i
               className={`codicon codicon-${tab.id === activeTabId ? "folder-opened" : "folder"}`}
             />
@@ -391,17 +373,6 @@ export function ProjectTabs() {
         {tab.id === activeTabId && tab.root ? (
           <OverviewEntry root={tab.root} />
         ) : null}
-        <button
-          type="button"
-          className="project-tab-close"
-          title="Close project"
-          onClick={(e) => {
-            e.stopPropagation();
-            useApp.getState().closeTab(tab.id);
-          }}
-        >
-          <i className="codicon codicon-close" />
-        </button>
       </div>
     );
   };
@@ -508,6 +479,16 @@ export function ProjectTabs() {
                   }}
                 >
                   <span>Split with active project</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    useApp.getState().closeTab(menu.tabId);
+                    setMenu(null);
+                  }}
+                >
+                  <span>Close</span>
                 </button>
               </>
             ) : (

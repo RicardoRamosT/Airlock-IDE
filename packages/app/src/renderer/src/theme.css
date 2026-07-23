@@ -4805,6 +4805,13 @@ button.docker-row .codicon-chevron-right {
   border-color: var(--border);
   border-bottom-color: transparent;
 }
+/* Claude working in a tab -> the whole folder takes the amber working color
+   (replaces the removed status dot). Declared after .folder-open so it wins
+   when a focused folder is also working. */
+.project-tab.working {
+  background: rgba(210, 161, 6, 0.14);
+  border-color: rgba(210, 161, 6, 0.55);
+}
 /* The inline Overview entry on the master folder: a rounded pill that slides
    out when the folder opens. Active state mirrors .page-tab.active (soft fill +
    inset accent ring), not a hard accent rectangle. */
