@@ -98,14 +98,13 @@ function OverviewEntry({ root }: { root: string }) {
         aria-hidden="true"
       >
         <path className="ov-fill" d={OV_FILL} />
-        {/* Dotted diagonal separating master from Overview: collinear with the
-            roof shoulder (0,0)->(7,6), continued at the SAME slope (6/7) from the
-            shoulder's end down to the seam. */}
+        {/* Dotted diagonal separating master from Overview, matching the roof's
+            visible shoulder diagonal (tuned in the mockup). */}
         <line
           className="ov-divider"
-          x1="7"
-          y1="6"
-          x2="32.7"
+          x1="1.5"
+          y1="0"
+          x2="19.5"
           y2="28"
           vectorEffect="non-scaling-stroke"
         />

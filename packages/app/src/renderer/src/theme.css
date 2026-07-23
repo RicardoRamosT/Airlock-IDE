@@ -4852,9 +4852,9 @@ button.docker-row .codicon-chevron-right {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 6px top pad centers the label under the LOWER roof; left pad clears the
-     diagonal divider so the word sits in the overview compartment (right of it). */
-  padding: 6px 0 0 20px;
+  /* 6px top pad centers the label under the LOWER roof; small left pad keeps it
+     clear of the diagonal divider while staying ~centered in the segment. */
+  padding: 6px 0 0 8px;
   background: none;
   border: none;
   color: var(--fg-dim);
