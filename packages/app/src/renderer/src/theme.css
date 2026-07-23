@@ -182,7 +182,7 @@ body,
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 28px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   padding: 0 6px;
@@ -192,7 +192,10 @@ body,
 
 .project-tabs-list {
   display: flex;
-  align-items: center;
+  /* Fill the strip height so tabs stretch to the bottom seam -- their left/right
+     sides reach the content edge (a folder connected to the content below). */
+  align-self: stretch;
+  align-items: stretch;
   gap: 6px;
   overflow-x: auto;
   min-width: 0;
@@ -202,7 +205,6 @@ body,
   display: flex;
   align-items: center;
   border-radius: 4px;
-  height: 24px;
   position: relative; /* positioning context for the drag drop indicator */
   transition: margin 110ms ease; /* smooth "make room" slide while dragging */
 }
@@ -303,23 +305,9 @@ body,
 /* Finish glow: a brief attention pulse on a tab whose Claude session finished
    while it was NOT active. Set in store.tabGlow; cleared when the tab is
    activated (or resumes working). A few pulses then it settles. */
-.project-tab.glow {
-  /* Pulse until the tab is activated -- switchTab clears the glow flag, which
-     removes this class and stops the animation. INSET so the glow follows the
-     tab's border-radius and stays inside the element (an outer box-shadow gets
-     clipped by .project-tabs-list's overflow and shows as cut-off slivers). */
-  animation: tab-finish-glow 1.5s ease-in-out infinite;
-}
-
-@keyframes tab-finish-glow {
-  0%,
-  100% {
-    box-shadow: inset 0 0 0 0 transparent;
-  }
-  50% {
-    box-shadow: inset 0 0 6px 1px var(--accent);
-  }
-}
+/* The finished ("done") tab is colored GREEN (mirroring the dock badge) in the
+   folder-tab block below -- see .project-tab.glow there. The flag is set in
+   store.tabGlow and cleared when the tab is activated (or resumes working). */
 
 .project-tab-label {
   display: flex;
@@ -4084,12 +4072,6 @@ button.docker-row .codicon-chevron-right {
   .step-spin {
     animation: none;
   }
-  /* No pulse under reduced motion, but keep a STATIC inset ring so a finished
-     background tab is still visibly marked until the user opens it. */
-  .project-tab.glow {
-    animation: none;
-    box-shadow: inset 0 0 0 1.5px var(--accent);
-  }
   .progress-bar.indeterminate .fill {
     transform: none;
     width: 100%;
@@ -4808,58 +4790,110 @@ button.docker-row .codicon-chevron-right {
   border-color: var(--accent);
   border-bottom-color: transparent;
 }
-.project-tab:not(.page-tab):not(.working):hover {
+/* Rectangular hover fill only for plain (full-card) tabs. The shaped master
+   folder (has-overview) is transparent + drawn by the label/SVG, so a box fill
+   would show as an ugly rectangle behind the folder -- exclude it. */
+.project-tab:not(.page-tab):not(.working):not(.has-overview):hover {
   background: var(--accent-glow);
 }
 /* Claude working in a tab -> the whole folder takes the amber working color
    (replaces the removed status dot). Declared after .folder-open so it wins
    when a focused folder is also working. */
+/* Working = amber, done = green (mirroring the dock badge). Only the tint +
+   border color marks the state; the bottom stays transparent so the tab still
+   merges into the content like the blue tabs -- no line below. Declared after
+   :not(.page-tab) so these win over the default blue. */
 .project-tab.working {
   background: rgba(210, 161, 6, 0.14);
-  border-color: rgba(210, 161, 6, 0.55);
+  border-color: rgba(210, 161, 6, 0.6);
+  border-bottom-color: transparent;
+}
+.project-tab.glow {
+  background: rgba(63, 185, 80, 0.14);
+  border-color: rgba(63, 185, 80, 0.6);
+  border-bottom-color: transparent;
 }
 /* The inline Overview entry on the master folder: a rounded pill that slides
    out when the folder opens. Active state mirrors .page-tab.active (soft fill +
    inset accent ring), not a hard accent rectangle. */
+/* Focused master folder with an inline Overview: a two-level roof. The master
+   (project name) keeps a full-height roof; the Overview roof drops with a curved
+   shoulder (the SVG in OverviewEntry). Built from the master label (left card)
+   + the SVG segment. --tab-outline/--tab-fill recolor for the working state;
+   the focused tab is never in the done/green state. */
+.project-tab.folder-open.has-overview {
+  --tab-outline: var(--accent);
+  --tab-fill: var(--selected);
+  background: transparent;
+  border: 0;
+}
+.project-tab.folder-open.has-overview.working {
+  --tab-outline: rgba(210, 161, 6, 0.7);
+  --tab-fill: rgba(210, 161, 6, 0.14);
+}
+/* Master (project name) = the left card: full-height, top-left rounded, no right
+   or bottom border -- it joins the Overview segment and opens into the content. */
+.project-tab.folder-open.has-overview .project-tab-label {
+  align-self: stretch;
+  background: var(--tab-fill);
+  border: 1px solid var(--tab-outline);
+  border-right: none;
+  border-bottom: none;
+  border-radius: 6px 0 0 0;
+  /* Master name stays centered in its own full-height roof (NOT aligned with the
+     Overview label, by design). */
+}
+/* Overview segment: fixed width so the SVG roof maps ~1:1; the label centers
+   vertically (aligned with the master name) over the flat part of its roof. */
 .project-tab-overview {
-  display: inline-flex;
+  position: relative;
+  align-self: stretch;
+  width: 96px;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  margin: 0 3px 0 6px;
-  padding: 2px 8px;
+  justify-content: center;
+  /* 6px top pad centers the label under the LOWER roof; small left pad keeps it
+     clear of the diagonal divider while staying ~centered in the segment. */
+  padding: 6px 0 0 8px;
   background: none;
   border: none;
-  border-radius: 5px;
   color: var(--fg-dim);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
-  overflow: hidden;
-  white-space: nowrap;
-  animation: overview-entry-in 160ms ease;
 }
-.project-tab-overview:hover {
+.project-tab-overview:hover .ov-text {
   color: var(--fg);
-  background: var(--hover);
 }
-.project-tab-overview.active {
-  color: var(--accent);
-  background: var(--selected);
-  box-shadow: inset 0 0 0 1px var(--accent);
+.project-tab-overview.active .ov-text {
+  color: var(--tab-outline);
 }
-@keyframes overview-entry-in {
-  from {
-    opacity: 0;
-    max-width: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    max-width: 160px;
-    transform: translateX(0);
-  }
+.ov-roof {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
-
+.ov-fill {
+  fill: var(--tab-fill);
+}
+.ov-stroke {
+  fill: none;
+  stroke: var(--tab-outline);
+  stroke-width: 1;
+}
+.ov-divider {
+  stroke: var(--tab-outline);
+  stroke-width: 1;
+  stroke-dasharray: 1.5 3;
+  opacity: 0.55;
+}
+.ov-text {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
 /* Changelog empty-state: a centered card with an icon, blurb, and a CTA that
    pastes a "seed the changelog" prompt into the project's Claude terminal. */
 .changelog-empty {

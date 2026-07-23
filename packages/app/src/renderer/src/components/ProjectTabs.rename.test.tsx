@@ -83,21 +83,21 @@ it("right-click -> Rename tab… swaps the label for a pre-filled input", () => 
   seedTabs();
   const { getByText, container } = renderStrip();
 
-  fireEvent.contextMenu(getByText("airlock"));
+  fireEvent.contextMenu(getByText("Airlock"));
   fireEvent.click(getByText("Rename tab…"));
 
   const input = container.querySelector(
     "input.tab-rename-input",
   ) as HTMLInputElement;
   expect(input).toBeTruthy();
-  expect(input.value).toBe("airlock");
+  expect(input.value).toBe("Airlock");
 });
 
 it("typing a new name and submitting renames the tab label", () => {
   seedTabs();
   const { getByText, queryByText, container } = renderStrip();
 
-  fireEvent.doubleClick(getByText("airlock"));
+  fireEvent.doubleClick(getByText("Airlock"));
   const input = container.querySelector(
     "input.tab-rename-input",
   ) as HTMLInputElement;
@@ -105,7 +105,7 @@ it("typing a new name and submitting renames the tab label", () => {
   fireEvent.submit(input.closest("form") as HTMLFormElement);
 
   expect(getByText("My Fork")).toBeTruthy();
-  expect(queryByText("airlock")).toBeNull();
+  expect(queryByText("Airlock")).toBeNull();
   expect(useApp.getState().tabRenames.t1).toBe("My Fork");
 });
 
@@ -113,7 +113,7 @@ it("blur commits the edit", () => {
   seedTabs();
   const { getByText, container } = renderStrip();
 
-  fireEvent.doubleClick(getByText("airlock"));
+  fireEvent.doubleClick(getByText("Airlock"));
   const input = container.querySelector(
     "input.tab-rename-input",
   ) as HTMLInputElement;
@@ -128,14 +128,14 @@ it("Escape cancels without renaming", () => {
   seedTabs();
   const { getByText, container } = renderStrip();
 
-  fireEvent.doubleClick(getByText("airlock"));
+  fireEvent.doubleClick(getByText("Airlock"));
   const input = container.querySelector(
     "input.tab-rename-input",
   ) as HTMLInputElement;
   fireEvent.change(input, { target: { value: "Nope" } });
   fireEvent.keyDown(input, { key: "Escape" });
 
-  expect(getByText("airlock")).toBeTruthy();
+  expect(getByText("Airlock")).toBeTruthy();
   expect(useApp.getState().tabRenames).toEqual({});
 });
 
@@ -151,7 +151,7 @@ it("committing an empty name resets to the basename label", () => {
   fireEvent.change(input, { target: { value: "" } });
   fireEvent.submit(input.closest("form") as HTMLFormElement);
 
-  expect(getByText("airlock")).toBeTruthy();
+  expect(getByText("Airlock")).toBeTruthy();
   expect(useApp.getState().tabRenames.t1).toBeUndefined();
 });
 
@@ -163,7 +163,7 @@ it("the split-pair label resolves member renames", () => {
 
   // The combined pair entry renders both member labels.
   expect(getByText(/Custom/)).toBeTruthy();
-  expect(getByText(/other/)).toBeTruthy();
+  expect(getByText(/Other/)).toBeTruthy();
 });
 
 it("realistic double-click on a background tab switches to it, then opens rename", () => {
@@ -172,7 +172,7 @@ it("realistic double-click on a background tab switches to it, then opens rename
 
   // Real browsers fire click, click, dblclick -- replay that order on the
   // BACKGROUND tab (t2): the clicks switch focus, the dblclick opens rename.
-  const label = getByText("other");
+  const label = getByText("Other");
   fireEvent.click(label);
   fireEvent.click(label);
   fireEvent.doubleClick(label);
@@ -182,14 +182,14 @@ it("realistic double-click on a background tab switches to it, then opens rename
     "input.tab-rename-input",
   ) as HTMLInputElement;
   expect(input).toBeTruthy();
-  expect(input.value).toBe("other");
+  expect(input.value).toBe("Other");
 });
 
 it("a blur right after Escape does not commit (the done-ref guard)", () => {
   seedTabs();
   const { getByText, container } = renderStrip();
 
-  fireEvent.doubleClick(getByText("airlock"));
+  fireEvent.doubleClick(getByText("Airlock"));
   const input = container.querySelector(
     "input.tab-rename-input",
   ) as HTMLInputElement;
@@ -197,7 +197,7 @@ it("a blur right after Escape does not commit (the done-ref guard)", () => {
   fireEvent.keyDown(input, { key: "Escape" });
   fireEvent.blur(input);
 
-  expect(getByText("airlock")).toBeTruthy();
+  expect(getByText("Airlock")).toBeTruthy();
   expect(useApp.getState().tabRenames).toEqual({});
 });
 

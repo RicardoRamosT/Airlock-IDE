@@ -4,9 +4,16 @@ import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
 import { useApp } from "../store";
 
-// Label for a tab: its folder basename, or "New Tab" for a blank tab.
+// Title-case a folder name for display (first letter up, rest down) so tab
+// labels read consistently regardless of the folder's own casing.
+const titleCase = (s: string): string =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+
+// Label for a tab: its folder basename (title-cased), or "New Tab" for a blank
+// tab. Only the AUTO name is normalized -- a manual rename is shown verbatim via
+// displayLabel (tabRenames), so this never overrides what the user typed.
 const tabLabel = (root: string | null): string =>
-  root ? (root.split("/").pop() ?? root) : "New Tab";
+  root ? titleCase(root.split("/").pop() ?? root) : "New Tab";
 
 // Inline tab-rename input (swapped in for the label). Mirrors FileTree's
 // inline-edit shape, EXCEPT blur COMMITS here (FileTree cancels on blur
@@ -62,6 +69,14 @@ function TabRenameInput({
 // The inline Overview entry on the focused ("master") project folder. Opens
 // rightward inside the strip; clicking it shows the full Overview in the main
 // area. Highlighted while that project's overview is shown.
+// The Overview segment of the master folder: an SVG "lower roof" (a curved
+// shoulder stepping down from the master's full-height roof, then the overview
+// roof + top-right corner + right side) with the label centered over it. The
+// fill/outline read --tab-fill/--tab-outline so it recolors with the tab state.
+// viewBox is 96x32 (preserveAspectRatio:none lets it fill the segment); D=6 drop,
+// C=7 curve, R=6 corner. See the master-label styling in theme.css.
+const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28 L0 28 Z";
+const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28";
 function OverviewEntry({ root }: { root: string }) {
   const active = useApp(
     (s) => s.appPage === "overview" && s.overviewRoot === root,
@@ -76,7 +91,30 @@ function OverviewEntry({ root }: { root: string }) {
         useApp.getState().showOverview(root);
       }}
     >
-      <span>Overview</span>
+      <svg
+        className="ov-roof"
+        viewBox="0 0 96 28"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path className="ov-fill" d={OV_FILL} />
+        {/* Dotted diagonal separating master from Overview, matching the roof's
+            visible shoulder diagonal (tuned in the mockup). */}
+        <line
+          className="ov-divider"
+          x1="1.5"
+          y1="0"
+          x2="19.5"
+          y2="28"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          className="ov-stroke"
+          d={OV_STROKE}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span className="ov-text">Overview</span>
     </button>
   );
 }
@@ -330,7 +368,7 @@ export function ProjectTabs() {
     return (
       <div
         key={tab.id}
-        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
+        className={`project-tab${active ? " active" : ""}${tab.id === activeTabId ? " folder-open" : ""}${tab.id === activeTabId && tab.root ? " has-overview" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === tab.id ? " dragging" : ""}${dropClass(tab.id)}`}
         {...dropTarget(tab.id)}
       >
         {renaming === tab.id ? (
