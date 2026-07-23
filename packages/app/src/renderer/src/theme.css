@@ -4407,3 +4407,57 @@ button.docker-row .codicon-chevron-right {
   align-items: center;
   gap: var(--sb-gap, 6px);
 }
+
+/* Overview page: in-page nav (Overview | Changelog) over the two views. */
+.overview-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.overview-nav {
+  display: flex;
+  gap: var(--sb-gap, 6px);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.overview-nav-item {
+  height: var(--control-h, 24px);
+  padding: 0 10px;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.overview-nav-item.active {
+  color: var(--fg);
+  background: var(--hover);
+}
+.overview-page-body {
+  flex: 1;
+  overflow: auto;
+}
+.changelog {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.changelog-entry {
+  border-left: 2px solid var(--border);
+  padding: 2px 0 2px 10px;
+}
+.changelog-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.changelog-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.changelog-text {
+  white-space: pre-wrap;
+}
