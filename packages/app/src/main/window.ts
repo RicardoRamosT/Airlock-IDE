@@ -4,9 +4,17 @@
 // survives alt-tabbing away from airlock. ASCII-only: CJS-bundled into Electron
 // main.
 import path, { basename } from "node:path";
-import { BrowserWindow, type WebContents } from "electron";
+import { BrowserWindow, screen, type WebContents } from "electron";
+import type { MovingTab } from "../shared/ipc";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
+import { isCursorHintWindow } from "./tabdrag/cursorHint";
+import type { WindowBox } from "./tabdrag/target";
+import {
+  forgetWindow,
+  registerAdoptWindow,
+  stopTabDragFor,
+} from "./tabdrag/wire";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
 // The SET of roots the user currently has open in each window (every tab's
@@ -17,6 +25,9 @@ const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open fo
 // root used by requireRoot / the agent.
 const windowRoots = new Map<number, Set<string>>(); // BrowserWindow.id -> open tab roots
 let lastFocusedId: number | null = null;
+// Most-recently-focused FIRST. Electron exposes no z-order, so this approximates
+// "front-most" when hit-testing a tab drop against overlapping windows.
+let focusOrder: number[] = [];
 
 function winIdForSender(sender: WebContents): number | null {
   return BrowserWindow.fromWebContents(sender)?.id ?? null;
@@ -108,7 +119,13 @@ export function lastFocusedWindow(): BrowserWindow | null {
   }
   const focused = BrowserWindow.getFocusedWindow();
   if (focused && !focused.isDestroyed()) return focused;
-  return BrowserWindow.getAllWindows()[0] ?? null;
+  // Skip the cursor drag label: it is a BrowserWindow but not an app window, and
+  // handing it to the IDE-control commands would target a tooltip.
+  return (
+    BrowserWindow.getAllWindows().find(
+      (w) => !w.isDestroyed() && !isCursorHintWindow(w.id),
+    ) ?? null
+  );
 }
 
 // The window currently showing `root` (active-tab match first, else any window
@@ -168,10 +185,16 @@ export function createWindow(): BrowserWindow {
 
   win.on("focus", () => {
     lastFocusedId = win.id;
+    focusOrder = [win.id, ...focusOrder.filter((id) => id !== win.id)];
   });
   win.on("closed", () => {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
+    focusOrder = focusOrder.filter((id) => id !== win.id);
+    // A tab drag started here must not leave the cursor poll running, and an
+    // unclaimed torn-off tab must not be kept alive for a dead window.
+    stopTabDragFor(win.id);
+    forgetWindow(win.id);
     disposeWindowWatchers(win.id);
     syncLspServers(allOpenRoots());
     if (lastFocusedId === win.id) {
@@ -187,5 +210,48 @@ export function createWindow(): BrowserWindow {
   } else {
     win.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
+  return win;
+}
+
+// Live windows as tab-drop boxes, most-recently-focused first. The first box
+// containing the cursor wins (see tabdrag/target.ts). Windows never focused yet
+// (e.g. one just created) sort last.
+export function windowBoxesFrontMostFirst(): WindowBox[] {
+  const live = new Map<number, BrowserWindow>();
+  for (const w of BrowserWindow.getAllWindows()) {
+    // Skip the drag label that follows the cursor: it is a BrowserWindow, so it
+    // would otherwise be a droppable target and could swallow its own drag.
+    if (w.isDestroyed() || isCursorHintWindow(w.id)) continue;
+    live.set(w.id, w);
+  }
+  const ordered: BrowserWindow[] = [];
+  for (const id of focusOrder) {
+    const w = live.get(id);
+    if (w) {
+      ordered.push(w);
+      live.delete(id);
+    }
+  }
+  for (const w of live.values()) ordered.push(w);
+  return ordered.map((w) => ({ id: w.id, bounds: w.getBounds() }));
+}
+
+// Open a new window that adopts a torn-off tab. The payload is PARKED for the new
+// window to claim once its renderer has mounted (tabdrag:takePending) rather than
+// pushed on did-finish-load -- that event fires before React's effects run, so a
+// push could land with nothing subscribed and the tab would be lost. Registering
+// also suppresses that window's session restore, so it opens with ONLY the dragged
+// project instead of reopening every project from the app-global snapshot.
+// Positioned near the cursor so the window appears where it was dropped.
+export function createWindowForAdopt(payload: MovingTab): BrowserWindow {
+  const win = createWindow();
+  registerAdoptWindow(win.id, payload);
+  const { x, y } = screen.getCursorScreenPoint();
+  const b = win.getBounds();
+  win.setBounds({
+    ...b,
+    x: Math.round(x - b.width / 3),
+    y: Math.max(0, y - 20),
+  });
   return win;
 }

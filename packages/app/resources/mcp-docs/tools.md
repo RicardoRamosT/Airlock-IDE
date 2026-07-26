@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 37 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 39 tools over this MCP server. Ten are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -70,6 +70,17 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   toggles are allowed, security settings are refused.
 - **`add_changelog_entry`** — append an entry to this project's Changelog (shown in the
   Overview page): `{ text, tag? }`, tag one of change|fix|decision|note (default note).
+- **`add_changelog_entries`** — append MANY entries in ONE call: `{ entries: [{ text,
+  tag?, details?, ts? }] }`. **Use this instead of looping `add_changelog_entry`** when
+  populating or backfilling a Changelog — it is one atomic write and one UI refresh
+  instead of N. `ts` is optional epoch-ms; pass it to preserve a historical date
+  (default now), and entries may be listed in any order (they are stored
+  chronologically). Max 200 per call; returns `added` + `skipped` (invalid rows are
+  skipped, not fatal).
+- **`update_changelog_notes`** — edit MANY Changelog **note** entries in one call:
+  `{ updates: [{ ts, text, details? }] }`, where `ts` comes from `project_info`'s
+  `journal`. Notes only — the git-derived Changes rows are read-only, and non-matching
+  rows are skipped. Max 200 per call; returns `updated` + `skipped`.
 - **`read_events`** — query AirLock's debugging event log (lifecycle, integration calls,
   agent commands, IPC, and errors). Secret-free by construction (values are stripped at
   capture time). Optional filters: `level` (minimum severity: `"debug"`, `"info"`,
@@ -308,6 +319,12 @@ main-side; you never see it.
 - "Commit the staged changes" → `git_commit` with a message (`git_status` first to see what
   is staged). A suspected secret in the staged content blocks the commit and reports the
   leak locations — surface them to the user before even considering `confirm: true`.
+- "Record what changed" → `add_changelog_entry` for a single change as you make it.
+  **"Populate / backfill the changelog"** → `add_changelog_entries`, batching the whole set
+  into as few calls as possible; pass each entry's `ts` (the commit's date in epoch ms) so
+  the history keeps its real dates. Never loop `add_changelog_entry` per entry — each call
+  rewrites the whole journal and refreshes the UI. To revise entries, `update_changelog_notes`
+  (notes only; the git-derived Changes rows are read-only).
 - "The secret I need isn't vaulted yet" → `request_secret` with the name (a secure prompt
   opens for the user to vault it); when it reports vaulted, retry the action that needed it.
 - "What is the user running in another tab / what does that error say?" → `get_terminal_tail`

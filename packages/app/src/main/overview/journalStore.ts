@@ -9,11 +9,15 @@ import type { JournalEntry } from "../../shared/ipc";
 import {
   capEntries,
   deleteNote,
+  MAX_BULK,
   readJournal,
+  sanitizeNewEntries,
   sanitizeNewEntry,
   serializeEntry,
+  sortByTs,
   uniqueTs,
   updateNote,
+  updateNotes,
 } from "./journal";
 
 function journalPath(root: string): string {
@@ -53,6 +57,74 @@ export async function appendJournalEntry(
   try {
     await writeAll(root, [...(await readAll(root)), entry]);
     return { ok: true, entry };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// Append MANY entries in one read + one atomic write (bulk import). Populating a
+// changelog one entry at a time costs a whole-file read+rewrite per entry (O(n^2)
+// I/O) and 80 broadcasts; this does it once. Each item is
+// `{ text, tag?, details?, ts? }` -- an explicit ts (epoch ms) preserves a
+// historical date. Invalid items are skipped and reported, not fatal. The merged
+// set is sorted by ts so an out-of-order import still displays chronologically.
+export async function appendJournalEntries(
+  root: string,
+  items: unknown,
+  nowMs: number,
+): Promise<
+  | { ok: true; added: number; skipped: number; entries: JournalEntry[] }
+  | { ok: false; error: string }
+> {
+  if (!Array.isArray(items))
+    return { ok: false, error: "entries must be an array." };
+  if (items.length === 0)
+    return { ok: false, error: "entries is empty (nothing to add)." };
+  if (items.length > MAX_BULK)
+    return {
+      ok: false,
+      error: `Too many entries in one call (${items.length} > ${MAX_BULK}); split the import.`,
+    };
+  const all = await readAll(root);
+  const { entries, skipped } = sanitizeNewEntries(items, all, nowMs);
+  if (entries.length === 0)
+    return { ok: false, error: "No valid entries (text empty or too long)." };
+  try {
+    await writeAll(root, sortByTs([...all, ...entries]));
+    return { ok: true, added: entries.length, skipped, entries };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// Edit MANY notes by ts in one read + one atomic write. Notes only (the
+// git-derived Changes rows stay read-only); unmatched/invalid rows are skipped
+// and reported. Errors only when NOTHING matched or the write fails.
+export async function updateNoteEntries(
+  root: string,
+  updates: unknown,
+): Promise<
+  { ok: true; updated: number; skipped: number } | { ok: false; error: string }
+> {
+  if (!Array.isArray(updates))
+    return { ok: false, error: "updates must be an array." };
+  if (updates.length === 0)
+    return { ok: false, error: "updates is empty (nothing to change)." };
+  if (updates.length > MAX_BULK)
+    return {
+      ok: false,
+      error: `Too many updates in one call (${updates.length} > ${MAX_BULK}); split the batch.`,
+    };
+  const all = await readAll(root);
+  const next = updateNotes(all, updates);
+  if (next.updated === 0)
+    return {
+      ok: false,
+      error: "No notes matched (or every text was invalid).",
+    };
+  try {
+    await writeAll(root, next.entries);
+    return { ok: true, updated: next.updated, skipped: next.skipped };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DotLevel, Section, SectionStatuses } from "../../../shared/ipc";
 import { effectiveView, SECTION_META } from "../lib/sections";
+import { useGithubAccountDot } from "../lib/useGithubAccountDot";
 import { useSectionStatuses } from "../lib/useSectionStatuses";
 import { useApp } from "../store";
 import { AccountsPopover } from "./AccountsPopover";
@@ -50,6 +51,9 @@ export function ActivityBar() {
   const activeView = useApp((s) => s.activeView);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const statuses = useSectionStatuses();
+  // Accounts-button dot: green = the account this repo wants is the one in play,
+  // yellow = a different account is active (a push here would use the wrong one).
+  const [ghDot, refreshGhDot] = useGithubAccountDot();
   const [open, setOpen] = useState<"accounts" | "settings" | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
@@ -66,6 +70,18 @@ export function ActivityBar() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
+
+  // Switching or pinning happens inside the Accounts popover, so re-read the dot
+  // when it CLOSES instead of making the user wait out the poll interval. Keyed
+  // on "was open" so unrelated popover traffic (Settings) never triggers a fetch.
+  const accountsWasOpen = useRef(false);
+  useEffect(() => {
+    if (open === "accounts") accountsWasOpen.current = true;
+    else if (accountsWasOpen.current) {
+      accountsWasOpen.current = false;
+      refreshGhDot();
+    }
+  }, [open, refreshGhDot]);
 
   const view = effectiveView(activeView, vis);
 
@@ -129,15 +145,20 @@ export function ActivityBar() {
           title="Send a suggestion"
           onClick={() => void window.airlock.hostOpenExternal(SUGGESTIONS_URL)}
         >
-          <i className="codicon codicon-feedback" />
+          {/* A plain speech bubble: codicon-feedback draws a person BESIDE the
+              bubble, which sat off-centre next to the account and gear glyphs. */}
+          <i className="codicon codicon-comment" />
         </button>
         <button
           type="button"
           className={`footer-btn${open === "accounts" ? " active" : ""}`}
-          title="Accounts"
+          title={`Accounts — ${ghDot.title}`}
           onClick={() => setOpen(open === "accounts" ? null : "accounts")}
         >
-          <i className="codicon codicon-account" />
+          <span className="activity-icon-glyph">
+            <i className="codicon codicon-account" />
+            <span className={`activity-dot ${ghDot.level}`} />
+          </span>
         </button>
         <button
           type="button"

@@ -10,6 +10,16 @@ main + preload + React renderer).
 dist:mac` (shareable DMG → `packages/app/release/AirLock-<version>-arm64.dmg`,
 ad-hoc signed — recipients use the Gatekeeper "Open Anyway" bypass).
 
+**Release naming (must match exactly):** tag `v<version>`, release title
+`AirLock v<version>` — e.g. version `0.6.0` → tag `v0.6.0`, title
+`AirLock v0.6.0`. Releases are cut by hand (`gh release create`, no workflow), so
+two titles had drifted to `AirLock 0.5.0`/`AirLock 0.3.0` and were renamed
+2026-07-25. Keep the `v` in BOTH. The in-app updater reads `tag_name` (stripping a
+leading `v`) and never the title, so the tag format is the functional one — but
+bump `package.json` **and** `packages/app/package.json` together, since the DMG
+name and the update version compare come from them. Publishing needs
+`gh auth switch -u RicardoRamosT`.
+
 **Testing convention:** unit-test pure modules; keep electron/chokidar wiring
 thin and untested (e.g. `fsWatch.ts` only tests its pure helper).
 
@@ -119,6 +129,40 @@ project terminals only exist post-hydration). The decision is
 `CLAUDE_AUTO_COMMAND` (`"claude\n"`, same bytes as the "Start Claude here"
 notice) at pty adoption. Spec:
 `docs/superpowers/specs/2026-06-09-claude-auto-start-design.md`.
+
+## Project-tab tear-off
+
+Drag a project tab out of a window to detach it into its own window, or onto
+another AirLock window to merge it in. **Running terminals move alive** — a live
+`claude` keeps streaming, with its scrollback.
+
+- Both windows are ONE process, so the drag is a normal HTML5 drag in the
+  **source** window and main decides the outcome from
+  `screen.getCursorScreenPoint()` (`main/tabdrag/target.ts` — pure, unit-tested).
+  No native cross-window DnD, which also dodges the macOS quirk where `dragend`
+  coordinates come back stale/zeroed once the pointer leaves the window.
+- **PTY ownership (the load-bearing change):** `pty:create` no longer captures the
+  creating window's `webContents`. Output goes to `sessionTargets.get(id)`, read
+  **per chunk**, so `pty:adopt` can re-point a live session to another window.
+  Adopt also updates `sessionWindows` — **an isolation boundary** (MCP terminal
+  tools scope by it so a window only sees its own terminals), so it must always
+  follow the stream — and returns the `ptyBuffers` tail to rehydrate scrollback.
+  Tail snapshot + re-point happen in one synchronous block, so no chunk is lost or
+  duplicated. Adopt is admitted only via a single-use `MovingSessions` ticket, so
+  no window can adopt an arbitrary pty by guessing an id.
+- **Ordering:** the renderer builds the payload, main performs the move, and only
+  then does the source drop the tab (add before remove) — so a failed move cannot
+  lose a tab, and an in-window reorder is a true no-op. `TerminalPane` skips
+  `ptyKill` for ids in `movingPtyIds` (otherwise tearing off would kill the very
+  session being preserved) and **consumes** the marker via `forgetMovingPty`, or a
+  later legitimate close of that pty would also skip its kill and orphan a shell.
+- Not movable: split pairs (one tab, two projects), the Settings/Usage page-tabs,
+  and a window's last tab (already its own window).
+- Session restore does NOT rebuild the window arrangement — `SessionSnapshot`
+  holds roots only, with no window grouping.
+
+Spec: `docs/superpowers/specs/2026-07-25-tab-tear-off-design.md` ·
+Plan: `docs/superpowers/plans/2026-07-25-tab-tear-off.md`.
 
 ## Sidebar layout system
 

@@ -16,32 +16,16 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function clickOverviewFromTitleMenu() {
-  render(<TitleBar />);
-  fireEvent.contextMenu(screen.getByText("AirLock - proj"));
-  fireEvent.click(screen.getByText("Overview"));
-}
-
-it("tabs ON: right-click name → Overview shows the overview page", () => {
+it("renders the window title in a non-interactive card (no context menu)", () => {
   useApp.getState().openProject("/Users/me/proj");
-  useApp.setState({ openProjectsAsTabs: true });
-  clickOverviewFromTitleMenu();
-  const st = useApp.getState();
-  expect(st.appPage).toBe("overview");
-  expect(st.overviewRoot).toBe("/Users/me/proj");
-});
-
-it("tabs OFF: right-click name → Overview shows the overview page", () => {
-  useApp.getState().openProject("/Users/me/proj");
-  useApp.setState({ openProjectsAsTabs: false });
-  clickOverviewFromTitleMenu();
-  const st = useApp.getState();
-  expect(st.appPage).toBe("overview");
-  expect(st.overviewRoot).toBe("/Users/me/proj");
-});
-
-it("no active project: right-clicking the bare title shows no menu", () => {
   render(<TitleBar />);
-  fireEvent.contextMenu(screen.getByText("AirLock"));
+  expect(screen.getByText("AirLock - Proj")).toBeTruthy();
+  // The title is passive now: right-clicking it opens nothing.
+  fireEvent.contextMenu(screen.getByText("AirLock - Proj"));
   expect(screen.queryByText("Overview")).toBeNull();
+});
+
+it("shows just 'AirLock' with no active project", () => {
+  render(<TitleBar />);
+  expect(screen.getByText("AirLock")).toBeTruthy();
 });

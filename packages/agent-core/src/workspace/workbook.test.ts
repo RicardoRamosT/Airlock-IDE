@@ -1,3 +1,8 @@
+// biome-ignore-all lint/style/noNonNullAssertion: indices are proven by the assertions above each use
+// Non-null assertions are deliberate here: each is guarded by an assertion on the
+// preceding line (sheet names / row counts are checked first), so a wrong index fails
+// the test loudly instead of silently reading undefined. Optional chaining would make
+// a missing row PASS as undefined -- a weaker test just to satisfy a style rule.
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

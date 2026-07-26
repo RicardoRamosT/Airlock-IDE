@@ -44,6 +44,13 @@
      continuous line across both columns. Sized to fit the meter's tallest
      state (title + two bars + reset line). */
   --sidebar-dock-h: 88px;
+  /* Titlebar usage gauges. Theme-aware because the percentage straddles two
+     grounds -- the coloured fill and the empty track -- as the bar advances, so the
+     text needs a halo in the OPPOSITE direction from the surface it sits on. */
+  --wing-track-bg: rgba(255, 255, 255, 0.04);
+  --wing-track-hover-bg: rgba(255, 255, 255, 0.08);
+  --wing-num-fg: #fff;
+  --wing-num-halo: 0 1px 1.5px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.7);
   font-family: -apple-system, "SF Pro Text", sans-serif;
 }
 
@@ -67,6 +74,16 @@
   --ficon-json: #9a9a2f;
   --ficon-env: #9a8526;
   --ficon-conf: #6e7781;
+  /* Usage gauges inverted for the light surface: a white-on-white track was
+     invisible here, and the white percentage was unreadable over it until the fill
+     grew under the digits. Dark ink with a LIGHT halo instead -- legible on the pale
+     empty track and still legible on the fill, whose lightness the ramp caps in the
+     mid-50s for exactly this reason. */
+  --wing-track-bg: rgba(31, 35, 40, 0.07);
+  --wing-track-hover-bg: rgba(31, 35, 40, 0.12);
+  --wing-num-fg: #10151b;
+  --wing-num-halo:
+    0 1px 1.5px rgba(255, 255, 255, 0.9), 0 0 3px rgba(255, 255, 255, 0.75);
 }
 
 /* VS Code-style overlay scrollbars (WebKit) */
@@ -124,35 +141,181 @@ body,
   padding-left: 78px; /* clear the macOS traffic lights */
   padding-right: 8px;
   background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
+}
+
+/* The centered titlebar group: the usage wings + the title card, laid out as ONE
+   inverted folder card hung from the window's top edge. The GROUP carries the
+   centering (the card used to do it itself), so the card stays centered whether or
+   not the wings are present. Height is capped at 22px: the titlebar row is a fixed
+   38px, so the group can never grow it or crowd the project tabs. */
+.titlebar-center {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  height: 22px;
+  max-width: 92%;
 }
 
 .titlebar-title {
-  /* True center of the WINDOW (not of the space between traffic lights and
-     the layout controls): absolutely centered so asymmetric chrome on either
-     side cannot skew it. The bar itself stays the drag region. */
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 60%;
+  /* An INVERTED folder card: the "roof" (rounded, closed edge) is BELOW the title;
+     the open top merges into the window top -- the mirror of the project tabs,
+     which sit on the bottom seam. Accent border + selected fill like a project tab.
+     box-sizing:content-box so the JS-set width is the text's own width; the width
+     transition eases between project names. */
+  display: flex;
+  align-items: center;
+  box-sizing: content-box;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 0 12px;
   font-size: 12px;
   color: var(--fg-dim);
+  background: var(--selected);
+  border: 1px solid var(--accent);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  transition: width 220ms ease;
 }
-/* When a project is active the name is right-clickable (project menu); the
-   hover pill + context-menu cursor signal that. no-drag so the hover/click are
-   reliable inside the draggable bar. */
-.titlebar-title.interactive {
+
+/* --- Claude usage wings (5h left, 7d right) ---------------------------------
+   Each wing is a fixed-width track whose fill grows TOWARD the title, so the pair
+   reads as one symmetrical gauge rather than two unrelated bars. They butt against
+   the card (shared edges dropped) and take the group's outer corners, so the whole
+   thing is one continuous shape. no-drag keeps them clickable inside the
+   titlebar's drag strip. */
+/* The button is just a bare row: [icon][track] on the left, [track][icon] on the
+   right. All the box treatment (fill, border, clip) lives on the TRACK, so the
+   marker icon sits outside the gauge while the track still butts flush against the
+   title card. */
+.titlebar-wing {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  flex: none;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
   -webkit-app-region: no-drag;
-  cursor: context-menu;
-  padding: 1px 8px;
-  border-radius: 5px;
 }
-.titlebar-title.interactive:hover {
-  background: rgba(255, 255, 255, 0.08);
+.titlebar-wing:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
+/* The window marker: a clock for the rolling 5-hour session, a calendar for the
+   7-day week. Outside the gauge box, on the titlebar itself, so it reads as chrome
+   -- muted, and it brightens with the rest of the control on hover.
+
+   SPECIFICITY: codicon's own base rule is `.codicon[class*='codicon-']` (a class
+   PLUS an attribute selector), which out-specifies any single-class rule of ours --
+   it was silently winning both `font-size` and `display`, leaving the glyph a 16px
+   inline-block pinned to the top of the row instead of a centred flex box. Hence the
+   descendant selector here (and why `.codicon { font-size: 14px }` further up this
+   file never applies to an actual icon). */
+.titlebar-wing .titlebar-wing-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  height: 100%; /* the group's 22px, so centring is against the track */
+  font-size: 13px;
+  line-height: 1;
+  color: var(--fg-dim);
+  transition: color 140ms ease;
+}
+.titlebar-wing:hover .titlebar-wing-icon {
   color: var(--fg);
+}
+
+.titlebar-wing-track {
+  position: relative;
+  flex: none;
+  width: 92px;
+  overflow: hidden;
+  background: var(--wing-track-bg);
+  border: 1px solid var(--border);
+  border-top: none;
+  transition: background 140ms ease;
+}
+.titlebar-wing:hover .titlebar-wing-track {
+  background: var(--wing-track-hover-bg);
+}
+.titlebar-wing.left .titlebar-wing-track {
+  border-right: none;
+  border-radius: 0 0 0 6px;
+}
+.titlebar-wing.right .titlebar-wing-track {
+  border-left: none;
+  border-radius: 0 0 6px 0;
+}
+/* With wings attached the card is the MIDDLE segment, so it drops its own
+   rounding -- the group's corners live on the wing tracks. */
+.titlebar-center:has(.titlebar-wing) .titlebar-title {
+  border-radius: 0;
+}
+
+/* The fill grows toward the card: anchored to the inner edge, fading outward, so
+   both wings drain symmetrically away from the title. */
+.titlebar-wing-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--wing-tone, var(--accent))
+  );
+  transition:
+    width 260ms ease,
+    background 260ms ease;
+}
+.titlebar-wing.left .titlebar-wing-fill {
+  right: 0;
+}
+.titlebar-wing.right .titlebar-wing-fill {
+  left: 0;
+  background: linear-gradient(
+    270deg,
+    transparent,
+    var(--wing-tone, var(--accent))
+  );
+}
+/* The percentage sits ON the fill, whose colour ranges from blue to bright
+   orange-yellow -- so flat light text would wash out at 75%+. White with a tight
+   dark halo reads on every stop of the ramp AND on the empty track behind it, which
+   matters because the fill edge crosses the digits as the bar advances (part of a
+   glyph can be over fill and part over track at the same moment). */
+.titlebar-wing-num {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--wing-num-fg);
+  text-shadow: var(--wing-num-halo);
+}
+/* No data yet: dim the placeholder and drop the halo (nothing to read it against). */
+.titlebar-wing.is-idle .titlebar-wing-num {
+  color: var(--fg-dim);
+  font-weight: 500;
+  text-shadow: none;
+}
+.titlebar-title-text {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .layout-controls {
@@ -188,6 +351,62 @@ body,
   padding: 0 6px;
   gap: 2px;
   min-width: 0;
+}
+
+/* Cross-window tab drag (tear-off / merge). The window the cursor is over lights
+   its strip as a drop zone; the SOURCE window dims while the cursor is outside
+   every window, so "release to detach" reads before you let go. Driven by main's
+   cursor tracking, since a drag inside one window cannot produce DOM drag events
+   in another. */
+.project-tabs.tabdrag-merge {
+  background: var(--selected);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+/* The SOURCE window dims while the cursor is outside every window. Only a partial
+   fade: the hint chip below has to stay readable. */
+.project-tabs.tabdrag-detach {
+  opacity: 0.85;
+}
+
+/* Spells out what releasing will do. The drop is what commits the move, so
+   without this, dragging outside the window gives no clue that a new window is
+   about to appear. Sits after the + button and never takes pointer events, so it
+   cannot interfere with the drag in flight. */
+.tabdrag-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 0 10px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--selected);
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tabdrag-hint-in 120ms ease-out;
+}
+.tabdrag-hint .codicon {
+  font-size: 12px;
+  color: var(--accent);
+}
+@keyframes tabdrag-hint-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabdrag-hint {
+    animation: none;
+  }
 }
 
 .project-tabs-list {
@@ -325,6 +544,11 @@ body,
   padding: 0 4px 0 6px;
   font-family: inherit;
   max-width: 160px;
+  /* Crossfade the master-card fill/border in/out as the tab gains/loses focus,
+     in sync with the Overview segment's width animation. */
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
 }
 
 .project-tab.active .project-tab-label {
@@ -442,27 +666,92 @@ body,
 
 .statusbar-side {
   display: flex;
-  gap: 12px;
-}
-
-.statusbar-item {
-  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-/* Clickable Anthropic status item (button reset to match the static items). */
-.statusbar-status {
-  background: none;
-  border: none;
-  color: inherit;
+/* Status-bar chips. The branch, the change count, and the Claude service
+   indicator were bare text floating on the bar; as pills they read as one
+   vocabulary and match the Update button's shape. Works as a <span> (static) or
+   a <button> (the Claude chip) -- the button styles are reset here. */
+.statusbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 17px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--hover);
+  border: 1px solid transparent;
+  color: var(--fg-dim);
   font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.statusbar-chip .codicon {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* The branch name is the primary token in its chip -- full-strength text, and
+   truncated so a long branch can't push the bar around. */
+.statusbar-branch {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* Ahead/behind counts: tight icon+number pairs, tabular so they don't jitter. */
+.statusbar-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.statusbar-sync .codicon {
+  font-size: 11px;
+}
+
+/* Clickable Anthropic status chip: opens status.claude.com. */
+.statusbar-status {
   cursor: pointer;
-  padding: 0;
 }
 .statusbar-status:hover {
+  background: var(--selected);
+  border-color: var(--accent-glow);
   color: var(--fg);
 }
+.statusbar-status-label {
+  color: var(--fg-dim);
+}
+/* The state word carries the tone; the dot alone is only a 7px cue. */
+.statusbar-status-value {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.statusbar-status.tone-ok .statusbar-status-value {
+  color: #3fb950;
+}
+.statusbar-status.tone-warn .statusbar-status-value {
+  color: #d29922;
+}
+.statusbar-status.tone-fail .statusbar-status-value {
+  color: #f85149;
+}
+.statusbar-status.tone-unknown .statusbar-status-value {
+  color: var(--fg-dim);
+}
+
+/* NOTE: the status-bar's .status-dot overrides live next to the base .status-dot
+   rules further down (so specificity ascends -- noDescendingSpecificity). */
 
 /* Amber dot for degraded/maintenance (the tone used by .badge / .identity-warning). */
 .status-dot.warn {
@@ -470,22 +759,85 @@ body,
   border-color: #d29922;
 }
 
-/* The far-right Update call-to-action (accent), only shown when available. */
+/* The Update call-to-action, shown only when an update is available.
+   CENTERED and absolutely positioned so it takes no space in either
+   .statusbar-side -- appearing/disappearing must not shove the Claude status
+   chip or the branch sideways. (.statusbar is position:relative already.) */
 .statusbar-update {
-  display: flex;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: var(--accent);
+  gap: 5px;
+  height: 18px;
+  padding: 0 12px;
+  /* Slight vertical gradient + inner top highlight so the pill reads as a raised
+     button rather than a flat accent blob. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent), #ffffff 14%),
+    var(--accent)
+  );
   border: none;
-  border-radius: 4px;
+  border-radius: 999px; /* pill */
   color: #fff;
   font-size: 11px;
-  padding: 1px 8px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
+  box-shadow:
+    0 1px 6px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition:
+    filter 120ms ease,
+    box-shadow 120ms ease;
+  /* Keep breathing for as long as the update is available: it stays actionable
+     until you click it, so a pulse that stopped just made the button go quiet
+     while the work was still outstanding. Slow and low-contrast so it reads as
+     ambient rather than nagging. */
+  animation: update-attention 2.6s ease-in-out infinite;
+}
+.statusbar-update .codicon {
+  font-size: 12px;
+}
+@keyframes update-attention {
+  0%,
+  100% {
+    box-shadow:
+      0 1px 6px var(--accent-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 1px 14px var(--accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+}
+.statusbar-update:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow:
+    0 2px 12px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+/* Keep the centering translate when pressing, or the button would jump to the
+   left edge on click. */
+.statusbar-update:active:not(:disabled) {
+  transform: translate(-50%, calc(-50% + 0.5px));
 }
 .statusbar-update:disabled {
-  opacity: 0.7;
+  opacity: 0.75;
   cursor: default;
+  box-shadow: none;
+  animation: none; /* mid-apply (downloading/mounting): stop soliciting clicks */
+}
+@media (prefers-reduced-motion: reduce) {
+  .statusbar-update {
+    animation: none;
+  }
 }
 
 /* Window-level workspace row: icon rail | ONE shared sidebar | panes. The rail
@@ -536,11 +888,37 @@ body,
   border: none;
   color: var(--fg-dim);
   cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
 }
 
-.activity-icon:hover,
+.activity-icon:hover {
+  color: var(--fg);
+}
+
 .activity-icon.active {
   color: var(--fg);
+}
+
+/* The hover/selected SURFACE is an inset rounded card rather than a full-bleed
+   rectangle: a hard-edged block butting against the rounded project tab above and
+   the sidebar below read as unfinished. Drawn behind the glyph (z-index:-1 against
+   the button's own positioning context) so the icon stays crisp. */
+.activity-icon::after {
+  content: "";
+  position: absolute;
+  inset: 3px 5px;
+  z-index: -1;
+  border-radius: 8px;
+  background: transparent;
+  transition: background 140ms ease;
+}
+.activity-icon:hover::after {
+  background: var(--hover);
+}
+.activity-icon.active::after {
+  background: var(--selected);
 }
 
 .activity-icon .codicon {
@@ -583,19 +961,38 @@ body,
 }
 
 /* Active-view indicator: the standard left-edge bar. */
-.activity-icon.active::before {
+/* Active-view indicator: a rounded pill on the rail's inner edge that GROWS in
+   from the centre when you switch views, instead of appearing fully formed. Always
+   present (scaled to nothing) so it has something to animate from. */
+.activity-icon::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--accent);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.activity-icon.active::before {
+  transform: scaleY(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-icon::before {
+    transition: none;
+  }
 }
 
-.workspace.sidebar-right .activity-icon.active::before {
+/* Right-hand rail: the indicator hugs the rail's inner (left) edge instead, so its
+   rounding mirrors too. Applies to the collapsed pill as well, not just the active
+   one, so it animates from the correct edge. */
+.workspace.sidebar-right .activity-icon::before {
   left: auto;
   right: 0;
+  border-radius: 3px 0 0 3px;
 }
 
 /* Rail bottom: the app-global Accounts/Settings buttons; position:relative
@@ -767,13 +1164,13 @@ body,
   min-width: 0;
   background: var(--hover);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--fg);
   font-size: 12px;
   padding: 2px 6px;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.1s;
+  transition: border-color 120ms ease;
 }
 .sb-control:hover {
   border-color: var(--fg-dim);
@@ -1167,13 +1564,24 @@ body,
 .main-tab {
   display: flex;
   align-items: center;
-  border-radius: 4px;
+  border-radius: 6px;
   height: 24px;
   position: relative; /* positioning context for the drag drop indicator */
-  transition: margin 110ms ease; /* smooth "make room" slide while dragging */
+  transition:
+    margin 110ms ease, /* smooth "make room" slide while dragging */
+    background 120ms ease,
+    box-shadow 120ms ease;
 }
 
+/* Active terminal tab: a soft raised chip (selected fill + faint accent ring) --
+   echoes the project tabs' selected state without the folder shape. Declared
+   before the :not(.active):hover rule so specificity ascends (noDescending). */
 .main-tab.active {
+  background: var(--selected);
+  box-shadow: inset 0 0 0 1px var(--accent-glow);
+}
+
+.main-tab:not(.active):hover {
   background: var(--hover);
 }
 
@@ -1224,12 +1632,19 @@ body,
 }
 
 .main-tab-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   background: none;
   border: none;
   color: var(--fg-dim);
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: 6px;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .main-tab-action:hover,
@@ -1346,10 +1761,25 @@ body.resizing-col {
      3*22 + 2*2 gap + 2*6 pad = 88. Without it they inherit line-height, overflow
      the dock, and the activity-bar divider rises above the quota meter's. */
   height: 22px;
-  padding: 4px 6px;
-  border-radius: 4px;
+  /* Fixed box + centred content so all three glyphs share one vertical axis --
+     padding alone let differently-proportioned icons sit off-centre. */
+  width: 26px;
+  padding: 0;
+  border-radius: 6px;
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+/* The rail's footer icons are 14px (vs the 20px section icons), so their status
+   dot -- the Accounts button's GitHub-account-correctness dot -- is scaled down
+   and tucked tighter to stay a tiny corner marker rather than a blob. */
+.footer-btn .activity-dot {
+  width: 6px;
+  height: 6px;
+  right: -3px;
+  bottom: -2px;
+  border-width: 1.5px;
 }
 
 .footer-btn:hover {
@@ -1549,52 +1979,9 @@ body.resizing-col {
   vertical-align: middle;
 }
 
-/* The meter card is a click-through button to the Usage page; keep its card
-   layout (it inherits the border-top + padding from .quota-meter below). */
-button.quota-meter {
-  appearance: none;
-  width: 100%;
-  background: none;
-  text-align: left;
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
-  cursor: pointer;
-  /* Only neutralize the button UA font FAMILY: the `font` shorthand would
-     out-specific .quota-meter's 11px sizing and blow the card up. */
-  font-family: inherit;
-  font-size: 11px;
-}
-
-button.quota-meter:hover {
-  background: var(--hover);
-}
-
-/* Claude quota meter: a fixed-height card pinned at the bottom of the sidebar
-   column. flex:none reserves its height, so the scrollable .sidebar-view-body
-   (flex:1) shrinks above it -- the view reflows and scrolls, and the meter
-   never overlaps it. */
-.quota-meter {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  /* Same dock height as .activity-bar-bottom: the two top borders align into
-     one line, and the card no longer jumps between waiting/live states. */
-  min-height: var(--sidebar-dock-h);
-  gap: 4px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--fg-dim);
-}
-
-.quota-title {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--fg-dim);
-}
-
+/* Claude usage rows, now used only by the Usage page (the sidebar meter moved into
+   the titlebar -- see .titlebar-wing). The 88px sidebar dock it used to reserve
+   went back to the file tree. */
 .quota-row {
   display: flex;
   align-items: center;
@@ -1609,16 +1996,23 @@ button.quota-meter:hover {
 
 .quota-bar {
   flex: 1;
-  height: 6px;
-  border-radius: 3px;
+  height: 7px;
+  border-radius: 999px;
   background: var(--hover);
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
 .quota-bar-fill {
   display: block;
   height: 100%;
-  background: var(--accent);
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent), #ffffff 30%)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition: width 0.3s ease;
 }
 
@@ -1628,31 +2022,6 @@ button.quota-meter:hover {
   text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--fg);
-}
-
-.quota-reset {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--fg-dim);
-}
-.quota-reset .codicon {
-  flex: none;
-}
-/* Truncate the countdown rather than wrapping it: a narrow sidebar must not grow
-   the meter's height (it would break the dock alignment with the activity bar).
-   The full text is still in the Usage page and at wider widths. */
-.quota-reset-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.quota-waiting {
-  color: var(--fg-dim);
-  font-style: italic;
 }
 
 /* Popover: bottom-anchored above the rail's bottom buttons (overlays the
@@ -1779,6 +2148,27 @@ button.quota-meter:hover {
 .status-dot.fail {
   background: #f85149;
   border-color: #f85149;
+}
+
+/* Status-bar variant of the dot, declared AFTER the base rules so specificity
+   ascends. Scoped to the bar so other .status-dot users (DB rows, the account
+   list) keep their meaning: here "operational" reads GREEN (health) rather than
+   accent blue, and each state gets a soft halo so the dot looks live instead of
+   painted on. */
+.statusbar .status-dot {
+  width: 7px;
+  height: 7px;
+  border: none;
+}
+.statusbar .status-dot.on {
+  background: #3fb950;
+  box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.18);
+}
+.statusbar .status-dot.warn {
+  box-shadow: 0 0 0 2px rgba(210, 153, 34, 0.18);
+}
+.statusbar .status-dot.fail {
+  box-shadow: 0 0 0 2px rgba(248, 81, 73, 0.18);
 }
 
 .account-name {
@@ -2127,6 +2517,53 @@ button.quota-meter:hover {
   margin: 10px 0 4px;
 }
 
+/* A labelled sub-block inside a settings section, separated by a hairline. The
+   Layout page had grown into one flat wall of a dozen sibling rows -- window
+   behaviour, sidebar placement and ten section toggles all at the same level -- so
+   related settings are now visibly bundled. */
+.settings-group {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  margin-bottom: 4px;
+}
+
+/* Two mutually exclusive choices on ONE row (e.g. sidebar Left / Right) instead of
+   a stacked radio list. */
+.settings-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.settings-choice label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+/* Compact two-column grid for long toggle lists (the sidebar sections). */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+@media (max-width: 620px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .settings-row {
   display: flex;
   align-items: center;
@@ -2458,7 +2895,9 @@ button.quota-meter:hover {
 
 .terminal-host {
   height: 100%;
-  padding: 6px 0 0 8px;
+  /* Bottom pad keeps the last line off the status bar (the tighter 28px strip
+     freed height the terminal absorbed, so its bottom row was flush). */
+  padding: 6px 0 4px 8px;
 }
 
 .secrets {
@@ -2473,11 +2912,12 @@ button.quota-meter:hover {
   gap: 5px;
   min-width: 0;
   height: var(--row-h);
+  border-radius: 6px;
+  transition: background 120ms ease;
 }
 
 .secret-row:hover {
   background: var(--hover);
-  border-radius: 4px;
 }
 
 .secret-name {
@@ -2532,7 +2972,7 @@ button.quota-meter:hover {
   background: var(--hover);
   border: 1px solid var(--border);
   color: var(--fg);
-  border-radius: 4px;
+  border-radius: 6px;
   height: var(--control-h);
   padding: 0 10px;
   font-size: 12px;
@@ -2540,21 +2980,19 @@ button.quota-meter:hover {
   cursor: pointer;
   font-family: inherit;
   transition:
-    border-color 0.1s,
-    background 0.1s;
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 80ms ease;
 }
 
 .btn:hover {
-  background: var(--bg-panel);
+  background: var(--border);
   border-color: var(--fg-dim);
 }
 
 .btn:active {
   background: var(--selected);
-}
-
-.btn:hover {
-  background: var(--border);
+  transform: translateY(0.5px);
 }
 
 .btn.primary {
@@ -4711,6 +5149,9 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   cursor: pointer;
   font: inherit;
+  /* Clearly smaller than the Overview|Changelog nav above (which inherits the
+     base size); 1em resolves against the parent, so this is base - 2px. */
+  font-size: calc(1em - 2px);
 }
 .changelog-tab:hover {
   color: var(--fg);
@@ -4786,6 +5227,11 @@ button.docker-row .codicon-chevron-right {
    connected to the content below -- regardless of focus. Focus is shown solely
    by the inline Overview entry appearing (see renderSingle), not a tab color. */
 .project-tab:not(.page-tab) {
+  /* Define the Overview-segment colors on EVERY project tab (not just the
+     focused one) so the always-mounted, collapsed segment never falls back to
+     black fill/stroke -- any hairline leak blends with the tab instead. */
+  --tab-outline: var(--accent);
+  --tab-fill: var(--selected);
   background: var(--selected);
   border-color: var(--accent);
   border-bottom-color: transparent;
@@ -4845,22 +5291,50 @@ button.docker-row .codicon-chevron-right {
 }
 /* Overview segment: fixed width so the SVG roof maps ~1:1; the label centers
    vertically (aligned with the master name) over the flat part of its roof. */
+/* The Overview segment is a CLIP container whose width animates 0 <-> 96 as the
+   tab gains/loses focus (.has-overview), so the folder smoothly expands and
+   collapses. The inner is a fixed 96px so its roof + label never squish -- the
+   width transition just reveals/hides them. */
 .project-tab-overview {
-  position: relative;
   align-self: stretch;
   width: 96px;
+  /* Zero the UA <button> padding/margin: the inner is a flush 96px layer and any
+     button padding would shove it (and its SVG roof) right of the seam, opening a
+     dark gap next to the master card and clipping the roof's right shoulder. */
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  background: none;
+  border: none;
+  cursor: pointer;
+  /* Grow-in on mount (when the tab gains focus): the segment eases from 0 to its
+     96px width, revealing the fixed-width inner without squishing the roof. Only
+     the focused tab renders this, so non-focused tabs are untouched. */
+  animation: overview-grow 200ms ease;
+}
+@keyframes overview-grow {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: 96px;
+    opacity: 1;
+  }
+}
+.ov-inner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 96px;
+  height: 100%;
   /* 6px top pad centers the label under the LOWER roof; small left pad keeps it
      clear of the diagonal divider while staying ~centered in the segment. */
   padding: 6px 0 0 8px;
-  background: none;
-  border: none;
   color: var(--fg-dim);
   font: inherit;
   font-size: 11px;
-  cursor: pointer;
 }
 .project-tab-overview:hover .ov-text {
   color: var(--fg);

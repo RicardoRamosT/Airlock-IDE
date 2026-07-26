@@ -24,7 +24,7 @@ const obj = (
   o: Record<string, unknown> | undefined,
   k: string,
 ): Record<string, unknown> | undefined =>
-  o && o[k] && typeof o[k] === "object"
+  o?.[k] && typeof o[k] === "object"
     ? (o[k] as Record<string, unknown>)
     : undefined;
 

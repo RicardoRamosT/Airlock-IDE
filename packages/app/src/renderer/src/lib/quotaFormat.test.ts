@@ -1,6 +1,14 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { QuotaWindow } from "../../../shared/ipc";
-import { clampPct, formatCountdown, isWindowAwaiting } from "./quotaFormat";
+import {
+  clampPct,
+  formatCountdown,
+  isWindowAwaiting,
+  QUOTA_RED_AT,
+  QUOTA_YELLOW_AT,
+  quotaFillColor,
+  quotaFillHue,
+} from "./quotaFormat";
 
 const win = (over: Partial<QuotaWindow> = {}): QuotaWindow => ({
   usedPercentage: 50,
@@ -36,4 +44,45 @@ it("clamps percentages into 0..100", () => {
   expect(clampPct(150)).toBe(100);
   expect(clampPct(42)).toBe(42);
   expect(clampPct(Number.NaN)).toBe(0);
+});
+
+describe("quotaFillColor", () => {
+  it("lands exactly on yellow at 75% and red at 90% (the meaningful levels)", () => {
+    expect(quotaFillHue(QUOTA_YELLOW_AT)).toBe(42); // orange-leaning yellow
+    expect(quotaFillHue(QUOTA_RED_AT)).toBe(2); // red
+  });
+
+  it("holds red above 90% instead of drifting past it", () => {
+    expect(quotaFillHue(95)).toBe(quotaFillHue(QUOTA_RED_AT));
+    expect(quotaFillHue(100)).toBe(quotaFillHue(QUOTA_RED_AT));
+  });
+
+  it("warms monotonically -- never doubles back", () => {
+    let prev = Number.POSITIVE_INFINITY;
+    for (let p = 0; p <= 100; p += 5) {
+      const hue = quotaFillHue(p);
+      expect(hue).toBeLessThanOrEqual(prev);
+      prev = hue;
+    }
+  });
+
+  it("still reads BLUE through light usage (the eased first leg)", () => {
+    expect(quotaFillHue(0)).toBe(212);
+    // Without easing, 15% would already have drifted to cyan/teal.
+    expect(quotaFillHue(15)).toBeGreaterThan(190);
+  });
+
+  it("keeps lightness mid-range so white text stays legible over the fill", () => {
+    for (let p = 0; p <= 100; p += 5) {
+      const l = Number(/(\d+)%\)$/.exec(quotaFillColor(p))?.[1]);
+      expect(l).toBeLessThanOrEqual(62);
+      expect(l).toBeGreaterThanOrEqual(45);
+    }
+  });
+
+  it("clamps nonsense input instead of emitting a broken colour", () => {
+    expect(quotaFillHue(-40)).toBe(quotaFillHue(0));
+    expect(quotaFillHue(Number.NaN)).toBe(quotaFillHue(0));
+    expect(quotaFillColor(50)).toMatch(/^hsl\(\d+ \d+% \d+%\)$/);
+  });
 });

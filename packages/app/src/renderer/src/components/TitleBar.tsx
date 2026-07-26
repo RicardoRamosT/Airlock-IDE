@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../store";
+import { TitleQuota } from "./TitleQuota";
 
+// Title-case the folder name so the titlebar matches the project tabs.
+const titleCase = (s: string): string =>
+  s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
 const basename = (root: string | null): string =>
-  root ? (root.split("/").pop() ?? "") : "";
+  root ? titleCase(root.split("/").pop() ?? "") : "";
 
 export function TitleBar() {
   const activeTabId = useApp((s) => s.activeTabId);
@@ -31,28 +35,48 @@ export function TitleBar() {
   const stripHidden =
     !openProjectsAsTabs && tabsLen <= 1 && !settingsTabOpen && !usageTabOpen;
   const activeRoot = tabState[activeTabId]?.root ?? null;
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const openOverview = (): void => {
     if (!activeRoot) return;
     // Overview is focus-bound: show the active project's Overview in the main
     // area (the focused project tab also carries an inline Overview entry).
     useApp.getState().showOverview(activeRoot);
   };
+  const title = project ? `AirLock - ${project}` : "AirLock";
+  // Animate the title card's width to fit the name: measure the inner text and
+  // set the card width (a transition on width then eases between names). Remeasure
+  // on name change + once fonts are ready (metrics settle a frame after mount).
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [titleW, setTitleW] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const w = textRef.current?.offsetWidth;
+    if (w) setTitleW(w);
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: remeasure when the title text changes.
+  useLayoutEffect(() => {
+    const w = textRef.current?.offsetWidth;
+    if (w) setTitleW(w);
+  }, [title]);
+  useEffect(() => {
+    void document.fonts?.ready.then(() => {
+      const w = textRef.current?.offsetWidth;
+      if (w) setTitleW(w);
+    });
+  }, []);
   return (
     <header className="titlebar">
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: right-click affordance on the passive project-name label to open the Overview; not a focusable control (the titlebar book button + project-tab menu are the real controls) */}
-      <span
-        className={`titlebar-title${activeRoot ? " interactive" : ""}`}
-        onContextMenu={(e) => {
-          // Right-click the project name -> project-level actions (Overview).
-          // The title bar is always present, so this works with zero tabs.
-          if (!activeRoot) return;
-          e.preventDefault();
-          setMenu({ x: e.clientX, y: e.clientY });
-        }}
-      >
-        {project ? `AirLock - ${project}` : "AirLock"}
-      </span>
+      {/* The title card, flanked by the Claude usage wings (5h left, 7d right).
+          TitleQuota owns the centering group so the card stays centered whether
+          or not the meter is enabled; the card itself stays non-interactive. */}
+      <TitleQuota>
+        <span
+          className="titlebar-title"
+          style={titleW ? { width: `${titleW}px` } : undefined}
+        >
+          <span className="titlebar-title-text" ref={textRef}>
+            {title}
+          </span>
+        </span>
+      </TitleQuota>
       {stripHidden && activeRoot && (
         <button
           type="button"
@@ -62,28 +86,6 @@ export function TitleBar() {
         >
           <i className="codicon codicon-book" />
         </button>
-      )}
-      {menu && activeRoot && (
-        <>
-          <button
-            type="button"
-            className="popover-backdrop"
-            aria-label="Close menu"
-            onClick={() => setMenu(null)}
-          />
-          <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                openOverview();
-                setMenu(null);
-              }}
-            >
-              <span>Overview</span>
-            </button>
-          </div>
-        </>
       )}
     </header>
   );

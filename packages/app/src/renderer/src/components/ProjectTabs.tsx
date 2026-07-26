@@ -1,7 +1,9 @@
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { MovingTab } from "../../../shared/ipc";
 import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
+import { buildMovingTab, isMovableKey } from "../lib/tabDrag";
 import { useApp } from "../store";
 
 // Title-case a folder name for display (first letter up, rest down) so tab
@@ -66,9 +68,6 @@ function TabRenameInput({
   );
 }
 
-// The inline Overview entry on the focused ("master") project folder. Opens
-// rightward inside the strip; clicking it shows the full Overview in the main
-// area. Highlighted while that project's overview is shown.
 // The Overview segment of the master folder: an SVG "lower roof" (a curved
 // shoulder stepping down from the master's full-height roof, then the overview
 // roof + top-right corner + right side) with the label centered over it. The
@@ -77,6 +76,9 @@ function TabRenameInput({
 // C=7 curve, R=6 corner. See the master-label styling in theme.css.
 const OV_FILL = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28 L0 28 Z";
 const OV_STROKE = "M0 0 C3.5 0 3.5 6 7 6 L90 6 Q96 6 96 12 L96 28";
+// Rendered ONLY on the focused (master) tab. The button is a clip container over
+// fixed-width inner content; a grow-in keyframe animates its width 0->96 on mount
+// (when the tab gains focus) so the folder eases open without squishing the roof.
 function OverviewEntry({ root }: { root: string }) {
   const active = useApp(
     (s) => s.appPage === "overview" && s.overviewRoot === root,
@@ -91,30 +93,32 @@ function OverviewEntry({ root }: { root: string }) {
         useApp.getState().showOverview(root);
       }}
     >
-      <svg
-        className="ov-roof"
-        viewBox="0 0 96 28"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path className="ov-fill" d={OV_FILL} />
-        {/* Dotted diagonal separating master from Overview, matching the roof's
-            visible shoulder diagonal (tuned in the mockup). */}
-        <line
-          className="ov-divider"
-          x1="1.5"
-          y1="0"
-          x2="19.5"
-          y2="28"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          className="ov-stroke"
-          d={OV_STROKE}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span className="ov-text">Overview</span>
+      <span className="ov-inner">
+        <svg
+          className="ov-roof"
+          viewBox="0 0 96 28"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path className="ov-fill" d={OV_FILL} />
+          {/* Dotted diagonal separating master from Overview, matching the
+              roof's visible shoulder diagonal (tuned in the mockup). */}
+          <line
+            className="ov-divider"
+            x1="1.5"
+            y1="0"
+            x2="19.5"
+            y2="28"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            className="ov-stroke"
+            d={OV_STROKE}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <span className="ov-text">Overview</span>
+      </span>
     </button>
   );
 }
@@ -189,6 +193,13 @@ export function ProjectTabs() {
   // tab can collapse OUT of the row while dragging -- otherwise its slot stays
   // and the make-room gap opens confusingly right next to it.
   const [dragging, setDragging] = useState<string | null>(null);
+  // Cross-window drag affordance for THIS window, plus this window's own id (so a
+  // hover broadcast can be told apart from another window's).
+  const [dragHint, setDragHint] = useState<{
+    kind: "merge" | "detach";
+    label: string | null;
+  } | null>(null);
+  const windowIdRef = useRef<number | null>(null);
   // Close BOTH members of the split pair (the unified tab's X / "Close both").
   // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
   // null), so read both before closing; closeTab promotes/cleans up each tab.
@@ -207,6 +218,54 @@ export function ProjectTabs() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
+
+  // Cross-window tab drag: the affordance THIS window shows, plus inbound tabs.
+  // Deliberately ABOVE the render gate below, so these stay live even when the
+  // strip renders null (windows mode, single tab) -- otherwise such a window could
+  // never receive a torn-off tab.
+  useEffect(() => {
+    void window.airlock.windowId?.().then((id) => {
+      windowIdRef.current = id;
+    });
+    const offHover = window.airlock.onTabDragHover?.((h) => {
+      const me = windowIdRef.current;
+      if (h.target.kind === "merge")
+        setDragHint(
+          h.target.windowId === me ? { kind: "merge", label: h.label } : null,
+        );
+      else if (h.target.kind === "detach")
+        // Only the window the tab came FROM hints "release to detach".
+        setDragHint(
+          h.sourceWindowId === me ? { kind: "detach", label: h.label } : null,
+        );
+      else setDragHint(null);
+    });
+    const adopt = (p: MovingTab) => {
+      const s = useApp.getState();
+      // A window created just to receive this tab still holds the placeholder
+      // blank tab it booted with; drop it so the torn-off window shows ONLY the
+      // moved project.
+      const lone =
+        s.tabs.length === 1 && s.tabs[0]?.root === null ? s.tabs[0] : null;
+      s.adoptTab(p);
+      if (lone) useApp.getState().closeTab(lone.id);
+    };
+    // A window created for a torn-off tab CLAIMS it here, now that this component
+    // is mounted and its store is ready. Pull rather than push: main cannot know
+    // when React's effects have run, and a payload pushed too early would be
+    // dropped -- losing a tab the source window has already let go of.
+    void window.airlock.tabDragTakePending?.().then((p) => {
+      if (p) adopt(p);
+    });
+    // Push path, for merging into a window that is already open.
+    const offAdopt = window.airlock.onTabDragAdopt?.(adopt);
+    return () => {
+      // Type-checked before calling: a stubbed/absent subscribe (tests, an older
+      // preload) returns something that is not an unsubscribe function.
+      if (typeof offHover === "function") offHover();
+      if (typeof offAdopt === "function") offAdopt();
+    };
+  }, []);
 
   // Render gate: show the strip in tabs mode, while >1 tab exists, or while an
   // IDE page-tab is open (it has nowhere else to live). When hidden, returning
@@ -268,8 +327,40 @@ export function ProjectTabs() {
       requestAnimationFrame(() => {
         if (dragKey.current === key) setDragging(key);
       });
+      // Begin the cross-window drag: main tracks the cursor and tells the windows
+      // whether releasing here would reorder, merge, or detach. The tab's name goes
+      // along so each window's hint can say WHICH project it is about to take.
+      if (isMovableKey(key)) {
+        const dragged = tabs.find((t) => t.id === key);
+        void window.airlock.tabDragStart?.(
+          dragged ? displayLabel(dragged) : null,
+        );
+      }
     },
-    onDragEnd: clearDrag,
+    // Release decides the tab's fate. The payload is BUILT (not detached) and sent
+    // to main, which resolves the drop; the tab only leaves this window once main
+    // confirms a real move -- so an in-window reorder is a true no-op, and the
+    // target window has already adopted before the source lets go (add before
+    // remove, so a failed move cannot lose a tab).
+    onDragEnd: () => {
+      const key = dragKey.current;
+      clearDrag();
+      if (key === null) return;
+      const s = useApp.getState();
+      // A pair/page-tab never moves, and a window's last tab is already its own
+      // window: null tells main to report the target and move nothing.
+      const payload =
+        isMovableKey(key) && s.tabs.length > 1 ? buildMovingTab(s, key) : null;
+      void window.airlock
+        .tabDragEnd?.(payload)
+        .then((target) => {
+          if (payload && target && target.kind !== "reorder")
+            useApp.getState().detachTab(key);
+        })
+        .catch(() => {
+          /* main unreachable -> keep the tab where it is */
+        });
+    },
   });
   // Drop TARGET (per tab) ONLY tracks the hovered insertion point (over). The
   // actual DROP is handled at the LIST level (onListDrop): the make-room gap is
@@ -324,7 +415,7 @@ export function ProjectTabs() {
     return (
       <div
         key="__split__"
-        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
+        className={`project-tab project-tab-pair${splitShowing && appPage === null ? " active" : ""}${splitShowing ? " folder-open" : ""}${activeTabId === pair.a || activeTabId === pair.b ? " has-overview" : ""}${working ? " working" : ""}${glow ? " glow" : ""}${dragging === "pair" ? " dragging" : ""}${dropClass("pair")}`}
         {...dropTarget("pair")}
       >
         <button
@@ -458,7 +549,9 @@ export function ProjectTabs() {
   };
 
   return (
-    <div className="project-tabs">
+    <div
+      className={`project-tabs${dragHint ? ` tabdrag-${dragHint.kind}` : ""}`}
+    >
       <div className="project-tabs-list" {...listDropZone}>
         {orderedKeys.map(renderEntry)}
       </div>
@@ -470,6 +563,23 @@ export function ProjectTabs() {
       >
         <i className="codicon codicon-add" />
       </button>
+      {/* Says what releasing will DO, since the drop is what commits the move --
+          without it, dragging outside gives no clue a window is coming. "Window",
+          not "instance": AirLock holds a single-instance lock, so a torn-off tab
+          becomes another window in the same process (which is exactly why its
+          terminals survive the move). */}
+      {dragHint && (
+        <span className="tabdrag-hint" role="status">
+          <i
+            className={`codicon codicon-${
+              dragHint.kind === "detach" ? "link-external" : "arrow-small-down"
+            }`}
+          />
+          {dragHint.kind === "detach"
+            ? `Release to open ${dragHint.label ?? "this project"} in a new window`
+            : `Drop to add ${dragHint.label ?? "this project"} here`}
+        </span>
+      )}
       {menu && (
         <>
           <button

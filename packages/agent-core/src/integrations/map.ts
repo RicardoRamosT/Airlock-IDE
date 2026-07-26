@@ -78,8 +78,8 @@ export function mapToItems(
       subtitle: map.subtitle ? str(evalExpr(it, map.subtitle)) : "",
       state,
       ...(href ? { href } : {}),
-      ...(details && details.length ? { details } : {}),
-      ...(actions && actions.length ? { actions } : {}),
+      ...(details?.length ? { details } : {}),
+      ...(actions?.length ? { actions } : {}),
     });
   }
   return out;

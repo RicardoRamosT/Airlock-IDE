@@ -45,7 +45,11 @@ import {
   slackReadChannelTool,
 } from "../extensions/slackTools";
 import { gatherProfile } from "../overview/gather";
-import { appendJournalEntry } from "../overview/journalStore";
+import {
+  appendJournalEntries,
+  appendJournalEntry,
+  updateNoteEntries,
+} from "../overview/journalStore";
 import { loadPrefs, publicPrefs, savePrefs } from "../prefs";
 import { applyPrefPatch } from "./prefWrite";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
@@ -138,6 +142,16 @@ const PORT_ATTEMPTS = 10;
 // tiny; this just caps a hostile/runaway loopback client.
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
+// Tell every live window a project's Changelog journal changed, so an open
+// Overview/Changelog view refreshes. Fired ONCE per write (a bulk import is one
+// write -> one broadcast, not one per entry).
+function broadcastJournalChanged(root: string): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.webContents.isDestroyed())
+      w.webContents.send("journal:changed", { root });
+  }
+}
+
 // Build a fresh McpServer with the v1 tools + the cached doc resources registered.
 // Called PER REQUEST: the stateless SDK transport cannot be reused, so each request
 // gets its own server connected to its own transport. registerTools is the SAME
@@ -180,12 +194,19 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
     addChangelogEntry: async (root, text, tag, details) => {
       const r = await appendJournalEntry(root, text, tag, Date.now(), details);
       // Broadcast so an open Overview/Changelog view refreshes live.
-      if (r.ok) {
-        for (const w of BrowserWindow.getAllWindows()) {
-          if (!w.webContents.isDestroyed())
-            w.webContents.send("journal:changed", { root });
-        }
-      }
+      if (r.ok) broadcastJournalChanged(root);
+      return r;
+    },
+    // Bulk variants: ONE read + write + broadcast for the whole batch, so
+    // populating a changelog costs one call instead of N.
+    addChangelogEntries: async (root, entries) => {
+      const r = await appendJournalEntries(root, entries, Date.now());
+      if (r.ok) broadcastJournalChanged(root);
+      return r;
+    },
+    updateChangelogNotes: async (root, updates) => {
+      const r = await updateNoteEntries(root, updates);
+      if (r.ok) broadcastJournalChanged(root);
       return r;
     },
     selfVerifyEnabled: async () =>

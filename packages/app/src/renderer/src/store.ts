@@ -4,6 +4,7 @@ import type {
   ClaudeAutoStart,
   FileContent,
   GitStatus,
+  MovingTab,
   ProjectConfig,
   QuotaStatus,
   ReferenceResults,
@@ -15,6 +16,7 @@ import type {
   UpdateStatus,
 } from "../../shared/ipc";
 import { type OverviewRunResult, planOverviewRun } from "./lib/overviewRun";
+import { buildMovingTab } from "./lib/tabDrag";
 
 export interface TerminalEntry {
   id: string; // renderer-side uid (not the pty id)
@@ -292,6 +294,13 @@ export interface AppState {
   tabGlow: Record<string, boolean>; // tabId -> finished-in-background, awaiting a look
   tabRenames: Record<string, string>; // tabId -> custom display label (display-only; never touches the folder on disk; session-scoped)
   pendingTerminalCommands: Record<string, string>; // terminalId -> one-shot command injected when its pty adopts (Install buttons)
+  // terminalId -> LIVE ptyId to adopt instead of spawning, for a tab moved in from
+  // another window (tear-off / merge). Consumed once at pane mount (mirrors
+  // pendingTerminalCommands). Empty in the normal spawn path.
+  pendingAdopts: Record<string, string>;
+  // PTY ids leaving this window with a moving tab: TerminalPane's unmount must NOT
+  // kill these, or tearing off a tab would kill the very session we preserve.
+  movingPtyIds: string[];
   openProjectsAsTabs: boolean; // app-global (persisted); used by later tasks
   showRunningProcessNotice: boolean; // app-global (persisted); gates the kept-busy-terminal notice
 
@@ -484,6 +493,17 @@ export interface AppState {
   sendOverviewPromptNow: (prompt: string, tabId?: string) => boolean;
   // One-shot: return + clear a terminal's queued command (called at pty adopt).
   takePendingTerminalCommand: (terminalId: string) => string | null;
+  // --- Project-tab tear-off / merge ---
+  // One-shot: the LIVE ptyId this pane should adopt instead of spawning.
+  takePendingAdopt: (terminalId: string) => string | null;
+  // Remove a tab for transport to another window WITHOUT killing its ptys, and
+  // return its payload. null = the move is not allowed (unknown tab, or the
+  // window's last tab -- already its own window).
+  detachTab: (tabId: string) => MovingTab | null;
+  // Insert a tab moved in from another window and focus it.
+  adoptTab: (payload: MovingTab) => void;
+  // Consume a moving-pty marker once its pane has unmounted (skipped the kill).
+  forgetMovingPty: (ptyId: string) => void;
 
   // --- App-global setters ---
   setSidebarVisible: (v: boolean) => void;
@@ -768,6 +788,8 @@ export const useApp = create<AppState>((set) => ({
   tabGlow: {},
   tabRenames: {},
   pendingTerminalCommands: {},
+  pendingAdopts: {},
+  movingPtyIds: [],
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
 
@@ -1452,6 +1474,125 @@ export const useApp = create<AppState>((set) => ({
       return { pendingTerminalCommands: next };
     });
     return cmd;
+  },
+  // Same read-inside-set shape as takePendingTerminalCommand above (and for the
+  // same reason: keep useApp out of the inferred return type).
+  takePendingAdopt: (terminalId) => {
+    let ptyId: string | null = null;
+    set((s) => {
+      ptyId = s.pendingAdopts[terminalId] ?? null;
+      if (ptyId === null) return {};
+      const next = { ...s.pendingAdopts };
+      delete next[terminalId];
+      return { pendingAdopts: next };
+    });
+    return ptyId;
+  },
+  // Hand a tab off to another window: serialize it, drop it from this window, and
+  // record its ptys in movingPtyIds so the unmounting panes SKIP ptyKill (the
+  // whole point is that the session survives the move). Refuses the last tab --
+  // that window is already the project's own window.
+  detachTab: (tabId) => {
+    let payload: MovingTab | null = null;
+    set((s) => {
+      if (s.tabs.length <= 1) return {};
+      const idx = s.tabs.findIndex((t) => t.id === tabId);
+      if (idx === -1) return {};
+      const built = buildMovingTab(s, tabId);
+      if (!built) return {};
+      payload = built;
+      const moving = built.terminals
+        .map((t) => t.ptyId)
+        .filter((id): id is string => id !== null);
+      const tabs = s.tabs.filter((t) => t.id !== tabId);
+      const tabState = { ...s.tabState };
+      delete tabState[tabId];
+      const tabTerminals = { ...s.tabTerminals };
+      delete tabTerminals[tabId];
+      const tabRenames = { ...s.tabRenames };
+      delete tabRenames[tabId];
+      const tabGlow = { ...s.tabGlow };
+      delete tabGlow[tabId];
+      // Detaching a split member dissolves the split, exactly as closeTab does.
+      const split =
+        s.split && (s.split.a === tabId || s.split.b === tabId)
+          ? null
+          : s.split;
+      // Promote the tab-order NEIGHBOR (prev, then next) exactly as closeTab
+      // does, so detaching the focused tab lands you next door rather than on
+      // the strip's first tab (often the blank one).
+      const activeTabId =
+        s.activeTabId === tabId
+          ? (tabs[idx - 1]?.id ?? tabs[idx]?.id ?? s.activeTabId)
+          : s.activeTabId;
+      return {
+        tabs,
+        tabState,
+        tabTerminals,
+        tabRenames,
+        tabGlow,
+        split,
+        activeTabId,
+        movingPtyIds: [...s.movingPtyIds, ...moving],
+        // Re-mirror only when the focused tab actually changed.
+        ...(activeTabId !== s.activeTabId
+          ? mirrorOf(tabState[activeTabId] ?? freshProjectState(null))
+          : {}),
+      };
+    });
+    if (payload) reportOpenRoots(useApp.getState().tabs);
+    return payload;
+  },
+  // The moving marker is SINGLE-USE: the departing pane skips its kill once, then
+  // forgets. Otherwise the id would linger and a later legitimate close of that
+  // same pty (e.g. the tab is merged back here and then closed) would also skip
+  // the kill and orphan the shell.
+  forgetMovingPty: (ptyId) => {
+    set((s) =>
+      s.movingPtyIds.includes(ptyId)
+        ? { movingPtyIds: s.movingPtyIds.filter((id) => id !== ptyId) }
+        : {},
+    );
+  },
+  // Receive a tab from another window: insert it, focus it, and queue each of its
+  // terminals in pendingAdopts so the pane adopts the LIVE pty instead of spawning.
+  adoptTab: (payload) => {
+    set((s) => {
+      const id = newTabId();
+      const state =
+        (payload.state as ProjectState | null) ??
+        freshProjectState(payload.root);
+      const pendingAdopts = { ...s.pendingAdopts };
+      for (const t of payload.terminals)
+        if (t.ptyId) pendingAdopts[t.id] = t.ptyId;
+      return {
+        tabs: [...s.tabs, { id, root: payload.root }],
+        activeTabId: id,
+        tabState: { ...s.tabState, [id]: state },
+        tabTerminals: {
+          ...s.tabTerminals,
+          [id]: {
+            terminals: payload.terminals.map((t) => ({
+              id: t.id,
+              title: t.title,
+              renamed: false,
+              ptyId: t.ptyId,
+            })),
+            activeTerminalId: payload.activeTerminalId,
+            splitTerminalId: null,
+            claudeAutoId: null,
+          },
+        },
+        tabRenames: payload.label
+          ? { ...s.tabRenames, [id]: payload.label }
+          : s.tabRenames,
+        pendingAdopts,
+        ...mirrorOf(state),
+        modal: null,
+        appPage: null,
+      };
+    });
+    reportOpenRoots(useApp.getState().tabs);
   },
   removeTerminal: (id) =>
     set((s) => {

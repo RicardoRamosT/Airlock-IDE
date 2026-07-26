@@ -8,9 +8,9 @@
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/RicardoRamosT/Airlock-IDE?color=orange&label=release)](../../releases)
 [![CI](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml/badge.svg)](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-690%2B-brightgreen)](#building-from-source)
+[![Tests](https://img.shields.io/badge/tests-1550%2B-brightgreen)](#building-from-source)
 
-<img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage meter in the sidebar" width="800"/>
+<img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage gauges flanking the window title" width="800"/>
 
 </div>
 
@@ -27,18 +27,20 @@ look do not exist.**
 **Multi-project, for real.** Open every project you're working on at once: as
 browser-style tabs in one window, side-by-side splits, or separate OS windows.
 Each project keeps its own terminals, file tree, git view, secrets, and
-databases alive in the background; switching tabs loses nothing. Within a
-project, terminals, files, diffs, and database tables open as tabs in the main
-area, and any two can be split side by side (coexisting splits, a "scene" per
-tab).
+databases alive in the background; switching tabs loses nothing. **Drag a project
+tab out of the window** and it becomes its own window — or drop it onto another
+AirLock window to merge it in — with its terminals still running: a live `claude`
+keeps streaming, scrollback intact. Within a project, terminals, files, diffs,
+and database tables open as tabs in the main area, and any two can be split side
+by side (coexisting splits, a "scene" per tab).
 
 **Claude-first, not Claude-bolted-on.** New project terminals auto-start
 `claude` (configurable). Each project tab carries a live Claude status dot,
-and glows when Claude finishes in a tab you aren't watching. A plan-usage meter
-sits in the sidebar (your 5-hour and 7-day windows, with session/weekly reset
-countdowns) and clicks through to a full per-session usage dashboard. And
-through a local MCP bridge, the Claude in your terminal can **see and drive
-the IDE itself**: 28 tools and a built-in manual (see below).
+and glows when Claude finishes in a tab you aren't watching. Two usage gauges
+flank the window title (your 5-hour and 7-day windows, colour-shifting as they
+fill) and click through to a full per-session usage dashboard. And through a
+local MCP bridge, the Claude in your terminal can **see and drive the IDE
+itself**: 39 tools and a built-in manual (see below).
 
 **Your secrets stay yours.** Credentials are vaulted in the macOS Keychain and
 injected into terminals at spawn, so no `.env` ever sits on disk. The agent can
@@ -92,15 +94,18 @@ Homebrew tools work even when AirLock is launched from Finder.
 
 A project strip shows one tab per open project; the file tree, git, secrets,
 and the agent all follow the active tab while every tab's terminals keep
-running. The **split** button puts two projects side by side, each a full
-project view; the focused pane is what Claude and the menus act on (**one
-agent at a time**, always on what you're looking at). Blank tabs (`⌘T`) give
-you a shell with no folder; opening a folder into one keeps any running
-session alive. Prefer separate OS windows per project? Flip one setting. Turn on
-**session restore** and your projects, tabs, and splits come back on relaunch,
-each tab's Claude session resuming when you focus it. Right-click a project tab
-for a generated **Overview** dashboard of its language/tech mix, README, and
-live status.
+running. Right-click a tab and **Split with active project** puts two projects
+side by side, each a full project view; the focused pane is what Claude and the
+menus act on (**one agent at a time**, always on what you're looking at). Drag a
+tab out of the window to **tear it off** into its own window, or onto another
+AirLock window to merge it in — running terminals move with it, still alive.
+Blank tabs (`⌘T`) give you a shell with no folder; opening a folder into one
+keeps any running session alive. Prefer separate OS windows per project? Flip one
+setting. Turn on **session restore** and your projects, tabs, and splits come
+back on relaunch, each tab's Claude session resuming when you focus it. The
+focused tab carries an inline **Overview** button: a generated dashboard of the
+project's language/tech mix, README, live status, and a **Changelog** the agent
+can write to as it works.
 
 ### Claude integration
 
@@ -108,27 +113,34 @@ live status.
   per tab / every terminal).
 - **Status dots + glow:** see at a glance which project's Claude is working,
   and get a glow when one finishes in the background.
-- **Plan usage meter:** your account's 5h/7d windows with live reset
-  countdowns, pinned in the sidebar; click for the **Usage dashboard** with
-  per-session and per-model API time, cost, lines changed, and context size.
+- **Plan usage gauges:** your account's 5h/7d windows as two bars flanking the
+  window title -- always visible, even with the sidebar collapsed -- warming from
+  blue through orange to red as each window fills, with reset countdowns on
+  hover. Click either for the **Usage dashboard**: per-session and per-model API
+  time, cost, lines changed, and context size.
 
 ### Claude can drive the IDE (MCP bridge)
 
 AirLock runs a local MCP server (loopback-only, bearer-token-guarded) that the
 Claude Code in its terminal connects to automatically. No extra setup, no
-second API key. **28 tools**, and a built-in manual so the agent understands
+second API key. **39 tools**, and a built-in manual so the agent understands
 the IDE without you explaining it:
 
 - **See every status:** git, databases (reachability, never passwords), Neon,
-  Docker, Render deploys, Azure Web Apps, local dev-server health, the live
-  Activity feed, your secret *names*, a project profile (`project_info`), and its
-  own **plan usage** (`plan_usage`).
+  Docker, Render deploys, local dev-server health, the live Activity feed, your
+  secret *names*, a project profile (`project_info`), the app's own event log
+  (`read_events`), and its own **plan usage** (`plan_usage`).
 - **Drive the layout:** open/close/switch project tabs, split views, spawn or
   kill terminals, type into a terminal (with your approval), and open the
   Settings/Usage pages. Ask "set up my workspace for this repo" and watch it
   happen.
 - **Curate the sidebar:** show or hide sections to fit the project; dismiss
   finished Activity entries.
+- **Keep a project journal:** record what changed in the project's **Changelog**
+  as it works — one entry at a time, or a whole backfilled history in a single
+  batched call — and revise its own notes later.
+- **Pull in outside context:** read an issue from GitHub, or recent messages from
+  the Slack channels *you* allow-listed (never the whole workspace).
 - **Act with your secrets, blindly:** `run_command` injects named vaulted
   secrets into one command's environment and **redacts the values from the
   output**; `git_commit` scans staged content and **blocks commits that contain
@@ -170,8 +182,11 @@ broker operation lands in a hash-chained audit log
 - **Activity:** a live feed of in-progress work: GitHub Actions runs (with a
   real step checklist, via `gh`), Render deploys mid-build, containers
   starting. Honest progress only; nothing fakes a percentage.
-- **GitHub accounts:** switch between every account `gh` knows, with a warning
-  when the active account doesn't match the repo's commit identity.
+- **GitHub accounts:** switch between every account `gh` knows, and **pin** one to
+  a project so every push from that repo uses it — terminal, agent, or GUI —
+  regardless of which account is globally active. Non-pinned projects can
+  auto-switch on focus. A dot on the Accounts button tells you at a glance whether
+  the account in play is the right one for the repo you're in.
 
 Each section shows only when you want it (right-click → Hide, or
 **View ▸ Sidebar**), and Claude can curate this for you. An activity-bar rail
@@ -195,9 +210,9 @@ macOS only, by design.
 
 ## Status
 
-Early and moving fast: v0.4, built and dogfooded daily (AirLock is developed
+Early and moving fast: v0.5, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
-invariants are the part that's tested hardest (1,100+ unit tests, including
+invariants are the part that's tested hardest (1,550+ unit tests, including
 source-level guards on the no-secret-value rule).
 
 ## FAQ

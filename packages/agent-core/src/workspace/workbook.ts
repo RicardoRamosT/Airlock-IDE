@@ -35,13 +35,13 @@ const ARGB_RE = /^[0-9A-Fa-f]{8}$/;
 
 function argbToHex(argb: unknown): string | undefined {
   if (typeof argb !== "string" || !ARGB_RE.test(argb)) return undefined;
-  return "#" + argb.slice(2).toUpperCase();
+  return `#${argb.slice(2).toUpperCase()}`;
 }
 
 // Parse a cell reference like "A1" into 0-based {row, col}.
 function parseCellRef(ref: string): { row: number; col: number } | null {
   const m = ref.match(/^([A-Z]+)(\d+)$/i);
-  if (!m || !m[1] || !m[2]) return null;
+  if (!m?.[1] || !m[2]) return null;
   let col = 0;
   for (const ch of m[1].toUpperCase()) col = col * 26 + (ch.charCodeAt(0) - 64);
   return { row: Number(m[2]) - 1, col: col - 1 };
