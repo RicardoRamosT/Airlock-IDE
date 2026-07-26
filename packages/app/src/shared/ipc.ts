@@ -347,6 +347,7 @@ export type Section =
   | "docker"
   | "host"
   | "extensions"
+  | "slack"
   | "audit"
   | "events";
 export type SectionVisibility = Record<Section, boolean>;

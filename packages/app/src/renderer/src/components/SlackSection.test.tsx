@@ -40,12 +40,13 @@ afterEach(() => {
 });
 
 describe("SlackSection", () => {
-  it("renders NOTHING when Slack is not connected (the Hub owns connecting)", async () => {
+  it("offers to connect when Slack is not connected", async () => {
+    // As its OWN sidebar section (rather than a guest inside Activity) an empty
+    // panel would be a dead end, so this state carries the action.
     allowed.mockResolvedValue({ connected: false, channels: [] });
-    const { container } = render(<SlackSection />);
-    await act(async () => {});
-    expect(allowed).toHaveBeenCalled();
-    expect(container.textContent).toBe("");
+    render(<SlackSection />);
+    fireEvent.click(await screen.findByText(/Connect Slack/i));
+    expect(useApp.getState().modal).toBe("connect-slack");
   });
 
   it("prompts to pick channels when connected but nothing is allow-listed", async () => {
@@ -70,8 +71,8 @@ describe("SlackSection", () => {
       ],
     });
     render(<SlackSection />);
-    expect(await screen.findByText("#general-airlock")).toBeTruthy();
-    expect(screen.getByText("@Ricardo (DM)")).toBeTruthy();
+    expect(await screen.findByText("general-airlock")).toBeTruthy();
+    expect(screen.getByText("Ricardo (DM)")).toBeTruthy();
     // Collapsed means no reads -- six channels must not mean six API calls.
     expect(read).not.toHaveBeenCalled();
   });
@@ -93,7 +94,7 @@ describe("SlackSection", () => {
       ],
     });
     render(<SlackSection />);
-    fireEvent.click(await screen.findByText("#general-airlock"));
+    fireEvent.click(await screen.findByText("general-airlock"));
     expect(await screen.findByText("Ricardo")).toBeTruthy();
     expect(screen.getByText("test")).toBeTruthy();
     expect(read).toHaveBeenCalledWith("/repo", "C1", expect.any(Number));
@@ -106,7 +107,7 @@ describe("SlackSection", () => {
     });
     read.mockResolvedValue({ error: "Slack refused: not_in_channel" });
     render(<SlackSection />);
-    fireEvent.click(await screen.findByText("#general-airlock"));
+    fireEvent.click(await screen.findByText("general-airlock"));
     expect(await screen.findByText(/not_in_channel/)).toBeTruthy();
   });
 
@@ -117,8 +118,73 @@ describe("SlackSection", () => {
     });
     read.mockResolvedValue({ channel: "#general-airlock", messages: [] });
     render(<SlackSection />);
-    fireEvent.click(await screen.findByText("#general-airlock"));
+    fireEvent.click(await screen.findByText("general-airlock"));
     expect(await screen.findByText(/No messages/i)).toBeTruthy();
+  });
+});
+
+describe("SlackSection transcript", () => {
+  function withMessages(messages: unknown[]) {
+    allowed.mockResolvedValue({
+      connected: true,
+      channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+    });
+    read.mockResolvedValue({ channel: "#general-airlock", messages });
+    render(<SlackSection />);
+  }
+
+  it("renders oldest-first (Slack returns newest-first)", async () => {
+    const today = Math.floor(Date.now() / 1000);
+    withMessages([
+      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "second" },
+      { ts: `${today - 60}.1`, user: "U1", userName: "Ricardo", text: "first" },
+    ]);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    const texts = (await screen.findAllByText(/first|second/)).map(
+      (n) => n.textContent,
+    );
+    expect(texts).toEqual(["first", "second"]);
+  });
+
+  it("groups consecutive messages from one author under a single name", async () => {
+    const today = Math.floor(Date.now() / 1000);
+    withMessages([
+      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "second" },
+      { ts: `${today - 60}.1`, user: "U1", userName: "Ricardo", text: "first" },
+    ]);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    await screen.findByText("first");
+    // Two messages, one author header.
+    expect(screen.getAllByText("Ricardo")).toHaveLength(1);
+  });
+
+  it("starts a new block when the author changes", async () => {
+    const today = Math.floor(Date.now() / 1000);
+    withMessages([
+      { ts: `${today}.2`, user: "U2", userName: "Ana", text: "hers" },
+      { ts: `${today - 60}.1`, user: "U1", userName: "Ricardo", text: "his" },
+    ]);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    expect(await screen.findByText("Ricardo")).toBeTruthy();
+    expect(screen.getByText("Ana")).toBeTruthy();
+  });
+
+  it("shows a day separator and renders join notices quietly", async () => {
+    const today = Math.floor(Date.now() / 1000);
+    withMessages([
+      { ts: `${today}.1`, user: "U1", userName: "Ricardo", text: "hi" },
+      {
+        ts: `${today - 86400 * 3}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "<@U1> has joined the channel",
+      },
+    ]);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    expect(await screen.findByText("Today")).toBeTruthy();
+    // The join notice renders as a system line, not an authored message block.
+    const join = screen.getByText(/has joined the channel/);
+    expect(join.className).toContain("slack-system");
   });
 });
 
@@ -130,7 +196,7 @@ describe("SlackSection polling", () => {
     allowed.mockResolvedValue({ connected: true, channels });
     read.mockResolvedValue({ channel: "#general-airlock", messages: [] });
     render(<SlackSection />);
-    const head = await screen.findByText("#general-airlock");
+    const head = await screen.findByText("general-airlock");
     vi.useFakeTimers();
     return head;
   }

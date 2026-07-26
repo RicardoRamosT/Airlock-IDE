@@ -18,6 +18,7 @@ export const SECTION_LABELS: Record<Section, string> = {
   docker: "Docker",
   host: "Host",
   extensions: "Extensions",
+  slack: "Slack",
   audit: "Audit",
   events: "Events",
 };

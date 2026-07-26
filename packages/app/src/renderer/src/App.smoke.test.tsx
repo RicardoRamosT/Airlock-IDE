@@ -86,6 +86,7 @@ const DEFAULT_PREFS: AppPrefs = {
     docker: true,
     host: true,
     extensions: true,
+    slack: true,
     audit: true,
     events: true,
   },

@@ -31,6 +31,7 @@ export const SECTIONS: Section[] = [
   "docker",
   "host",
   "extensions",
+  "slack",
   "audit",
   "events",
 ];
@@ -44,6 +45,7 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   docker: true,
   host: true,
   extensions: true,
+  slack: true,
   audit: true,
   events: true,
 };

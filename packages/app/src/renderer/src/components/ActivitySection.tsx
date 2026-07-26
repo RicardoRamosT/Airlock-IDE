@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityItem, ActivityStep } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
-import { SlackSection } from "./SlackSection";
 
 function dotClass(state: ActivityItem["state"]): string {
   if (state === "done") return "status-dot on";
@@ -244,7 +243,6 @@ export function ActivitySection() {
           </div>
         );
       })}
-      <SlackSection />
       {menu && (
         <>
           <button

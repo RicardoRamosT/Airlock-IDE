@@ -830,6 +830,7 @@ export const useApp = create<AppState>((set) => ({
     docker: true,
     host: true,
     extensions: true,
+    slack: true,
     audit: true,
     events: true,
   },

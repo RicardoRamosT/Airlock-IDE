@@ -1283,47 +1283,163 @@ body,
   letter-spacing: 0;
 }
 
-/* Slack sidebar: a collapsible channel row plus its message list. Rows use the
-   shared --row-h / --sb-row-gap grammar so the section matches its neighbours. */
+/* Slack sidebar: collapsible channels over a chat transcript. Channel rows keep
+   the shared --row-h grammar so the rail matches its neighbours; the transcript
+   deliberately breaks out of the one-line row style -- messages are prose and
+   need to wrap, not be truncated into a column. */
+.slack-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+}
+.slack-channel.is-open {
+  padding-bottom: 4px;
+}
 .slack-channel-head {
   display: flex;
   align-items: center;
   gap: 4px;
   width: 100%;
   height: var(--row-h);
-  padding: 0;
-  background: none;
+  padding: 0 4px;
   border: 0;
-  color: inherit;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-dim);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 .slack-channel-head:hover {
+  background: var(--hover);
   color: var(--fg);
 }
-.slack-messages {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sb-row-gap);
-  padding: 2px 0 4px 16px;
-}
-.slack-msg {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: 6px;
-  align-items: baseline;
-  font-size: 11px;
-}
-.slack-msg-time {
-  opacity: 0.6;
-  font-variant-numeric: tabular-nums;
-}
-.slack-msg-name {
+.slack-channel.is-open .slack-channel-head {
+  color: var(--fg);
   font-weight: 600;
 }
+.slack-channel-glyph {
+  opacity: 0.55;
+}
+.slack-channel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slack-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 2px 2px 8px;
+  margin-left: 7px;
+  border-left: 1px solid var(--border);
+}
+
+/* Day separator: a centred label on a hairline. */
+.slack-day {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+.slack-day::before,
+.slack-day::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.slack-msg {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 6px;
+  padding: 1px 0;
+}
+.slack-msg.starts {
+  margin-top: 6px;
+}
+.slack-msg:hover {
+  background: var(--hover);
+  border-radius: 4px;
+}
+.slack-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.slack-avatar-spacer {
+  width: 20px;
+}
+.slack-msg-body {
+  min-width: 0;
+}
+.slack-msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.slack-msg-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slack-msg-time {
+  font-size: 10px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
 .slack-msg-text {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fg);
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Join/leave notices: present but quiet. */
+.slack-system {
+  padding: 1px 0 1px 26px;
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--fg-dim);
+  overflow-wrap: anywhere;
+}
+
+/* A channel Slack refused: the reason, never a silent empty list. */
+.slack-refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--hover);
+  font-size: 11px;
+  color: var(--fg-dim);
+  overflow-wrap: anywhere;
+}
+.slack-refusal .codicon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.slack-foot {
+  margin-top: 6px;
+  opacity: 0.7;
 }
 
 /* Fill the section body: without this the tree's height collapses to its rows

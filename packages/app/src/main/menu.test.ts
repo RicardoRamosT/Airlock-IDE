@@ -16,12 +16,13 @@ const ALL_VISIBLE: SectionVisibility = {
   docker: true,
   host: true,
   extensions: true,
+  slack: true,
   audit: true,
   events: true,
 };
 
 describe("sectionSubmenuItems", () => {
-  it("returns the ten sections in order as labelled checkboxes", () => {
+  it("returns the eleven sections in order as labelled checkboxes", () => {
     const items = sectionSubmenuItems(ALL_VISIBLE, () => {});
     expect(items.map((i) => i.label)).toEqual([
       "Files",
@@ -32,6 +33,7 @@ describe("sectionSubmenuItems", () => {
       "Docker",
       "Host",
       "Extensions",
+      "Slack",
       "Audit",
       "Events",
     ]);

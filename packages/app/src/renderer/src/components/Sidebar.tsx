@@ -16,6 +16,7 @@ import { NeonSection } from "./NeonSection";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
+import { SlackSection } from "./SlackSection";
 
 // THE sidebar: one per window (rendered by App, beside the ActivityBar), not
 // one per pane. It shows a single view -- the activity bar's active section --
@@ -66,6 +67,7 @@ export function Sidebar() {
       </>
     );
   else if (view === "extensions") body = <ExtensionsSection />;
+  else if (view === "slack") body = <SlackSection />;
   else if (view === "audit") body = <AuditSection />;
   else if (view === "events") body = <EventsSection />;
 
