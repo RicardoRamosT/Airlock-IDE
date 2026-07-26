@@ -33,8 +33,9 @@ export interface ConnectedExtensionDescriptor {
   name: string;
   icon: string; // codicon name
   description: string;
-  // A SECTION_META view id if the extension can be pinned into a category view;
-  // omitted => Hub-only (Slack has no natural category).
+  // LEGACY: a built-in section id this extension's resources are injected into.
+  // Connected extensions no longer use it -- each owns an ext:<id> section --
+  // but manifest integrations still surface through Host/Databases this way.
   category?: string;
   authSpec?: AuthSpec;
   configSchema: ConfigSchema;
@@ -120,8 +121,9 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
   icon: "comment-discussion",
   description:
     "Let Claude read context from Slack channels you explicitly allow.",
-  // The eye surfaces the allow-listed channels into the Activity section.
-  category: "activity",
+  // No `category`: Slack owns its own sidebar section (ext:slack) rather than
+  // injecting its channels into the built-in Activity section, which exists
+  // for CI/CD runs and deploys.
   authSpec: {
     kind: "oauth2",
     flow: "broker",
@@ -187,8 +189,8 @@ export const GITHUB_DESCRIPTOR: ConnectedExtensionDescriptor = {
   name: "GitHub",
   icon: "github",
   description: "Let Claude read GitHub issues you point it at, for context.",
-  // The eye surfaces the current repo's open issues + PRs into the Git section.
-  category: "git",
+  // No `category`: GitHub owns its own sidebar section (ext:github) rather
+  // than injecting its issues/PRs into the built-in Git section.
   authSpec: {
     kind: "oauth2",
     flow: "device",

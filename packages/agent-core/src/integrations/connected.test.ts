@@ -17,7 +17,9 @@ describe("connectedSummary", () => {
     expect(s.pinned).toBe(true);
     expect(s.enabled).toBe(true);
     expect(s.hasConfig).toBe(true); // has a channels field
-    expect(s.category).toBe("activity"); // Slack surfaces channels into Activity
+    // No category: Slack owns its own ext:slack sidebar section rather than
+    // injecting its channels into the built-in Activity section.
+    expect(s.category).toBeUndefined();
   });
 
   it("reports unauthed when not connected", () => {

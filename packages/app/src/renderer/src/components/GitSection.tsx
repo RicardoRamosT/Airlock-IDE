@@ -6,10 +6,8 @@ import type {
 } from "../../../shared/ipc";
 import { openFileInRoot } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
-import { useExtensionResources } from "../lib/useExtensionResources";
 import { useApp } from "../store";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
-import { ResourceRow } from "./ResourceRow";
 
 const NEW_BRANCH = "__new__";
 
@@ -88,7 +86,6 @@ export function GitSection() {
   const [account, setAccount] = useState<ResolvedGithubAccount | null>(null);
   const [accountList, setAccountList] = useState<string[]>([]);
   // GitHub issues/PRs surfaced here when the user turns on GitHub's eye.
-  const githubRows = useExtensionResources("git");
   // Right-click change-row menu + the destructive-action confirm (discard /
   // uncommit) it can open.
   const [menu, setMenu] = useState<{
@@ -430,15 +427,6 @@ export function GitSection() {
         </div>
       )}
       {error && <div className="modal-error">{error}</div>}
-
-      {githubRows.length > 0 && (
-        <div className="git-group">
-          <div className="git-group-title">GitHub</div>
-          {githubRows.map((r) => (
-            <ResourceRow key={r.id} r={r} />
-          ))}
-        </div>
-      )}
 
       {menu && (
         <>
