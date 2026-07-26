@@ -1,6 +1,11 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { QuotaWindow } from "../../../shared/ipc";
-import { clampPct, formatCountdown, isWindowAwaiting } from "./quotaFormat";
+import {
+  clampPct,
+  formatCountdown,
+  isWindowAwaiting,
+  quotaTone,
+} from "./quotaFormat";
 
 const win = (over: Partial<QuotaWindow> = {}): QuotaWindow => ({
   usedPercentage: 50,
@@ -36,4 +41,21 @@ it("clamps percentages into 0..100", () => {
   expect(clampPct(150)).toBe(100);
   expect(clampPct(42)).toBe(42);
   expect(clampPct(Number.NaN)).toBe(0);
+});
+
+describe("quotaTone", () => {
+  it("stays calm through normal use and escalates late", () => {
+    expect(quotaTone(0)).toBe("ok");
+    expect(quotaTone(59.9)).toBe("ok");
+    expect(quotaTone(60)).toBe("warn");
+    expect(quotaTone(84.9)).toBe("warn");
+    expect(quotaTone(85)).toBe("crit");
+    expect(quotaTone(100)).toBe("crit");
+  });
+
+  it("clamps nonsense input rather than reporting a false crit", () => {
+    expect(quotaTone(-20)).toBe("ok");
+    expect(quotaTone(Number.NaN)).toBe("ok");
+    expect(quotaTone(999)).toBe("crit");
+  });
 });

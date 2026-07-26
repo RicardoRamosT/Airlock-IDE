@@ -351,11 +351,12 @@ export function SettingsTab() {
                 />
               </div>
               <p className="settings-note">
-                Shows your Claude subscription usage (5-hour and 7-day limits)
-                and a reset countdown in the sidebar. Enabling installs a Claude
-                Code status line that AirLock reads; if you already have a
-                custom status line, AirLock chains it so your footer is
-                unchanged. Turning this off removes it completely.
+                Shows your Claude subscription usage (5-hour and 7-day limits) as
+                two gauges either side of the window title, so it stays visible
+                even with the sidebar collapsed; click one for usage details.
+                Enabling installs a Claude Code status line that AirLock reads; if
+                you already have a custom status line, AirLock chains it so your
+                footer is unchanged. Turning this off removes it completely.
               </p>
               <div className="settings-row">
                 <label htmlFor="dock-status">

@@ -16,6 +16,24 @@ export function clampPct(n: number): number {
   return Math.min(100, Math.max(0, n));
 }
 
+// Our installed statusLine re-runs every ~5s while a Claude session is open, so
+// an emit older than this (a few missed ticks of jitter slack) means no session is
+// currently running and the numbers would be a stale snapshot.
+export const STALE_AFTER_SECONDS = 15;
+
+// Severity of a usage percentage, so the titlebar gauge changes COLOR as well as
+// length -- a bar that only grows makes "nearly out" something you have to read
+// rather than notice. Thresholds are deliberately late: the meter should stay
+// calm through normal work and only speak up when the window is genuinely
+// running down.
+export type QuotaTone = "ok" | "warn" | "crit";
+export function quotaTone(pct: number): QuotaTone {
+  const p = clampPct(pct);
+  if (p >= 85) return "crit";
+  if (p >= 60) return "warn";
+  return "ok";
+}
+
 // Whether a window should read as "starts on next use" rather than a countdown.
 // Either the tracker already synthesized the awaiting row (its reset was seen
 // passed at emit time), OR the boundary has passed since the last emit by the

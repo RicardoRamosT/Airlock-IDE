@@ -14,7 +14,6 @@ import { IntegrationsSteadySection } from "./IntegrationsSteadySection";
 import { LocalHostSection } from "./LocalHostSection";
 import { NeonSection } from "./NeonSection";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
-import { QuotaMeter } from "./QuotaMeter";
 import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
 
@@ -121,7 +120,6 @@ export function Sidebar() {
           All sections hidden. Re-enable them from View → Sidebar.
         </div>
       )}
-      <QuotaMeter />
     </aside>
   );
 }

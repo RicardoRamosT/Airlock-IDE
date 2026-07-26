@@ -66,10 +66,13 @@ it("shows the hidden-everything note when no section is visible", () => {
   expect(screen.getByText(/All sections hidden/)).toBeTruthy();
 });
 
-it("renders the quota meter exactly once", () => {
+it("does NOT dock the usage meter -- it lives in the titlebar now", () => {
+  // The meter moved to the titlebar wings (visible even when the sidebar is
+  // collapsed), which handed its 88px dock back to the section body.
   useApp.setState({ quotaMeterEnabled: true, quota: null });
   const { container } = render(<Sidebar />);
-  expect(container.querySelectorAll(".quota-meter").length).toBe(1);
+  expect(container.querySelector(".quota-meter")).toBeNull();
+  expect(container.querySelector(".titlebar-wing")).toBeNull();
 });
 
 it("badges the focused pane's project name while a split is showing", () => {

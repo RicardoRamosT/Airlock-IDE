@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../store";
+import { TitleQuota } from "./TitleQuota";
 
 // Title-case the folder name so the titlebar matches the project tabs.
 const titleCase = (s: string): string =>
@@ -63,15 +64,19 @@ export function TitleBar() {
   }, []);
   return (
     <header className="titlebar">
-      {/* Non-interactive display card (just the window title). */}
-      <span
-        className="titlebar-title"
-        style={titleW ? { width: `${titleW}px` } : undefined}
-      >
-        <span className="titlebar-title-text" ref={textRef}>
-          {title}
+      {/* The title card, flanked by the Claude usage wings (5h left, 7d right).
+          TitleQuota owns the centering group so the card stays centered whether
+          or not the meter is enabled; the card itself stays non-interactive. */}
+      <TitleQuota>
+        <span
+          className="titlebar-title"
+          style={titleW ? { width: `${titleW}px` } : undefined}
+        >
+          <span className="titlebar-title-text" ref={textRef}>
+            {title}
+          </span>
         </span>
-      </span>
+      </TitleQuota>
       {stripHidden && activeRoot && (
         <button
           type="button"
