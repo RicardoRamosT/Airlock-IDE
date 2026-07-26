@@ -42,12 +42,18 @@ interface Row {
   startsBlock?: boolean;
 }
 
+// How long a silence ends an author block. Slack uses ~5 minutes: without this,
+// two messages from one person hours apart share a single header and the later
+// one silently inherits the earlier timestamp.
+const BLOCK_GAP_SECONDS = 5 * 60;
+
 function buildRows(messages: SlackUiMessage[], now: Date): Row[] {
   // Slack returns newest-first; a transcript reads oldest-first.
   const ordered = [...messages].reverse();
   const rows: Row[] = [];
   let lastDay = "";
   let lastUser = "";
+  let lastAt = Number.NaN;
   for (const m of ordered) {
     const d = dayKey(m.ts);
     if (d && d !== lastDay) {
@@ -55,12 +61,18 @@ function buildRows(messages: SlackUiMessage[], now: Date): Row[] {
       lastDay = d;
       lastUser = ""; // a new day always restarts the author block
     }
+    const at = Number.parseFloat(m.ts);
+    const gapped =
+      !Number.isFinite(lastAt) ||
+      !Number.isFinite(at) ||
+      at - lastAt > BLOCK_GAP_SECONDS;
     rows.push({
       key: m.ts,
       msg: m,
-      startsBlock: m.user !== lastUser || isSystem(m.text),
+      startsBlock: m.user !== lastUser || gapped || isSystem(m.text),
     });
     lastUser = isSystem(m.text) ? "" : m.user;
+    lastAt = at;
   }
   return rows;
 }

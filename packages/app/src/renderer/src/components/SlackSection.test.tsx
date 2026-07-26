@@ -158,6 +158,39 @@ describe("SlackSection transcript", () => {
     expect(screen.getAllByText("Ricardo")).toHaveLength(1);
   });
 
+  it("starts a NEW block when the same author writes much later", async () => {
+    // The bug: two messages 15h apart on the same day were grouped under one
+    // header, so the later one silently inherited the earlier timestamp.
+    const today = Math.floor(Date.now() / 1000);
+    withMessages([
+      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "hola" },
+      {
+        ts: `${today - 15 * 3600}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "test",
+      },
+    ]);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    await screen.findByText("test");
+    // Two blocks => the author header appears twice, each with its own time.
+    expect(screen.getAllByText("Ricardo")).toHaveLength(2);
+    expect(
+      document.querySelectorAll(".slack-msg-time").length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("still groups messages written close together", async () => {
+    const today = Math.floor(Date.now() / 1000);
+    withMessages([
+      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "second" },
+      { ts: `${today - 30}.1`, user: "U1", userName: "Ricardo", text: "first" },
+    ]);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    await screen.findByText("first");
+    expect(screen.getAllByText("Ricardo")).toHaveLength(1);
+  });
+
   it("starts a new block when the author changes", async () => {
     const today = Math.floor(Date.now() / 1000);
     withMessages([
