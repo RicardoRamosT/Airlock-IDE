@@ -104,8 +104,7 @@ export async function updateNoteEntries(
   root: string,
   updates: unknown,
 ): Promise<
-  | { ok: true; updated: number; skipped: number }
-  | { ok: false; error: string }
+  { ok: true; updated: number; skipped: number } | { ok: false; error: string }
 > {
   if (!Array.isArray(updates))
     return { ok: false, error: "updates must be an array." };
@@ -119,7 +118,10 @@ export async function updateNoteEntries(
   const all = await readAll(root);
   const next = updateNotes(all, updates);
   if (next.updated === 0)
-    return { ok: false, error: "No notes matched (or every text was invalid)." };
+    return {
+      ok: false,
+      error: "No notes matched (or every text was invalid).",
+    };
   try {
     await writeAll(root, next.entries);
     return { ok: true, updated: next.updated, skipped: next.skipped };

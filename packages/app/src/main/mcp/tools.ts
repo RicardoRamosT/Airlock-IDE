@@ -690,7 +690,9 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
       const r = await deps.updateChangelogNotes(root, updates);
-      return r.ok ? ok({ updated: r.updated, skipped: r.skipped }) : err(r.error);
+      return r.ok
+        ? ok({ updated: r.updated, skipped: r.skipped })
+        : err(r.error);
     },
   );
 
