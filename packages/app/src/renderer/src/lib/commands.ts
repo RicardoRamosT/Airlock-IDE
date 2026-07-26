@@ -1,6 +1,7 @@
 import type { AppState } from "../store";
 import { closeEditorFile, openEditorFile } from "./editorFiles";
 import { openPickedFolder } from "./openFolder";
+import { isSectionVisible } from "./sections";
 
 export interface Command {
   id: string;
@@ -107,7 +108,7 @@ export function buildCommands(s: AppState, goToFiles: () => void): Command[] {
     },
   ];
   for (const sec of s.sectionMeta) {
-    const visible = s.sectionVisibility[sec.id];
+    const visible = isSectionVisible(s.sectionVisibility, sec.id);
     if (visible) {
       // Switch the sidebar to this view (re-opening it if collapsed) -- the
       // keyboard twin of clicking the section's activity-bar icon.

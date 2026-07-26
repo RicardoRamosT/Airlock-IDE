@@ -555,12 +555,13 @@ export interface AppState {
   appPage: "settings" | "usage" | "overview" | "extensions" | null;
   settingsTabOpen: boolean;
   usageTabOpen: boolean;
+  extensionsTabOpen: boolean;
   // The Overview is per-PROJECT and focus-bound: the focused project's tab shows
   // an inline Overview entry. overviewRoot is the root currently SHOWN (valid
   // only while appPage === "overview").
   overviewRoot: string | null;
   openAppPage: (p: "settings" | "usage" | "extensions") => void; // open the tab + show it
-  showAppPage: (p: "settings" | "usage") => void; // click an already-open Settings/Usage tab
+  showAppPage: (p: "settings" | "usage" | "extensions") => void; // click an already-open Settings/Usage tab
   closeAppPage: (p: "settings" | "usage" | "extensions") => void; // a page tab's X
   showOverview: (root: string) => void; // show the focused project's Overview
   closeOverview: () => void; // leave the Overview page (back to the project's work)
@@ -1889,12 +1890,14 @@ export const useApp = create<AppState>((set) => ({
   appPage: null,
   settingsTabOpen: false,
   usageTabOpen: false,
+  extensionsTabOpen: false,
   overviewRoot: null,
   openAppPage: (p) =>
     set((s) => ({
       appPage: p,
       settingsTabOpen: p === "settings" ? true : s.settingsTabOpen,
       usageTabOpen: p === "usage" ? true : s.usageTabOpen,
+      extensionsTabOpen: p === "extensions" ? true : s.extensionsTabOpen,
     })),
   showAppPage: (p) => set({ appPage: p }),
   showOverview: (root) => set({ appPage: "overview", overviewRoot: root }),
@@ -1904,6 +1907,7 @@ export const useApp = create<AppState>((set) => ({
       appPage: s.appPage === p ? null : s.appPage,
       settingsTabOpen: p === "settings" ? false : s.settingsTabOpen,
       usageTabOpen: p === "usage" ? false : s.usageTabOpen,
+      extensionsTabOpen: p === "extensions" ? false : s.extensionsTabOpen,
     })),
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),

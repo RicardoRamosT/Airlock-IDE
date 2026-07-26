@@ -64,12 +64,19 @@ export function composeSectionMeta(
 // gracefully without writing state. Takes the COMPOSED meta so an extension
 // section that vanished (its extension disabled) also falls back, rather than
 // leaving the sidebar pointed at a view that no longer exists.
+// ABSENT means visible, matching main's listSidebarSections (`!== false`). A
+// newly-appeared extension section has no persisted visibility key yet, so
+// testing truthiness would hide every extension until the user toggled it.
+export function isSectionVisible(vis: SectionVisibility, id: Section): boolean {
+  return vis[id] !== false;
+}
+
 export function effectiveView(
   active: Section,
   vis: SectionVisibility,
   meta: SectionMeta[],
 ): Section | null {
   const known = meta.some((m) => m.id === active);
-  if (known && vis[active]) return active;
-  return meta.find((m) => vis[m.id])?.id ?? null;
+  if (known && isSectionVisible(vis, active)) return active;
+  return meta.find((m) => isSectionVisible(vis, m.id))?.id ?? null;
 }

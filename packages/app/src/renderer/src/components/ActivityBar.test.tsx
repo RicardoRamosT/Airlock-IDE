@@ -131,3 +131,36 @@ it("renders NO divider when there are no extension sections", () => {
   const { container } = render(<ActivityBar />);
   expect(container.querySelector(".activity-bar-divider")).toBeNull();
 });
+
+it("shows an extension icon that has NO persisted visibility key", () => {
+  // The regression: a freshly-appeared ext:* section has no key in
+  // sectionVisibility, and a truthiness filter hid every extension icon.
+  useApp.setState({
+    sectionMeta: composeSectionMeta([
+      { id: "slack", name: "Slack", icon: "comment-discussion" },
+    ]),
+    // Deliberately WITHOUT an "ext:slack" entry.
+  });
+  const { container } = render(<ActivityBar />);
+  const titles = [...container.querySelectorAll(".activity-icon")].map((n) =>
+    n.getAttribute("title"),
+  );
+  expect(titles).toContain("Slack");
+  expect(container.querySelector(".activity-bar-divider")).toBeTruthy();
+});
+
+it("hides an extension icon explicitly set to false", () => {
+  useApp.setState({
+    sectionMeta: composeSectionMeta([{ id: "slack", name: "Slack" }]),
+    sectionVisibility: {
+      ...useApp.getState().sectionVisibility,
+      "ext:slack": false,
+    },
+  });
+  const { container } = render(<ActivityBar />);
+  const titles = [...container.querySelectorAll(".activity-icon")].map((n) =>
+    n.getAttribute("title"),
+  );
+  expect(titles).not.toContain("Slack");
+  expect(container.querySelector(".activity-bar-divider")).toBeNull();
+});

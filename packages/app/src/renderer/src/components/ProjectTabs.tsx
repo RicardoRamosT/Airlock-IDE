@@ -146,6 +146,7 @@ export function ProjectTabs() {
   const appPage = useApp((s) => s.appPage);
   const settingsTabOpen = useApp((s) => s.settingsTabOpen);
   const usageTabOpen = useApp((s) => s.usageTabOpen);
+  const extensionsTabOpen = useApp((s) => s.extensionsTabOpen);
   const overviewRoot = useApp((s) => s.overviewRoot);
   const stripOrder = useApp((s) => s.stripOrder);
   // Per-tab Claude status: the dot color is DERIVED per tab (any of its
@@ -274,7 +275,8 @@ export function ProjectTabs() {
     !openProjectsAsTabs &&
     tabs.length <= 1 &&
     !settingsTabOpen &&
-    !usageTabOpen
+    !usageTabOpen &&
+    !extensionsTabOpen
   )
     return null;
 
@@ -293,6 +295,7 @@ export function ProjectTabs() {
     stripLiveKeys(tabs, split, {
       settings: settingsTabOpen,
       usage: usageTabOpen,
+      extensions: extensionsTabOpen,
     }),
   );
 
@@ -506,8 +509,13 @@ export function ProjectTabs() {
   const PAGE_META = {
     settings: { icon: "gear", title: "Settings", label: "Settings" },
     usage: { icon: "dashboard", title: "Usage", label: "Usage" },
+    extensions: {
+      icon: "extensions",
+      title: "Extensions",
+      label: "Extensions",
+    },
   } as const;
-  const renderPage = (kind: "settings" | "usage") => {
+  const renderPage = (kind: "settings" | "usage" | "extensions") => {
     const m = PAGE_META[kind];
     return (
       <div
@@ -544,6 +552,7 @@ export function ProjectTabs() {
     if (key === "pair") return renderPair();
     if (key === "page:settings") return renderPage("settings");
     if (key === "page:usage") return renderPage("usage");
+    if (key === "page:extensions") return renderPage("extensions");
     const tab = tabs.find((t) => t.id === key);
     return tab ? renderSingle(tab) : null;
   };

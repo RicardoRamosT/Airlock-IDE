@@ -82,6 +82,20 @@ describe("effectiveView", () => {
     expect(effectiveView("ext:slack", vis, without)).toBe("files");
   });
 
+  it("treats a section with NO visibility entry as VISIBLE", () => {
+    // A newly-appeared extension section has no persisted key yet; absent must
+    // mean visible (matching main's listSidebarSections `!== false`), or the
+    // icon never shows up at all.
+    expect(effectiveView("ext:slack", {}, meta)).toBe("ext:slack");
+    expect(effectiveView("files", {}, meta)).toBe("files");
+  });
+
+  it("still honours an EXPLICIT false for an extension section", () => {
+    expect(effectiveView("ext:slack", { "ext:slack": false }, meta)).toBe(
+      "files",
+    );
+  });
+
   it("returns null when everything is hidden", () => {
     const none = Object.fromEntries(meta.map((m) => [m.id, false]));
     expect(effectiveView("files", none, meta)).toBeNull();

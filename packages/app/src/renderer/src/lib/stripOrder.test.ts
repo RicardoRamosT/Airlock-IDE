@@ -47,3 +47,13 @@ it("dropPlace splits a tab at its horizontal midpoint", () => {
   expect(dropPlace(rect, 130)).toBe("after");
   expect(dropPlace(rect, 120)).toBe("after"); // exactly midpoint -> after
 });
+
+it("emits a strip key for the Extensions page so it gets a tab chip", () => {
+  expect(
+    stripLiveKeys([{ id: "t1" }], null, {
+      settings: false,
+      usage: false,
+      extensions: true,
+    }),
+  ).toEqual(["t1", "page:extensions"]);
+});

@@ -18,7 +18,7 @@ export function reconcileOrder(stored: string[], live: string[]): string[] {
 export function stripLiveKeys(
   tabs: { id: string }[],
   split: { a: string; b: string } | null,
-  pages: { settings: boolean; usage: boolean },
+  pages: { settings: boolean; usage: boolean; extensions?: boolean },
 ): string[] {
   const keys: string[] = [];
   for (const t of tabs) {
@@ -27,6 +27,7 @@ export function stripLiveKeys(
   }
   if (pages.settings) keys.push("page:settings");
   if (pages.usage) keys.push("page:usage");
+  if (pages.extensions) keys.push("page:extensions");
   return keys;
 }
 

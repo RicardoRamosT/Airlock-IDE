@@ -1,9 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { DotLevel, Section, SectionStatuses } from "../../../shared/ipc";
-import {
-  effectiveView,
-  BUILTIN_SECTION_META as SECTION_META,
-} from "../lib/sections";
+import { effectiveView, isSectionVisible } from "../lib/sections";
 import { useGithubAccountDot } from "../lib/useGithubAccountDot";
 import { useSectionStatuses } from "../lib/useSectionStatuses";
 import { useApp } from "../store";
@@ -108,7 +105,7 @@ export function ActivityBar() {
     <nav className="activity-bar">
       <div className="activity-bar-icons">
         {sectionMeta
-          .filter((m) => vis[m.id])
+          .filter((m) => isSectionVisible(vis, m.id))
           .map((m, i, shown) => {
             const level = levelFor(statuses, m.id);
             // A hairline before the FIRST extension icon, so the rail reads as
