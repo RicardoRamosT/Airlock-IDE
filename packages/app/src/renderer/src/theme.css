@@ -1283,6 +1283,49 @@ body,
   letter-spacing: 0;
 }
 
+/* Slack sidebar: a collapsible channel row plus its message list. Rows use the
+   shared --row-h / --sb-row-gap grammar so the section matches its neighbours. */
+.slack-channel-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: var(--row-h);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.slack-channel-head:hover {
+  color: var(--fg);
+}
+.slack-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  padding: 2px 0 4px 16px;
+}
+.slack-msg {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+}
+.slack-msg-time {
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.slack-msg-name {
+  font-weight: 600;
+}
+.slack-msg-text {
+  overflow-wrap: anywhere;
+}
+
 /* Fill the section body: without this the tree's height collapses to its rows
    and the visually empty space below the last row belongs to the scroll parent
    (.sidebar-view-body), making the background affordances -- drop-to-root
