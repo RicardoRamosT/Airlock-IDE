@@ -16,6 +16,7 @@ import type {
   UpdateStatus,
 } from "../../shared/ipc";
 import { type OverviewRunResult, planOverviewRun } from "./lib/overviewRun";
+import { BUILTIN_SECTION_META, type SectionMeta } from "./lib/sections";
 import { buildMovingTab } from "./lib/tabDrag";
 
 export interface TerminalEntry {
@@ -330,6 +331,11 @@ export interface AppState {
   updateProgress: UpdateProgress;
   setUpdateProgress: (p: UpdateProgress) => void;
   sectionVisibility: SectionVisibility; // app-global (persisted), gates sidebar sections
+  // Built-in sections plus one per connected extension. Held here so the rail,
+  // the sidebar and buildCommands all read ONE composed list rather than three
+  // copies that can disagree.
+  sectionMeta: SectionMeta[];
+  setSectionMeta: (m: SectionMeta[]) => void;
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
   // Extension Hub per-integration prefs (enabled/pinned), hydrated from
   // AppPrefs.extensions. app-global (persisted). Keyed by integration id.
@@ -821,6 +827,8 @@ export const useApp = create<AppState>((set) => ({
   setUpdate: (s) => set({ update: s }),
   updateProgress: { phase: "idle" },
   setUpdateProgress: (p) => set({ updateProgress: p }),
+  sectionMeta: BUILTIN_SECTION_META,
+  setSectionMeta: (m) => set({ sectionMeta: m }),
   sectionVisibility: {
     files: true,
     secrets: true,

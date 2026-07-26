@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { DotLevel, Section, SectionStatuses } from "../../../shared/ipc";
 import {
   effectiveView,
@@ -51,6 +51,7 @@ const SUGGESTIONS_URL =
 // Accounts/Settings buttons live at the rail bottom, rendered once per window.
 export function ActivityBar() {
   const vis = useApp((s) => s.sectionVisibility);
+  const sectionMeta = useApp((s) => s.sectionMeta);
   const activeView = useApp((s) => s.activeView);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
   const statuses = useSectionStatuses();
@@ -86,7 +87,7 @@ export function ActivityBar() {
     }
   }, [open, refreshGhDot]);
 
-  const view = effectiveView(activeView, vis, SECTION_META);
+  const view = effectiveView(activeView, vis, sectionMeta);
 
   const onIcon = (id: Section) => {
     const s = useApp.getState();
@@ -106,32 +107,41 @@ export function ActivityBar() {
   return (
     <nav className="activity-bar">
       <div className="activity-bar-icons">
-        {SECTION_META.filter((m) => vis[m.id]).map((m) => {
-          const level = levelFor(statuses, m.id);
-          return (
-            <button
-              key={m.id}
-              type="button"
-              className={`activity-icon${m.id === view && sidebarVisible ? " active" : ""}`}
-              title={level ? `${m.label} — ${DOT_TITLE[level]}` : m.label}
-              onClick={() => onIcon(m.id)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  id: m.id,
-                  label: m.label,
-                });
-              }}
-            >
-              <span className="activity-icon-glyph">
-                <i className={`codicon codicon-${m.icon}`} />
-                {level && <span className={`activity-dot ${level}`} />}
-              </span>
-            </button>
-          );
-        })}
+        {sectionMeta
+          .filter((m) => vis[m.id])
+          .map((m, i, shown) => {
+            const level = levelFor(statuses, m.id);
+            // A hairline before the FIRST extension icon, so the rail reads as
+            // built-ins then extensions rather than one ever-growing list.
+            const firstExt =
+              m.kind === "extension" &&
+              (i === 0 || shown[i - 1]?.kind === "builtin");
+            return (
+              <Fragment key={m.id}>
+                {firstExt && <div className="activity-bar-divider" />}
+                <button
+                  type="button"
+                  className={`activity-icon${m.id === view && sidebarVisible ? " active" : ""}`}
+                  title={level ? `${m.label} — ${DOT_TITLE[level]}` : m.label}
+                  onClick={() => onIcon(m.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      id: m.id,
+                      label: m.label,
+                    });
+                  }}
+                >
+                  <span className="activity-icon-glyph">
+                    <i className={`codicon codicon-${m.icon}`} />
+                    {level && <span className={`activity-dot ${level}`} />}
+                  </span>
+                </button>
+              </Fragment>
+            );
+          })}
       </div>
       <div className="activity-bar-bottom">
         {open !== null && (

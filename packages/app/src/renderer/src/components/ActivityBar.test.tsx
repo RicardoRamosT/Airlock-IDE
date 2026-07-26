@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { composeSectionMeta } from "../lib/sections";
 import { useApp } from "../store";
 import { ActivityBar } from "./ActivityBar";
 
@@ -107,4 +108,26 @@ it("suggestions button sits ABOVE Accounts in the bottom rail", () => {
     (b) => b.getAttribute("title")?.split(" — ")[0],
   );
   expect(titles).toEqual(["Send a suggestion", "Accounts", "Settings"]);
+});
+
+it("renders extension icons after the built-ins, with a divider between", () => {
+  useApp.setState({
+    sectionMeta: composeSectionMeta([
+      { id: "slack", name: "Slack", icon: "comment-discussion" },
+    ]),
+    sectionVisibility: {
+      ...useApp.getState().sectionVisibility,
+      "ext:slack": true,
+    },
+  });
+  const { container } = render(<ActivityBar />);
+  expect(container.querySelector(".activity-bar-divider")).toBeTruthy();
+  const icons = [...container.querySelectorAll(".activity-icon")];
+  expect(icons[icons.length - 1]?.getAttribute("title")).toBe("Slack");
+});
+
+it("renders NO divider when there are no extension sections", () => {
+  useApp.setState({ sectionMeta: composeSectionMeta([]) });
+  const { container } = render(<ActivityBar />);
+  expect(container.querySelector(".activity-bar-divider")).toBeNull();
 });

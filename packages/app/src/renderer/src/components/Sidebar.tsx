@@ -1,15 +1,14 @@
 import type { ReactNode } from "react";
+import { sidebarViewFor } from "../lib/extensionViews";
 import { useProjectTab } from "../lib/projectPane";
-import {
-  effectiveView,
-  BUILTIN_SECTION_META as SECTION_META,
-} from "../lib/sections";
+import { effectiveView, parseExtSection } from "../lib/sections";
 import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
 import { EventsSection } from "./EventsSection";
+import { ExtensionResourcesSection } from "./ExtensionResourcesSection";
 import { ExtensionsSection } from "./ExtensionsSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
@@ -30,12 +29,13 @@ export function Sidebar() {
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const vis = useApp((s) => s.sectionVisibility);
   const activeView = useApp((s) => s.activeView);
+  const sectionMeta = useApp((s) => s.sectionMeta);
   const requestNewFile = useApp((s) => s.requestNewFile);
   const split = useApp((s) => s.split);
   const activeTabId = useApp((s) => s.activeTabId);
 
-  const view = effectiveView(activeView, vis, SECTION_META);
-  const meta = SECTION_META.find((m) => m.id === view) ?? null;
+  const view = effectiveView(activeView, vis, sectionMeta);
+  const meta = sectionMeta.find((m) => m.id === view) ?? null;
   // Badge the project only while the split is on screen (two projects visible
   // -> say which one the sidebar reflects). A single pane needs no reminder.
   const splitShowing =
@@ -71,6 +71,15 @@ export function Sidebar() {
   else if (view === "extensions") body = <ExtensionsSection />;
   else if (view === "audit") body = <AuditSection />;
   else if (view === "events") body = <EventsSection />;
+  else {
+    // An ext:<id> view: its registered component, else the generic resource
+    // list -- so an extension with no bespoke UI still gets a usable section.
+    const extId = view ? parseExtSection(view) : null;
+    if (extId) {
+      const View = sidebarViewFor(extId);
+      body = View ? <View /> : <ExtensionResourcesSection extId={extId} />;
+    }
+  }
 
   return (
     <aside className="sidebar">

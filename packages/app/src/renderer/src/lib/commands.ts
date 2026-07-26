@@ -1,7 +1,6 @@
 import type { AppState } from "../store";
 import { closeEditorFile, openEditorFile } from "./editorFiles";
 import { openPickedFolder } from "./openFolder";
-import { BUILTIN_SECTION_META as SECTION_META } from "./sections";
 
 export interface Command {
   id: string;
@@ -107,7 +106,7 @@ export function buildCommands(s: AppState, goToFiles: () => void): Command[] {
       },
     },
   ];
-  for (const sec of SECTION_META) {
+  for (const sec of s.sectionMeta) {
     const visible = s.sectionVisibility[sec.id];
     if (visible) {
       // Switch the sidebar to this view (re-opening it if collapsed) -- the

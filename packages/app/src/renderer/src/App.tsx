@@ -32,6 +32,7 @@ import { usePrefs } from "./lib/usePrefs";
 import { useQuota } from "./lib/useQuota";
 import { useSessionPersist } from "./lib/useSessionPersist";
 import { useSessionRestore } from "./lib/useSessionRestore";
+import { useSyncSectionMeta } from "./lib/useSyncSectionMeta";
 import { useUpdate } from "./lib/useUpdate";
 import { useApp } from "./store";
 
@@ -57,6 +58,8 @@ export function App() {
   const appPage = useApp((s) => s.appPage);
   const overviewRoot = useApp((s) => s.overviewRoot);
   const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
+  // Keeps the rail's extension sections in step with the connected extensions.
+  useSyncSectionMeta();
   // Show the split ONLY when the focused tab is a member of the pair: switching
   // to a non-pair tab hides the split (the pair persists in `split`), switching
   // back to a member shows it again. Left = a (primary), right = b (secondary);

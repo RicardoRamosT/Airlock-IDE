@@ -5563,3 +5563,13 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   opacity: 0.8;
 }
+
+/* Separates built-in section icons from extension ones, so the rail reads as
+   two groups rather than one ever-growing list. Presentational only: derived
+   from the ext: prefix at render time, never stored. */
+.activity-bar-divider {
+  width: 20px;
+  height: 1px;
+  margin: 6px auto;
+  background: var(--border);
+}
