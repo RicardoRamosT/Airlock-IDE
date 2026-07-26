@@ -319,6 +319,12 @@ main-side; you never see it.
 - "Commit the staged changes" → `git_commit` with a message (`git_status` first to see what
   is staged). A suspected secret in the staged content blocks the commit and reports the
   leak locations — surface them to the user before even considering `confirm: true`.
+- "Record what changed" → `add_changelog_entry` for a single change as you make it.
+  **"Populate / backfill the changelog"** → `add_changelog_entries`, batching the whole set
+  into as few calls as possible; pass each entry's `ts` (the commit's date in epoch ms) so
+  the history keeps its real dates. Never loop `add_changelog_entry` per entry — each call
+  rewrites the whole journal and refreshes the UI. To revise entries, `update_changelog_notes`
+  (notes only; the git-derived Changes rows are read-only).
 - "The secret I need isn't vaulted yet" → `request_secret` with the name (a secure prompt
   opens for the user to vault it); when it reports vaulted, retry the action that needed it.
 - "What is the user running in another tab / what does that error say?" → `get_terminal_tail`

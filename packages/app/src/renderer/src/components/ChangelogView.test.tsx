@@ -74,7 +74,14 @@ it("empty-state CTA pastes a seed prompt into the project's terminal", async () 
       name: /ask claude to write the changelog/i,
     }),
   );
-  expect(spy).toHaveBeenCalledWith(expect.stringContaining("changelog"), "t1");
+  // Seeding is inherently many entries, so the prompt must steer Claude to the
+  // BULK tool (and to dating entries via ts) rather than looping the single-entry
+  // one -- that was the whole point of add_changelog_entries.
+  const [prompt, tabId] = spy.mock.calls[0] ?? [];
+  expect(tabId).toBe("t1");
+  expect(prompt).toContain("changelog");
+  expect(prompt).toContain("add_changelog_entries");
+  expect(prompt).toContain("ts");
   spy.mockRestore();
 });
 

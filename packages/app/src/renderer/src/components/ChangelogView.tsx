@@ -6,9 +6,12 @@ import { OverviewMarkdown } from "./OverviewMarkdown";
 
 // Single-line prompt (no newline -> pasted into Claude's input, NOT submitted,
 // so the user reviews then presses Enter) that asks Claude to seed the changelog
-// from git history.
+// from git history. Points at the BULK tool (seeding is inherently many entries,
+// and looping the single-entry tool costs one call + a whole-file rewrite each)
+// and asks for each commit's real date via `ts`, so the seeded history is dated
+// correctly instead of collapsing onto "now".
 const SEED_CHANGELOG_PROMPT =
-  "Please populate this project's changelog: review the git history and call the add_changelog_entry tool for each notable change, with a concise title, the right tag (change/fix/decision/note), and a markdown details body explaining the why and what.";
+  "Please populate this project's changelog: review the git history and record every notable change with the add_changelog_entries tool, batching them in as few calls as possible (it takes an array; do NOT call add_changelog_entry once per entry). For each entry give a concise title, the right tag (change/fix/decision/note), a markdown details body explaining the why and what, and `ts` set to that commit's date in epoch milliseconds so the history keeps its real dates.";
 
 // One Changelog row: title + tag + time, with an optional expand toggle that
 // reveals the markdown `details` (rendered by the safe OverviewMarkdown).
@@ -115,7 +118,8 @@ export function ChangelogView({ root }: { root: string }) {
           </button>
           <p className="changelog-empty-hint">
             Claude also records changes anytime with{" "}
-            <code>add_changelog_entry</code>.
+            <code>add_changelog_entry</code> (or{" "}
+            <code>add_changelog_entries</code> for many at once).
           </p>
         </div>
       </div>
