@@ -1540,7 +1540,18 @@ export const useApp = create<AppState>((set) => ({
           : {}),
       };
     });
-    if (payload) reportOpenRoots(useApp.getState().tabs);
+    if (payload) {
+      reportOpenRoots(useApp.getState().tabs);
+      // Tell main which project this window is focused on now -- the detached tab
+      // is gone, so its root must not linger as this window's. That root drives the
+      // OS window title and any renderer IPC that resolves via rootForEvent rather
+      // than an explicit root. (It does NOT affect MCP: the agent's project identity
+      // comes from its per-project URL token, never from focus -- see
+      // mcp/server.ts.) Same contract as switchTab.
+      const root = useApp.getState().root;
+      if (root) void window.airlock.workspaceSetActive(root);
+      else void window.airlock.workspaceClose();
+    }
     return payload;
   },
   // The moving marker is SINGLE-USE: the departing pane skips its kill once, then
@@ -1593,6 +1604,15 @@ export const useApp = create<AppState>((set) => ({
       };
     });
     reportOpenRoots(useApp.getState().tabs);
+    // The adopted tab is now FOCUSED, so main must follow it: a window that received
+    // a torn-off tab would otherwise keep whatever root it had (or none), leaving the
+    // OS window title stale and any rootForEvent-based IPC pointed at the wrong
+    // project. (NOT an MCP concern -- the agent's project identity comes from its
+    // per-project URL token, never from focus; see mcp/server.ts.) Same contract as
+    // switchTab.
+    const root = useApp.getState().root;
+    if (root) void window.airlock.workspaceSetActive(root);
+    else void window.airlock.workspaceClose();
   },
   removeTerminal: (id) =>
     set((s) => {

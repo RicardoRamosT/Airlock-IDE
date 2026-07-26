@@ -1,12 +1,28 @@
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { useApp } from "./store";
 
 const initial = useApp.getState();
+// Spies for the two calls that tell MAIN which project a window is focused on. That
+// root drives the OS window title and rootForEvent-based IPC, so a tab move that
+// forgets them leaves the window pointed at a project it no longer shows.
+let workspaceSetActive: ReturnType<typeof vi.fn>;
+let workspaceClose: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
   // The tab actions report open roots over IPC and node env has no window --
   // same stub pattern as store.autoClaude.test.ts.
+  workspaceSetActive = vi.fn(() => Promise.resolve(undefined));
+  workspaceClose = vi.fn(() => Promise.resolve(undefined));
   (globalThis as { window?: unknown }).window = {
-    airlock: new Proxy({}, { get: () => () => Promise.resolve(undefined) }),
+    airlock: new Proxy(
+      { workspaceSetActive, workspaceClose },
+      {
+        get: (t, p) =>
+          p in t
+            ? (t as Record<string, unknown>)[p as string]
+            : () => Promise.resolve(undefined),
+      },
+    ),
   };
   useApp.setState(initial, true);
 });
@@ -118,4 +134,40 @@ it("a detach/adopt round trip preserves the pty and the pane scene", () => {
   if (!back) throw new Error("tab did not come back");
   expect(s.tabTerminals[back.id]?.terminals[0]?.ptyId).toBe("pty-9");
   expect(s.tabState[back.id]).toEqual(scene);
+});
+
+it("adoptTab re-points main at the adopted project", () => {
+  // The adopted tab is focused in the renderer, so main must be told -- otherwise
+  // this window's recorded root stays whatever it was (or nothing).
+  useApp.getState().openProject("/a");
+  workspaceSetActive.mockClear();
+  useApp.getState().adoptTab({
+    root: "/b",
+    label: null,
+    terminals: [{ id: "term-9", ptyId: "pty-9", title: "zsh" }],
+    activeTerminalId: "term-9",
+    state: null,
+  });
+  expect(workspaceSetActive).toHaveBeenCalledWith("/b");
+});
+
+it("adopting a BLANK tab clears main rather than leaving it stale", () => {
+  useApp.getState().openProject("/a");
+  workspaceClose.mockClear();
+  useApp.getState().adoptTab({
+    root: null,
+    label: null,
+    terminals: [],
+    activeTerminalId: null,
+    state: null,
+  });
+  expect(workspaceClose).toHaveBeenCalled();
+});
+
+it("detachTab re-points MAIN at the tab left behind", () => {
+  // Otherwise this window's recorded root stays the project that just LEFT it.
+  const bId = seedTwo(); // "/b" focused, "/a" also open
+  workspaceSetActive.mockClear();
+  useApp.getState().detachTab(bId);
+  expect(workspaceSetActive).toHaveBeenCalledWith("/a");
 });
