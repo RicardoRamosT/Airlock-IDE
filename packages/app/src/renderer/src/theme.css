@@ -223,48 +223,43 @@ body,
   left: 0;
   background: linear-gradient(270deg, transparent, var(--wing-tone, var(--accent)));
 }
-/* Window-length ticks: 5 across the 5-hour wing, 7 across the 7-day one (--segs,
-   set per wing). This is what tells the two apart -- the tick COUNT is the window
-   length, so no "5h"/"7d" caption is needed and the pair stays symmetrical. Drawn
-   over the fill so the divisions stay visible as it advances. */
-.titlebar-wing-ticks {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0.22) 0 1px,
-    transparent 1px calc(100% / var(--segs, 5))
-  );
-}
-
-/* The percentage sits ON the fill, whose colour ranges from blue to bright
-   orange-yellow -- so a flat light text would wash out at 75%+. White with a tight
-   dark halo reads on every stop of the ramp AND on the empty track behind it, which
-   matters because the fill edge crosses the text as the bar advances (part of the
-   glyph can be over fill and part over track at the same moment). */
-.titlebar-wing-num {
+/* A clock (rolling 5-hour session) or calendar (7-day week) marks which window each
+   wing is, so neither needs a text caption. Sits with the percentage as one centred
+   group ON the fill -- whose colour ranges from blue to bright orange-yellow, so a
+   flat light text would wash out at 75%+. White with a tight dark halo reads on
+   every stop of the ramp AND on the empty track behind it, which matters because the
+   fill edge crosses the glyphs as the bar advances (part of a glyph can be over fill
+   and part over track at the same moment). */
+.titlebar-wing-label {
   position: relative;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   height: 100%;
-  font-family: "SF Mono", Menlo, monospace;
-  font-size: 10px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
   color: #fff;
   text-shadow:
     0 1px 1.5px rgba(0, 0, 0, 0.9),
     0 0 3px rgba(0, 0, 0, 0.7);
 }
+.titlebar-wing-label .codicon {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.titlebar-wing-num {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 /* No data yet: dim the placeholder and drop the halo (nothing to read it against). */
-.titlebar-wing.is-idle .titlebar-wing-num {
+.titlebar-wing.is-idle .titlebar-wing-label {
   color: var(--fg-dim);
-  font-weight: 500;
   text-shadow: none;
+}
+.titlebar-wing.is-idle .titlebar-wing-num {
+  font-weight: 500;
 }
 .titlebar-title-text {
   display: inline-block;

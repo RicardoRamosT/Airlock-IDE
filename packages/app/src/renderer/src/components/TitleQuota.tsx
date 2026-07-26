@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
   clampPct,
@@ -15,21 +15,20 @@ import { useApp } from "../store";
 // Always the same size -- an empty track when there is no data -- so the title
 // card never shifts as usage arrives or goes stale.
 //
-// `segments` is the WINDOW LENGTH, drawn as tick marks across the track: 5 for the
-// 5-hour window, 7 for the 7-day one. That is the indicator telling the two apart
-// -- the structure encodes which is which, so no "5h"/"7d" caption is needed and
-// the wings stay symmetrical.
+// `icon` is what tells the two windows apart without a text caption: a clock for
+// the rolling 5-hour session, a calendar for the 7-day week. (Tick marks encoding
+// the window length were tried first and read as clutter across the track.)
 function Wing({
   side,
   pct,
-  segments,
+  icon,
   label,
   title,
   onClick,
 }: {
   side: "left" | "right";
   pct: number | null;
-  segments: number;
+  icon: "clock" | "calendar";
   label: string;
   title: string;
   onClick: () => void;
@@ -39,7 +38,6 @@ function Wing({
     <button
       type="button"
       className={`titlebar-wing ${side}${pct === null ? " is-idle" : ""}`}
-      style={{ "--segs": segments } as CSSProperties}
       title={title}
       aria-label={`${label} ${pct === null ? "no data yet" : shown} — open usage details`}
       onClick={onClick}
@@ -55,8 +53,10 @@ function Wing({
           }}
         />
       )}
-      <span className="titlebar-wing-ticks" aria-hidden="true" />
-      <span className="titlebar-wing-num">{shown}</span>
+      <span className="titlebar-wing-label">
+        <i className={`codicon codicon-${icon}`} aria-hidden="true" />
+        <span className="titlebar-wing-num">{shown}</span>
+      </span>
     </button>
   );
 }
@@ -117,7 +117,7 @@ export function TitleQuota({ children }: { children: ReactNode }) {
     <div className="titlebar-center">
       <Wing
         side="left"
-        segments={5}
+        icon="clock"
         pct={five ? five.usedPercentage : null}
         label="5-hour usage"
         title={title}
@@ -126,7 +126,7 @@ export function TitleQuota({ children }: { children: ReactNode }) {
       {children}
       <Wing
         side="right"
-        segments={7}
+        icon="calendar"
         pct={seven ? seven.usedPercentage : null}
         label="7-day usage"
         title={title}

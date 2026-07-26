@@ -79,15 +79,20 @@ it("colours each fill from its own percentage (red past 90, calmer below)", () =
   expect(hue(".titlebar-wing.right .titlebar-wing-fill")).toBeGreaterThan(180);
 });
 
-it("marks the window length with ticks -- 5 for hours, 7 for days", () => {
-  // This is the indicator telling the two wings apart, instead of a text caption.
+it("marks which window each wing is with an icon, not a text caption", () => {
   useApp.setState({ quotaMeterEnabled: true, quota: status() });
   const { container } = render(<TitleQuota>{child}</TitleQuota>);
-  const segs = (sel: string) =>
-    container.querySelector<HTMLElement>(sel)?.style.getPropertyValue("--segs");
-  expect(segs(".titlebar-wing.left")).toBe("5");
-  expect(segs(".titlebar-wing.right")).toBe("7");
-  expect(container.querySelectorAll(".titlebar-wing-ticks")).toHaveLength(2);
+  // Clock = rolling 5-hour session, calendar = 7-day week.
+  expect(
+    container.querySelector(".titlebar-wing.left .codicon-clock"),
+  ).toBeTruthy();
+  expect(
+    container.querySelector(".titlebar-wing.right .codicon-calendar"),
+  ).toBeTruthy();
+  // No "5h"/"7d" captions, and no tick overlay (it read as clutter).
+  expect(container.textContent).not.toContain("5h");
+  expect(container.textContent).not.toContain("7d");
+  expect(container.querySelector(".titlebar-wing-ticks")).toBeNull();
 });
 
 it("keeps both wings (empty) when no session is feeding it, so nothing shifts", () => {
