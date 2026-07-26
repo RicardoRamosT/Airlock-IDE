@@ -44,6 +44,13 @@
      continuous line across both columns. Sized to fit the meter's tallest
      state (title + two bars + reset line). */
   --sidebar-dock-h: 88px;
+  /* Titlebar usage gauges. Theme-aware because the percentage straddles two
+     grounds -- the coloured fill and the empty track -- as the bar advances, so the
+     text needs a halo in the OPPOSITE direction from the surface it sits on. */
+  --wing-track-bg: rgba(255, 255, 255, 0.04);
+  --wing-track-hover-bg: rgba(255, 255, 255, 0.08);
+  --wing-num-fg: #fff;
+  --wing-num-halo: 0 1px 1.5px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.7);
   font-family: -apple-system, "SF Pro Text", sans-serif;
 }
 
@@ -67,6 +74,16 @@
   --ficon-json: #9a9a2f;
   --ficon-env: #9a8526;
   --ficon-conf: #6e7781;
+  /* Usage gauges inverted for the light surface: a white-on-white track was
+     invisible here, and the white percentage was unreadable over it until the fill
+     grew under the digits. Dark ink with a LIGHT halo instead -- legible on the pale
+     empty track and still legible on the fill, whose lightness the ramp caps in the
+     mid-50s for exactly this reason. */
+  --wing-track-bg: rgba(31, 35, 40, 0.07);
+  --wing-track-hover-bg: rgba(31, 35, 40, 0.12);
+  --wing-num-fg: #10151b;
+  --wing-num-halo: 0 1px 1.5px rgba(255, 255, 255, 0.9),
+    0 0 3px rgba(255, 255, 255, 0.75);
 }
 
 /* VS Code-style overlay scrollbars (WebKit) */
@@ -222,13 +239,13 @@ body,
   flex: none;
   width: 92px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--wing-track-bg);
   border: 1px solid var(--border);
   border-top: none;
   transition: background 140ms ease;
 }
 .titlebar-wing:hover .titlebar-wing-track {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--wing-track-hover-bg);
 }
 .titlebar-wing.left .titlebar-wing-track {
   border-right: none;
@@ -279,10 +296,8 @@ body,
   font-size: 10px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: #fff;
-  text-shadow:
-    0 1px 1.5px rgba(0, 0, 0, 0.9),
-    0 0 3px rgba(0, 0, 0, 0.7);
+  color: var(--wing-num-fg);
+  text-shadow: var(--wing-num-halo);
 }
 /* No data yet: dim the placeholder and drop the halo (nothing to read it against). */
 .titlebar-wing.is-idle .titlebar-wing-num {
