@@ -977,8 +977,11 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "open_app_page",
     {
       description:
-        'Open an IDE page-tab ("settings" or "usage") in the focused airlock window and show it. The page-tabs sit beside the project tabs (see list_tabs\' appPages); opening an already-open page brings it back into view. Returns the resulting layout. Acts on the FOCUSED window.',
-      inputSchema: { page: z.enum(["settings", "usage"]) },
+        'Open an IDE page-tab ("settings", "usage" or "extensions") in the focused airlock window and show it. The page-tabs sit beside the project tabs (see list_tabs\' appPages); opening an already-open page brings it back into view. Returns the resulting layout. Acts on the FOCUSED window.',
+      // Keep in step with AppPage in shared/ipc.ts -- a zod enum cannot derive
+      // from the type, so a new page must be added here too or the agent cannot
+      // reach it (extensions was missed exactly that way).
+      inputSchema: { page: z.enum(["settings", "usage", "extensions"]) },
     },
     async ({ page }) => drive({ type: "open_app_page", page }),
   );
@@ -987,8 +990,8 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "close_app_page",
     {
       description:
-        'Close an IDE page-tab ("settings" or "usage") in the focused airlock window. Closing a page that is not open is a no-op. Returns the resulting layout. Acts on the FOCUSED window.',
-      inputSchema: { page: z.enum(["settings", "usage"]) },
+        'Close an IDE page-tab ("settings", "usage" or "extensions") in the focused airlock window. Closing a page that is not open is a no-op. Returns the resulting layout. Acts on the FOCUSED window.',
+      inputSchema: { page: z.enum(["settings", "usage", "extensions"]) },
     },
     async ({ page }) => drive({ type: "close_app_page", page }),
   );

@@ -350,6 +350,28 @@ describe("set_sidebar_section_visibility validation", () => {
   });
 });
 
+describe("app-page tools cover every AppPage", () => {
+  // The zod enum cannot be derived from the AppPage type, so it silently fell
+  // behind when "extensions" was added and the agent could not open that page.
+  const PAGES = ["settings", "usage", "extensions"];
+  it.each([
+    "open_app_page",
+    "close_app_page",
+  ])("%s accepts every page name", (toolName) => {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, baseDeps);
+    const tool = tools.find((t) => t.name === toolName);
+    const schema = tool?.config.inputSchema?.page as
+      | { options?: unknown[] }
+      | undefined;
+    expect(schema).toBeDefined();
+    // zod enums expose their members as `options`.
+    expect([...((schema?.options as string[]) ?? [])].sort()).toEqual(
+      [...PAGES].sort(),
+    );
+  });
+});
+
 describe("run_command tool", () => {
   function getRunCommandTool() {
     const { mcp, tools } = fakeServer();
