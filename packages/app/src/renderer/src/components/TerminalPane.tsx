@@ -451,8 +451,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         // the content box (host bottom minus its bottom padding).
         const rect = screen.getBoundingClientRect();
         const cellH = rect.height / term.rows;
-        const padBottom =
-          parseFloat(getComputedStyle(host).paddingBottom) || 0;
+        const padBottom = parseFloat(getComputedStyle(host).paddingBottom) || 0;
         const overshoot =
           rect.bottom - (host.getBoundingClientRect().bottom - padBottom);
         if (cellH > 0 && overshoot > 1) {

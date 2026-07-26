@@ -190,6 +190,19 @@ body,
   min-width: 0;
 }
 
+/* Cross-window tab drag (tear-off / merge). The window the cursor is over lights
+   its strip as a drop zone; the SOURCE window dims while the cursor is outside
+   every window, so "release to detach" reads before you let go. Driven by main's
+   cursor tracking, since a drag inside one window cannot produce DOM drag events
+   in another. */
+.project-tabs.tabdrag-merge {
+  background: var(--selected);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.project-tabs.tabdrag-detach {
+  opacity: 0.72;
+}
+
 .project-tabs-list {
   display: flex;
   /* Fill the strip height so tabs stretch to the bottom seam -- their left/right

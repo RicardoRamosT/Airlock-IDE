@@ -2,6 +2,7 @@ import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
+import { buildMovingTab, isMovableKey } from "../lib/tabDrag";
 import { useApp } from "../store";
 
 // Title-case a folder name for display (first letter up, rest down) so tab
@@ -191,6 +192,10 @@ export function ProjectTabs() {
   // tab can collapse OUT of the row while dragging -- otherwise its slot stays
   // and the make-room gap opens confusingly right next to it.
   const [dragging, setDragging] = useState<string | null>(null);
+  // Cross-window drag affordance for THIS window, plus this window's own id (so a
+  // hover broadcast can be told apart from another window's).
+  const [dragHint, setDragHint] = useState<"merge" | "detach" | null>(null);
+  const windowIdRef = useRef<number | null>(null);
   // Close BOTH members of the split pair (the unified tab's X / "Close both").
   // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
   // null), so read both before closing; closeTab promotes/cleans up each tab.
@@ -209,6 +214,41 @@ export function ProjectTabs() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menu]);
+
+  // Cross-window tab drag: the affordance THIS window shows, plus inbound tabs.
+  // Deliberately ABOVE the render gate below, so these stay live even when the
+  // strip renders null (windows mode, single tab) -- otherwise such a window could
+  // never receive a torn-off tab.
+  useEffect(() => {
+    void window.airlock.windowId?.().then((id) => {
+      windowIdRef.current = id;
+    });
+    const offHover = window.airlock.onTabDragHover?.((h) => {
+      const me = windowIdRef.current;
+      if (h.target.kind === "merge")
+        setDragHint(h.target.windowId === me ? "merge" : null);
+      else if (h.target.kind === "detach")
+        // Only the window the tab came FROM hints "release to detach".
+        setDragHint(h.sourceWindowId === me ? "detach" : null);
+      else setDragHint(null);
+    });
+    const offAdopt = window.airlock.onTabDragAdopt?.((p) => {
+      const s = useApp.getState();
+      // A window created just to receive this tab still holds the placeholder
+      // blank tab it booted with; drop it so the torn-off window shows ONLY the
+      // moved project.
+      const lone =
+        s.tabs.length === 1 && s.tabs[0]?.root === null ? s.tabs[0] : null;
+      s.adoptTab(p);
+      if (lone) useApp.getState().closeTab(lone.id);
+    });
+    return () => {
+      // Type-checked before calling: a stubbed/absent subscribe (tests, an older
+      // preload) returns something that is not an unsubscribe function.
+      if (typeof offHover === "function") offHover();
+      if (typeof offAdopt === "function") offAdopt();
+    };
+  }, []);
 
   // Render gate: show the strip in tabs mode, while >1 tab exists, or while an
   // IDE page-tab is open (it has nowhere else to live). When hidden, returning
@@ -270,8 +310,34 @@ export function ProjectTabs() {
       requestAnimationFrame(() => {
         if (dragKey.current === key) setDragging(key);
       });
+      // Begin the cross-window drag: main tracks the cursor and tells the windows
+      // whether releasing here would reorder, merge, or detach.
+      if (isMovableKey(key)) void window.airlock.tabDragStart?.();
     },
-    onDragEnd: clearDrag,
+    // Release decides the tab's fate. The payload is BUILT (not detached) and sent
+    // to main, which resolves the drop; the tab only leaves this window once main
+    // confirms a real move -- so an in-window reorder is a true no-op, and the
+    // target window has already adopted before the source lets go (add before
+    // remove, so a failed move cannot lose a tab).
+    onDragEnd: () => {
+      const key = dragKey.current;
+      clearDrag();
+      if (key === null) return;
+      const s = useApp.getState();
+      // A pair/page-tab never moves, and a window's last tab is already its own
+      // window: null tells main to report the target and move nothing.
+      const payload =
+        isMovableKey(key) && s.tabs.length > 1 ? buildMovingTab(s, key) : null;
+      void window.airlock
+        .tabDragEnd?.(payload)
+        .then((target) => {
+          if (payload && target && target.kind !== "reorder")
+            useApp.getState().detachTab(key);
+        })
+        .catch(() => {
+          /* main unreachable -> keep the tab where it is */
+        });
+    },
   });
   // Drop TARGET (per tab) ONLY tracks the hovered insertion point (over). The
   // actual DROP is handled at the LIST level (onListDrop): the make-room gap is
@@ -460,7 +526,7 @@ export function ProjectTabs() {
   };
 
   return (
-    <div className="project-tabs">
+    <div className={`project-tabs${dragHint ? ` tabdrag-${dragHint}` : ""}`}>
       <div className="project-tabs-list" {...listDropZone}>
         {orderedKeys.map(renderEntry)}
       </div>
