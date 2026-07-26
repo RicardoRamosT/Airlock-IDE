@@ -354,8 +354,51 @@ body,
   background: var(--selected);
   box-shadow: inset 0 -2px 0 var(--accent);
 }
+/* The SOURCE window dims while the cursor is outside every window. Only a partial
+   fade: the hint chip below has to stay readable. */
 .project-tabs.tabdrag-detach {
-  opacity: 0.72;
+  opacity: 0.85;
+}
+
+/* Spells out what releasing will do. The drop is what commits the move, so
+   without this, dragging outside the window gives no clue that a new window is
+   about to appear. Sits after the + button and never takes pointer events, so it
+   cannot interfere with the drag in flight. */
+.tabdrag-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 0 10px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--selected);
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tabdrag-hint-in 120ms ease-out;
+}
+.tabdrag-hint .codicon {
+  font-size: 12px;
+  color: var(--accent);
+}
+@keyframes tabdrag-hint-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabdrag-hint {
+    animation: none;
+  }
 }
 
 .project-tabs-list {

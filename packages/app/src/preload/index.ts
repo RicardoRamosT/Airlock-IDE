@@ -81,7 +81,7 @@ const api: AirlockApi = {
   onPtyExit: (cb) => subscribe<PtyExitEvent>("pty:exit", cb),
   // Project-tab tear-off / merge.
   windowId: () => ipcRenderer.invoke("window:id"),
-  tabDragStart: () => ipcRenderer.invoke("tabdrag:start"),
+  tabDragStart: (label) => ipcRenderer.invoke("tabdrag:start", label),
   tabDragEnd: (payload) => ipcRenderer.invoke("tabdrag:end", payload),
   tabDragTakePending: () => ipcRenderer.invoke("tabdrag:takePending"),
   onTabDragHover: (cb) => subscribe<TabDragHover>("tabdrag:hover", cb),

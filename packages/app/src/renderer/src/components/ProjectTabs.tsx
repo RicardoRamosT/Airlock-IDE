@@ -195,7 +195,10 @@ export function ProjectTabs() {
   const [dragging, setDragging] = useState<string | null>(null);
   // Cross-window drag affordance for THIS window, plus this window's own id (so a
   // hover broadcast can be told apart from another window's).
-  const [dragHint, setDragHint] = useState<"merge" | "detach" | null>(null);
+  const [dragHint, setDragHint] = useState<{
+    kind: "merge" | "detach";
+    label: string | null;
+  } | null>(null);
   const windowIdRef = useRef<number | null>(null);
   // Close BOTH members of the split pair (the unified tab's X / "Close both").
   // Capture the ids first: closeTab(a) dissolves the split (s.split becomes
@@ -227,10 +230,14 @@ export function ProjectTabs() {
     const offHover = window.airlock.onTabDragHover?.((h) => {
       const me = windowIdRef.current;
       if (h.target.kind === "merge")
-        setDragHint(h.target.windowId === me ? "merge" : null);
+        setDragHint(
+          h.target.windowId === me ? { kind: "merge", label: h.label } : null,
+        );
       else if (h.target.kind === "detach")
         // Only the window the tab came FROM hints "release to detach".
-        setDragHint(h.sourceWindowId === me ? "detach" : null);
+        setDragHint(
+          h.sourceWindowId === me ? { kind: "detach", label: h.label } : null,
+        );
       else setDragHint(null);
     });
     const adopt = (p: MovingTab) => {
@@ -321,8 +328,14 @@ export function ProjectTabs() {
         if (dragKey.current === key) setDragging(key);
       });
       // Begin the cross-window drag: main tracks the cursor and tells the windows
-      // whether releasing here would reorder, merge, or detach.
-      if (isMovableKey(key)) void window.airlock.tabDragStart?.();
+      // whether releasing here would reorder, merge, or detach. The tab's name goes
+      // along so each window's hint can say WHICH project it is about to take.
+      if (isMovableKey(key)) {
+        const dragged = tabs.find((t) => t.id === key);
+        void window.airlock.tabDragStart?.(
+          dragged ? displayLabel(dragged) : null,
+        );
+      }
     },
     // Release decides the tab's fate. The payload is BUILT (not detached) and sent
     // to main, which resolves the drop; the tab only leaves this window once main
@@ -536,7 +549,9 @@ export function ProjectTabs() {
   };
 
   return (
-    <div className={`project-tabs${dragHint ? ` tabdrag-${dragHint}` : ""}`}>
+    <div
+      className={`project-tabs${dragHint ? ` tabdrag-${dragHint.kind}` : ""}`}
+    >
       <div className="project-tabs-list" {...listDropZone}>
         {orderedKeys.map(renderEntry)}
       </div>
@@ -548,6 +563,23 @@ export function ProjectTabs() {
       >
         <i className="codicon codicon-add" />
       </button>
+      {/* Says what releasing will DO, since the drop is what commits the move --
+          without it, dragging outside gives no clue a window is coming. "Window",
+          not "instance": AirLock holds a single-instance lock, so a torn-off tab
+          becomes another window in the same process (which is exactly why its
+          terminals survive the move). */}
+      {dragHint && (
+        <span className="tabdrag-hint" role="status">
+          <i
+            className={`codicon codicon-${
+              dragHint.kind === "detach" ? "link-external" : "arrow-small-down"
+            }`}
+          />
+          {dragHint.kind === "detach"
+            ? `Release to open ${dragHint.label ?? "this project"} in a new window`
+            : `Drop to add ${dragHint.label ?? "this project"} here`}
+        </span>
+      )}
       {menu && (
         <>
           <button

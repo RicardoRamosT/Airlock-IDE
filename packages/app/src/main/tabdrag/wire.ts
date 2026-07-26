@@ -18,6 +18,9 @@ const POLL_MS = 16; // ~60Hz, only while a drag is in flight
 let timer: ReturnType<typeof setInterval> | null = null;
 let dragSourceId: number | null = null;
 let lastTarget: DropTarget | null = null;
+// Name of the tab in flight, echoed in every hover so a window can say WHICH
+// project it is about to take ("Release to open Airlock in a new window").
+let dragLabel: string | null = null;
 
 // Tabs waiting for a freshly created window to come up and claim them. PULLED by
 // the renderer once it has mounted, never pushed: did-finish-load fires before
@@ -78,11 +81,16 @@ function stop(): void {
   }
   dragSourceId = null;
   lastTarget = null;
+  dragLabel = null;
 }
 
-export function startTabDrag(sourceWindowId: number): void {
+export function startTabDrag(
+  sourceWindowId: number,
+  label: string | null,
+): void {
   stop(); // a new drag supersedes any stale one
   dragSourceId = sourceWindowId;
+  dragLabel = label;
   timer = setInterval(() => {
     if (dragSourceId === null) {
       stop();
@@ -97,7 +105,7 @@ export function startTabDrag(sourceWindowId: number): void {
     const target = currentTarget(dragSourceId);
     if (lastTarget && sameTarget(lastTarget, target)) return;
     lastTarget = target;
-    broadcast({ target, sourceWindowId: dragSourceId });
+    broadcast({ target, sourceWindowId: dragSourceId, label: dragLabel });
   }, POLL_MS);
 }
 
@@ -118,7 +126,7 @@ export function endTabDrag(
   const target = currentTarget(sourceWindowId);
   stop();
   // Tell every window the drag is over so drop indicators clear.
-  broadcast({ target: { kind: "reorder" }, sourceWindowId });
+  broadcast({ target: { kind: "reorder" }, sourceWindowId, label: null });
   if (!payload || target.kind === "reorder") return { kind: "reorder" };
 
   // Ticket the live ptys so (and only so) the adopting window may re-point them.

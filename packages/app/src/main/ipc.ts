@@ -2273,9 +2273,10 @@ export function registerIpc(
     "window:id",
     (e) => BrowserWindow.fromWebContents(e.sender)?.id ?? -1,
   );
-  ipcMain.handle("tabdrag:start", (e) => {
+  ipcMain.handle("tabdrag:start", (e, label: unknown) => {
     const id = BrowserWindow.fromWebContents(e.sender)?.id;
-    if (id !== undefined) startTabDrag(id);
+    if (id !== undefined)
+      startTabDrag(id, typeof label === "string" ? label : null);
   });
   // A window created for a torn-off tab CLAIMS it once its renderer has mounted.
   // Pull, not push: did-finish-load fires before React's effects run, so a pushed

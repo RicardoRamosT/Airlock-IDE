@@ -231,6 +231,8 @@ export type DropTarget =
 export interface TabDragHover {
   target: DropTarget;
   sourceWindowId: number;
+  /** Display name of the tab being dragged, so a window can name it in its hint. */
+  label: string | null;
 }
 
 /**
@@ -828,7 +830,8 @@ export interface AirlockApi {
   // broadcast is about itself.
   windowId(): Promise<number>;
   // Begin the drag: main starts tracking the cursor and broadcasting hovers.
-  tabDragStart(): Promise<void>;
+  // `label` is the dragged tab's display name, echoed back in those hovers.
+  tabDragStart(label: string | null): Promise<void>;
   // Release: main resolves the final target, performs the move, and reports what
   // it did. A null payload means "this tab cannot move" (pair / page-tab / last
   // tab) -- main then only reports the target and moves nothing.
