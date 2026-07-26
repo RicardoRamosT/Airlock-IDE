@@ -194,6 +194,45 @@ export interface TerminalInputResult {
   error?: string;
 }
 
+/** One terminal carried by a moving tab. ptyId null = never spawned. */
+export interface MovingTerminal {
+  id: string; // renderer layout id
+  ptyId: string | null;
+  title: string;
+}
+
+/**
+ * A project tab in transit between windows (tab tear-off / merge). `state` is the
+ * renderer's ProjectState (pane scene) as an OPAQUE blob: it is defined in the
+ * renderer store, main never introspects it, it only forwards it. The adopting
+ * renderer casts it back. Keeping it opaque lets the pane-scene shape change
+ * without touching main or this contract.
+ */
+export interface MovingTab {
+  root: string | null; // null = blank tab
+  label: string | null; // manual rename, if any
+  terminals: MovingTerminal[];
+  activeTerminalId: string | null;
+  state: unknown;
+}
+
+/** Result of re-pointing a live pty's output to the calling window. */
+export type PtyAdoptResult =
+  | { ok: true; tail: string } // recent output, to rehydrate scrollback
+  | { ok: false; error: string };
+
+/** Where a dragged project tab would land when released. */
+export type DropTarget =
+  | { kind: "reorder" } // inside the source window: today's reorder behavior
+  | { kind: "merge"; windowId: number } // over another AirLock window
+  | { kind: "detach" }; // outside every window: becomes its own window
+
+/** Broadcast to every window while a project-tab drag is in flight. */
+export interface TabDragHover {
+  target: DropTarget;
+  sourceWindowId: number;
+}
+
 /**
  * A vaulted Postgres connection projected for the renderer. `id` is the secret
  * NAME (e.g. "NEON_DATABASE"), never the value. There is deliberately NO
@@ -778,8 +817,24 @@ export interface AirlockApi {
   // terminal is kept, not killed); not an agent/MCP surface. Returns false for
   // an unknown id or any error -- never throws.
   ptyIsBusy(id: string): Promise<boolean>;
+  // Re-point a LIVE pty to THIS window and get its recent output back, so a tab
+  // moved in from another window keeps its running session and scrollback.
+  // Refused unless main marked the session as moving (tab tear-off / merge).
+  ptyAdopt(ptyId: string): Promise<PtyAdoptResult>;
   onPtyData(cb: (e: PtyDataEvent) => void): () => void;
   onPtyExit(cb: (e: PtyExitEvent) => void): () => void;
+  // --- Project-tab tear-off / merge ---
+  // This window's BrowserWindow id, so the renderer can tell whether a hover
+  // broadcast is about itself.
+  windowId(): Promise<number>;
+  // Begin the drag: main starts tracking the cursor and broadcasting hovers.
+  tabDragStart(): Promise<void>;
+  // Release: main resolves the final target, performs the move, and reports what
+  // it did. A null payload means "this tab cannot move" (pair / page-tab / last
+  // tab) -- main then only reports the target and moves nothing.
+  tabDragEnd(payload: MovingTab | null): Promise<DropTarget>;
+  onTabDragHover(cb: (h: TabDragHover) => void): () => void;
+  onTabDragAdopt(cb: (p: MovingTab) => void): () => void;
   secretsList(root: string): Promise<SecretMeta[]>;
   secretsSet(root: string, name: string, value: string): Promise<SecretMeta>;
   secretsDelete(root: string, name: string): Promise<void>;

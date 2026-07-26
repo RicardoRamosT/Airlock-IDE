@@ -9,10 +9,12 @@ import type {
   FsChangedEvent,
   LspDiagnostic,
   MenuAction,
+  MovingTab,
   PtyDataEvent,
   PtyExitEvent,
   QuotaStatus,
   SectionVisibility,
+  TabDragHover,
   UpdateProgress,
   UpdateStatus,
 } from "../shared/ipc";
@@ -74,8 +76,15 @@ const api: AirlockApi = {
     ipcRenderer.send("pty:resize", { id, cols, rows }),
   ptyKill: (id) => ipcRenderer.send("pty:kill", id),
   ptyIsBusy: (id) => ipcRenderer.invoke("pty:isBusy", id),
+  ptyAdopt: (ptyId) => ipcRenderer.invoke("pty:adopt", ptyId),
   onPtyData: (cb) => subscribe<PtyDataEvent>("pty:data", cb),
   onPtyExit: (cb) => subscribe<PtyExitEvent>("pty:exit", cb),
+  // Project-tab tear-off / merge.
+  windowId: () => ipcRenderer.invoke("window:id"),
+  tabDragStart: () => ipcRenderer.invoke("tabdrag:start"),
+  tabDragEnd: (payload) => ipcRenderer.invoke("tabdrag:end", payload),
+  onTabDragHover: (cb) => subscribe<TabDragHover>("tabdrag:hover", cb),
+  onTabDragAdopt: (cb) => subscribe<MovingTab>("tabdrag:adopt", cb),
   secretsList: (root) => ipcRenderer.invoke("secrets:list", root),
   secretsSet: (root, name, value) =>
     ipcRenderer.invoke("secrets:set", root, name, value),

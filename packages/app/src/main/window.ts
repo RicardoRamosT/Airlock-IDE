@@ -4,9 +4,12 @@
 // survives alt-tabbing away from airlock. ASCII-only: CJS-bundled into Electron
 // main.
 import path, { basename } from "node:path";
-import { BrowserWindow, type WebContents } from "electron";
+import { BrowserWindow, screen, type WebContents } from "electron";
+import type { MovingTab } from "../shared/ipc";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
+import type { WindowBox } from "./tabdrag/target";
+import { stopTabDragFor } from "./tabdrag/wire";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
 // The SET of roots the user currently has open in each window (every tab's
@@ -17,6 +20,9 @@ const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open fo
 // root used by requireRoot / the agent.
 const windowRoots = new Map<number, Set<string>>(); // BrowserWindow.id -> open tab roots
 let lastFocusedId: number | null = null;
+// Most-recently-focused FIRST. Electron exposes no z-order, so this approximates
+// "front-most" when hit-testing a tab drop against overlapping windows.
+let focusOrder: number[] = [];
 
 function winIdForSender(sender: WebContents): number | null {
   return BrowserWindow.fromWebContents(sender)?.id ?? null;
@@ -168,10 +174,14 @@ export function createWindow(): BrowserWindow {
 
   win.on("focus", () => {
     lastFocusedId = win.id;
+    focusOrder = [win.id, ...focusOrder.filter((id) => id !== win.id)];
   });
   win.on("closed", () => {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
+    focusOrder = focusOrder.filter((id) => id !== win.id);
+    // A tab drag started here must not leave the cursor poll running.
+    stopTabDragFor(win.id);
     disposeWindowWatchers(win.id);
     syncLspServers(allOpenRoots());
     if (lastFocusedId === win.id) {
@@ -187,5 +197,43 @@ export function createWindow(): BrowserWindow {
   } else {
     win.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
+  return win;
+}
+
+// Live windows as tab-drop boxes, most-recently-focused first. The first box
+// containing the cursor wins (see tabdrag/target.ts). Windows never focused yet
+// (e.g. one just created) sort last.
+export function windowBoxesFrontMostFirst(): WindowBox[] {
+  const live = new Map<number, BrowserWindow>();
+  for (const w of BrowserWindow.getAllWindows())
+    if (!w.isDestroyed()) live.set(w.id, w);
+  const ordered: BrowserWindow[] = [];
+  for (const id of focusOrder) {
+    const w = live.get(id);
+    if (w) {
+      ordered.push(w);
+      live.delete(id);
+    }
+  }
+  for (const w of live.values()) ordered.push(w);
+  return ordered.map((w) => ({ id: w.id, bounds: w.getBounds() }));
+}
+
+// Open a new window that adopts a torn-off tab. The payload is delivered once the
+// renderer has loaded -- the same did-finish-load seeding the dock's open-recent
+// path uses. Positioned near the cursor so the window appears where it was
+// dropped.
+export function createWindowForAdopt(payload: MovingTab): BrowserWindow {
+  const win = createWindow();
+  const { x, y } = screen.getCursorScreenPoint();
+  const b = win.getBounds();
+  win.setBounds({
+    ...b,
+    x: Math.round(x - b.width / 3),
+    y: Math.max(0, y - 20),
+  });
+  win.webContents.once("did-finish-load", () => {
+    if (!win.isDestroyed()) win.webContents.send("tabdrag:adopt", payload);
+  });
   return win;
 }

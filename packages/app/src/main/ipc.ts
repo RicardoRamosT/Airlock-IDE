@@ -95,8 +95,16 @@ import {
   dialog,
   ipcMain,
   shell,
+  type WebContents,
 } from "electron";
-import type { AppPrefs, Section, SessionSnapshot } from "../shared/ipc";
+import type {
+  AppPrefs,
+  DropTarget,
+  MovingTab,
+  PtyAdoptResult,
+  Section,
+  SessionSnapshot,
+} from "../shared/ipc";
 import { activityStatus, addDismissedActivity } from "./activity";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
@@ -193,6 +201,8 @@ import { guardedCommit } from "./secrets/commit";
 import { sectionStatuses } from "./sectionStatus";
 import { reconcileSelfVerify } from "./selfverify/wire";
 import { readSession, writeSession } from "./session-store";
+import { MovingSessions } from "./tabdrag/moving";
+import { endTabDrag, startTabDrag } from "./tabdrag/wire";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
 import {
@@ -243,6 +253,16 @@ const sessionRoots = new Map<string, string>();
 // Per-PTY ring buffer of recent raw output (tee'd from onData). Bounded so it
 // cannot grow unbounded; read (redacted) by get_terminal_tail. Deleted on exit.
 const ptyBuffers = new Map<string, string>();
+
+// Per-PTY output target (sessionId -> the WebContents receiving pty:data). Read
+// per chunk rather than captured at spawn, so a session can be RE-POINTED to a
+// different window when its tab is torn off / merged (see pty:adopt). Deleted on
+// exit.
+const sessionTargets = new Map<string, WebContents>();
+
+// Single-use adopt tickets for sessions currently moving between windows. Gates
+// pty:adopt so no window can adopt an arbitrary pty by guessing an id.
+const movingSessions = new MovingSessions();
 const TAIL_CAP = 256 * 1024; // bytes of raw output retained per terminal
 const DEFAULT_TAIL_LINES = 40;
 const MAX_TAIL_LINES = 400;
@@ -2148,7 +2168,7 @@ export function registerIpc(
       // rootForEvent(e) returns, so re-reading here would tag the session with a
       // different project than it actually spawned in. (audit PB-C2)
       if (root) sessionRoots.set(s.id, root);
-      const wc = e.sender;
+      sessionTargets.set(s.id, e.sender);
       const dataSub = s.onData((data) => {
         const prev = ptyBuffers.get(s.id) ?? "";
         const next = prev + data;
@@ -2156,14 +2176,22 @@ export function registerIpc(
           s.id,
           next.length > TAIL_CAP ? next.slice(-TAIL_CAP) : next,
         );
-        if (!wc.isDestroyed()) wc.send("pty:data", { id: s.id, data });
+        // Read the CURRENT target per chunk: pty:adopt may have re-pointed this
+        // session to another window since it spawned (tab tear-off / merge).
+        const target = sessionTargets.get(s.id);
+        if (target && !target.isDestroyed())
+          target.send("pty:data", { id: s.id, data });
       });
       const exitSub = s.onExit((exitCode) => {
         sessions.delete(s.id);
         ptyBuffers.delete(s.id);
         sessionWindows.delete(s.id);
         sessionRoots.delete(s.id);
-        if (!wc.isDestroyed()) wc.send("pty:exit", { id: s.id, exitCode });
+        movingSessions.forget(s.id);
+        const target = sessionTargets.get(s.id);
+        sessionTargets.delete(s.id);
+        if (target && !target.isDestroyed())
+          target.send("pty:exit", { id: s.id, exitCode });
         onPtyExitForDevServer(s.id); // managed dev server: terminal closed -> reset
         // Release the listeners explicitly. node-pty has no destroy(); kill()
         // is teardown, but the onData/onExit subscriptions are IDisposables
@@ -2174,6 +2202,52 @@ export function registerIpc(
       return s.id;
     },
   );
+
+  // Re-point a LIVE pty's output to the calling window and hand back its recent
+  // output so the adopting xterm can rehydrate scrollback. Used by project-tab
+  // tear-off / merge: the shell keeps running (a live `claude` never notices), it
+  // just streams to a different window from now on.
+  //
+  // Admitted ONLY for a session main just marked as moving (single-use ticket) --
+  // otherwise any window could adopt any pty by guessing an id and break the
+  // per-window terminal isolation that sessionWindows enforces.
+  ipcMain.handle("pty:adopt", (e, ptyId: unknown): PtyAdoptResult => {
+    if (typeof ptyId !== "string" || !sessions.has(ptyId))
+      return { ok: false, error: "No such terminal session." };
+    if (!movingSessions.claim(ptyId))
+      return { ok: false, error: "That terminal is not being moved." };
+    // Snapshot the tail and re-point in ONE synchronous block (no await between).
+    // node-pty's onData runs on the event loop, so this pair is atomic: no chunk
+    // can slip in and be lost from the tail or duplicated into the new window.
+    const tail = ptyBuffers.get(ptyId) ?? "";
+    sessionTargets.set(ptyId, e.sender);
+    const ownerId = BrowserWindow.fromWebContents(e.sender)?.id;
+    // The isolation boundary MUST follow the stream, or the moved terminal stays
+    // readable by the old window and invisible to the new one.
+    if (ownerId !== undefined) sessionWindows.set(ptyId, ownerId);
+    return { ok: true, tail };
+  });
+
+  // --- Project-tab tear-off / merge ---
+  // This window's id, so the renderer can tell whether a hover broadcast is about
+  // itself.
+  ipcMain.handle(
+    "window:id",
+    (e) => BrowserWindow.fromWebContents(e.sender)?.id ?? -1,
+  );
+  ipcMain.handle("tabdrag:start", (e) => {
+    const id = BrowserWindow.fromWebContents(e.sender)?.id;
+    if (id !== undefined) startTabDrag(id);
+  });
+  ipcMain.handle("tabdrag:end", (e, payload: unknown): DropTarget => {
+    const id = BrowserWindow.fromWebContents(e.sender)?.id;
+    if (id === undefined) return { kind: "reorder" };
+    return endTabDrag(
+      id,
+      (payload ?? null) as MovingTab | null,
+      movingSessions,
+    );
+  });
 
   // Whether a terminal's shell has a running child (e.g. a live `claude`).
   // Renderer->main UI ONLY (the open-folder helper consults it so a busy
@@ -2242,6 +2316,7 @@ export function killAllSessions(): void {
   ptyBuffers.clear();
   sessionWindows.clear();
   sessionRoots.clear();
+  sessionTargets.clear();
 }
 
 // Resolve EVERY vaulted secret value (any could appear in terminal output) so
