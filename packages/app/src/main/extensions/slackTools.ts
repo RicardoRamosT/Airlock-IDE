@@ -41,6 +41,15 @@ export interface SlackReadResult {
   error?: string;
 }
 
+// Whether this project has a vaulted Slack token. Returns a BOOLEAN only -- the
+// token never leaves this module. Lets the sidebar tell "not connected" apart
+// from "connected but nothing allow-listed", which need different actions.
+export async function slackConnected(root: string | null): Promise<boolean> {
+  if (!root) return false;
+  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  return !!token;
+}
+
 export async function slackListAllowedChannelsTool(
   root: string | null,
 ): Promise<{ channels: { id: string; name: string; kind: ConvKind }[] }> {

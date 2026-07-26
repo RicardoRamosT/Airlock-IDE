@@ -130,6 +130,11 @@ import {
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels } from "./extensions/slack";
+import {
+  slackConnected,
+  slackListAllowedChannelsTool,
+  slackReadChannelTool,
+} from "./extensions/slackTools";
 import { slackWorkspacePatch } from "./extensions/slackWorkspace";
 import { syncWindowWatchers } from "./fsWatch";
 import {
@@ -1961,6 +1966,32 @@ export function registerIpc(
     if (!provider) return [];
     return provider.listResources(root).catch(() => []);
   });
+
+  // Slack sidebar reads go through the SAME gated functions the MCP tools call
+  // (slackListAllowedChannelsTool / slackReadChannelTool) -- NOT a parallel
+  // path. That is what makes "if the user sees it, the agent can read it too"
+  // structural instead of a coincidence two code paths happen to share. Root is
+  // passed explicitly (not rootForEvent) because the sidebar follows the FOCUSED
+  // pane and main's implicit window root races the focus sync.
+  ipcMain.handle("slack:allowedChannels", async (_e, root: unknown) => {
+    if (typeof root !== "string") return { connected: false, channels: [] };
+    const [{ channels }, connected] = await Promise.all([
+      slackListAllowedChannelsTool(root),
+      slackConnected(root),
+    ]);
+    return { connected, channels };
+  });
+
+  ipcMain.handle(
+    "slack:readChannel",
+    async (_e, root: unknown, channel: unknown, limit: unknown) => {
+      if (typeof root !== "string" || typeof channel !== "string") {
+        return { error: "Invalid payload" };
+      }
+      const n = typeof limit === "number" ? limit : 20;
+      return slackReadChannelTool(root, channel, n);
+    },
+  );
 
   // extensions:getConfig/setConfig -> a connected extension's PER-PROJECT config
   // (non-secret; e.g. Slack's channel allow-list = the permission wall). Stored

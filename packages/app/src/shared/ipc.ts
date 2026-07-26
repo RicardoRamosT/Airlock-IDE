@@ -710,6 +710,32 @@ export interface ExtensionResources {
   resources: IntegrationItem[];
 }
 
+// Slack sidebar wire types. Declared HERE rather than imported from agent-core
+// because the renderer must never value-import that package -- its barrel
+// re-exports native deps and breaks the browser build. Mirrors SlackNamedMessage.
+export interface SlackAllowedChannel {
+  id: string;
+  name: string;
+  kind: string;
+}
+// `connected` disambiguates an empty list: "Slack not connected" and "connected
+// but nothing allow-listed" are different states with different actions.
+export interface SlackChannelList {
+  connected: boolean;
+  channels: SlackAllowedChannel[];
+}
+export interface SlackUiMessage {
+  ts: string;
+  user: string;
+  userName: string;
+  text: string;
+}
+export interface SlackReadResultIpc {
+  channel?: string;
+  messages?: SlackUiMessage[];
+  error?: string;
+}
+
 /** Exposed on window.airlock by the preload script. */
 export interface AirlockApi {
   openFolder(): Promise<string | null>;
@@ -976,6 +1002,14 @@ export interface AirlockApi {
   extensionsList(): Promise<ExtensionSummary[]>;
   // Eye-on connected extensions' granted resources, grouped by target section.
   extensionsResources(): Promise<ExtensionResources[]>;
+  // Slack sidebar. Both delegate to the SAME gated functions the MCP tools use,
+  // so what the sidebar shows cannot drift from what the agent may read.
+  slackAllowedChannels(root: string): Promise<SlackChannelList>;
+  slackReadChannel(
+    root: string,
+    channel: string,
+    limit?: number,
+  ): Promise<SlackReadResultIpc>;
   extensionsGetConfig(
     root: string,
     id: string,
