@@ -52,7 +52,7 @@ import {
 import type { RenderServiceStatus, Section } from "../shared/ipc";
 import { sectionLabel } from "./menu";
 import { keyForProject } from "./neon/accounts";
-import { loadPrefs, SECTIONS } from "./prefs";
+import { BUILTIN_SECTIONS, loadPrefs } from "./prefs";
 
 const RENDER_KEY = "RENDER_API_KEY";
 
@@ -61,11 +61,16 @@ const RENDER_KEY = "RENDER_API_KEY";
 // order with human labels. App-global (no root needed).
 export async function listSidebarSections(
   prefsFile: string,
+  exts: { id: string; name: string }[] = [],
 ): Promise<{ id: Section; label: string; visible: boolean }[]> {
   const prefs = await loadPrefs(prefsFile);
-  return SECTIONS.map((id) => ({
+  const ids: Section[] = [
+    ...BUILTIN_SECTIONS,
+    ...exts.map((e) => `ext:${e.id}` as Section),
+  ];
+  return ids.map((id) => ({
     id,
-    label: sectionLabel(id),
+    label: sectionLabel(id, exts),
     visible: prefs.sectionVisibility[id] !== false,
   }));
 }

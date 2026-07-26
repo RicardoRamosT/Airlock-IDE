@@ -18,7 +18,7 @@ import type {
   TabsSnapshot,
   TerminalInputResult,
 } from "../../shared/ipc";
-import { SECTIONS } from "../prefs";
+import { BUILTIN_SECTIONS } from "../prefs";
 import { registerTools, TOOL_NAMES } from "./tools";
 
 // Mock agent-core's runCommand so the run_command handler tests can assert it is
@@ -292,7 +292,7 @@ describe("set_sidebar_section_visibility validation", () => {
     return tool;
   }
 
-  it("rejects a section not in SECTIONS without calling changeVisibility", async () => {
+  it("rejects an unknown section without calling changeVisibility", async () => {
     const spy = vi.fn(async () => ({}) as SectionVisibility);
     const tool = getVisibilityTool(spy);
     const res = (await tool.handler({
@@ -307,7 +307,7 @@ describe("set_sidebar_section_visibility validation", () => {
     const nextMap = { docker: false } as unknown as SectionVisibility;
     const spy = vi.fn(async () => nextMap);
     const tool = getVisibilityTool(spy);
-    const section = SECTIONS[0];
+    const section = BUILTIN_SECTIONS[0];
     const res = (await tool.handler({ section, visible: false })) as {
       content: [{ text: string }];
       isError?: boolean;
@@ -318,7 +318,29 @@ describe("set_sidebar_section_visibility validation", () => {
     expect(JSON.parse(res.content[0].text)).toEqual(nextMap);
   });
 
-  it("declares the section input schema as the SECTIONS enum", () => {
+  it("accepts an ext:* section id (extension sections are runtime-discovered)", async () => {
+    const nextMap = { "ext:slack": false } as unknown as SectionVisibility;
+    const spy = vi.fn(async () => nextMap);
+    const tool = getVisibilityTool(spy);
+    const res = (await tool.handler({
+      section: "ext:slack",
+      visible: false,
+    })) as { isError?: boolean };
+    expect(res.isError).toBeUndefined();
+    expect(spy).toHaveBeenCalledWith(baseDeps.prefsFile, "ext:slack", false);
+  });
+
+  it("rejects a malformed ext id without calling changeVisibility", async () => {
+    const spy = vi.fn(async () => ({}) as SectionVisibility);
+    const tool = getVisibilityTool(spy);
+    const res = (await tool.handler({ section: "ext:", visible: true })) as {
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("declares the section input schema", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
     const tool = tools.find((t) => t.name === "set_sidebar_section_visibility");

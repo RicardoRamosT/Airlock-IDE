@@ -17,12 +17,13 @@ import {
 } from "@airlock/agent-core";
 import type {
   AppPrefs,
+  BuiltinSection,
   ClaudeAutoStart,
   Section,
   SectionVisibility,
 } from "../shared/ipc";
 
-export const SECTIONS: Section[] = [
+export const BUILTIN_SECTIONS: BuiltinSection[] = [
   "files",
   "secrets",
   "git",
@@ -34,6 +35,13 @@ export const SECTIONS: Section[] = [
   "audit",
   "events",
 ];
+
+// A valid sidebar section id: a known built-in, or a well-formed ext:<id>.
+// Shared by the sections:set IPC and the MCP visibility tool so both accept
+// extension sections and reject junk identically.
+export function isSectionId(id: string): boolean {
+  return (BUILTIN_SECTIONS as string[]).includes(id) || /^ext:[^:]+$/.test(id);
+}
 
 const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   files: true,
@@ -104,8 +112,16 @@ function sanitizeSectionVisibility(raw: unknown): SectionVisibility {
   const out: SectionVisibility = { ...DEFAULT_SECTION_VISIBILITY };
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
-    for (const key of SECTIONS) {
-      if (typeof r[key] === "boolean") out[key] = r[key] as boolean;
+    for (const [key, value] of Object.entries(r)) {
+      if (typeof value !== "boolean") continue;
+      // Built-ins are known; ext:* keys are passed through so an extension's
+      // hide/show choice survives a restart. Everything else is dropped.
+      if (
+        (BUILTIN_SECTIONS as string[]).includes(key) ||
+        key.startsWith("ext:")
+      ) {
+        out[key] = value;
+      }
     }
   }
   return out;
@@ -271,9 +287,12 @@ function sanitize(raw: unknown): AppPrefs {
         : DEFAULTS.sidebarWidth,
     theme: r.theme === "light" ? "light" : "dark",
     sectionVisibility: sanitizeSectionVisibility(r.sectionVisibility),
-    activeView: SECTIONS.includes(r.activeView as Section)
-      ? (r.activeView as Section)
-      : "files",
+    activeView:
+      typeof r.activeView === "string" &&
+      ((BUILTIN_SECTIONS as string[]).includes(r.activeView) ||
+        r.activeView.startsWith("ext:"))
+        ? (r.activeView as Section)
+        : "files",
     clipboardClearSeconds:
       typeof r.clipboardClearSeconds === "number" &&
       Number.isFinite(r.clipboardClearSeconds)

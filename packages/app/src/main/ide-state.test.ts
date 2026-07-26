@@ -42,4 +42,16 @@ describe("listSidebarSections", () => {
     expect(byId.files).toBe(true);
     expect(byId.audit).toBe(true);
   });
+
+  it("lists ext:* sections after the built-ins", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-ide-state-ext-"));
+    const rows = await listSidebarSections(path.join(dir, "prefs.json"), [
+      { id: "slack", name: "Slack" },
+    ]);
+    const ids = rows.map((r) => r.id);
+    expect(ids[0]).toBe("files");
+    expect(ids[ids.length - 1]).toBe("ext:slack");
+    expect(rows[rows.length - 1]?.label).toBe("Slack");
+    expect(rows[rows.length - 1]?.visible).toBe(true);
+  });
 });

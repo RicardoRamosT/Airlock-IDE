@@ -11,7 +11,7 @@ import type {
   Section,
   SectionVisibility,
 } from "../shared/ipc";
-import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
+import { BUILTIN_SECTIONS, loadPrefs, savePrefs } from "./prefs";
 import { createWindow } from "./window";
 
 export const SECTION_LABELS: Record<BuiltinSection, string> = {
@@ -44,7 +44,7 @@ export function sectionSubmenuItems(
   visibility: SectionVisibility,
   onToggle: (id: Section, visible: boolean) => void,
 ): MenuItemConstructorOptions[] {
-  return SECTIONS.map((id) => ({
+  return BUILTIN_SECTIONS.map((id) => ({
     label: sectionLabel(id),
     type: "checkbox",
     checked: visibility[id] !== false,

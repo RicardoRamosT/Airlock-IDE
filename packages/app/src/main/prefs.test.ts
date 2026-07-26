@@ -319,6 +319,26 @@ describe("app prefs", () => {
     expect((await loadPrefs(file)).theme).toBe("dark");
   });
 
+  it("passes ext:* visibility keys through and keeps built-in defaults", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-ext-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        sectionVisibility: { "ext:slack": false, git: false, bogus: 1 },
+      }),
+    );
+    const prefs = await loadPrefs(file);
+    // The extension key survives round-tripping...
+    expect(prefs.sectionVisibility["ext:slack"]).toBe(false);
+    // ...an explicit built-in override is kept...
+    expect(prefs.sectionVisibility.git).toBe(false);
+    // ...unspecified built-ins keep their default...
+    expect(prefs.sectionVisibility.files).toBe(true);
+    // ...and a non-boolean value is dropped.
+    expect(prefs.sectionVisibility.bogus).toBeUndefined();
+  });
+
   it("defaults sectionVisibility to all ten built-in sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(

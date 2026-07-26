@@ -192,10 +192,10 @@ import {
   updateNoteEntry,
 } from "./overview/journalStore";
 import {
+  isSectionId,
   loadPrefs,
   publicPrefs,
   RECENT_CAP,
-  SECTIONS,
   sanitizeAgentPolicy,
   savePrefs,
 } from "./prefs";
@@ -1090,7 +1090,7 @@ export function registerIpc(
   ipcMain.handle("sections:set", (_e, id: unknown, visible: unknown) => {
     if (
       typeof id !== "string" ||
-      !SECTIONS.includes(id as Section) ||
+      !isSectionId(id) ||
       typeof visible !== "boolean"
     ) {
       throw new Error("Invalid payload");

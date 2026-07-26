@@ -40,7 +40,7 @@ import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
 import { MAX_BULK } from "../overview/journal";
-import { loadPrefs, SECTIONS } from "../prefs";
+import { isSectionId, loadPrefs } from "../prefs";
 import { guardedCommit } from "../secrets/commit";
 import { scanWorkingSet } from "../secrets/scan";
 
@@ -393,18 +393,24 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     {
       description: "Show or hide a sidebar section; returns the new map.",
       inputSchema: {
-        section: z.enum(SECTIONS as [Section, ...Section[]]),
+        section: z
+          .string()
+          .describe(
+            'A sidebar section id: a built-in ("files", "git", ...) or an extension section ("ext:slack").',
+          ),
         visible: z.boolean(),
       },
     },
     async ({ section, visible }) => {
-      // Defense in depth: the zod enum already rejects unknown sections, but
-      // re-check against the canonical list so a bogus value is a clean error
-      // even if the schema is ever bypassed.
-      if (!SECTIONS.includes(section)) {
+      // A closed enum cannot express ext:<id> sections (they are discovered at
+      // runtime), so the schema takes a string and the id is validated here --
+      // a built-in or a well-formed ext:<id>, anything else a clean error.
+      if (!isSectionId(section)) {
         return err(`Unknown section: ${section}`);
       }
-      return ok(await changeVisibility(deps.prefsFile, section, visible));
+      return ok(
+        await changeVisibility(deps.prefsFile, section as Section, visible),
+      );
     },
   );
 
