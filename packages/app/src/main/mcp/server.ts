@@ -1,20 +1,19 @@
 // The airlock MCP server: a node:http listener bound to 127.0.0.1, guarded by a
-// bearer token, wired to the @modelcontextprotocol/sdk streamable-HTTP server
-// transport. Started on app-ready and stopped on quit (see main/index.ts).
+// bearer token, wired to our own request/response transport (./onceTransport).
+// Started on app-ready and stopped on quit (see main/index.ts).
 //
 // The server exposes the v1 read + UI-control tools (see ./tools) and the
 // IDE-manual docs as read-only resources (see ./resources).
 //
-// Transport model: STATELESS (sessionIdGenerator: undefined). The SDK's stateless
-// streamable-HTTP transport is single-use: its handleRequest throws "Stateless
-// transport cannot be reused across requests. Create a new transport per request."
-// the SECOND time it is called, and the @hono/node-server wrapper turns that throw
-// into an opaque empty HTTP 500. So we build a FRESH McpServer + FRESH transport
-// PER REQUEST (the documented stateless pattern), connect them, hand the parsed
-// body to handleRequest, and close both when the response finishes. GET/DELETE
-// have no SSE stream in stateless mode, so they are answered 405 directly. The
-// SDK's own DNS-rebinding protection is left off because we bind loopback only and
-// gate every request on the bearer token.
+// Transport model: STATELESS request/response. We build a FRESH McpServer +
+// FRESH OnceTransport PER REQUEST, connect them, feed the parsed body in, and
+// write the replies ourselves. We do NOT use the SDK's streamable-HTTP
+// transport: it bridges through @hono/node-server and a Web `Response`, whose
+// internal UTF-8 encoding truncates bodies on Electron (see onceTransport.ts for
+// the byte-level diagnosis). GET/DELETE are answered 405 -- there is no SSE
+// stream and nothing here pushes server-initiated messages. DNS-rebinding
+// protection is unnecessary because we bind loopback only and gate every request
+// on the bearer token.
 //
 // To avoid a readdir per request the doc list is enumerated ONCE at startup and
 // the cached list is registered onto each per-request server.
@@ -27,7 +26,6 @@ import {
   type ServerResponse,
 } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { BrowserWindow } from "electron";
 import type {
   ActivityItem,
@@ -51,6 +49,7 @@ import {
   updateNoteEntries,
 } from "../overview/journalStore";
 import { loadPrefs, publicPrefs, savePrefs } from "../prefs";
+import { encodeJson, OnceTransport } from "./onceTransport";
 import { applyPrefPatch } from "./prefWrite";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
 import { registerTools } from "./tools";
@@ -385,26 +384,24 @@ export async function startMcpServer(
         const root = deps.rootForToken(projectToken);
         const reqDeps: RequestDeps = { ...deps, getWorkspaceRoot: () => root };
 
-        // Fresh server + fresh transport PER REQUEST -- the stateless transport is
-        // single-use (reuse throws and surfaces as an opaque 500).
+        // Fresh server + fresh transport PER REQUEST.
+        //
+        // We use our OWN transport rather than the SDK's streamable-HTTP one.
+        // That transport bridges to a Web-standard transport via
+        // @hono/node-server, so the reply body is encoded by a `Response`
+        // object -- and Electron's UTF-8 encoder mis-sizes some V8 string
+        // shapes, truncating the body (see onceTransport.ts for the byte-level
+        // diagnosis). A Slack channel containing an accented name read as
+        // EMPTY; before that, SSE frames lost their terminator and every tool
+        // call hung 300s. The corruption is inside `Response`, unreachable from
+        // JS, so the only fix is to encode and write the bytes ourselves.
+        //
+        // This is a supported extension point: McpServer.connect takes any
+        // Transport (stdio and streamable-HTTP are just other implementations).
+        // What we give up is server-initiated messages -- nothing here pushes
+        // any, and GET/DELETE are already 405'd above.
         const server = createMcpServer(reqDeps, docs);
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined,
-          // Answer with a self-delimiting application/json body instead of an
-          // SSE stream. WHY (diagnosed 2026-07-26): an SSE event is only
-          // complete when it ends with a blank line, and this server was
-          // emitting frames whose trailing "\n\n" never reached the wire -- the
-          // chunk header itself declared the short length. A spec-compliant
-          // client (Claude Code) therefore never dispatched the event and sat
-          // until its 300s idle timeout ("sent no response or progress for
-          // 300s") even though the bytes had arrived in 4ms. It degraded with
-          // uptime: at first only one response truncated, later every one did.
-          // Stateless mode has no standalone SSE stream (GET/DELETE are 405'd
-          // above) and NOTHING here ever pushes a server-initiated message, so
-          // the stream bought us nothing and cost us the whole failure mode.
-          // JSON also drops the ~6s the SSE response held each socket open.
-          enableJsonResponse: true,
-        });
+        const transport = new OnceTransport();
         // Tear both down once the response is done so we do not leak a server +
         // transport per request.
         res.on("close", () => {
@@ -412,7 +409,22 @@ export async function startMcpServer(
           void server.close();
         });
         await server.connect(transport);
-        await transport.handleRequest(req, res, body);
+        const replies = await transport.handle(body);
+
+        // A notification-only POST earns 202 with no body, per JSON-RPC: there
+        // is no reply to send.
+        if (replies.length === 0) {
+          res.statusCode = 202;
+          res.end();
+          return;
+        }
+        const payload = encodeJson(replies.length === 1 ? replies[0] : replies);
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          // From the Buffer, never from a string length -- the whole point.
+          "Content-Length": payload.length,
+        });
+        res.end(payload);
       } catch (err) {
         // Last resort: never let a handler error crash the listener. If nothing
         // has been sent yet, emit a JSON-RPC 500; otherwise the response is
