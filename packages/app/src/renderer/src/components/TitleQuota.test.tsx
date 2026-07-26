@@ -59,21 +59,35 @@ it("opens the Usage page when a wing is clicked", () => {
   spy.mockRestore();
 });
 
-it("tones the fill by level so nearly-out is noticed, not read", () => {
+it("colours each fill from its own percentage (red past 90, calmer below)", () => {
   useApp.setState({
     quotaMeterEnabled: true,
     quota: status({
-      fiveHour: { usedPercentage: 91, resetsAt: now() + 600 },
-      sevenDay: { usedPercentage: 64, resetsAt: now() + 86400 },
+      fiveHour: { usedPercentage: 94, resetsAt: now() + 600 },
+      sevenDay: { usedPercentage: 20, resetsAt: now() + 86400 },
     } as Partial<QuotaStatus>),
   });
   const { container } = render(<TitleQuota>{child}</TitleQuota>);
-  expect(container.querySelector(".titlebar-wing.left")?.className).toContain(
-    "tone-crit",
-  );
-  expect(container.querySelector(".titlebar-wing.right")?.className).toContain(
-    "tone-warn",
-  );
+  const hue = (sel: string) => {
+    const el = container.querySelector<HTMLElement>(sel);
+    return Number(
+      /hsl\((\d+)/.exec(el?.style.getPropertyValue("--wing-tone") ?? "")?.[1],
+    );
+  };
+  // 94% is pinned red; 20% is still in the blue part of the ramp.
+  expect(hue(".titlebar-wing.left .titlebar-wing-fill")).toBe(2);
+  expect(hue(".titlebar-wing.right .titlebar-wing-fill")).toBeGreaterThan(180);
+});
+
+it("marks the window length with ticks -- 5 for hours, 7 for days", () => {
+  // This is the indicator telling the two wings apart, instead of a text caption.
+  useApp.setState({ quotaMeterEnabled: true, quota: status() });
+  const { container } = render(<TitleQuota>{child}</TitleQuota>);
+  const segs = (sel: string) =>
+    container.querySelector<HTMLElement>(sel)?.style.getPropertyValue("--segs");
+  expect(segs(".titlebar-wing.left")).toBe("5");
+  expect(segs(".titlebar-wing.right")).toBe("7");
+  expect(container.querySelectorAll(".titlebar-wing-ticks")).toHaveLength(2);
 });
 
 it("keeps both wings (empty) when no session is feeding it, so nothing shifts", () => {

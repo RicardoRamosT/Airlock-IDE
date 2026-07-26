@@ -211,7 +211,7 @@ body,
   top: 0;
   bottom: 0;
   display: block;
-  background: linear-gradient(90deg, transparent, var(--wing-tone));
+  background: linear-gradient(90deg, transparent, var(--wing-tone, var(--accent)));
   transition:
     width 260ms ease,
     background 260ms ease;
@@ -221,37 +221,50 @@ body,
 }
 .titlebar-wing.right .titlebar-wing-fill {
   left: 0;
-  background: linear-gradient(270deg, transparent, var(--wing-tone));
+  background: linear-gradient(270deg, transparent, var(--wing-tone, var(--accent)));
 }
+/* Window-length ticks: 5 across the 5-hour wing, 7 across the 7-day one (--segs,
+   set per wing). This is what tells the two apart -- the tick COUNT is the window
+   length, so no "5h"/"7d" caption is needed and the pair stays symmetrical. Drawn
+   over the fill so the divisions stay visible as it advances. */
+.titlebar-wing-ticks {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.22) 0 1px,
+    transparent 1px calc(100% / var(--segs, 5))
+  );
+}
+
+/* The percentage sits ON the fill, whose colour ranges from blue to bright
+   orange-yellow -- so a flat light text would wash out at 75%+. White with a tight
+   dark halo reads on every stop of the ramp AND on the empty track behind it, which
+   matters because the fill edge crosses the text as the bar advances (part of the
+   glyph can be over fill and part over track at the same moment). */
 .titlebar-wing-num {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
   font-family: "SF Mono", Menlo, monospace;
   font-size: 10px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--fg);
+  color: #fff;
+  text-shadow:
+    0 1px 1.5px rgba(0, 0, 0, 0.9),
+    0 0 3px rgba(0, 0, 0, 0.7);
 }
-/* Tone by level, so "nearly out" is noticed rather than read. Thresholds live in
-   lib/quotaFormat.ts (quotaTone): 60% -> warn, 85% -> crit. */
-.titlebar-wing.tone-ok {
-  --wing-tone: var(--accent);
-}
-.titlebar-wing.tone-warn {
-  --wing-tone: #d29922;
-}
-.titlebar-wing.tone-crit {
-  --wing-tone: #f85149;
-}
-.titlebar-wing.tone-idle {
-  --wing-tone: transparent;
-}
-.titlebar-wing.tone-idle .titlebar-wing-num {
+/* No data yet: dim the placeholder and drop the halo (nothing to read it against). */
+.titlebar-wing.is-idle .titlebar-wing-num {
   color: var(--fg-dim);
-  opacity: 0.7;
+  font-weight: 500;
+  text-shadow: none;
 }
 .titlebar-title-text {
   display: inline-block;
@@ -792,11 +805,29 @@ body,
 
 .activity-icon:hover {
   color: var(--fg);
-  background: var(--hover);
 }
 
 .activity-icon.active {
   color: var(--fg);
+}
+
+/* The hover/selected SURFACE is an inset rounded card rather than a full-bleed
+   rectangle: a hard-edged block butting against the rounded project tab above and
+   the sidebar below read as unfinished. Drawn behind the glyph (z-index:-1 against
+   the button's own positioning context) so the icon stays crisp. */
+.activity-icon::after {
+  content: "";
+  position: absolute;
+  inset: 3px 5px;
+  z-index: -1;
+  border-radius: 8px;
+  background: transparent;
+  transition: background 140ms ease;
+}
+.activity-icon:hover::after {
+  background: var(--hover);
+}
+.activity-icon.active::after {
   background: var(--selected);
 }
 
@@ -840,20 +871,38 @@ body,
 }
 
 /* Active-view indicator: the standard left-edge bar. */
-.activity-icon.active::before {
+/* Active-view indicator: a rounded pill on the rail's inner edge that GROWS in
+   from the centre when you switch views, instead of appearing fully formed. Always
+   present (scaled to nothing) so it has something to animate from. */
+.activity-icon::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 2.5px;
-  border-radius: 0 2px 2px 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--accent);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.activity-icon.active::before {
+  transform: scaleY(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-icon::before {
+    transition: none;
+  }
 }
 
-.workspace.sidebar-right .activity-icon.active::before {
+/* Right-hand rail: the indicator hugs the rail's inner (left) edge instead, so its
+   rounding mirrors too. Applies to the collapsed pill as well, not just the active
+   one, so it animates from the correct edge. */
+.workspace.sidebar-right .activity-icon::before {
   left: auto;
   right: 0;
+  border-radius: 3px 0 0 3px;
 }
 
 /* Rail bottom: the app-global Accounts/Settings buttons; position:relative
@@ -1622,10 +1671,14 @@ body.resizing-col {
      3*22 + 2*2 gap + 2*6 pad = 88. Without it they inherit line-height, overflow
      the dock, and the activity-bar divider rises above the quota meter's. */
   height: 22px;
-  padding: 4px 6px;
-  border-radius: 4px;
+  /* Fixed box + centred content so all three glyphs share one vertical axis --
+     padding alone let differently-proportioned icons sit off-centre. */
+  width: 26px;
+  padding: 0;
+  border-radius: 6px;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 /* The rail's footer icons are 14px (vs the 20px section icons), so their status

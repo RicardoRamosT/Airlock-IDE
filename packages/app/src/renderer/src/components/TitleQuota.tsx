@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
   clampPct,
   formatCountdown,
   isWindowAwaiting,
-  quotaTone,
+  quotaFillColor,
   STALE_AFTER_SECONDS,
 } from "../lib/quotaFormat";
 import { useApp } from "../store";
@@ -14,25 +14,32 @@ import { useApp } from "../store";
 // fill anchors to, so the pair reads as one symmetrical HUD around the title.
 // Always the same size -- an empty track when there is no data -- so the title
 // card never shifts as usage arrives or goes stale.
+//
+// `segments` is the WINDOW LENGTH, drawn as tick marks across the track: 5 for the
+// 5-hour window, 7 for the 7-day one. That is the indicator telling the two apart
+// -- the structure encodes which is which, so no "5h"/"7d" caption is needed and
+// the wings stay symmetrical.
 function Wing({
   side,
   pct,
+  segments,
   label,
   title,
   onClick,
 }: {
   side: "left" | "right";
   pct: number | null;
+  segments: number;
   label: string;
   title: string;
   onClick: () => void;
 }) {
-  const tone = pct === null ? "idle" : quotaTone(pct);
   const shown = pct === null ? "—" : `${Math.round(pct)}%`;
   return (
     <button
       type="button"
-      className={`titlebar-wing ${side} tone-${tone}`}
+      className={`titlebar-wing ${side}${pct === null ? " is-idle" : ""}`}
+      style={{ "--segs": segments } as CSSProperties}
       title={title}
       aria-label={`${label} ${pct === null ? "no data yet" : shown} — open usage details`}
       onClick={onClick}
@@ -40,9 +47,15 @@ function Wing({
       {pct !== null && (
         <i
           className="titlebar-wing-fill"
-          style={{ width: `${clampPct(pct)}%` }}
+          style={{
+            width: `${clampPct(pct)}%`,
+            // Continuous blue -> yellow -> red, so the colour tracks the number
+            // rather than jumping at a threshold.
+            ["--wing-tone" as string]: quotaFillColor(pct),
+          }}
         />
       )}
+      <span className="titlebar-wing-ticks" aria-hidden="true" />
       <span className="titlebar-wing-num">{shown}</span>
     </button>
   );
@@ -104,6 +117,7 @@ export function TitleQuota({ children }: { children: ReactNode }) {
     <div className="titlebar-center">
       <Wing
         side="left"
+        segments={5}
         pct={five ? five.usedPercentage : null}
         label="5-hour usage"
         title={title}
@@ -112,6 +126,7 @@ export function TitleQuota({ children }: { children: ReactNode }) {
       {children}
       <Wing
         side="right"
+        segments={7}
         pct={seven ? seven.usedPercentage : null}
         label="7-day usage"
         title={title}

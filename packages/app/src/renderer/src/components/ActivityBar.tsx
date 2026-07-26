@@ -145,7 +145,9 @@ export function ActivityBar() {
           title="Send a suggestion"
           onClick={() => void window.airlock.hostOpenExternal(SUGGESTIONS_URL)}
         >
-          <i className="codicon codicon-feedback" />
+          {/* A plain speech bubble: codicon-feedback draws a person BESIDE the
+              bubble, which sat off-centre next to the account and gear glyphs. */}
+          <i className="codicon codicon-comment" />
         </button>
         <button
           type="button"

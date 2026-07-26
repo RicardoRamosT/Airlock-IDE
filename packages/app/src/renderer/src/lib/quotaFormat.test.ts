@@ -4,7 +4,10 @@ import {
   clampPct,
   formatCountdown,
   isWindowAwaiting,
-  quotaTone,
+  QUOTA_RED_AT,
+  QUOTA_YELLOW_AT,
+  quotaFillColor,
+  quotaFillHue,
 } from "./quotaFormat";
 
 const win = (over: Partial<QuotaWindow> = {}): QuotaWindow => ({
@@ -43,19 +46,43 @@ it("clamps percentages into 0..100", () => {
   expect(clampPct(Number.NaN)).toBe(0);
 });
 
-describe("quotaTone", () => {
-  it("stays calm through normal use and escalates late", () => {
-    expect(quotaTone(0)).toBe("ok");
-    expect(quotaTone(59.9)).toBe("ok");
-    expect(quotaTone(60)).toBe("warn");
-    expect(quotaTone(84.9)).toBe("warn");
-    expect(quotaTone(85)).toBe("crit");
-    expect(quotaTone(100)).toBe("crit");
+describe("quotaFillColor", () => {
+  it("lands exactly on yellow at 75% and red at 90% (the meaningful levels)", () => {
+    expect(quotaFillHue(QUOTA_YELLOW_AT)).toBe(42); // orange-leaning yellow
+    expect(quotaFillHue(QUOTA_RED_AT)).toBe(2); // red
   });
 
-  it("clamps nonsense input rather than reporting a false crit", () => {
-    expect(quotaTone(-20)).toBe("ok");
-    expect(quotaTone(Number.NaN)).toBe("ok");
-    expect(quotaTone(999)).toBe("crit");
+  it("holds red above 90% instead of drifting past it", () => {
+    expect(quotaFillHue(95)).toBe(quotaFillHue(QUOTA_RED_AT));
+    expect(quotaFillHue(100)).toBe(quotaFillHue(QUOTA_RED_AT));
+  });
+
+  it("warms monotonically -- never doubles back", () => {
+    let prev = Number.POSITIVE_INFINITY;
+    for (let p = 0; p <= 100; p += 5) {
+      const hue = quotaFillHue(p);
+      expect(hue).toBeLessThanOrEqual(prev);
+      prev = hue;
+    }
+  });
+
+  it("still reads BLUE through light usage (the eased first leg)", () => {
+    expect(quotaFillHue(0)).toBe(212);
+    // Without easing, 15% would already have drifted to cyan/teal.
+    expect(quotaFillHue(15)).toBeGreaterThan(190);
+  });
+
+  it("keeps lightness mid-range so white text stays legible over the fill", () => {
+    for (let p = 0; p <= 100; p += 5) {
+      const l = Number(/(\d+)%\)$/.exec(quotaFillColor(p))?.[1]);
+      expect(l).toBeLessThanOrEqual(62);
+      expect(l).toBeGreaterThanOrEqual(45);
+    }
+  });
+
+  it("clamps nonsense input instead of emitting a broken colour", () => {
+    expect(quotaFillHue(-40)).toBe(quotaFillHue(0));
+    expect(quotaFillHue(Number.NaN)).toBe(quotaFillHue(0));
+    expect(quotaFillColor(50)).toMatch(/^hsl\(\d+ \d+% \d+%\)$/);
   });
 });
