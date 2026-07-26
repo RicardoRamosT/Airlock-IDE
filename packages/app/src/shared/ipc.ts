@@ -338,7 +338,7 @@ export interface ResolvedGithubAccount {
   protocol: "https" | "ssh" | "unknown";
 }
 
-export type Section =
+export type BuiltinSection =
   | "files"
   | "secrets"
   | "git"
@@ -347,10 +347,15 @@ export type Section =
   | "docker"
   | "host"
   | "extensions"
-  | "slack"
   | "audit"
   | "events";
-export type SectionVisibility = Record<Section, boolean>;
+// An extension's own section, namespaced so it can never collide with a
+// built-in and so the rail can tell the two groups apart for its divider.
+export type Section = BuiltinSection | `ext:${string}`;
+// Widened from Record<Section, boolean>: extension sections are discovered at
+// runtime, so the map cannot be exhaustive. Built-in keys are always present
+// (the prefs sanitizer guarantees it); ext:* keys appear once seen.
+export type SectionVisibility = Record<string, boolean>;
 
 // Auto-run `claude` in new project terminals: never / once per tab / always.
 export type ClaudeAutoStart = "off" | "first" | "every";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ClaudeAutoStart, Section } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
-import { SECTION_META } from "../lib/sections";
+import { BUILTIN_SECTION_META as SECTION_META } from "../lib/sections";
 import { useApp } from "../store";
 import { AboutSection } from "./AboutSection";
 import { AgentSection } from "./AgentSection";

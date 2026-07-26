@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { SECTION_META } from "../lib/sections";
+import { BUILTIN_SECTION_META as SECTION_META } from "../lib/sections";
 import { useApp } from "../store";
 import { Sidebar } from "./Sidebar";
 

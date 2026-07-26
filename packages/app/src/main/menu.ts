@@ -5,11 +5,16 @@ import {
   Menu,
   type MenuItemConstructorOptions,
 } from "electron";
-import type { MenuAction, Section, SectionVisibility } from "../shared/ipc";
+import type {
+  BuiltinSection,
+  MenuAction,
+  Section,
+  SectionVisibility,
+} from "../shared/ipc";
 import { loadPrefs, SECTIONS, savePrefs } from "./prefs";
 import { createWindow } from "./window";
 
-export const SECTION_LABELS: Record<Section, string> = {
+export const SECTION_LABELS: Record<BuiltinSection, string> = {
   files: "Files",
   secrets: "Secrets",
   git: "Git",
@@ -18,10 +23,21 @@ export const SECTION_LABELS: Record<Section, string> = {
   docker: "Docker",
   host: "Host",
   extensions: "Extensions",
-  slack: "Slack",
   audit: "Audit",
   events: "Events",
 };
+
+// Label for any section id. Built-ins come from the map above; an extension
+// section (ext:<id>) is labelled by its extension, falling back to the bare id
+// so the View menu can never render an empty row.
+export function sectionLabel(
+  id: string,
+  exts: { id: string; name: string }[] = [],
+): string {
+  if (id in SECTION_LABELS) return SECTION_LABELS[id as BuiltinSection];
+  const extId = id.startsWith("ext:") ? id.slice(4) : null;
+  return exts.find((e) => e.id === extId)?.name ?? extId ?? id;
+}
 
 // Pure: the View -> Sidebar checkbox rows. Tested without Electron.
 export function sectionSubmenuItems(
@@ -29,7 +45,7 @@ export function sectionSubmenuItems(
   onToggle: (id: Section, visible: boolean) => void,
 ): MenuItemConstructorOptions[] {
   return SECTIONS.map((id) => ({
-    label: SECTION_LABELS[id],
+    label: sectionLabel(id),
     type: "checkbox",
     checked: visibility[id] !== false,
     click: (item) => onToggle(id, item.checked),

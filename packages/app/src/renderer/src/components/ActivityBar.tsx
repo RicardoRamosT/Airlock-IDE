@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { DotLevel, Section, SectionStatuses } from "../../../shared/ipc";
-import { effectiveView, SECTION_META } from "../lib/sections";
+import {
+  effectiveView,
+  BUILTIN_SECTION_META as SECTION_META,
+} from "../lib/sections";
 import { useGithubAccountDot } from "../lib/useGithubAccountDot";
 import { useSectionStatuses } from "../lib/useSectionStatuses";
 import { useApp } from "../store";
@@ -83,7 +86,7 @@ export function ActivityBar() {
     }
   }, [open, refreshGhDot]);
 
-  const view = effectiveView(activeView, vis);
+  const view = effectiveView(activeView, vis, SECTION_META);
 
   const onIcon = (id: Section) => {
     const s = useApp.getState();

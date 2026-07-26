@@ -50,7 +50,7 @@ import {
   withDb,
 } from "@airlock/agent-core";
 import type { RenderServiceStatus, Section } from "../shared/ipc";
-import { SECTION_LABELS } from "./menu";
+import { sectionLabel } from "./menu";
 import { keyForProject } from "./neon/accounts";
 import { loadPrefs, SECTIONS } from "./prefs";
 
@@ -65,7 +65,7 @@ export async function listSidebarSections(
   const prefs = await loadPrefs(prefsFile);
   return SECTIONS.map((id) => ({
     id,
-    label: SECTION_LABELS[id],
+    label: sectionLabel(id),
     visible: prefs.sectionVisibility[id] !== false,
   }));
 }

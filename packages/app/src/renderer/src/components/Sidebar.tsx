@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { useProjectTab } from "../lib/projectPane";
-import { effectiveView, SECTION_META } from "../lib/sections";
+import {
+  effectiveView,
+  BUILTIN_SECTION_META as SECTION_META,
+} from "../lib/sections";
 import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
@@ -16,7 +19,6 @@ import { NeonSection } from "./NeonSection";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
-import { SlackSection } from "./SlackSection";
 
 // THE sidebar: one per window (rendered by App, beside the ActivityBar), not
 // one per pane. It shows a single view -- the activity bar's active section --
@@ -32,7 +34,7 @@ export function Sidebar() {
   const split = useApp((s) => s.split);
   const activeTabId = useApp((s) => s.activeTabId);
 
-  const view = effectiveView(activeView, vis);
+  const view = effectiveView(activeView, vis, SECTION_META);
   const meta = SECTION_META.find((m) => m.id === view) ?? null;
   // Badge the project only while the split is on screen (two projects visible
   // -> say which one the sidebar reflects). A single pane needs no reminder.
@@ -67,7 +69,6 @@ export function Sidebar() {
       </>
     );
   else if (view === "extensions") body = <ExtensionsSection />;
-  else if (view === "slack") body = <SlackSection />;
   else if (view === "audit") body = <AuditSection />;
   else if (view === "events") body = <EventsSection />;
 

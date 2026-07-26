@@ -1,7 +1,7 @@
 import type { AppState } from "../store";
 import { closeEditorFile, openEditorFile } from "./editorFiles";
 import { openPickedFolder } from "./openFolder";
-import { SECTION_META } from "./sections";
+import { BUILTIN_SECTION_META as SECTION_META } from "./sections";
 
 export interface Command {
   id: string;
