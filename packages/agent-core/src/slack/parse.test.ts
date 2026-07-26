@@ -155,22 +155,76 @@ describe("labelConversations", () => {
 
 describe("parseHistory", () => {
   it("maps messages to {ts,user,text}", () => {
-    const msgs = parseHistory({
+    const r = parseHistory({
       ok: true,
       messages: [
         { type: "message", user: "U1", text: "hi", ts: "1.1" },
         { type: "message", user: "U2", text: "there", ts: "2.2" },
       ],
     });
-    expect(msgs).toEqual([
-      { ts: "1.1", user: "U1", text: "hi" },
-      { ts: "2.2", user: "U2", text: "there" },
-    ]);
+    expect(r).toEqual({
+      ok: true,
+      messages: [
+        { ts: "1.1", user: "U1", text: "hi" },
+        { ts: "2.2", user: "U2", text: "there" },
+      ],
+    });
   });
   it("tolerates missing user/text and bad payloads", () => {
-    expect(parseHistory({ ok: true, messages: [{ ts: "3.3" }] })).toEqual([
-      { ts: "3.3", user: "", text: "" },
-    ]);
-    expect(parseHistory(null)).toEqual([]);
+    expect(parseHistory({ ok: true, messages: [{ ts: "3.3" }] })).toEqual({
+      ok: true,
+      messages: [{ ts: "3.3", user: "", text: "" }],
+    });
+    expect(parseHistory(null)).toEqual({ ok: false, error: "bad_response" });
+  });
+});
+
+describe("parseHistory ok/error split", () => {
+  it("returns the messages for an ok response", () => {
+    const r = parseHistory({
+      ok: true,
+      messages: [{ ts: "1785047664.355179", user: "U1", text: "test" }],
+    });
+    expect(r).toEqual({
+      ok: true,
+      messages: [{ ts: "1785047664.355179", user: "U1", text: "test" }],
+    });
+  });
+
+  it("distinguishes an EMPTY channel from a refusal", () => {
+    expect(parseHistory({ ok: true, messages: [] })).toEqual({
+      ok: true,
+      messages: [],
+    });
+  });
+
+  it.each([
+    "not_in_channel",
+    "missing_scope",
+    "channel_not_found",
+    "invalid_auth",
+    "ratelimited",
+  ])("surfaces the Slack error code %s instead of an empty list", (code) => {
+    expect(parseHistory({ ok: false, error: code })).toEqual({
+      ok: false,
+      error: code,
+    });
+  });
+
+  it("reports a malformed payload as an error, not as empty", () => {
+    expect(parseHistory(null)).toEqual({ ok: false, error: "bad_response" });
+    expect(parseHistory({})).toEqual({ ok: false, error: "bad_response" });
+    // ok:true but no messages array is malformed, NOT an empty channel.
+    expect(parseHistory({ ok: true })).toEqual({
+      ok: false,
+      error: "bad_response",
+    });
+  });
+
+  it("defaults a missing error string to unknown_error", () => {
+    expect(parseHistory({ ok: false })).toEqual({
+      ok: false,
+      error: "unknown_error",
+    });
   });
 });

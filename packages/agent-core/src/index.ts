@@ -327,6 +327,7 @@ export type {
   ConvKind,
   SlackAuth,
   SlackChannel,
+  SlackHistory,
   SlackMessage,
   SlackUser,
 } from "./slack/parse";

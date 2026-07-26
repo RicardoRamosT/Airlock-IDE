@@ -125,10 +125,28 @@ export interface SlackMessage {
   text: string;
 }
 
-export function parseHistory(json: unknown): SlackMessage[] {
+// Either the messages or WHY Slack refused. Returning [] for a refusal (the old
+// shape) made "not_in_channel" look identical to an empty channel, so the read
+// tool -- and the sidebar built on it -- reported "no messages" for a
+// conversation they were never allowed to read.
+export type SlackHistory =
+  | { ok: true; messages: SlackMessage[] }
+  | { ok: false; error: string };
+
+// An explicit ok:false is Slack REFUSING and carries a code. Anything else
+// non-ok (null, {}, a truncated body) is a malformed payload -- a different
+// failure, and worth telling apart when the reason is shown to the user.
+export function parseHistory(json: unknown): SlackHistory {
   const r = obj(json);
-  if (r.ok !== true || !Array.isArray(r.messages)) return [];
-  return r.messages
-    .map((m) => obj(m))
-    .map((m) => ({ ts: str(m.ts), user: str(m.user), text: str(m.text) }));
+  if (r.ok === false) {
+    return { ok: false, error: str(r.error) || "unknown_error" };
+  }
+  if (r.ok !== true) return { ok: false, error: "bad_response" };
+  if (!Array.isArray(r.messages)) return { ok: false, error: "bad_response" };
+  return {
+    ok: true,
+    messages: r.messages
+      .map((m) => obj(m))
+      .map((m) => ({ ts: str(m.ts), user: str(m.user), text: str(m.text) })),
+  };
 }
