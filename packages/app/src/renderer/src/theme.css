@@ -447,27 +447,92 @@ body,
 
 .statusbar-side {
   display: flex;
-  gap: 12px;
-}
-
-.statusbar-item {
-  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-/* Clickable Anthropic status item (button reset to match the static items). */
-.statusbar-status {
-  background: none;
-  border: none;
-  color: inherit;
+/* Status-bar chips. The branch, the change count, and the Claude service
+   indicator were bare text floating on the bar; as pills they read as one
+   vocabulary and match the Update button's shape. Works as a <span> (static) or
+   a <button> (the Claude chip) -- the button styles are reset here. */
+.statusbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 17px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--hover);
+  border: 1px solid transparent;
+  color: var(--fg-dim);
   font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.statusbar-chip .codicon {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* The branch name is the primary token in its chip -- full-strength text, and
+   truncated so a long branch can't push the bar around. */
+.statusbar-branch {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* Ahead/behind counts: tight icon+number pairs, tabular so they don't jitter. */
+.statusbar-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.statusbar-sync .codicon {
+  font-size: 11px;
+}
+
+/* Clickable Anthropic status chip: opens status.claude.com. */
+.statusbar-status {
   cursor: pointer;
-  padding: 0;
 }
 .statusbar-status:hover {
+  background: var(--selected);
+  border-color: var(--accent-glow);
   color: var(--fg);
 }
+.statusbar-status-label {
+  color: var(--fg-dim);
+}
+/* The state word carries the tone; the dot alone is only a 7px cue. */
+.statusbar-status-value {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.statusbar-status.tone-ok .statusbar-status-value {
+  color: #3fb950;
+}
+.statusbar-status.tone-warn .statusbar-status-value {
+  color: #d29922;
+}
+.statusbar-status.tone-fail .statusbar-status-value {
+  color: #f85149;
+}
+.statusbar-status.tone-unknown .statusbar-status-value {
+  color: var(--fg-dim);
+}
+
+/* NOTE: the status-bar's .status-dot overrides live next to the base .status-dot
+   rules further down (so specificity ascends -- noDescendingSpecificity). */
 
 /* Amber dot for degraded/maintenance (the tone used by .badge / .identity-warning). */
 .status-dot.warn {
@@ -1844,6 +1909,27 @@ button.quota-meter:hover {
 .status-dot.fail {
   background: #f85149;
   border-color: #f85149;
+}
+
+/* Status-bar variant of the dot, declared AFTER the base rules so specificity
+   ascends. Scoped to the bar so other .status-dot users (DB rows, the account
+   list) keep their meaning: here "operational" reads GREEN (health) rather than
+   accent blue, and each state gets a soft halo so the dot looks live instead of
+   painted on. */
+.statusbar .status-dot {
+  width: 7px;
+  height: 7px;
+  border: none;
+}
+.statusbar .status-dot.on {
+  background: #3fb950;
+  box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.18);
+}
+.statusbar .status-dot.warn {
+  box-shadow: 0 0 0 2px rgba(210, 153, 34, 0.18);
+}
+.statusbar .status-dot.fail {
+  box-shadow: 0 0 0 2px rgba(248, 81, 73, 0.18);
 }
 
 .account-name {

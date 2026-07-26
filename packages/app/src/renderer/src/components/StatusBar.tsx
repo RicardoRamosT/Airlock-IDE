@@ -10,6 +10,15 @@ function dotClass(indicator: AnthropicStatus["indicator"]): string {
   return "status-dot"; // unknown
 }
 
+// Chip tone, which colors the state WORD (the dot alone is a 7px cue). Kept
+// separate from dotClass so the two can't drift apart.
+function statusTone(indicator: AnthropicStatus["indicator"]): string {
+  if (indicator === "operational") return "ok";
+  if (indicator === "outage") return "fail";
+  if (indicator === "degraded" || indicator === "maintenance") return "warn";
+  return "unknown";
+}
+
 // The Update button's label for the current apply phase.
 function updateLabel(progress: UpdateProgress): string {
   switch (progress.phase) {
@@ -51,29 +60,57 @@ export function StatusBar() {
     <footer className="statusbar">
       <div className="statusbar-side">
         {gitStatus && (
-          <span className="statusbar-item">
+          <span
+            className="statusbar-chip"
+            title={
+              gitStatus.branch.upstream
+                ? `On ${gitStatus.branch.head} — ${gitStatus.branch.ahead} ahead, ${gitStatus.branch.behind} behind ${gitStatus.branch.upstream}`
+                : `On ${gitStatus.branch.head} — no upstream`
+            }
+          >
             <i className="codicon codicon-git-branch" />
-            {gitStatus.branch.head}
-            {gitStatus.branch.upstream &&
-              ` ${gitStatus.branch.ahead}↑ ${gitStatus.branch.behind}↓`}
+            <span className="statusbar-branch">{gitStatus.branch.head}</span>
+            {/* Ahead/behind show only when non-zero: "0↑ 0↓" on every in-sync
+                branch was noise. The tooltip above always states both. */}
+            {gitStatus.branch.ahead > 0 && (
+              <span className="statusbar-sync">
+                <i className="codicon codicon-arrow-up" />
+                {gitStatus.branch.ahead}
+              </span>
+            )}
+            {gitStatus.branch.behind > 0 && (
+              <span className="statusbar-sync">
+                <i className="codicon codicon-arrow-down" />
+                {gitStatus.branch.behind}
+              </span>
+            )}
           </span>
         )}
         {gitStatus && changes > 0 && (
-          <span className="statusbar-item">{changes} changes</span>
+          <span
+            className="statusbar-chip"
+            title={`${changes} uncommitted change${changes === 1 ? "" : "s"}`}
+          >
+            <i className="codicon codicon-diff" />
+            {changes} changed
+          </span>
         )}
       </div>
       <div className="statusbar-side">
         {anthropicStatus && (
           <button
             type="button"
-            className="statusbar-item statusbar-status"
+            className={`statusbar-chip statusbar-status tone-${statusTone(anthropicStatus.indicator)}`}
             title={`${anthropicStatus.description || "Anthropic status"} — opens status.claude.com`}
             onClick={() =>
               void window.airlock.hostOpenExternal("https://status.claude.com")
             }
           >
             <span className={dotClass(anthropicStatus.indicator)} />
-            Claude: {anthropicStatus.indicator}
+            <span className="statusbar-status-label">Claude</span>
+            <span className="statusbar-status-value">
+              {anthropicStatus.indicator}
+            </span>
           </button>
         )}
         {update?.available && (

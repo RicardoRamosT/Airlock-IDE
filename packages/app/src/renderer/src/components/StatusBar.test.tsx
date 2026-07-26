@@ -35,8 +35,10 @@ const status = (indicator: AnthropicStatus["indicator"]): AnthropicStatus => ({
 
 it("shows the Claude status label and opens the status page on click", () => {
   useApp.setState({ anthropicStatus: status("operational") });
-  const { getByText } = render(<StatusBar />);
-  fireEvent.click(getByText(/Claude:/));
+  const { getByRole, getByText } = render(<StatusBar />);
+  // Label and state are separate spans in the chip; the whole chip is the button.
+  expect(getByText("Claude")).toBeTruthy();
+  fireEvent.click(getByRole("button", { name: /claude/i }));
   expect(hostOpenExternal).toHaveBeenCalledWith("https://status.claude.com");
 });
 
