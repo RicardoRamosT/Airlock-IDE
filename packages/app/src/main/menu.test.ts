@@ -31,9 +31,9 @@ describe("sectionSubmenuItems", () => {
       "Databases",
       "Docker",
       "Host",
-      "Extensions",
       "Audit",
       "Events",
+      "Extensions",
     ]);
     expect(items.every((i) => i.type === "checkbox")).toBe(true);
   });

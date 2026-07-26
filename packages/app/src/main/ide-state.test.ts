@@ -22,9 +22,9 @@ describe("listSidebarSections", () => {
       { id: "databases", label: "Databases", visible: true },
       { id: "docker", label: "Docker", visible: true },
       { id: "host", label: "Host", visible: true },
-      { id: "extensions", label: "Extensions", visible: true },
       { id: "audit", label: "Audit", visible: true },
       { id: "events", label: "Events", visible: true },
+      { id: "extensions", label: "Extensions", visible: true },
     ]);
   });
 

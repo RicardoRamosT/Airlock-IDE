@@ -31,9 +31,11 @@ export const BUILTIN_SECTIONS: BuiltinSection[] = [
   "databases",
   "docker",
   "host",
-  "extensions",
   "audit",
   "events",
+  // Last, matching the rail: the Extensions hub leads the extensions group,
+  // below the divider, so the View menu lists it in the same place.
+  "extensions",
 ];
 
 // A valid sidebar section id: a known built-in, or a well-formed ext:<id>.

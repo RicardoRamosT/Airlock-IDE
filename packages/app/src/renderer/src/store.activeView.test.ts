@@ -20,9 +20,9 @@ it("lists all ten built-in sections in canonical sidebar order", () => {
     "databases",
     "docker",
     "host",
-    "extensions",
     "audit",
     "events",
+    "extensions",
   ]);
 });
 

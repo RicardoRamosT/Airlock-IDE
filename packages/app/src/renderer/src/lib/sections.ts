@@ -4,29 +4,38 @@ export interface SectionMeta {
   id: Section;
   label: string;
   icon: string;
-  kind: "builtin" | "extension";
+  // Which RAIL GROUP the icon belongs to, not where it came from: the built-in
+  // Extensions hub sits in the "extensions" group (leading it), because that is
+  // where a user looks for anything extension-related. Provenance is still
+  // recoverable from the id via parseExtSection.
+  group: "core" | "extensions";
 }
+
+// The built-in Extensions hub. Lives in the extensions rail group and leads it.
+export const EXTENSIONS_HUB_SECTION = "extensions" as const;
 
 // The BUILT-IN sidebar sections: canonical order, display label, activity-bar
 // icon (codicon name). Extensions are appended at runtime by composeSectionMeta,
 // so this list stays static and closed. The activity bar, the sidebar header,
 // and the command palette all derive from the COMPOSED list (held in the store).
 export const BUILTIN_SECTION_META: SectionMeta[] = [
-  { id: "files", label: "Files", icon: "files", kind: "builtin" },
-  { id: "secrets", label: "Secrets", icon: "lock", kind: "builtin" },
-  { id: "git", label: "Git", icon: "source-control", kind: "builtin" },
-  { id: "activity", label: "Activity", icon: "pulse", kind: "builtin" },
-  { id: "databases", label: "Databases", icon: "database", kind: "builtin" },
-  { id: "docker", label: "Docker", icon: "vm", kind: "builtin" },
-  { id: "host", label: "Host", icon: "globe", kind: "builtin" },
+  { id: "files", label: "Files", icon: "files", group: "core" },
+  { id: "secrets", label: "Secrets", icon: "lock", group: "core" },
+  { id: "git", label: "Git", icon: "source-control", group: "core" },
+  { id: "activity", label: "Activity", icon: "pulse", group: "core" },
+  { id: "databases", label: "Databases", icon: "database", group: "core" },
+  { id: "docker", label: "Docker", icon: "vm", group: "core" },
+  { id: "host", label: "Host", icon: "globe", group: "core" },
+  { id: "audit", label: "Audit", icon: "shield", group: "core" },
+  { id: "events", label: "Events", icon: "list-flat", group: "core" },
+  // LAST, and in the extensions group: the hub leads everything
+  // extension-related, below the rail divider.
   {
-    id: "extensions",
+    id: EXTENSIONS_HUB_SECTION,
     label: "Extensions",
     icon: "extensions",
-    kind: "builtin",
+    group: "extensions",
   },
-  { id: "audit", label: "Audit", icon: "shield", kind: "builtin" },
-  { id: "events", label: "Events", icon: "list-flat", kind: "builtin" },
 ];
 
 const EXT_PREFIX = "ext:";
@@ -53,7 +62,7 @@ export function composeSectionMeta(
       id: extSectionId(e.id) as Section,
       label: e.name,
       icon: e.icon ?? "extensions",
-      kind: "extension" as const,
+      group: "extensions" as const,
     })),
   ];
 }

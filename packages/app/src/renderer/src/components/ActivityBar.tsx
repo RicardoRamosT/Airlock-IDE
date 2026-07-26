@@ -111,8 +111,8 @@ export function ActivityBar() {
             // A hairline before the FIRST extension icon, so the rail reads as
             // built-ins then extensions rather than one ever-growing list.
             const firstExt =
-              m.kind === "extension" &&
-              (i === 0 || shown[i - 1]?.kind === "builtin");
+              m.group === "extensions" &&
+              (i === 0 || shown[i - 1]?.group === "core");
             return (
               <Fragment key={m.id}>
                 {firstExt && <div className="activity-bar-divider" />}

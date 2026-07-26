@@ -126,10 +126,16 @@ it("renders extension icons after the built-ins, with a divider between", () => 
   expect(icons[icons.length - 1]?.getAttribute("title")).toBe("Slack");
 });
 
-it("renders NO divider when there are no extension sections", () => {
+it("renders the divider before the Extensions hub even with no extensions", () => {
+  // The hub itself lives in the extensions group and leads it, so the rail is
+  // always split into core / extensions.
   useApp.setState({ sectionMeta: composeSectionMeta([]) });
   const { container } = render(<ActivityBar />);
-  expect(container.querySelector(".activity-bar-divider")).toBeNull();
+  expect(container.querySelector(".activity-bar-divider")).toBeTruthy();
+  const titles = [...container.querySelectorAll(".activity-icon")].map((n) =>
+    n.getAttribute("title"),
+  );
+  expect(titles[titles.length - 1]).toBe("Extensions");
 });
 
 it("shows an extension icon that has NO persisted visibility key", () => {
@@ -162,5 +168,6 @@ it("hides an extension icon explicitly set to false", () => {
     n.getAttribute("title"),
   );
   expect(titles).not.toContain("Slack");
-  expect(container.querySelector(".activity-bar-divider")).toBeNull();
+  // The divider stays: the Extensions hub still occupies the group.
+  expect(container.querySelector(".activity-bar-divider")).toBeTruthy();
 });

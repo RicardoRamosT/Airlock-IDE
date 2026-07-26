@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BUILTIN_SECTION_META,
   composeSectionMeta,
+  EXTENSIONS_HUB_SECTION,
   effectiveView,
   extSectionId,
   parseExtSection,
@@ -35,11 +36,11 @@ describe("composeSectionMeta", () => {
       id: "ext:slack",
       label: "Slack",
       icon: "comment-discussion",
-      kind: "extension",
+      group: "extensions",
     });
     // Built-ins keep their order and their kind.
     expect(meta[0]?.id).toBe("files");
-    expect(meta[0]?.kind).toBe("builtin");
+    expect(meta[0]?.group).toBe("core");
   });
 
   it("falls back to a generic icon when the extension declares none", () => {
@@ -52,8 +53,55 @@ describe("composeSectionMeta", () => {
       { id: "slack", name: "Slack" },
       { id: "github", name: "GitHub" },
     ]);
-    const ids = meta.filter((m) => m.kind === "extension").map((m) => m.id);
+    const ids = meta.filter((m) => m.id.startsWith("ext:")).map((m) => m.id);
     expect(ids).toEqual(["ext:slack", "ext:github"]);
+  });
+});
+
+describe("rail groups", () => {
+  it("puts the Extensions hub FIRST in the extensions group, not among the core icons", () => {
+    const meta = composeSectionMeta([
+      { id: "slack", name: "Slack" },
+      { id: "github", name: "GitHub" },
+    ]);
+    const groups = meta.map((m) => m.group);
+    // Every core icon precedes every extensions-group icon.
+    expect(groups.lastIndexOf("core")).toBeLessThan(
+      groups.indexOf("extensions"),
+    );
+    // And the hub leads that group.
+    const extGroup = meta.filter((m) => m.group === "extensions");
+    expect(extGroup[0]?.id).toBe(EXTENSIONS_HUB_SECTION);
+    expect(extGroup.map((m) => m.id)).toEqual([
+      "extensions",
+      "ext:slack",
+      "ext:github",
+    ]);
+  });
+
+  it("keeps the hub in the extensions group even with no extensions connected", () => {
+    const meta = composeSectionMeta([]);
+    const last = meta[meta.length - 1];
+    expect(last?.id).toBe(EXTENSIONS_HUB_SECTION);
+    expect(last?.group).toBe("extensions");
+  });
+
+  it("leaves the core icons in their canonical order", () => {
+    expect(
+      composeSectionMeta([])
+        .filter((m) => m.group === "core")
+        .map((m) => m.id),
+    ).toEqual([
+      "files",
+      "secrets",
+      "git",
+      "activity",
+      "databases",
+      "docker",
+      "host",
+      "audit",
+      "events",
+    ]);
   });
 });
 
