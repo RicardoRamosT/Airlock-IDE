@@ -65,6 +65,18 @@ export function SlackSection() {
     [root],
   );
 
+  // Poll ONLY what is expanded, and only while the window is visible: a
+  // backgrounded AirLock must not quietly hit Slack every 30s. Collapsed
+  // channels cost nothing.
+  useEffect(() => {
+    if (!root || expanded.size === 0) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      for (const channelId of expanded) void load(channelId);
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [root, expanded, load]);
+
   const toggle = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
