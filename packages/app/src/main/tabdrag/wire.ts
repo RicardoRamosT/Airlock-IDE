@@ -10,6 +10,11 @@
 import { BrowserWindow, screen } from "electron";
 import type { DropTarget, MovingTab, TabDragHover } from "../../shared/ipc";
 import { createWindowForAdopt, windowBoxesFrontMostFirst } from "../window";
+import {
+  hideCursorHint,
+  isCursorHintWindow,
+  showCursorHint,
+} from "./cursorHint";
 import type { MovingSessions } from "./moving";
 import { resolveDropTarget, sameTarget } from "./target";
 
@@ -62,16 +67,20 @@ export function forgetWindow(windowId: number): void {
 
 function broadcast(h: TabDragHover): void {
   for (const w of BrowserWindow.getAllWindows()) {
+    if (isCursorHintWindow(w.id)) continue; // the drag label has no listener
     if (!w.webContents.isDestroyed()) w.webContents.send("tabdrag:hover", h);
   }
 }
 
+function targetAt(
+  point: { x: number; y: number },
+  sourceWindowId: number,
+): DropTarget {
+  return resolveDropTarget(point, windowBoxesFrontMostFirst(), sourceWindowId);
+}
+
 function currentTarget(sourceWindowId: number): DropTarget {
-  return resolveDropTarget(
-    screen.getCursorScreenPoint(),
-    windowBoxesFrontMostFirst(),
-    sourceWindowId,
-  );
+  return targetAt(screen.getCursorScreenPoint(), sourceWindowId);
 }
 
 function stop(): void {
@@ -82,6 +91,8 @@ function stop(): void {
   dragSourceId = null;
   lastTarget = null;
   dragLabel = null;
+  // Every drag-exit path funnels through here, so the label can never be orphaned.
+  hideCursorHint();
 }
 
 export function startTabDrag(
@@ -102,7 +113,19 @@ export function startTabDrag(
       stop();
       return;
     }
-    const target = currentTarget(dragSourceId);
+    const point = screen.getCursorScreenPoint();
+    const target = targetAt(point, dragSourceId);
+    // Outside every window the in-strip hint is out of sight -- the user is looking
+    // at the cursor -- so the message follows the pointer instead. Repositioned on
+    // EVERY tick, which is why this sits above the edge-triggered broadcast below.
+    if (target.kind === "detach") {
+      showCursorHint(
+        `Release to open ${dragLabel ?? "this project"} in a new window`,
+        point,
+      );
+    } else {
+      hideCursorHint();
+    }
     if (lastTarget && sameTarget(lastTarget, target)) return;
     lastTarget = target;
     broadcast({ target, sourceWindowId: dragSourceId, label: dragLabel });

@@ -8,6 +8,7 @@ import { BrowserWindow, screen, type WebContents } from "electron";
 import type { MovingTab } from "../shared/ipc";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
+import { isCursorHintWindow } from "./tabdrag/cursorHint";
 import type { WindowBox } from "./tabdrag/target";
 import {
   forgetWindow,
@@ -118,7 +119,13 @@ export function lastFocusedWindow(): BrowserWindow | null {
   }
   const focused = BrowserWindow.getFocusedWindow();
   if (focused && !focused.isDestroyed()) return focused;
-  return BrowserWindow.getAllWindows()[0] ?? null;
+  // Skip the cursor drag label: it is a BrowserWindow but not an app window, and
+  // handing it to the IDE-control commands would target a tooltip.
+  return (
+    BrowserWindow.getAllWindows().find(
+      (w) => !w.isDestroyed() && !isCursorHintWindow(w.id),
+    ) ?? null
+  );
 }
 
 // The window currently showing `root` (active-tab match first, else any window
@@ -211,8 +218,12 @@ export function createWindow(): BrowserWindow {
 // (e.g. one just created) sort last.
 export function windowBoxesFrontMostFirst(): WindowBox[] {
   const live = new Map<number, BrowserWindow>();
-  for (const w of BrowserWindow.getAllWindows())
-    if (!w.isDestroyed()) live.set(w.id, w);
+  for (const w of BrowserWindow.getAllWindows()) {
+    // Skip the drag label that follows the cursor: it is a BrowserWindow, so it
+    // would otherwise be a droppable target and could swallow its own drag.
+    if (w.isDestroyed() || isCursorHintWindow(w.id)) continue;
+    live.set(w.id, w);
+  }
   const ordered: BrowserWindow[] = [];
   for (const id of focusOrder) {
     const w = live.get(id);
