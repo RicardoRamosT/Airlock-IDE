@@ -390,6 +390,20 @@ export async function startMcpServer(
         const server = createMcpServer(reqDeps, docs);
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined,
+          // Answer with a self-delimiting application/json body instead of an
+          // SSE stream. WHY (diagnosed 2026-07-26): an SSE event is only
+          // complete when it ends with a blank line, and this server was
+          // emitting frames whose trailing "\n\n" never reached the wire -- the
+          // chunk header itself declared the short length. A spec-compliant
+          // client (Claude Code) therefore never dispatched the event and sat
+          // until its 300s idle timeout ("sent no response or progress for
+          // 300s") even though the bytes had arrived in 4ms. It degraded with
+          // uptime: at first only one response truncated, later every one did.
+          // Stateless mode has no standalone SSE stream (GET/DELETE are 405'd
+          // above) and NOTHING here ever pushes a server-initiated message, so
+          // the stream bought us nothing and cost us the whole failure mode.
+          // JSON also drops the ~6s the SSE response held each socket open.
+          enableJsonResponse: true,
         });
         // Tear both down once the response is done so we do not leak a server +
         // transport per request.

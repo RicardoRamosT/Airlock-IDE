@@ -220,6 +220,60 @@ describe("MCP server handshake", () => {
   });
 });
 
+// Response framing. Stateless mode never pushes server-initiated messages, so a
+// POST answer needs no SSE stream -- and SSE framing is what broke clients: an
+// event is only complete when it ends with a blank line, and a frame that lost
+// its trailing "\n\n" left the client waiting until its 300s idle timeout while
+// the bytes sat in its buffer undispatched. A self-delimiting JSON body has no
+// terminator to lose.
+describe("MCP server response framing", () => {
+  it("answers a tools/call with a self-delimiting JSON body, never an SSE frame", async () => {
+    const port = await startOnEphemeralPort();
+    await rpc(port, INITIALIZE);
+    const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "list_secret_names", arguments: {} },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/json");
+
+    const text = await res.text();
+    // No SSE framing at all -- nothing for a client to wait on.
+    expect(text).not.toContain("event: message");
+    expect(text).not.toContain("data:");
+    // The whole body parses as one JSON-RPC message, with no frame to strip.
+    const json = JSON.parse(text) as { id?: unknown; result?: unknown };
+    expect(json.id).toBe(2);
+    expect(json.result).toBeDefined();
+  });
+
+  it("answers initialize with JSON too (the handshake uses the same path)", async () => {
+    const port = await startOnEphemeralPort();
+    const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify(INITIALIZE),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    expect(await res.text()).not.toContain("event: message");
+  });
+});
+
 // Per-request path token: the server resolves the project root from the URL path
 // /mcp/<token>. A missing/unknown token -> rootForToken returns null -> tools
 // answer NO_WORKSPACE (focus is NOT consulted). A known token -> the tool sees
