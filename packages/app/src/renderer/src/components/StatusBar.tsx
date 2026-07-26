@@ -113,23 +113,25 @@ export function StatusBar() {
             </span>
           </button>
         )}
-        {update?.available && (
-          <button
-            type="button"
-            className="statusbar-update"
-            disabled={busy}
-            title={
-              updateProgress.phase === "error"
-                ? updateProgress.message
-                : `Update ${update.currentVersion} → ${update.latestVersion}`
-            }
-            onClick={() => void window.airlock.updateApply()}
-          >
-            <i className="codicon codicon-arrow-up" />
-            {updateLabel(updateProgress)}
-          </button>
-        )}
       </div>
+      {/* Centered and OUT of both sides' flow (absolutely positioned): the button
+          appears and disappears without shifting the Claude chip or the branch. */}
+      {update?.available && (
+        <button
+          type="button"
+          className="statusbar-update"
+          disabled={busy}
+          title={
+            updateProgress.phase === "error"
+              ? updateProgress.message
+              : `Update ${update.currentVersion} → ${update.latestVersion}`
+          }
+          onClick={() => void window.airlock.updateApply()}
+        >
+          <i className="codicon codicon-arrow-up" />
+          {updateLabel(updateProgress)}
+        </button>
+      )}
     </footer>
   );
 }

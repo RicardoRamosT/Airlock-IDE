@@ -553,37 +553,84 @@ body,
   border-color: #d29922;
 }
 
-/* The far-right Update call-to-action (accent), only shown when available. */
+/* The Update call-to-action, shown only when an update is available.
+   CENTERED and absolutely positioned so it takes no space in either
+   .statusbar-side -- appearing/disappearing must not shove the Claude status
+   chip or the branch sideways. (.statusbar is position:relative already.) */
 .statusbar-update {
-  display: flex;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-left: 4px;
-  padding: 2px 12px;
-  background: var(--accent);
+  height: 18px;
+  padding: 0 12px;
+  /* Slight vertical gradient + inner top highlight so the pill reads as a raised
+     button rather than a flat accent blob. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent), #ffffff 14%),
+    var(--accent)
+  );
   border: none;
   border-radius: 999px; /* pill */
   color: #fff;
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 1px 5px var(--accent-glow);
+  box-shadow:
+    0 1px 6px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition:
     filter 120ms ease,
-    box-shadow 120ms ease,
-    transform 80ms ease;
+    box-shadow 120ms ease;
+  /* Pulse a few times on APPEARANCE to catch the eye, then settle -- the element
+     mounts only when an update arrives, so this runs once per update, not on
+     every re-render. */
+  animation: update-attention 1.9s ease-out 3;
+}
+.statusbar-update .codicon {
+  font-size: 12px;
+}
+@keyframes update-attention {
+  0%,
+  100% {
+    box-shadow:
+      0 1px 6px var(--accent-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 1px 14px var(--accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
 }
 .statusbar-update:hover:not(:disabled) {
-  filter: brightness(1.12);
-  box-shadow: 0 2px 9px var(--accent-glow);
+  filter: brightness(1.1);
+  box-shadow:
+    0 2px 12px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
+/* Keep the centering translate when pressing, or the button would jump to the
+   left edge on click. */
 .statusbar-update:active:not(:disabled) {
-  transform: translateY(0.5px);
+  transform: translate(-50%, calc(-50% + 0.5px));
 }
 .statusbar-update:disabled {
-  opacity: 0.7;
+  opacity: 0.75;
   cursor: default;
   box-shadow: none;
+  animation: none; /* mid-apply (downloading/mounting): stop soliciting clicks */
+}
+@media (prefers-reduced-motion: reduce) {
+  .statusbar-update {
+    animation: none;
+  }
 }
 
 /* Window-level workspace row: icon rail | ONE shared sidebar | panes. The rail
