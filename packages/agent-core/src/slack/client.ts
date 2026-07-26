@@ -10,7 +10,7 @@ import {
   parseUsers,
   type SlackAuth,
   type SlackChannel,
-  type SlackMessage,
+  type SlackHistory,
   type SlackUser,
 } from "./parse";
 
@@ -104,7 +104,7 @@ export async function channelHistory(
   channel: string,
   limit: number,
   tx: SlackTransport = fetchTransport,
-): Promise<SlackMessage[]> {
+): Promise<SlackHistory> {
   const json = await tx("conversations.history", token, {
     channel,
     limit: String(Math.max(1, Math.min(100, Math.floor(limit) || 20))),

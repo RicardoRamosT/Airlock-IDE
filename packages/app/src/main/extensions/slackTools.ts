@@ -8,6 +8,8 @@
 import {
   type ConvKind,
   getSecretValue,
+  type SlackHistory,
+  type SlackUser,
   slackChannelHistory,
 } from "@airlock/agent-core";
 import {
@@ -46,13 +48,33 @@ export async function slackListAllowedChannelsTool(
   };
 }
 
+// Impure dependencies, injected so the gate and the result mapping are unit
+// testable without disk config or the keychain. Production passes nothing.
+export interface SlackReadDeps {
+  allowed?: (root: string) => Promise<AllowedChannel[]>;
+  token?: (root: string) => Promise<string | null>;
+  history?: (
+    token: string,
+    channel: string,
+    limit: number,
+  ) => Promise<SlackHistory>;
+  users?: (root: string, token: string) => Promise<SlackUser[]>;
+}
+
 export async function slackReadChannelTool(
   root: string | null,
   channel: string,
   limit: number,
+  deps: SlackReadDeps = {},
 ): Promise<SlackReadResult> {
   if (!root) return { error: "No project is focused." };
-  const allowed = await allowedChannels(root);
+  const getAllowed = deps.allowed ?? allowedChannels;
+  const getToken =
+    deps.token ??
+    ((r: string) => getSecretValue(r, SLACK_TOKEN_NAME).catch(() => null));
+  const getHistory = deps.history ?? slackChannelHistory;
+
+  const allowed = await getAllowed(root);
   const match = resolveAllowedChannel(allowed, channel);
   if (!match) {
     const list =
@@ -62,11 +84,19 @@ export async function slackReadChannelTool(
       error: `Channel "${channel}" is not allowed. Allowed channels: ${list}.`,
     };
   }
-  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  const token = await getToken(root);
   if (!token) return { error: "Slack is not connected for this project." };
   try {
-    const messages = await slackChannelHistory(token, match.id, limit);
-    return { channel: `${convGlyph(match.kind)}${match.name}`, messages };
+    const history = await getHistory(token, match.id, limit);
+    if (!history.ok) {
+      // Say WHY. An empty list here would claim the channel is empty when
+      // Slack actually refused the read.
+      return { error: `Slack refused: ${history.error}` };
+    }
+    return {
+      channel: `${convGlyph(match.kind)}${match.name}`,
+      messages: history.messages,
+    };
   } catch (e) {
     // Surface the reason (timeout/abort vs network) instead of a generic string
     // -- a bare "failed" hid why reads were stalling.

@@ -73,11 +73,38 @@ describe("slack client (fake transport)", () => {
       ok: true,
       messages: [{ ts: "1.1", user: "U1", text: "hi" }],
     }));
-    const msgs = await channelHistory("t", "C1", 5000, tx);
-    expect(msgs).toEqual([{ ts: "1.1", user: "U1", text: "hi" }]);
+    const r = await channelHistory("t", "C1", 5000, tx);
+    expect(r).toEqual({
+      ok: true,
+      messages: [{ ts: "1.1", user: "U1", text: "hi" }],
+    });
     expect(tx).toHaveBeenCalledWith("conversations.history", "t", {
       channel: "C1",
       limit: "100",
+    });
+  });
+});
+
+describe("channelHistory result shape", () => {
+  it("returns ok:true with parsed messages", async () => {
+    const tx: SlackTransport = async () => ({
+      ok: true,
+      messages: [{ ts: "1.0", user: "U1", text: "hi" }],
+    });
+    await expect(channelHistory("tok", "C1", 20, tx)).resolves.toEqual({
+      ok: true,
+      messages: [{ ts: "1.0", user: "U1", text: "hi" }],
+    });
+  });
+
+  it("propagates a Slack refusal instead of an empty list", async () => {
+    const tx: SlackTransport = async () => ({
+      ok: false,
+      error: "not_in_channel",
+    });
+    await expect(channelHistory("tok", "C1", 20, tx)).resolves.toEqual({
+      ok: false,
+      error: "not_in_channel",
     });
   });
 });
