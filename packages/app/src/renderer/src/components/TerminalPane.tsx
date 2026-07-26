@@ -364,14 +364,28 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // Read via getState at spawn time: cwd is a spawn-time property, and a
     // root change kills/remounts the pane anyway, so it must not be a dep.
     const paneRoot = useApp.getState().tabState[tabId]?.root ?? null;
-    window.airlock
-      .ptyCreate(term.cols, term.rows, paneRoot)
+    // A tab moved in from another window (tear-off / merge) carries LIVE ptys:
+    // ADOPT one instead of spawning, so the running session (often a mid-turn
+    // `claude`) continues. takePendingAdopt is single-use, so a later remount of
+    // this pane spawns normally.
+    const adoptId = useApp.getState().takePendingAdopt(terminalId);
+    const attach: Promise<string> = adoptId
+      ? window.airlock.ptyAdopt(adoptId).then((r) => {
+          if (!r.ok) throw new Error(r.error);
+          // Rehydrate scrollback BEFORE live data resumes. Written directly, not
+          // via writeChunk: replayed history must not count toward the
+          // flow-control high-water mark and trigger a spurious XOFF.
+          if (r.tail) term.write(r.tail);
+          return adoptId;
+        })
+      : window.airlock.ptyCreate(term.cols, term.rows, paneRoot);
+    attach
       .then((id) => {
         if (disposed) {
-          // Late resolve after unmount: the session would orphan; kill it.
-          // Return BEFORE flushing - the terminal is gone, so pending bytes
-          // must not be written into a disposed instance.
-          window.airlock.ptyKill(id);
+          // Late resolve after unmount. An ADOPTED session belongs to a tab that
+          // is alive elsewhere, so killing it would destroy the user's running
+          // session -- only a freshly spawned one is cleaned up here.
+          if (!adoptId) window.airlock.ptyKill(id);
           return;
         }
         idRef.current = id;
@@ -384,6 +398,9 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         }
         pending.length = 0;
         setTerminalPty(terminalId, id);
+        // An ADOPTED terminal already has its session (often a running claude);
+        // injecting a command would type into it. Only a fresh spawn auto-starts.
+        if (adoptId) return;
         // Auto-start claude when the store grants it (mode/blank-tab/claim
         // logic lives there). Typed-ahead bytes sit in the pty buffer until
         // zsh reads them, so shell startup timing cannot drop the command.
@@ -467,8 +484,19 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
       title.dispose();
       offData();
       offExit();
-      // Tab closed / root changed: the session must die with the pane.
-      if (idRef.current && !exited) window.airlock.ptyKill(idRef.current);
+      // Tab closed / root changed: the session must die with the pane -- EXCEPT
+      // when this pane's pty is MOVING to another window (tab tear-off / merge),
+      // where the whole point is that the session survives the move.
+      const movingOut =
+        idRef.current !== null &&
+        useApp.getState().movingPtyIds.includes(idRef.current);
+      if (idRef.current && movingOut) {
+        // Consume the marker: it must protect this one unmount, not every future
+        // close of the same pty (a tab merged back here must still be killable).
+        useApp.getState().forgetMovingPty(idRef.current);
+      } else if (idRef.current && !exited) {
+        window.airlock.ptyKill(idRef.current);
+      }
       term.dispose();
       termRef.current = null;
       idRef.current = null;

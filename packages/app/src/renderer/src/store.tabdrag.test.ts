@@ -95,6 +95,18 @@ it("adoptTab inserts a focused tab and queues its ptys for adoption", () => {
   expect(useApp.getState().takePendingAdopt("term-9")).toBeNull();
 });
 
+it("forgetMovingPty is single-use so a merged-back tab stays killable", () => {
+  const bId = seedTwo();
+  useApp.getState().detachTab(bId);
+  expect(useApp.getState().movingPtyIds).toContain("pty-9");
+  // The departing pane consumes the marker on unmount.
+  useApp.getState().forgetMovingPty("pty-9");
+  expect(useApp.getState().movingPtyIds).not.toContain("pty-9");
+  // Forgetting an unknown id is a no-op, not a crash.
+  useApp.getState().forgetMovingPty("pty-nope");
+  expect(useApp.getState().movingPtyIds).toEqual([]);
+});
+
 it("a detach/adopt round trip preserves the pty and the pane scene", () => {
   const bId = seedTwo();
   const scene = useApp.getState().tabState[bId];

@@ -502,6 +502,8 @@ export interface AppState {
   detachTab: (tabId: string) => MovingTab | null;
   // Insert a tab moved in from another window and focus it.
   adoptTab: (payload: MovingTab) => void;
+  // Consume a moving-pty marker once its pane has unmounted (skipped the kill).
+  forgetMovingPty: (ptyId: string) => void;
 
   // --- App-global setters ---
   setSidebarVisible: (v: boolean) => void;
@@ -1540,6 +1542,17 @@ export const useApp = create<AppState>((set) => ({
     });
     if (payload) reportOpenRoots(useApp.getState().tabs);
     return payload;
+  },
+  // The moving marker is SINGLE-USE: the departing pane skips its kill once, then
+  // forgets. Otherwise the id would linger and a later legitimate close of that
+  // same pty (e.g. the tab is merged back here and then closed) would also skip
+  // the kill and orphan the shell.
+  forgetMovingPty: (ptyId) => {
+    set((s) =>
+      s.movingPtyIds.includes(ptyId)
+        ? { movingPtyIds: s.movingPtyIds.filter((id) => id !== ptyId) }
+        : {},
+    );
   },
   // Receive a tab from another window: insert it, focus it, and queue each of its
   // terminals in pendingAdopts so the pane adopts the LIVE pty instead of spawning.
