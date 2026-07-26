@@ -38,6 +38,18 @@ describe("renderEmoji", () => {
     expect(renderEmoji(":smile:")).toBe("😄");
   });
 
+  it("covers the FULL Slack table, not a curated subset", () => {
+    // The reported gap: :face_with_peeking_eye: rendered as a shortcode.
+    expect(renderEmoji(":face_with_peeking_eye:")).toBe("🫣");
+    // A few more from across the table, including flags and multi-codepoint
+    // sequences, which are the ones a naive single-codepoint map gets wrong.
+    expect(renderEmoji(":melting_face:")).toBe("🫠");
+    expect(renderEmoji(":saluting_face:")).toBe("🫡");
+    expect(renderEmoji(":flag-mx:")).toBe("🇲🇽");
+    expect(renderEmoji(":man-woman-girl:")).toBe("👨‍👩‍👧");
+    expect(renderEmoji(":pirate_flag:")).toBe("🏴‍☠️");
+  });
+
   it("leaves an already-Unicode emoji alone", () => {
     expect(renderEmoji("🙂 hi")).toBe("🙂 hi");
   });

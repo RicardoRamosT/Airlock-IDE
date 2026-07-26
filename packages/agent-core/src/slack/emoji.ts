@@ -1,220 +1,49 @@
 // packages/agent-core/src/slack/emoji.ts
 // Slack's Web API returns emoji as :shortcode: text -- its own client maps them
-// to Unicode at render time. Without this the transcript shows literal
+// to Unicode at render time. Without this the transcript shows a literal
 // ":slightly_smiling_face:" where Slack shows 🙂.
 //
 // Pure and dependency-free, applied in the SHARED read path so the agent sees
-// the emoji too rather than a shortcode it has to decode.
+// the emoji too rather than a shortcode it would have to decode.
 //
-// COVERAGE IS PARTIAL BY DESIGN. This is the common set, not Slack's full
-// ~1800-entry table (which needs a generated data source). An unmapped
-// shortcode is left EXACTLY as-is: workspace custom emoji (:parrot:) have no
-// Unicode equivalent at all, so the shortcode is the honest fallback and
-// dropping it would lose information.
-const EMOJI: Record<string, string> = {
-  // faces
-  slightly_smiling_face: "🙂",
-  smile: "😄",
-  smiley: "😃",
-  grinning: "😀",
-  grin: "😁",
-  laughing: "😆",
-  satisfied: "😆",
-  sweat_smile: "😅",
-  joy: "😂",
-  rolling_on_the_floor_laughing: "🤣",
-  wink: "😉",
-  blush: "😊",
-  yum: "😋",
-  sunglasses: "😎",
-  heart_eyes: "😍",
-  kissing_heart: "😘",
-  thinking_face: "🤔",
-  neutral_face: "😐",
-  expressionless: "😑",
-  no_mouth: "😶",
-  smirk: "😏",
-  unamused: "😒",
-  roll_eyes: "🙄",
-  face_with_rolling_eyes: "🙄",
-  flushed: "😳",
-  pleading_face: "🥺",
-  frowning: "😦",
-  anguished: "😧",
-  open_mouth: "😮",
-  astonished: "😲",
-  scream: "😱",
-  confused: "😕",
-  slightly_frowning_face: "🙁",
-  disappointed: "😞",
-  worried: "😟",
-  cry: "😢",
-  sob: "😭",
-  weary: "😩",
-  tired_face: "😫",
-  triumph: "😤",
-  rage: "😡",
-  angry: "😠",
-  sleeping: "😴",
-  sleepy: "😪",
-  mask: "😷",
-  nerd_face: "🤓",
-  star_struck: "🤩",
-  partying_face: "🥳",
-  upside_down_face: "🙃",
-  zipper_mouth_face: "🤐",
-  shushing_face: "🤫",
-  exploding_head: "🤯",
-  hot_face: "🥵",
-  cold_face: "🥶",
-  face_with_monocle: "🧐",
-  melting_face: "🫠",
-  // gestures & people
-  "+1": "👍",
-  thumbsup: "👍",
-  "-1": "👎",
-  thumbsdown: "👎",
-  ok_hand: "👌",
-  clap: "👏",
-  raised_hands: "🙌",
-  pray: "🙏",
-  muscle: "💪",
-  wave: "👋",
-  point_right: "👉",
-  point_left: "👈",
-  point_up: "☝️",
-  point_down: "👇",
-  crossed_fingers: "🤞",
-  handshake: "🤝",
-  writing_hand: "✍️",
-  eyes: "👀",
-  brain: "🧠",
-  man_shrugging: "🤷‍♂️",
-  woman_shrugging: "🤷‍♀️",
-  shrug: "🤷",
-  facepalm: "🤦",
-  // hearts & symbols
-  heart: "❤️",
-  orange_heart: "🧡",
-  yellow_heart: "💛",
-  green_heart: "💚",
-  blue_heart: "💙",
-  purple_heart: "💜",
-  black_heart: "🖤",
-  broken_heart: "💔",
-  sparkling_heart: "💖",
-  star: "⭐",
-  star2: "🌟",
-  sparkles: "✨",
-  zap: "⚡",
-  fire: "🔥",
-  boom: "💥",
-  collision: "💥",
-  100: "💯",
-  bangbang: "‼️",
-  question: "❓",
-  exclamation: "❗",
-  warning: "⚠️",
-  no_entry: "⛔",
-  white_check_mark: "✅",
-  heavy_check_mark: "✔️",
-  x: "❌",
-  o: "⭕",
-  recycle: "♻️",
-  // objects & work
-  tada: "🎉",
-  confetti_ball: "🎊",
-  rocket: "🚀",
-  bug: "🐛",
-  wrench: "🔧",
-  hammer: "🔨",
-  gear: "⚙️",
-  lock: "🔒",
-  unlock: "🔓",
-  key: "🔑",
-  bulb: "💡",
-  memo: "📝",
-  pencil: "📝",
-  book: "📖",
-  books: "📚",
-  clipboard: "📋",
-  calendar: "📅",
-  chart_with_upwards_trend: "📈",
-  chart_with_downwards_trend: "📉",
-  bar_chart: "📊",
-  mag: "🔍",
-  link: "🔗",
-  package: "📦",
-  inbox_tray: "📥",
-  outbox_tray: "📤",
-  email: "📧",
-  bell: "🔔",
-  no_bell: "🔕",
-  hourglass: "⌛",
-  hourglass_flowing_sand: "⏳",
-  alarm_clock: "⏰",
-  stopwatch: "⏱️",
-  computer: "💻",
-  desktop_computer: "🖥️",
-  iphone: "📱",
-  floppy_disk: "💾",
-  camera: "📷",
-  coffee: "☕",
-  beer: "🍺",
-  tea: "🍵",
-  pizza: "🍕",
-  cake: "🍰",
-  birthday: "🎂",
-  trophy: "🏆",
-  medal: "🏅",
-  dart: "🎯",
-  game_die: "🎲",
-  robot_face: "🤖",
-  ghost: "👻",
-  skull: "💀",
-  poop: "💩",
-  // nature & misc
-  sunny: "☀️",
-  cloud: "☁️",
-  rain_cloud: "🌧️",
-  snowflake: "❄️",
-  rainbow: "🌈",
-  moon: "🌙",
-  earth_americas: "🌎",
-  seedling: "🌱",
-  four_leaf_clover: "🍀",
-  rose: "🌹",
-  dog: "🐶",
-  cat: "🐱",
-  parrot: "🦜",
-  snake: "🐍",
-  whale: "🐳",
-  // arrows / control
-  arrow_up: "⬆️",
-  arrow_down: "⬇️",
-  arrow_left: "⬅️",
-  arrow_right: "➡️",
-  arrows_counterclockwise: "🔄",
-  repeat: "🔁",
-  fast_forward: "⏩",
-  rewind: "⏪",
-  play_or_pause_button: "⏯️",
-  stop_button: "⏹️",
-};
+// Coverage is Slack's FULL table (see emojiData.ts). What still cannot be
+// mapped is workspace CUSTOM emoji (:my_team_logo:): those are images served
+// from Slack with no Unicode equivalent, so the shortcode is left exactly as it
+// arrived -- honest, and it keeps the information rather than dropping it.
+import { EMOJI_TABLE } from "./emojiData";
 
-// A shortcode is [a-z0-9_+-] between colons. Anchoring on that (rather than
-// "anything between colons") keeps "15:49" and "3:1" untouched, because a
-// shortcode must be followed by a colon with no digits-only-colon ambiguity.
+// Built once on first use: ~1900 records, ~1970 names including aliases.
+let table: Map<string, string> | null = null;
+
+function lookup(): Map<string, string> {
+  if (table) return table;
+  const m = new Map<string, string>();
+  for (const record of EMOJI_TABLE.split(" ")) {
+    const eq = record.lastIndexOf("=");
+    if (eq < 1) continue;
+    const char = String.fromCodePoint(
+      ...record
+        .slice(eq + 1)
+        .split("-")
+        .map((cp) => Number.parseInt(cp, 16)),
+    );
+    for (const name of record.slice(0, eq).split(",")) m.set(name, char);
+  }
+  table = m;
+  return m;
+}
+
+// A shortcode is [a-z0-9_+-] between colons. Anchoring on that character class
+// (rather than "anything between colons") is what keeps times and ratios --
+// "15:49", "3:1" -- from being mangled.
 const SHORTCODE = /:([a-z0-9_+-]+):/g;
-// Slack appends skin tone as its own shortcode: ":+1::skin-tone-4:".
+// Slack appends skin tone as its own trailing shortcode: ":+1::skin-tone-4:".
 const SKIN_TONE = /:skin-tone-\d+:/g;
 
 export function renderEmoji(text: string): string {
   if (!text.includes(":")) return text;
+  const m = lookup();
   return text
     .replace(SKIN_TONE, "")
-    .replace(SHORTCODE, (whole, name: string) =>
-      // Unknown -> leave the shortcode exactly as it arrived.
-      Object.hasOwn(EMOJI, name) ? (EMOJI[name] as string) : whole,
-    );
+    .replace(SHORTCODE, (whole, name: string) => m.get(name) ?? whole);
 }
