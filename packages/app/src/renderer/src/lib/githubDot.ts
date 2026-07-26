@@ -11,27 +11,48 @@ import type { GithubInfo, ResolvedGithubAccount } from "../../../shared/ipc";
 //   yellow -- no. The repo resolves to one account but a DIFFERENT one is
 //             active, so a terminal push would use the wrong account -- the
 //             GitHub "404 repo not found" trap. Pin (or switch) to fix.
-//   null   -- nothing to report: gh isn't installed, no project is focused, or
-//             the repo has no resolvable account (no remote, or an org repo with
-//             no matching login). Deliberately NOT yellow: "unknown" must not
-//             read as "wrong", or the dot cries wolf on every unrelated repo.
-export type GithubDot = { level: "green" | "yellow"; title: string } | null;
+//   grey   -- UNKNOWN, shown "deactivated": gh isn't installed, no project is
+//             focused, or the repo has no resolvable account (no remote, or an
+//             org repo with no matching login). Deliberately not yellow --
+//             "unknown" must not read as "wrong" -- but still a dot, so the
+//             button's state is always legible instead of silently absent.
+//
+// `title` is a SUFFIX phrase: the rail renders it as "Accounts -- <title>", the
+// same "label -- status" tooltip shape the section icons use, so the button keeps
+// saying what it does while also reporting state.
+export type GithubDot = { level: "green" | "yellow" | "grey"; title: string };
+
+// Grey placeholders for the states the pure comparison can't speak to: before the
+// first read lands, and when the read itself failed.
+export const GH_DOT_CHECKING: GithubDot = {
+  level: "grey",
+  title: "checking account…",
+};
+export const GH_DOT_UNAVAILABLE: GithubDot = {
+  level: "grey",
+  title: "account status unavailable",
+};
 
 const same = (
   a: { host: string; username: string },
   b: { host: string; username: string },
 ): boolean =>
-  a.host === b.host &&
-  a.username.toLowerCase() === b.username.toLowerCase();
+  a.host === b.host && a.username.toLowerCase() === b.username.toLowerCase();
 
 export function githubAccountDot(
   info: GithubInfo | null,
   resolved: ResolvedGithubAccount | null,
 ): GithubDot {
-  if (!info?.gh.installed) return null;
+  if (!info) return GH_DOT_CHECKING;
+  if (!info.gh.installed)
+    return { level: "grey", title: "GitHub CLI (gh) not found" };
   // source "none" (or a null account) means we could not tell which account this
-  // repo wants -- report nothing rather than a false alarm.
-  if (!resolved || resolved.source === "none" || !resolved.account) return null;
+  // repo wants -- stay grey rather than raise a false alarm.
+  if (!resolved || resolved.source === "none" || !resolved.account)
+    return {
+      level: "grey",
+      title: "no account resolved for this project",
+    };
   const want = resolved.account;
 
   if (resolved.source === "override") {
@@ -41,8 +62,8 @@ export function githubAccountDot(
       level: "green",
       title:
         resolved.protocol === "ssh"
-          ? `GitHub: pinned to ${want.username} (SSH remote — sets commit identity)`
-          : `GitHub: pinned to ${want.username} for this project`,
+          ? `pinned to ${want.username} (SSH remote — sets commit identity)`
+          : `pinned to ${want.username} for this project`,
     };
   }
 
@@ -50,12 +71,12 @@ export function githubAccountDot(
   if (active && same(active, want))
     return {
       level: "green",
-      title: `GitHub: ${active.username} matches this repo`,
+      title: `${active.username} matches this repo`,
     };
   return {
     level: "yellow",
     title: active
-      ? `GitHub: ${active.username} is active but this repo wants ${want.username} — pin it to fix`
-      : `GitHub: no active account; this repo wants ${want.username}`,
+      ? `${active.username} is active but this repo wants ${want.username} — pin it to fix`
+      : `no active account; this repo wants ${want.username}`,
   };
 }

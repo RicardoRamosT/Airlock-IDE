@@ -91,19 +91,44 @@ describe("githubAccountDot", () => {
     expect(dot?.level).toBe("yellow");
   });
 
-  it("no dot when there is nothing to report (unknown must not read as wrong)", () => {
+  it("grey (deactivated) when unknown -- never yellow, so it can't read as wrong", () => {
     const accounts = [{ host: "github.com", username: "me", active: true }];
     // gh not installed
-    expect(githubAccountDot(info(accounts, false), null)).toBeNull();
+    expect(githubAccountDot(info(accounts, false), null)).toMatchObject({
+      level: "grey",
+    });
     // no info yet (still loading)
     expect(
       githubAccountDot(null, resolved({ host: "h", username: "u" }, "auto")),
-    ).toBeNull();
+    ).toMatchObject({ level: "grey" });
     // no project focused -> nothing resolved
-    expect(githubAccountDot(info(accounts), null)).toBeNull();
+    expect(githubAccountDot(info(accounts), null)).toMatchObject({
+      level: "grey",
+    });
     // no remote / org repo with no matching login
-    expect(githubAccountDot(info(accounts), resolved(null, "none"))).toBeNull();
+    expect(
+      githubAccountDot(info(accounts), resolved(null, "none")),
+    ).toMatchObject({ level: "grey" });
     // defensive: source says auto but no account came back
-    expect(githubAccountDot(info(accounts), resolved(null, "auto"))).toBeNull();
+    expect(
+      githubAccountDot(info(accounts), resolved(null, "auto")),
+    ).toMatchObject({ level: "grey" });
+  });
+
+  it("every state carries an explaining tooltip", () => {
+    const all = [
+      githubAccountDot(null, null),
+      githubAccountDot(info([], false), null),
+      githubAccountDot(info([]), resolved(null, "none")),
+      githubAccountDot(
+        info([{ host: "github.com", username: "me", active: true }]),
+        resolved({ host: "github.com", username: "me" }, "auto"),
+      ),
+      githubAccountDot(
+        info([{ host: "github.com", username: "other", active: true }]),
+        resolved({ host: "github.com", username: "me" }, "auto"),
+      ),
+    ];
+    for (const d of all) expect(d.title.length).toBeGreaterThan(0);
   });
 });

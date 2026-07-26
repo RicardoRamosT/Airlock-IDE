@@ -150,12 +150,12 @@ export function ActivityBar() {
         <button
           type="button"
           className={`footer-btn${open === "accounts" ? " active" : ""}`}
-          title={ghDot ? ghDot.title : "Accounts"}
+          title={`Accounts — ${ghDot.title}`}
           onClick={() => setOpen(open === "accounts" ? null : "accounts")}
         >
           <span className="activity-icon-glyph">
             <i className="codicon codicon-account" />
-            {ghDot && <span className={`activity-dot ${ghDot.level}`} />}
+            <span className={`activity-dot ${ghDot.level}`} />
           </span>
         </button>
         <button
