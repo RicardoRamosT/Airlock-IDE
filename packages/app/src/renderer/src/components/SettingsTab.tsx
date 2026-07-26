@@ -200,74 +200,70 @@ export function SettingsTab() {
                 On: opening a folder adds it as a tab in this window, so you can
                 switch between projects without juggling windows. Off: each
                 project opens on its own and "New Window" gives you a separate
-                window per project. The agent always operates on the project you
-                are currently viewing.
+                window per project. Either way you can drag a project tab out of
+                the window to give it its own — its terminals keep running — or
+                drop it onto another window to merge it back in. The agent
+                always operates on the project you are currently viewing.
               </p>
-              <div className="settings-row">
-                <label htmlFor="show-running-notice">
-                  Show running-process notice
-                </label>
-                <input
-                  id="show-running-notice"
-                  type="checkbox"
-                  checked={showRunningProcessNotice}
-                  onChange={(e) => {
-                    const v = e.target.checked;
-                    useApp.getState().setLayoutHydrated(true);
-                    setShowRunningProcessNotice(v);
-                    void window.airlock.prefsSet({
-                      showRunningProcessNotice: v,
-                    });
-                  }}
-                />
-              </div>
-              <p className="settings-note">
-                When opening a folder keeps a terminal that has a running
-                session (e.g. <code>claude</code>), show a reminder that the
-                session stays in its old directory and must be restarted in the
-                new folder to get its context.
-              </p>
-              <div className="settings-sublabel">Sidebar position</div>
-              <label className="settings-row">
-                <input
-                  type="radio"
-                  name="sidebar-position"
-                  checked={sidebarPosition === "left"}
-                  onChange={() => choosePosition("left")}
-                />
-                Left
-              </label>
-              <label className="settings-row">
-                <input
-                  type="radio"
-                  name="sidebar-position"
-                  checked={sidebarPosition === "right"}
-                  onChange={() => choosePosition("right")}
-                />
-                Right
-              </label>
-              <label className="settings-row">
-                <input
-                  type="checkbox"
-                  checked={sidebarVisible}
-                  onChange={toggleSidebarVisible}
-                />
-                Sidebar visible
-              </label>
-              <div className="settings-sublabel">Sidebar sections</div>
-              <p className="settings-note">
-                Choose which sections appear in the sidebar's activity bar.
-              </p>
-              {SECTION_META.map((s) => (
-                <label key={s.id} className="settings-row">
+
+              <div className="settings-group">
+                <div className="settings-group-title">Sidebar</div>
+                <div className="settings-row">
+                  <span>Position</span>
+                  <div className="settings-choice">
+                    <label>
+                      <input
+                        type="radio"
+                        name="sidebar-position"
+                        checked={sidebarPosition === "left"}
+                        onChange={() => choosePosition("left")}
+                      />
+                      Left
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="sidebar-position"
+                        checked={sidebarPosition === "right"}
+                        onChange={() => choosePosition("right")}
+                      />
+                      Right
+                    </label>
+                  </div>
+                </div>
+                <label className="settings-row">
+                  <span>Show the sidebar</span>
                   <input
                     type="checkbox"
-                    checked={!!sectionVisibility[s.id]}
-                    onChange={() => toggleSection(s.id)}
+                    checked={sidebarVisible}
+                    onChange={toggleSidebarVisible}
                   />
-                  {s.label}
                 </label>
-              ))}
+              </div>
+
+              <div className="settings-group">
+                <div className="settings-group-title">Sidebar sections</div>
+                <p className="settings-note">
+                  Which sections appear on the activity rail. You can also
+                  right-click any rail icon to hide that section.
+                </p>
+                {/* Two columns: ten full-width rows buried the settings above them. */}
+                <div className="settings-grid">
+                  {SECTION_META.map((s) => (
+                    /* Control first here (unlike the rows above): in a grid it
+                       keeps the toggles on one vertical axis regardless of how
+                       long each section name is. */
+                    <label key={s.id} className="settings-row">
+                      <input
+                        type="checkbox"
+                        checked={!!sectionVisibility[s.id]}
+                        onChange={() => toggleSection(s.id)}
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </section>
           )}
 
@@ -324,6 +320,32 @@ export function SettingsTab() {
                 terminals open as plain shells. Blank tabs are never
                 auto-started.
               </p>
+              {/* Lives here, not under Layout: it is about a terminal session
+                  surviving a folder change, not about window arrangement. */}
+              <div className="settings-row">
+                <label htmlFor="show-running-notice">
+                  Warn when a session keeps its old folder
+                </label>
+                <input
+                  id="show-running-notice"
+                  type="checkbox"
+                  checked={showRunningProcessNotice}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setShowRunningProcessNotice(v);
+                    void window.airlock.prefsSet({
+                      showRunningProcessNotice: v,
+                    });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                When opening a folder into a tab whose terminal is busy (e.g. a
+                running <code>claude</code>), AirLock keeps that session alive —
+                but it stays in the old directory. This shows a reminder to
+                restart it in the new folder so it picks up the right context.
+              </p>
             </section>
           )}
 
@@ -351,12 +373,13 @@ export function SettingsTab() {
                 />
               </div>
               <p className="settings-note">
-                Shows your Claude subscription usage (5-hour and 7-day limits) as
-                two gauges either side of the window title, so it stays visible
-                even with the sidebar collapsed; click one for usage details.
-                Enabling installs a Claude Code status line that AirLock reads; if
-                you already have a custom status line, AirLock chains it so your
-                footer is unchanged. Turning this off removes it completely.
+                Shows your Claude subscription usage (5-hour and 7-day limits)
+                as two gauges either side of the window title, so it stays
+                visible even with the sidebar collapsed; click one for usage
+                details. Enabling installs a Claude Code status line that
+                AirLock reads; if you already have a custom status line, AirLock
+                chains it so your footer is unchanged. Turning this off removes
+                it completely.
               </p>
               <div className="settings-row">
                 <label htmlFor="dock-status">
