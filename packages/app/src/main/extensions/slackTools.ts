@@ -8,7 +8,9 @@
 import {
   type ConvKind,
   getSecretValue,
+  nameMessages,
   type SlackHistory,
+  type SlackNamedMessage,
   type SlackUser,
   slackChannelHistory,
 } from "@airlock/agent-core";
@@ -18,6 +20,7 @@ import {
   convGlyph,
   SLACK_TOKEN_NAME,
 } from "./slack";
+import { slackUsersFor } from "./slackUsers";
 
 // Resolve a user/agent-supplied channel token (id, "name", or "#name") to an
 // allow-listed channel, or null if it is NOT allowed. Pure -> unit-tested; this
@@ -34,7 +37,7 @@ export function resolveAllowedChannel(
 
 export interface SlackReadResult {
   channel?: string;
-  messages?: { ts: string; user: string; text: string }[];
+  messages?: SlackNamedMessage[];
   error?: string;
 }
 
@@ -73,6 +76,7 @@ export async function slackReadChannelTool(
     deps.token ??
     ((r: string) => getSecretValue(r, SLACK_TOKEN_NAME).catch(() => null));
   const getHistory = deps.history ?? slackChannelHistory;
+  const getUsers = deps.users ?? slackUsersFor;
 
   const allowed = await getAllowed(root);
   const match = resolveAllowedChannel(allowed, channel);
@@ -93,9 +97,10 @@ export async function slackReadChannelTool(
       // Slack actually refused the read.
       return { error: `Slack refused: ${history.error}` };
     }
+    const users = await getUsers(root, token);
     return {
       channel: `${convGlyph(match.kind)}${match.name}`,
-      messages: history.messages,
+      messages: nameMessages(history.messages, users),
     };
   } catch (e) {
     // Surface the reason (timeout/abort vs network) instead of a generic string

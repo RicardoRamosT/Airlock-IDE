@@ -74,6 +74,21 @@ describe("slackReadChannelTool result mapping", () => {
     expect(called).toBe(false);
   });
 
+  it("attaches display names and rewrites mentions in the shared path", async () => {
+    const res = await slackReadChannelTool(
+      "/repo",
+      "bugs",
+      20,
+      deps({
+        ok: true,
+        messages: [{ ts: "1.0", user: "U1", text: "hi <@U1>" }],
+      }),
+    );
+    expect(res.messages).toEqual([
+      { ts: "1.0", user: "U1", userName: "Ricardo", text: "hi @Ricardo" },
+    ]);
+  });
+
   it("reports 'not connected' when there is no vaulted token", async () => {
     const res = await slackReadChannelTool("/repo", "bugs", 20, {
       allowed: async () => allowed,
