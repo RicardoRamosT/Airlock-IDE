@@ -27,6 +27,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # node-pty installs via `node scripts/prebuild.js || node-gyp rebuild`, so it
+      # prefers a DOWNLOADED prebuilt binary. On macOS it needs two artifacts: the
+      # pty.node addon and a separate `spawn-helper` executable. A prebuilt helper
+      # that does not match the runner (wrong arch, or no exec bit) still lets
+      # pty.node load, then fails at spawn time with "posix_spawnp failed" -- which
+      # is how the pty suite failed on the first CI run. Compiling from source makes
+      # both artifacts match this machine.
+      #
+      # NOTE: this is `npm rebuild` (NODE abi), NOT `npm run rebuild` (which is
+      # electron-rebuild). vitest runs under plain Node, so building for Electron's
+      # ABI here would break these very tests. Do not "simplify" it to the other one.
+      - name: Build node-pty from source
+        run: npm rebuild node-pty --build-from-source --foreground-scripts
+
       - name: Typecheck
         run: npm run typecheck
 
