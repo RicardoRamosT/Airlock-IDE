@@ -1399,6 +1399,17 @@ body.resizing-col {
   align-items: center;
 }
 
+/* The rail's footer icons are 14px (vs the 20px section icons), so their status
+   dot -- the Accounts button's GitHub-account-correctness dot -- is scaled down
+   and tucked tighter to stay a tiny corner marker rather than a blob. */
+.footer-btn .activity-dot {
+  width: 6px;
+  height: 6px;
+  right: -3px;
+  bottom: -2px;
+  border-width: 1.5px;
+}
+
 .footer-btn:hover {
   background: var(--hover);
   color: var(--fg);
