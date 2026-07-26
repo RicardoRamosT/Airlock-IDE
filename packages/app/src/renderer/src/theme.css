@@ -193,12 +193,23 @@ body,
 
 /* The window marker: a clock for the rolling 5-hour session, a calendar for the
    7-day week. Outside the gauge box, on the titlebar itself, so it reads as chrome
-   -- muted, and it brightens with the rest of the control on hover. */
-.titlebar-wing-icon {
+   -- muted, and it brightens with the rest of the control on hover.
+
+   SPECIFICITY: codicon's own base rule is `.codicon[class*='codicon-']` (a class
+   PLUS an attribute selector), which out-specifies any single-class rule of ours --
+   it was silently winning both `font-size` and `display`, leaving the glyph a 16px
+   inline-block pinned to the top of the row instead of a centred flex box. Hence the
+   descendant selector here (and why `.codicon { font-size: 14px }` further up this
+   file never applies to an actual icon). */
+.titlebar-wing .titlebar-wing-icon {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex: none;
-  font-size: 12px;
+  width: 14px;
+  height: 100%; /* the group's 22px, so centring is against the track */
+  font-size: 13px;
+  line-height: 1;
   color: var(--fg-dim);
   transition: color 140ms ease;
 }
