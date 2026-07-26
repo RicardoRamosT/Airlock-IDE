@@ -171,20 +171,38 @@ const baseDeps = {
       { ok: true; entry: JournalEntry } | { ok: false; error: string }
     > => ({ ok: true, entry: { ts: 1, tag: "note", text: "x" } }),
   ),
+  addChangelogEntries: vi.fn(
+    async (): Promise<
+      | { ok: true; added: number; skipped: number; entries: JournalEntry[] }
+      | { ok: false; error: string }
+    > => ({
+      ok: true,
+      added: 1,
+      skipped: 0,
+      entries: [{ ts: 1, tag: "note", text: "x" }],
+    }),
+  ),
+  updateChangelogNotes: vi.fn(
+    async (): Promise<
+      | { ok: true; updated: number; skipped: number }
+      | { ok: false; error: string }
+    > => ({ ok: true, updated: 1, skipped: 0 }),
+  ),
 };
 
 describe("registerTools allowlist guard", () => {
   // The core security gate: the registered tool set is LOCKED to exactly the
-  // twenty-nine allowlisted tools (twenty read/curate/run/commit + the nine
-  // IDE-control tools). An extra tool (e.g. a future secret-value drill-down) or a
-  // removed one fails this immediately.
-  it("registers exactly the thirty-seven allowlisted tools and nothing else", () => {
+  // TOOL_NAMES allowlist (read/curate/run/commit + the IDE-control tools). An
+  // extra tool (e.g. a future secret-value drill-down) or a removed one fails
+  // this immediately. The numeric assertion below pins the size so a drift in
+  // TOOL_NAMES itself is loud rather than silently accepted.
+  it("registers exactly the allowlisted tools and nothing else", () => {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, baseDeps);
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(37);
+    expect(registered).toHaveLength(39);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");
@@ -1148,5 +1166,115 @@ describe("add_changelog_entry", () => {
     });
     await handler({ text: "t", tag: "change", details: "d" });
     expect(addChangelogEntry).toHaveBeenCalledWith("/repo", "t", "change", "d");
+  });
+});
+
+describe("add_changelog_entries (bulk)", () => {
+  function getTool(deps = baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const t = tools.find((x) => x.name === "add_changelog_entries");
+    if (!t) throw new Error("add_changelog_entries not registered");
+    return t.handler;
+  }
+  it("NO_WORKSPACE when no root", async () => {
+    const res = (await getTool()({ entries: [{ text: "hi" }] })) as {
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+  });
+  it("hands the whole batch to deps in ONE call and reports the counts", async () => {
+    const addChangelogEntries = vi.fn(async () => ({
+      ok: true as const,
+      added: 2,
+      skipped: 1,
+      entries: [
+        { ts: 1, tag: "change" as const, text: "a" },
+        { ts: 2, tag: "fix" as const, text: "b" },
+      ],
+    }));
+    const entries = [
+      { text: "a", tag: "change" as const },
+      { text: "b", tag: "fix" as const, ts: 1700000000000 },
+      { text: " " },
+    ];
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      addChangelogEntries,
+    });
+    const res = (await handler({ entries })) as { content: { text: string }[] };
+    expect(addChangelogEntries).toHaveBeenCalledTimes(1);
+    expect(addChangelogEntries).toHaveBeenCalledWith("/repo", entries);
+    const out = JSON.parse(res.content[0]?.text ?? "{}");
+    expect(out.added).toBe(2);
+    expect(out.skipped).toBe(1);
+  });
+  it("errors when deps refuse (oversize batch)", async () => {
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      addChangelogEntries: vi.fn(async () => ({
+        ok: false as const,
+        error: "Too many entries in one call",
+      })),
+    });
+    const res = (await handler({ entries: [{ text: "x" }] })) as {
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+  });
+});
+
+describe("update_changelog_notes (bulk)", () => {
+  function getTool(deps = baseDeps) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, deps);
+    const t = tools.find((x) => x.name === "update_changelog_notes");
+    if (!t) throw new Error("update_changelog_notes not registered");
+    return t.handler;
+  }
+  it("NO_WORKSPACE when no root", async () => {
+    const res = (await getTool()({ updates: [{ ts: 1, text: "x" }] })) as {
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
+  });
+  it("passes the batch through and reports updated/skipped", async () => {
+    const updateChangelogNotes = vi.fn(async () => ({
+      ok: true as const,
+      updated: 2,
+      skipped: 1,
+    }));
+    const updates = [
+      { ts: 1, text: "N1" },
+      { ts: 2, text: "N2", details: "why" },
+      { ts: 3, text: "nope" },
+    ];
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      updateChangelogNotes,
+    });
+    const res = (await handler({ updates })) as { content: { text: string }[] };
+    expect(updateChangelogNotes).toHaveBeenCalledTimes(1);
+    expect(updateChangelogNotes).toHaveBeenCalledWith("/repo", updates);
+    const out = JSON.parse(res.content[0]?.text ?? "{}");
+    expect(out.updated).toBe(2);
+    expect(out.skipped).toBe(1);
+  });
+  it("errors when nothing matched", async () => {
+    const handler = getTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      updateChangelogNotes: vi.fn(async () => ({
+        ok: false as const,
+        error: "No notes matched",
+      })),
+    });
+    const res = (await handler({ updates: [{ ts: 9, text: "x" }] })) as {
+      isError?: boolean;
+    };
+    expect(res.isError).toBe(true);
   });
 });

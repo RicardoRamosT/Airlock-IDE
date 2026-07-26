@@ -39,6 +39,7 @@ import { queryEvents } from "../eventlog/wire";
 import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
 import { changeSectionVisibility } from "../menu";
+import { MAX_BULK } from "../overview/journal";
 import { loadPrefs, SECTIONS } from "../prefs";
 import { guardedCommit } from "../secrets/commit";
 import { scanWorkingSet } from "../secrets/scan";
@@ -88,6 +89,8 @@ export const TOOL_NAMES: string[] = [
   "capture_screenshot",
   "set_pref",
   "add_changelog_entry",
+  "add_changelog_entries",
+  "update_changelog_notes",
 ];
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
@@ -111,6 +114,26 @@ export interface ToolDeps {
     details?: string,
   ) => Promise<
     | { ok: true; entry: import("../../shared/ipc").JournalEntry }
+    | { ok: false; error: string }
+  >;
+  // Bulk Changelog writes: one read + write + refresh broadcast per batch.
+  addChangelogEntries: (
+    root: string,
+    entries: unknown,
+  ) => Promise<
+    | {
+        ok: true;
+        added: number;
+        skipped: number;
+        entries: import("../../shared/ipc").JournalEntry[];
+      }
+    | { ok: false; error: string }
+  >;
+  updateChangelogNotes: (
+    root: string,
+    updates: unknown,
+  ) => Promise<
+    | { ok: true; updated: number; skipped: number }
     | { ok: false; error: string }
   >;
   getBaseEnv: () => Record<string, string>;
@@ -598,6 +621,76 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       if (!root) return err(NO_WORKSPACE);
       const r = await deps.addChangelogEntry(root, text, tag, details);
       return r.ok ? ok({ added: true, entry: r.entry }) : err(r.error);
+    },
+  );
+
+  // Bulk append: the whole batch in ONE call (and one atomic write), for
+  // populating/backfilling a Changelog without N round-trips. Same gating as the
+  // single-entry tool (benign + per-project).
+  mcp.registerTool(
+    "add_changelog_entries",
+    {
+      description:
+        "Append MANY entries to this project's Changelog in one call -- use this " +
+        "instead of calling add_changelog_entry repeatedly when populating or " +
+        "backfilling (one atomic write, one UI refresh). Each entry is " +
+        "{ text, tag?, details?, ts? }: `text` is the one-line title, `tag` is one of " +
+        "change|fix|decision|note (default note), `details` is an optional markdown " +
+        "body, and `ts` is an optional epoch-ms timestamp -- pass it to preserve a " +
+        "HISTORICAL date (default: now). Entries may be given in any order; they are " +
+        `stored chronologically. Max ${MAX_BULK} per call. Returns how many were ` +
+        "added and how many were skipped as invalid.",
+      inputSchema: {
+        entries: z
+          .array(
+            z.object({
+              text: z.string(),
+              tag: z.enum(["change", "fix", "decision", "note"]).optional(),
+              details: z.string().optional(),
+              ts: z.number().optional(),
+            }),
+          )
+          .min(1),
+      },
+    },
+    async ({ entries }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      const r = await deps.addChangelogEntries(root, entries);
+      return r.ok
+        ? ok({ added: r.added, skipped: r.skipped, entries: r.entries })
+        : err(r.error);
+    },
+  );
+
+  // Bulk edit of NOTE entries (by ts). The git-derived Changes rows are
+  // read-only, so only notes can be rewritten -- same invariant as the UI's edit.
+  mcp.registerTool(
+    "update_changelog_notes",
+    {
+      description:
+        "Edit MANY Changelog NOTE entries in one call, each identified by its `ts` " +
+        "(from project_info's journal): { ts, text, details? }. Only note entries can " +
+        "be edited -- the git-derived Changes rows are read-only, and rows that do not " +
+        `match a note are skipped. Max ${MAX_BULK} per call. Returns how many were ` +
+        "updated and how many were skipped.",
+      inputSchema: {
+        updates: z
+          .array(
+            z.object({
+              ts: z.number(),
+              text: z.string(),
+              details: z.string().optional(),
+            }),
+          )
+          .min(1),
+      },
+    },
+    async ({ updates }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      const r = await deps.updateChangelogNotes(root, updates);
+      return r.ok ? ok({ updated: r.updated, skipped: r.skipped }) : err(r.error);
     },
   );
 

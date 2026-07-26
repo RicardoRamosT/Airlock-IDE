@@ -15,6 +15,10 @@ export const JOURNAL_TAGS: readonly JournalTag[] = [
 export const MAX_ENTRIES = 500;
 const MAX_TEXT = 2000;
 export const MAX_DETAILS = 8000;
+// Per-call batch ceiling for the bulk add/update paths. Bounds one agent call's
+// work (and its JSON payload); larger imports split across calls. Well above the
+// realistic "populate a changelog" batch, and under MAX_ENTRIES.
+export const MAX_BULK = 200;
 
 function isTag(v: unknown): v is JournalTag {
   return (
@@ -91,13 +95,63 @@ export function capEntries(
   return entries.length > max ? entries.slice(entries.length - max) : entries;
 }
 
-// Return ts if free, else the next ts+k (k>=1) not already used. Keeps ts a
-// stable per-entry key so edit/delete can target by ts without an id field.
-export function uniqueTs(entries: JournalEntry[], ts: number): number {
-  const used = new Set(entries.map((e) => e.ts));
+// Next ts not present in `used` (ts+k, k>=0). Set-based so a batch can reserve
+// each slot as it goes without rebuilding the used set per item.
+function nextFreeTs(used: Set<number>, ts: number): number {
   let t = ts;
   while (used.has(t)) t += 1;
   return t;
+}
+
+// Return ts if free, else the next ts+k (k>=1) not already used. Keeps ts a
+// stable per-entry key so edit/delete can target by ts without an id field.
+export function uniqueTs(entries: JournalEntry[], ts: number): number {
+  return nextFreeTs(new Set(entries.map((e) => e.ts)), ts);
+}
+
+// Validate/normalize a BATCH of appends against the existing set (bulk import).
+// Each item may carry its own `ts` (epoch ms) so historical entries keep their
+// real dates; otherwise it lands at nowMs. Every ts is then bumped to the next
+// free slot -- including against earlier items in the SAME batch -- because ts is
+// the per-entry key edit/delete target (80 appends in one millisecond would
+// otherwise all collide). Invalid items are skipped and counted rather than
+// failing the whole import.
+export function sanitizeNewEntries(
+  items: readonly unknown[],
+  existing: readonly JournalEntry[],
+  nowMs: number,
+): { entries: JournalEntry[]; skipped: number } {
+  const used = new Set(existing.map((e) => e.ts));
+  const entries: JournalEntry[] = [];
+  let skipped = 0;
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object") {
+      skipped++;
+      continue;
+    }
+    const r = raw as Record<string, unknown>;
+    const at =
+      typeof r.ts === "number" && Number.isFinite(r.ts) && r.ts > 0
+        ? Math.floor(r.ts)
+        : nowMs;
+    const entry = sanitizeNewEntry(r.text, r.tag, at, r.details);
+    if (!entry) {
+      skipped++;
+      continue;
+    }
+    entry.ts = nextFreeTs(used, entry.ts);
+    used.add(entry.ts);
+    entries.push(entry);
+  }
+  return { entries, skipped };
+}
+
+// Sort chronologically (stable, so equal ts keeps insertion order). The bulk add
+// path sorts the merged set because readRecentJournal treats the tail of FILE
+// order as "newest" -- an import of historical entries appended at the end would
+// otherwise display as the most recent ones.
+export function sortByTs(entries: readonly JournalEntry[]): JournalEntry[] {
+  return [...entries].sort((a, b) => a.ts - b.ts);
 }
 
 // Replace a NOTE entry's text/details (by ts). Returns a new array, or null if
@@ -125,6 +179,36 @@ export function updateNote(
     return e;
   });
   return found ? out : null;
+}
+
+// Apply a BATCH of note edits (each `{ ts, text, details? }`), folding one onto
+// the next. Delegates to updateNote per item so the note-only invariant and the
+// text validation can never drift from the single-edit path. An item that does
+// not match a note (or whose text is invalid) is skipped and counted, so one bad
+// row cannot fail the rest of the batch.
+export function updateNotes(
+  entries: JournalEntry[],
+  updates: readonly unknown[],
+): { entries: JournalEntry[]; updated: number; skipped: number } {
+  let cur = entries;
+  let updated = 0;
+  let skipped = 0;
+  for (const raw of updates) {
+    if (!raw || typeof raw !== "object") {
+      skipped++;
+      continue;
+    }
+    const r = raw as Record<string, unknown>;
+    const next =
+      typeof r.ts === "number" && Number.isFinite(r.ts)
+        ? updateNote(cur, r.ts, r.text, r.details)
+        : null;
+    if (next) {
+      cur = next;
+      updated++;
+    } else skipped++;
+  }
+  return { entries: cur, updated, skipped };
 }
 
 // Remove one NOTE entry (by ts). Returns a new array, or null if none matched.
