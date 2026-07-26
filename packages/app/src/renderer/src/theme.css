@@ -692,10 +692,11 @@ body,
   transition:
     filter 120ms ease,
     box-shadow 120ms ease;
-  /* Pulse a few times on APPEARANCE to catch the eye, then settle -- the element
-     mounts only when an update arrives, so this runs once per update, not on
-     every re-render. */
-  animation: update-attention 1.9s ease-out 3;
+  /* Keep breathing for as long as the update is available: it stays actionable
+     until you click it, so a pulse that stopped just made the button go quiet
+     while the work was still outstanding. Slow and low-contrast so it reads as
+     ambient rather than nagging. */
+  animation: update-attention 2.6s ease-in-out infinite;
 }
 .statusbar-update .codicon {
   font-size: 12px;

@@ -1,5 +1,6 @@
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { MovingTab } from "../../../shared/ipc";
 import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
 import { buildMovingTab, isMovableKey } from "../lib/tabDrag";
@@ -232,7 +233,7 @@ export function ProjectTabs() {
         setDragHint(h.sourceWindowId === me ? "detach" : null);
       else setDragHint(null);
     });
-    const offAdopt = window.airlock.onTabDragAdopt?.((p) => {
+    const adopt = (p: MovingTab) => {
       const s = useApp.getState();
       // A window created just to receive this tab still holds the placeholder
       // blank tab it booted with; drop it so the torn-off window shows ONLY the
@@ -241,7 +242,16 @@ export function ProjectTabs() {
         s.tabs.length === 1 && s.tabs[0]?.root === null ? s.tabs[0] : null;
       s.adoptTab(p);
       if (lone) useApp.getState().closeTab(lone.id);
+    };
+    // A window created for a torn-off tab CLAIMS it here, now that this component
+    // is mounted and its store is ready. Pull rather than push: main cannot know
+    // when React's effects have run, and a payload pushed too early would be
+    // dropped -- losing a tab the source window has already let go of.
+    void window.airlock.tabDragTakePending?.().then((p) => {
+      if (p) adopt(p);
     });
+    // Push path, for merging into a window that is already open.
+    const offAdopt = window.airlock.onTabDragAdopt?.(adopt);
     return () => {
       // Type-checked before calling: a stubbed/absent subscribe (tests, an older
       // preload) returns something that is not an unsubscribe function.

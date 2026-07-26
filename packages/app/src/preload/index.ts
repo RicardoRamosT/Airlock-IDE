@@ -83,6 +83,7 @@ const api: AirlockApi = {
   windowId: () => ipcRenderer.invoke("window:id"),
   tabDragStart: () => ipcRenderer.invoke("tabdrag:start"),
   tabDragEnd: (payload) => ipcRenderer.invoke("tabdrag:end", payload),
+  tabDragTakePending: () => ipcRenderer.invoke("tabdrag:takePending"),
   onTabDragHover: (cb) => subscribe<TabDragHover>("tabdrag:hover", cb),
   onTabDragAdopt: (cb) => subscribe<MovingTab>("tabdrag:adopt", cb),
   secretsList: (root) => ipcRenderer.invoke("secrets:list", root),

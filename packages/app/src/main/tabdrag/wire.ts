@@ -19,6 +19,44 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let dragSourceId: number | null = null;
 let lastTarget: DropTarget | null = null;
 
+// Tabs waiting for a freshly created window to come up and claim them. PULLED by
+// the renderer once it has mounted, never pushed: did-finish-load fires before
+// React's effects run, so a pushed payload could land with nothing subscribed and
+// the tab would vanish (the source window has already let it go).
+const pendingAdopts = new Map<number, MovingTab>();
+
+// Windows created to receive a torn-off tab. Their renderer must NOT run session
+// restore -- the snapshot is app-global, so restoring would reopen EVERY project
+// in a window that should hold only the dragged one.
+const suppressRestore = new Set<number>();
+
+export function registerAdoptWindow(
+  windowId: number,
+  payload: MovingTab,
+): void {
+  pendingAdopts.set(windowId, payload);
+  suppressRestore.add(windowId);
+}
+
+// Single-use: the tab is handed over exactly once.
+export function takePendingAdopt(windowId: number): MovingTab | null {
+  const payload = pendingAdopts.get(windowId) ?? null;
+  pendingAdopts.delete(windowId);
+  return payload;
+}
+
+// Single-use: only the BOOT restore is suppressed. A later reload of that window
+// behaves like any other.
+export function consumeSuppressRestore(windowId: number): boolean {
+  return suppressRestore.delete(windowId);
+}
+
+// A window that closed before claiming its tab keeps nothing alive.
+export function forgetWindow(windowId: number): void {
+  pendingAdopts.delete(windowId);
+  suppressRestore.delete(windowId);
+}
+
 function broadcast(h: TabDragHover): void {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.webContents.isDestroyed()) w.webContents.send("tabdrag:hover", h);

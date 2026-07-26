@@ -833,6 +833,9 @@ export interface AirlockApi {
   // it did. A null payload means "this tab cannot move" (pair / page-tab / last
   // tab) -- main then only reports the target and moves nothing.
   tabDragEnd(payload: MovingTab | null): Promise<DropTarget>;
+  // A window created for a torn-off tab claims it once mounted (pull, not push:
+  // a push on load can arrive before the renderer subscribes and lose the tab).
+  tabDragTakePending(): Promise<MovingTab | null>;
   onTabDragHover(cb: (h: TabDragHover) => void): () => void;
   onTabDragAdopt(cb: (p: MovingTab) => void): () => void;
   secretsList(root: string): Promise<SecretMeta[]>;

@@ -9,7 +9,11 @@ import type { MovingTab } from "../shared/ipc";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
 import type { WindowBox } from "./tabdrag/target";
-import { stopTabDragFor } from "./tabdrag/wire";
+import {
+  forgetWindow,
+  registerAdoptWindow,
+  stopTabDragFor,
+} from "./tabdrag/wire";
 
 const workspaceRoots = new Map<number, string>(); // BrowserWindow.id -> open folder
 // The SET of roots the user currently has open in each window (every tab's
@@ -180,8 +184,10 @@ export function createWindow(): BrowserWindow {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
     focusOrder = focusOrder.filter((id) => id !== win.id);
-    // A tab drag started here must not leave the cursor poll running.
+    // A tab drag started here must not leave the cursor poll running, and an
+    // unclaimed torn-off tab must not be kept alive for a dead window.
     stopTabDragFor(win.id);
+    forgetWindow(win.id);
     disposeWindowWatchers(win.id);
     syncLspServers(allOpenRoots());
     if (lastFocusedId === win.id) {
@@ -219,21 +225,22 @@ export function windowBoxesFrontMostFirst(): WindowBox[] {
   return ordered.map((w) => ({ id: w.id, bounds: w.getBounds() }));
 }
 
-// Open a new window that adopts a torn-off tab. The payload is delivered once the
-// renderer has loaded -- the same did-finish-load seeding the dock's open-recent
-// path uses. Positioned near the cursor so the window appears where it was
-// dropped.
+// Open a new window that adopts a torn-off tab. The payload is PARKED for the new
+// window to claim once its renderer has mounted (tabdrag:takePending) rather than
+// pushed on did-finish-load -- that event fires before React's effects run, so a
+// push could land with nothing subscribed and the tab would be lost. Registering
+// also suppresses that window's session restore, so it opens with ONLY the dragged
+// project instead of reopening every project from the app-global snapshot.
+// Positioned near the cursor so the window appears where it was dropped.
 export function createWindowForAdopt(payload: MovingTab): BrowserWindow {
   const win = createWindow();
+  registerAdoptWindow(win.id, payload);
   const { x, y } = screen.getCursorScreenPoint();
   const b = win.getBounds();
   win.setBounds({
     ...b,
     x: Math.round(x - b.width / 3),
     y: Math.max(0, y - 20),
-  });
-  win.webContents.once("did-finish-load", () => {
-    if (!win.isDestroyed()) win.webContents.send("tabdrag:adopt", payload);
   });
   return win;
 }

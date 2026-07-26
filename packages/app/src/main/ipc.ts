@@ -200,15 +200,22 @@ import { reconcileRunSkill } from "./runskill/wire";
 import { guardedCommit } from "./secrets/commit";
 import { sectionStatuses } from "./sectionStatus";
 import { reconcileSelfVerify } from "./selfverify/wire";
+import { mergeSnapshots } from "./session/merge";
 import { readSession, writeSession } from "./session-store";
 import { MovingSessions } from "./tabdrag/moving";
-import { endTabDrag, startTabDrag } from "./tabdrag/wire";
+import {
+  consumeSuppressRestore,
+  endTabDrag,
+  startTabDrag,
+  takePendingAdopt,
+} from "./tabdrag/wire";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
 import {
   allOpenRoots,
   clearRootForEvent,
   isOpenRoot,
+  lastFocusedWindowId,
   rootForEvent,
   setRootForEvent,
   setWindowRoots,
@@ -367,8 +374,12 @@ const allStr = (xs: unknown[]): boolean =>
 // Path to the layout snapshot, alongside prefs.json in userData.
 const sessionFile = () => path.join(app.getPath("userData"), "session.json");
 
-// Last snapshot the renderer reported, kept for the synchronous quit flush.
+// The MERGED snapshot last persisted, kept for the synchronous quit flush.
 let latestSnapshot: SessionSnapshot | null = null;
+// Per-window layout snapshots (BrowserWindow.id -> its own tabs). Persisting the
+// union is what stops a second window from erasing the first's tabs; see
+// session/merge.ts.
+const windowSnapshots = new Map<number, SessionSnapshot>();
 
 // Synchronous best-effort flush of the latest snapshot, for app before-quit
 // (async writes may not finish before the process exits). Writes atomically
@@ -972,7 +983,14 @@ export function registerIpc(
   // Session restore: read the persisted layout snapshot; save the latest one
   // (async, serialized, best-effort) and hold it for the synchronous quit flush.
   // App-global (NOT root-gated). Value-free: roots + booleans only.
-  ipcMain.handle("session:get", () => readSession(sessionFile()));
+  // A window created to receive a torn-off tab must NOT restore: the snapshot is
+  // app-global, so restoring would reopen EVERY project in a window that should
+  // hold only the dragged one. Single-use, so a later reload restores normally.
+  ipcMain.handle("session:get", (e) => {
+    const id = BrowserWindow.fromWebContents(e.sender)?.id;
+    if (id !== undefined && consumeSuppressRestore(id)) return null;
+    return readSession(sessionFile());
+  });
   // Renderer-reported errors (window.onerror / unhandledrejection) -> the event
   // log, so read_events surfaces frontend crashes too. Fire-and-forget.
   ipcMain.on("events:report", (_e, p: unknown) => {
@@ -991,9 +1009,29 @@ export function registerIpc(
       }),
     );
   });
-  ipcMain.on("session:save", (_e, snap: SessionSnapshot) => {
-    latestSnapshot = snap;
-    void writeSession(sessionFile(), snap); // async, serialized, best-effort
+  // Each renderer reports only ITS OWN tabs, so with two windows open (routine
+  // now that a tab can be torn off) keeping just the last report meant the second
+  // window clobbered the first's tab list and those projects were gone after a
+  // restart. Keep them per window and persist the UNION of the live ones.
+  ipcMain.on("session:save", (e, snap: SessionSnapshot) => {
+    const id = BrowserWindow.fromWebContents(e.sender)?.id;
+    if (id === undefined) return;
+    windowSnapshots.set(id, snap);
+    // Drop windows that have since closed, so their tabs stop being restored.
+    const alive = new Set(
+      BrowserWindow.getAllWindows()
+        .filter((w) => !w.isDestroyed())
+        .map((w) => w.id),
+    );
+    for (const key of windowSnapshots.keys())
+      if (!alive.has(key)) windowSnapshots.delete(key);
+    const merged = mergeSnapshots(
+      [...windowSnapshots].map(([wid, s]) => ({ id: wid, snap: s })),
+      lastFocusedWindowId(),
+    );
+    if (!merged) return;
+    latestSnapshot = merged; // held for the synchronous quit flush
+    void writeSession(sessionFile(), merged); // async, serialized, best-effort
   });
 
   ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
@@ -2238,6 +2276,13 @@ export function registerIpc(
   ipcMain.handle("tabdrag:start", (e) => {
     const id = BrowserWindow.fromWebContents(e.sender)?.id;
     if (id !== undefined) startTabDrag(id);
+  });
+  // A window created for a torn-off tab CLAIMS it once its renderer has mounted.
+  // Pull, not push: did-finish-load fires before React's effects run, so a pushed
+  // payload could land with nothing subscribed and the tab would be lost.
+  ipcMain.handle("tabdrag:takePending", (e): MovingTab | null => {
+    const id = BrowserWindow.fromWebContents(e.sender)?.id;
+    return id === undefined ? null : takePendingAdopt(id);
   });
   ipcMain.handle("tabdrag:end", (e, payload: unknown): DropTarget => {
     const id = BrowserWindow.fromWebContents(e.sender)?.id;
