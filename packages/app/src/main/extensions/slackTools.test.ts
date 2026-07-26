@@ -89,6 +89,21 @@ describe("slackReadChannelTool result mapping", () => {
     ]);
   });
 
+  it("converts Slack emoji shortcodes so the agent sees the emoji", async () => {
+    const res = await slackReadChannelTool(
+      "/repo",
+      "bugs",
+      20,
+      deps({
+        ok: true,
+        messages: [
+          { ts: "1.0", user: "U1", text: "hola :slightly_smiling_face:" },
+        ],
+      }),
+    );
+    expect(res.messages?.[0]?.text).toBe("hola 🙂");
+  });
+
   it("reports 'not connected' when there is no vaulted token", async () => {
     const res = await slackReadChannelTool("/repo", "bugs", 20, {
       allowed: async () => allowed,

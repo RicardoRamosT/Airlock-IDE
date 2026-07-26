@@ -323,6 +323,7 @@ export {
   listUsers as slackListUsers,
   type SlackTransport,
 } from "./slack/client";
+export { renderEmoji } from "./slack/emoji";
 export type { SlackNamedMessage } from "./slack/names";
 export { nameMessages, resolveMentions } from "./slack/names";
 export type {
