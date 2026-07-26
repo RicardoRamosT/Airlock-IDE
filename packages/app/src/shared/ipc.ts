@@ -379,7 +379,7 @@ export type MenuAction =
  * The IDE-level page-tabs (Settings / Usage) in the project strip. App chrome,
  * not project content: both can be open at once, at most one is SHOWN.
  */
-export type AppPage = "settings" | "usage";
+export type AppPage = "settings" | "usage" | "extensions";
 
 /**
  * An IDE-control command dispatched main -> renderer over the agent:command

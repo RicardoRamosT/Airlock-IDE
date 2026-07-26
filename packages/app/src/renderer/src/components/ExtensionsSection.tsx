@@ -111,6 +111,16 @@ export function ExtensionsSection() {
   if (loaded && items.length === 0) {
     return (
       <div className="databases">
+        <div className="section-toolbar">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => useApp.getState().openAppPage("extensions")}
+            title="Open the Extensions page"
+          >
+            Manage
+          </button>
+        </div>
         <div className="section-empty">No integrations available.</div>
       </div>
     );
@@ -118,6 +128,16 @@ export function ExtensionsSection() {
 
   return (
     <div className="databases">
+      <div className="section-toolbar">
+        <button
+          type="button"
+          className="btn"
+          onClick={() => useApp.getState().openAppPage("extensions")}
+          title="Open the Extensions page"
+        >
+          Manage
+        </button>
+      </div>
       {BUCKET_ORDER.filter((b) => groups[b].length > 0).map((bucket) => (
         <div key={bucket} className="db-entry">
           <div className="sb-section-head">

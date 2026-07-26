@@ -1,6 +1,7 @@
 import type React from "react";
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
+import { ExtensionsTab } from "./components/ExtensionsTab";
 import { NeonConnectModal } from "./components/NeonConnectModal";
 import { OAuthDeviceModal } from "./components/OAuthDeviceModal";
 import { OverviewTab } from "./components/OverviewTab";
@@ -93,6 +94,10 @@ export function App() {
           ) : appPage === "usage" ? (
             <div className="app-page">
               <UsageTab />
+            </div>
+          ) : appPage === "extensions" ? (
+            <div className="app-page">
+              <ExtensionsTab />
             </div>
           ) : appPage === "overview" && overviewRoot ? (
             <div className="app-page">

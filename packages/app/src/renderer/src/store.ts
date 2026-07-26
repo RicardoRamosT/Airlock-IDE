@@ -552,16 +552,16 @@ export interface AppState {
   // tabs; BOTH can be open at once, `appPage` selects which one is SHOWN
   // (replacing the panes area; selecting a project tab hides the page but
   // keeps its tab open). ---
-  appPage: "settings" | "usage" | "overview" | null;
+  appPage: "settings" | "usage" | "overview" | "extensions" | null;
   settingsTabOpen: boolean;
   usageTabOpen: boolean;
   // The Overview is per-PROJECT and focus-bound: the focused project's tab shows
   // an inline Overview entry. overviewRoot is the root currently SHOWN (valid
   // only while appPage === "overview").
   overviewRoot: string | null;
-  openAppPage: (p: "settings" | "usage") => void; // open the tab + show it
+  openAppPage: (p: "settings" | "usage" | "extensions") => void; // open the tab + show it
   showAppPage: (p: "settings" | "usage") => void; // click an already-open Settings/Usage tab
-  closeAppPage: (p: "settings" | "usage") => void; // the Settings/Usage tab's X
+  closeAppPage: (p: "settings" | "usage" | "extensions") => void; // a page tab's X
   showOverview: (root: string) => void; // show the focused project's Overview
   closeOverview: () => void; // leave the Overview page (back to the project's work)
   setSearchResults: (query: string, results: SearchResults) => void;
