@@ -10,6 +10,16 @@ main + preload + React renderer).
 dist:mac` (shareable DMG → `packages/app/release/AirLock-<version>-arm64.dmg`,
 ad-hoc signed — recipients use the Gatekeeper "Open Anyway" bypass).
 
+**Release naming (must match exactly):** tag `v<version>`, release title
+`AirLock v<version>` — e.g. version `0.6.0` → tag `v0.6.0`, title
+`AirLock v0.6.0`. Releases are cut by hand (`gh release create`, no workflow), so
+two titles had drifted to `AirLock 0.5.0`/`AirLock 0.3.0` and were renamed
+2026-07-25. Keep the `v` in BOTH. The in-app updater reads `tag_name` (stripping a
+leading `v`) and never the title, so the tag format is the functional one — but
+bump `package.json` **and** `packages/app/package.json` together, since the DMG
+name and the update version compare come from them. Publishing needs
+`gh auth switch -u RicardoRamosT`.
+
 **Testing convention:** unit-test pure modules; keep electron/chokidar wiring
 thin and untested (e.g. `fsWatch.ts` only tests its pure helper).
 
