@@ -34,14 +34,19 @@ function Wing({
   onClick: () => void;
 }) {
   const shown = pct === null ? "—" : `${Math.round(pct)}%`;
-  return (
-    <button
-      type="button"
-      className={`titlebar-wing ${side}${pct === null ? " is-idle" : ""}`}
-      title={title}
-      aria-label={`${label} ${pct === null ? "no data yet" : shown} — open usage details`}
-      onClick={onClick}
-    >
+  // The marker sits OUTSIDE the gauge box -- far left for the session, far right for
+  // the week -- so it never competes with the fill or the percentage. It stays
+  // inside the button so clicking it still opens the Usage page; the border and the
+  // fill clip live on the inner track, which is what keeps the icon outside the box
+  // while the track still butts flush against the title card.
+  const mark = (
+    <i
+      className={`codicon codicon-${icon} titlebar-wing-icon`}
+      aria-hidden="true"
+    />
+  );
+  const track = (
+    <span className="titlebar-wing-track">
       {pct !== null && (
         <i
           className="titlebar-wing-fill"
@@ -53,10 +58,20 @@ function Wing({
           }}
         />
       )}
-      <span className="titlebar-wing-label">
-        <i className={`codicon codicon-${icon}`} aria-hidden="true" />
-        <span className="titlebar-wing-num">{shown}</span>
-      </span>
+      <span className="titlebar-wing-num">{shown}</span>
+    </span>
+  );
+  return (
+    <button
+      type="button"
+      className={`titlebar-wing ${side}${pct === null ? " is-idle" : ""}`}
+      title={title}
+      aria-label={`${label} ${pct === null ? "no data yet" : shown} — open usage details`}
+      onClick={onClick}
+    >
+      {side === "left" ? mark : null}
+      {track}
+      {side === "right" ? mark : null}
     </button>
   );
 }

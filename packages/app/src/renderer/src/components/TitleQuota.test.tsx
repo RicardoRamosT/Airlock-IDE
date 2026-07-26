@@ -95,6 +95,20 @@ it("marks which window each wing is with an icon, not a text caption", () => {
   expect(container.querySelector(".titlebar-wing-ticks")).toBeNull();
 });
 
+it("puts each marker OUTSIDE its gauge box, on the far side of the group", () => {
+  useApp.setState({ quotaMeterEnabled: true, quota: status() });
+  const { container } = render(<TitleQuota>{child}</TitleQuota>);
+  // Never inside the track -- the fill and percentage own that space.
+  expect(container.querySelector(".titlebar-wing-track .codicon")).toBeNull();
+  const kids = (sel: string) =>
+    [...(container.querySelector(sel)?.children ?? [])].map((c) => c.className);
+  // Session marker first (far left), week marker last (far right).
+  expect(kids(".titlebar-wing.left")[0]).toContain("codicon-clock");
+  expect(kids(".titlebar-wing.left")[1]).toContain("titlebar-wing-track");
+  expect(kids(".titlebar-wing.right")[0]).toContain("titlebar-wing-track");
+  expect(kids(".titlebar-wing.right")[1]).toContain("codicon-calendar");
+});
+
 it("keeps both wings (empty) when no session is feeding it, so nothing shifts", () => {
   // Stale emit => no live session. The tracks must still occupy their space.
   useApp.setState({
