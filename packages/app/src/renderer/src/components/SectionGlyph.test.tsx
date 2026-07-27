@@ -5,15 +5,9 @@ import { SectionGlyph } from "./SectionGlyph";
 
 afterEach(cleanup);
 
-const BRANDS = [
-  "slack",
-  "neon",
-  "docker",
-  "render",
-  "snowflake",
-  "azure",
-  "vercel",
-];
+// Azure is deliberately NOT here: simple-icons carries no Microsoft marks, so
+// it falls through to a codicon rather than to a logo we invented.
+const BRANDS = ["slack", "neon", "docker", "render", "snowflake", "vercel"];
 
 it("draws a monochrome brand mark for every extension brand", () => {
   for (const id of BRANDS) {
@@ -28,6 +22,14 @@ it("draws a monochrome brand mark for every extension brand", () => {
     ).toBeGreaterThan(20);
     unmount();
   }
+});
+
+it("falls back to a codicon for Azure rather than a fabricated mark", () => {
+  // simple-icons has no Microsoft brand marks (trademark policy). A generic
+  // cloud glyph is honest; a logo we drew ourselves is not.
+  const { container } = render(<SectionGlyph icon="cloud" />);
+  expect(container.querySelector("svg.brand-glyph")).toBeNull();
+  expect(container.querySelector("i.codicon-cloud")).not.toBeNull();
 });
 
 it("falls through to a codicon for a non-brand icon", () => {

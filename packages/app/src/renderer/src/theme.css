@@ -5930,47 +5930,63 @@ button.docker-row .codicon-chevron-right {
 
 /* The Extensions page: grouped list beside a detail pane, at full workspace
    width -- so names are not truncated and actions can be labelled. */
+/* --- Extensions page ------------------------------------------------------
+   A full-width page, so it gets its own type scale rather than borrowing the
+   sidebar's. The panel this replaced was 260px wide and its classes were tuned
+   for that; reusing them here produced three unrelated sizes on one screen
+   (11px uppercase heads, inherited-size rows, a 16px title). One scale now:
+   11px for group heads, 12px for rows and secondary text, 15px for the title. */
 .ext-page {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 260px 1fr;
   height: 100%;
   overflow: hidden;
+  font-size: 12px;
 }
-/* Detail-pane actions. The page exists so these can be LABELLED buttons
-   instead of the three ambiguous icons that fought the name for 260px in the
-   sidebar, so they stack full-width rather than crowding a row. */
-.ext-detail-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sb-gap);
-  align-items: flex-start;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.ext-detail-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sb-gap);
-  margin-bottom: 4px;
-}
+
 .ext-page-list {
   overflow: auto;
-  padding: 8px;
+  padding: 10px 8px;
   border-right: 1px solid var(--border);
 }
-.ext-page-row {
+.ext-page-group {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 0 6px;
+  margin: 14px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+.ext-page-list > div:first-child .ext-page-group {
+  margin-top: 0;
+}
+.ext-page-count {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--hover);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+/* Fixed height + min-width:0 children is what stops a long account string from
+   wrapping and overlapping the next row -- the bug this layout shipped with. */
+.ext-page-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  height: var(--row-h);
-  padding: 0 4px;
+  height: 28px;
+  padding: 0 6px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 5px;
   background: none;
-  color: inherit;
+  color: var(--fg);
   font: inherit;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
 }
@@ -5978,17 +5994,100 @@ button.docker-row .codicon-chevron-right {
   background: var(--hover);
 }
 .ext-page-row.active {
-  background: var(--hover);
+  background: var(--selected);
+}
+.ext-page-row .brand-glyph,
+.ext-page-row .codicon {
+  flex: none;
+  font-size: 15px;
+  color: var(--fg-dim);
+}
+.ext-page-row.active .brand-glyph,
+.ext-page-row.active .codicon {
+  color: var(--fg);
+}
+.ext-page-row .status-dot {
+  flex: none;
+}
+/* The name keeps its width and truncates only when it must; the account gives
+   way first, because the name is what you scan for. */
+.ext-page-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext-page-row.active .ext-page-name {
   font-weight: 600;
 }
+.ext-page-account {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
 .ext-page-detail {
   overflow: auto;
-  padding: 16px 20px;
+  padding: 18px 24px 24px;
+}
+.ext-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ext-detail-head .brand-glyph,
+.ext-detail-head .codicon {
+  flex: none;
+  font-size: 20px;
+  color: var(--fg-dim);
 }
 .ext-page-title {
-  margin: 0 0 4px;
-  font-size: 16px;
+  margin: 0;
+  font-size: 15px;
   font-weight: 600;
+}
+/* The status dot is a bordered block; inline in a text run it rendered as a
+   stray bar. Its own flex row aligns it against the text baseline instead. */
+.ext-detail-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.ext-detail-status .status-dot {
+  flex: none;
+}
+.ext-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.ext-detail-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-gap);
+}
+.ext-detail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ext-detail-toggle input {
+  flex: none;
+  margin: 0;
 }
 /* Resource-list expander, the page's version of the sidebar hub's chevron.
    Collapsed by default ON PURPOSE: mounting the list starts a 5s poll (for
@@ -5998,12 +6097,13 @@ button.docker-row .codicon-chevron-right {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 16px;
+  margin-top: 18px;
   padding: 0;
   border: 0;
   background: none;
   color: var(--fg-dim);
   font: inherit;
+  font-size: 12px;
   cursor: pointer;
 }
 .ext-detail-expand:hover {

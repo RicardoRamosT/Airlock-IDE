@@ -68,8 +68,14 @@ it("groups extensions and shows FULL names (no truncation)", async () => {
   // Scope to the list: the selected extension's name also appears as the
   // detail-pane title, so an unscoped query is ambiguous by design.
   const listEl = container.querySelector(".ext-page-list") as HTMLElement;
-  // The account rides beside the name, as it did in the sidebar hub.
-  expect(await within(listEl).findByText("Slack · Airlock")).toBeTruthy();
+  // Name and account are SEPARATE spans, not one concatenated string. As one
+  // string a long account ("Azure · Azure Subscription (CSP)") wrapped past the
+  // row's fixed height and overlapped the row below; split, the name holds its
+  // width and the account truncates. Both still render.
+  const slackRow = (await within(listEl).findByText("Slack")).closest(
+    ".ext-page-row",
+  ) as HTMLElement;
+  expect(within(slackRow).getByText("Airlock")).toBeTruthy();
   expect(within(listEl).getByText("Vercel")).toBeTruthy();
   expect(within(listEl).getByText("Connected")).toBeTruthy();
   expect(within(listEl).getByText("Not installed")).toBeTruthy();

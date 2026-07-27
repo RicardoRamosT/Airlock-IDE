@@ -250,8 +250,9 @@ export function ExtensionsTab() {
           if (rows.length === 0) return null;
           return (
             <div key={g.key}>
-              <div className="sb-section-head">
-                {g.label} <span className="sb-badge">{rows.length}</span>
+              <div className="ext-page-group">
+                {g.label}
+                <span className="ext-page-count">{rows.length}</span>
               </div>
               {rows.map((e) => (
                 <button
@@ -262,13 +263,14 @@ export function ExtensionsTab() {
                 >
                   <SectionGlyph icon={e.icon ?? "extensions"} />
                   <span className={statusDot(e)} />
-                  {/* The account (Slack workspace / Azure subscription) rides
-                    beside the name, as it did in the sidebar hub: with two
-                    accounts of the same extension the name alone is ambiguous. */}
-                  <span>
-                    {e.name}
-                    {e.account ? ` · ${e.account}` : ""}
-                  </span>
+                  {/* Name and account are SEPARATE truncating spans. As one
+                    string they wrapped -- "Azure . Azure Subscription (CSP)"
+                    overflowed the fixed row height and collided with the row
+                    below. The name holds its width; the account gives way. */}
+                  <span className="ext-page-name">{e.name}</span>
+                  {e.account && (
+                    <span className="ext-page-account">{e.account}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -302,9 +304,13 @@ export function ExtensionsTab() {
             const resourcesOpen = expanded;
             return (
               <>
-                <h2 className="ext-page-title">{sel.name}</h2>
-                <div className="section-note">
-                  <span className={statusDot(sel)} /> {statusLine(sel, enabled)}
+                <div className="ext-detail-head">
+                  <SectionGlyph icon={sel.icon ?? "extensions"} />
+                  <h2 className="ext-page-title">{sel.name}</h2>
+                </div>
+                <div className="ext-detail-status">
+                  <span className={statusDot(sel)} />
+                  <span>{statusLine(sel, enabled)}</span>
                 </div>
                 <div className="ext-detail-actions">
                   {actions.length > 0 ? (
@@ -326,7 +332,7 @@ export function ExtensionsTab() {
                       {noActionsNote(sel, enabled)}
                     </div>
                   )}
-                  <label className="oauth-optin">
+                  <label className="ext-detail-toggle">
                     <input
                       type="checkbox"
                       aria-label={`Enable ${sel.name}`}
@@ -339,7 +345,7 @@ export function ExtensionsTab() {
                   </label>
                   {/* No category means the eye has nowhere to surface it. */}
                   {sel.category && (
-                    <label className="oauth-optin">
+                    <label className="ext-detail-toggle">
                       <input
                         type="checkbox"
                         aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
