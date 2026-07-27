@@ -337,6 +337,10 @@ export type {
 } from "./slack/parse";
 export { labelConversations } from "./slack/parse";
 export {
+  parseWorkspaceInput,
+  type WorkspaceTarget,
+} from "./slack/workspaces";
+export {
   detectInstalledTerminals,
   type ExternalTerminal,
   KNOWN_TERMINALS,
