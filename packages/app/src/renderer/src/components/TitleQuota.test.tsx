@@ -141,14 +141,14 @@ it("puts each marker OUTSIDE its gauge box, on the far side of the group", () =>
   ).toBeNull();
   const kids = (sel: string) =>
     [...(container.querySelector(sel)?.children ?? [])].map((c) => c.className);
-  // Marker outermost, then its countdown, then the gauge: session on the far
-  // left, week on the far right, each mirroring the other.
-  expect(kids(".titlebar-wing.left")[0]).toContain("codicon-clock");
-  expect(kids(".titlebar-wing.left")[1]).toContain("titlebar-wing-reset");
+  // Countdown outermost, then the marker, then the gauge -- so each marker is
+  // the item nearest the title, mirrored on the right.
+  expect(kids(".titlebar-wing.left")[0]).toContain("titlebar-wing-reset");
+  expect(kids(".titlebar-wing.left")[1]).toContain("codicon-clock");
   expect(kids(".titlebar-wing.left")[2]).toContain("titlebar-wing-track");
   expect(kids(".titlebar-wing.right")[0]).toContain("titlebar-wing-track");
-  expect(kids(".titlebar-wing.right")[1]).toContain("titlebar-wing-reset");
-  expect(kids(".titlebar-wing.right")[2]).toContain("codicon-calendar");
+  expect(kids(".titlebar-wing.right")[1]).toContain("codicon-calendar");
+  expect(kids(".titlebar-wing.right")[2]).toContain("titlebar-wing-reset");
 });
 
 it("keeps both wings (empty) when no session is feeding it, so nothing shifts", () => {

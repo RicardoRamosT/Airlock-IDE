@@ -48,10 +48,11 @@ function Wing({
       aria-hidden="true"
     />
   );
-  // The countdown rides OUTSIDE the gauge, next to the marker: the track is a
-  // bar whose whole job is the percentage, and a second number competing for
-  // those 92px made both harder to read. Fixed width so the title card between
-  // the wings does not shift as "59m" becomes "1h00m".
+  // The countdown rides OUTSIDE the gauge: the track is a bar whose whole job
+  // is the percentage, and a second number competing for those 92px made both
+  // harder to read. It sits on the far edge with the marker inboard of it, so
+  // each marker stays nearest the title it labels. Fixed width so the title
+  // card between the wings does not shift as "59m" becomes "1h00m".
   const clock = reset ? (
     <span className="titlebar-wing-reset">{reset}</span>
   ) : null;
@@ -81,15 +82,15 @@ function Wing({
     >
       {side === "left" ? (
         <>
-          {mark}
           {clock}
+          {mark}
         </>
       ) : null}
       {track}
       {side === "right" ? (
         <>
-          {clock}
           {mark}
+          {clock}
         </>
       ) : null}
     </button>
