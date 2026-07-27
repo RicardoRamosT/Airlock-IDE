@@ -123,7 +123,3 @@ export function SnowflakeSection() {
 export function AzureSection() {
   return <ManifestExtensionSection id="azure" />;
 }
-
-export function VercelSection() {
-  return <ManifestExtensionSection id="vercel" />;
-}

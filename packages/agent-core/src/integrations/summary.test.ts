@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AZURE, VERCEL } from "./registry";
+import { AZURE, SNOWFLAKE } from "./registry";
 import type { ExtensionSummary } from "./summary";
 import {
   buildExtensionSummaries,
@@ -12,19 +12,22 @@ import {
 describe("buildExtensionSummaries", () => {
   it("maps status, category, tier and prefs; disabled overrides status", () => {
     const out = buildExtensionSummaries(
-      [VERCEL, AZURE],
-      { vercel: "ready", azure: "unauthed" },
-      { azure: { pinned: true }, vercel: { enabled: false } },
+      [SNOWFLAKE, AZURE],
+      { snowflake: "ready", azure: "unauthed" },
+      { azure: { pinned: true }, snowflake: { enabled: false } },
     );
-    const v = out.find((e) => e.id === "vercel");
+    const v = out.find((e) => e.id === "snowflake");
     const a = out.find((e) => e.id === "azure");
     if (!v || !a) throw new Error("missing summary");
 
-    // vercel: enabled:false wins over its "ready" detect status
+    // snowflake: enabled:false wins over its "ready" detect status
     expect(v.status).toBe("disabled");
     expect(v.enabled).toBe(false);
     expect(v.pinned).toBe(false);
-    expect(v.category).toBe("activity"); // activity surface -> "activity" category
+    // A {view} surface becomes that view's category. (An activity-surfaced
+    // manifest would map to "activity" -- none ship today, and the
+    // "linear" fixture further down still covers that branch.)
+    expect(v.category).toBe("databases");
     expect(v.tier).toBe("status");
     expect(v.hasConfig).toBe(false);
 
@@ -37,13 +40,13 @@ describe("buildExtensionSummaries", () => {
     // install/connect carried through from the manifest (for Hub action buttons)
     expect(a.install?.command).toBe("brew install azure-cli");
     expect(a.connect?.command).toBe("az login");
-    // vercel has neither -> undefined
-    expect(v.install).toBeUndefined();
-    expect(v.connect).toBeUndefined();
+    // snowflake carries its own pair, distinct from azure's
+    expect(v.install?.command).toContain("snow");
+    expect(v.connect?.command).toContain("snow");
   });
 
   it("defaults a missing status to absent and missing prefs to enabled/unpinned", () => {
-    const v = buildExtensionSummaries([VERCEL], {}, {})[0];
+    const v = buildExtensionSummaries([SNOWFLAKE], {}, {})[0];
     if (!v) throw new Error("missing summary");
     expect(v.status).toBe("absent");
     expect(v.enabled).toBe(true);
@@ -68,9 +71,9 @@ describe("buildExtensionSummaries", () => {
 
 describe("pinnedEnabledManifests", () => {
   it("keeps only pinned AND not-disabled", () => {
-    const r = pinnedEnabledManifests([VERCEL, AZURE], {
+    const r = pinnedEnabledManifests([SNOWFLAKE, AZURE], {
       azure: { pinned: true },
-      vercel: { pinned: true, enabled: false }, // pinned but disabled -> dropped
+      snowflake: { pinned: true, enabled: false }, // pinned but disabled -> dropped
     });
     expect(r.map((m) => m.id)).toEqual(["azure"]);
   });
@@ -78,7 +81,9 @@ describe("pinnedEnabledManifests", () => {
 
 describe("enabledManifests", () => {
   it("drops only explicitly-disabled manifests", () => {
-    const r = enabledManifests([VERCEL, AZURE], { vercel: { enabled: false } });
+    const r = enabledManifests([SNOWFLAKE, AZURE], {
+      snowflake: { enabled: false },
+    });
     expect(r.map((m) => m.id)).toEqual(["azure"]);
   });
 });
@@ -126,7 +131,7 @@ describe("sectionExtensionSummaries", () => {
 });
 
 // The duplicate-row bug (found 2026-07-27, filed against the whole-branch
-// review that shipped sectionExtensionSummaries): snowflake/azure/vercel are
+// review that shipped sectionExtensionSummaries): snowflake/azure are
 // EACH both a real IntegrationManifest (INTEGRATIONS) and a SECTION_EXTENSIONS
 // descriptor, and extensions:list used to concatenate buildExtensionSummaries
 // and sectionExtensionSummaries with no dedup -- so the hub listed each of
@@ -172,11 +177,10 @@ describe("mergeSectionExtensions", () => {
     authKind: "token",
   });
 
-  // Mirrors the real shape: INTEGRATIONS = [vercel, snowflake, azure] (real
+  // Mirrors the real shape: INTEGRATIONS = [snowflake, azure] (real
   // detect status, generic codicon icons), SECTION_EXTENSIONS = [neon, docker,
-  // render, snowflake, azure, vercel] (placeholder "ready", brand icons).
+  // render, snowflake, azure] (placeholder "ready", brand icons).
   const tier1 = [
-    status("vercel", "rocket", "activity", "absent"),
     status("snowflake", "database", "databases", "ready"),
     status("azure", "cloud", "host", "unauthed"),
   ];
@@ -186,14 +190,13 @@ describe("mergeSectionExtensions", () => {
     section("render", "render", "host"),
     section("snowflake", "snowflake", "databases"),
     section("azure", "azure", "host"),
-    section("vercel", "vercel", undefined),
   ];
 
   it("produces exactly one row per id -- no duplicates for an overlapping id", () => {
     const out = mergeSectionExtensions(tier1, sectionRows);
     const ids = out.map((r) => r.id);
     expect([...ids].sort()).toEqual(
-      ["azure", "docker", "neon", "render", "snowflake", "vercel"].sort(),
+      ["azure", "docker", "neon", "render", "snowflake"].sort(),
     );
     expect(new Set(ids).size).toBe(ids.length); // no id repeats
   });
@@ -208,9 +211,10 @@ describe("mergeSectionExtensions", () => {
       tier: "status",
       status: "unauthed",
     });
-    expect(out.find((r) => r.id === "vercel")).toMatchObject({
-      tier: "status",
-      status: "absent",
+    // ...while a NON-overlapping id keeps its section row untouched.
+    expect(out.find((r) => r.id === "neon")).toMatchObject({
+      tier: "section",
+      status: "ready",
     });
   });
 
@@ -218,30 +222,23 @@ describe("mergeSectionExtensions", () => {
     const out = mergeSectionExtensions(tier1, sectionRows);
     // The Tier-1 manifest's own icon ("rocket"/"database"/"cloud") is a
     // generic codicon; SectionGlyph only renders a brand mark for the
-    // SECTION_EXTENSIONS icon id ("snowflake"/"azure"/"vercel"), so keeping
+    // SECTION_EXTENSIONS icon id ("snowflake"/"azure"), so keeping
     // the manifest's own icon here would visibly regress the rail icon.
     expect(out.find((r) => r.id === "snowflake")?.icon).toBe("snowflake");
     expect(out.find((r) => r.id === "azure")?.icon).toBe("azure");
-    expect(out.find((r) => r.id === "vercel")?.icon).toBe("vercel");
+    expect(out.find((r) => r.id === "snowflake")?.icon).toBe("snowflake");
   });
 
   it("keeps the manifest row's own category, not the section descriptor's", () => {
     const out = mergeSectionExtensions(tier1, sectionRows);
-    // Vercel's Tier-1 category is "activity" (gives its pin toggle somewhere
+    // The manifest's own category wins over the descriptor's
     // to surface into); its SECTION_EXTENSIONS descriptor has none at all.
-    expect(out.find((r) => r.id === "vercel")?.category).toBe("activity");
+    expect(out.find((r) => r.id === "snowflake")?.category).toBe("databases");
   });
 
   it("flags every surviving row hasSection: true, overlapping or not", () => {
     const out = mergeSectionExtensions(tier1, sectionRows);
-    for (const id of [
-      "neon",
-      "docker",
-      "render",
-      "snowflake",
-      "azure",
-      "vercel",
-    ]) {
+    for (const id of ["neon", "docker", "render", "snowflake", "azure"]) {
       expect(out.find((r) => r.id === id)?.hasSection, id).toBe(true);
     }
   });

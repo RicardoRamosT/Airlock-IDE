@@ -3,7 +3,6 @@ import { DockerSection } from "../components/DockerSection";
 import {
   AzureSection,
   SnowflakeSection,
-  VercelSection,
 } from "../components/ManifestExtensionSection";
 import { NeonSection } from "../components/NeonSection";
 import { RenderSection } from "../components/RenderSection";
@@ -32,7 +31,6 @@ export const EXTENSION_VIEWS: Record<string, ExtensionView> = {
   // by id (see ManifestExtensionSection.tsx).
   snowflake: { Sidebar: SnowflakeSection },
   azure: { Sidebar: AzureSection },
-  vercel: { Sidebar: VercelSection },
 };
 
 // The bespoke sidebar view for an extension, or null to use the generic one.

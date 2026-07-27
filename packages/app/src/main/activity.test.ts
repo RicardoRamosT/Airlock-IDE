@@ -16,17 +16,17 @@ import {
 
 describe("eyeOnManifests", () => {
   it("keeps only enabled + eye-on (pinned) manifests for the activity feed", () => {
-    const ids = eyeOnManifests(INTEGRATIONS, { vercel: { pinned: true } }).map(
-      (m) => m.id,
-    );
-    expect(ids).toContain("vercel");
+    const ids = eyeOnManifests(INTEGRATIONS, {
+      snowflake: { pinned: true },
+    }).map((m) => m.id);
+    expect(ids).toContain("snowflake");
     expect(ids).not.toContain("azure"); // not pinned -> excluded
   });
   it("excludes a disabled manifest even if pinned", () => {
     const ids = eyeOnManifests(INTEGRATIONS, {
-      vercel: { enabled: false, pinned: true },
+      snowflake: { enabled: false, pinned: true },
     }).map((m) => m.id);
-    expect(ids).not.toContain("vercel");
+    expect(ids).not.toContain("snowflake");
   });
 });
 

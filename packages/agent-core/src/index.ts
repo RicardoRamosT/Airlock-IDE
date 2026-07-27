@@ -232,7 +232,6 @@ export {
   AZURE,
   INTEGRATIONS,
   SNOWFLAKE,
-  VERCEL,
 } from "./integrations/registry";
 export {
   providersFor,

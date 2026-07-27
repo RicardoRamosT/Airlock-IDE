@@ -13,7 +13,6 @@ import {
   AzureSection,
   ManifestExtensionSection,
   SnowflakeSection,
-  VercelSection,
 } from "./ManifestExtensionSection";
 
 afterEach(cleanup);
@@ -31,7 +30,7 @@ function mockResources(fn: (id: string) => Promise<SteadyIntegration | null>) {
 }
 
 // CRITICAL #1 (2026-07-27 fix wave): before this component existed,
-// ext:snowflake/azure/vercel had no EXTENSION_VIEWS entry, so Sidebar.tsx fell
+// ext:snowflake/azure had no EXTENSION_VIEWS entry, so Sidebar.tsx fell
 // through to ExtensionResourcesSection -- which calls extensions:resourcesFor,
 // an IPC that only knows Tier-2 CONNECTED_PROVIDERS ids (slack/github) and
 // returns [] for anything else. Every one of these three states therefore
@@ -81,27 +80,32 @@ it("says it's installed but not signed in, with a Connect button that runs the c
 
 it("renders a row per resource when ready", async () => {
   mockResources(async () => ({
-    id: "vercel",
-    name: "Vercel",
-    view: "activity",
+    id: "snowflake",
+    name: "Snowflake",
+    view: "databases",
     status: "ready",
     resources: [
-      { id: "int:vercel:1", title: "web", subtitle: "main", state: "running" },
+      {
+        id: "int:snowflake:1",
+        title: "COMPUTE_WH",
+        subtitle: "",
+        state: "running",
+      },
     ],
   }));
-  render(<ManifestExtensionSection id="vercel" />);
-  expect(await screen.findByText("web")).toBeTruthy();
+  render(<ManifestExtensionSection id="snowflake" />);
+  expect(await screen.findByText("COMPUTE_WH")).toBeTruthy();
 });
 
 it("says there are no resources rather than rendering a blank panel", async () => {
   mockResources(async () => ({
-    id: "vercel",
-    name: "Vercel",
-    view: "activity",
+    id: "snowflake",
+    name: "Snowflake",
+    view: "databases",
     status: "ready",
     resources: [],
   }));
-  render(<ManifestExtensionSection id="vercel" />);
+  render(<ManifestExtensionSection id="snowflake" />);
   expect(await screen.findByText("No resources.")).toBeTruthy();
   expect(screen.queryByText("Nothing to show yet.")).toBeNull();
 });
@@ -124,9 +128,4 @@ it("registers a distinct wrapper per extension, each fetching its own id", async
 
   render(<AzureSection />);
   await waitFor(() => expect(fn).toHaveBeenCalledWith("azure"));
-  cleanup();
-  fn.mockClear();
-
-  render(<VercelSection />);
-  await waitFor(() => expect(fn).toHaveBeenCalledWith("vercel"));
 });

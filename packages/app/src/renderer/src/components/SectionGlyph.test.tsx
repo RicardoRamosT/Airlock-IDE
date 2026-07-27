@@ -7,7 +7,7 @@ afterEach(cleanup);
 
 // Azure is deliberately NOT here: simple-icons carries no Microsoft marks, so
 // it falls through to a codicon rather than to a logo we invented.
-const BRANDS = ["slack", "neon", "docker", "render", "snowflake", "vercel"];
+const BRANDS = ["slack", "neon", "docker", "render", "snowflake"];
 
 it("draws a monochrome brand mark for every extension brand", () => {
   for (const id of BRANDS) {

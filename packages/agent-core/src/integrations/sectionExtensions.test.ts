@@ -13,7 +13,6 @@ describe("SECTION_EXTENSIONS", () => {
       "neon",
       "render",
       "snowflake",
-      "vercel",
     ]);
   });
 
@@ -34,10 +33,10 @@ describe("SECTION_EXTENSIONS", () => {
     expect(providersFor("host").map((d) => d.id)).toEqual(["render", "azure"]);
   });
 
-  it("leaves Vercel contributing to no category section", () => {
-    // Vercel keeps feeding the Activity feed; it has no standing resource that
-    // belongs in Databases or Host.
-    expect(sectionExtension("vercel")?.contributesTo).toBeUndefined();
+  it("returns null for a service that was removed", () => {
+    // Vercel was a pilot integration that proved the manifest engine and was
+    // deleted once it had; nothing should resolve it any more.
+    expect(sectionExtension("vercel")).toBeNull();
   });
 
   it("returns null for an unknown id rather than throwing", () => {

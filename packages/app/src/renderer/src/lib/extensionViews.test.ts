@@ -17,7 +17,6 @@ describe("EXTENSION_VIEWS (via sidebarViewFor)", () => {
       "render",
       "snowflake",
       "azure",
-      "vercel",
     ]) {
       expect(sidebarViewFor(id), id).not.toBeNull();
     }

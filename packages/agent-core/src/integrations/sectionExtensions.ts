@@ -62,12 +62,6 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     contributesTo: "host",
     description: "Web apps and their running state.",
   },
-  {
-    id: "vercel",
-    name: "Vercel",
-    icon: "vercel",
-    description: "Deployments, live in the Activity feed while they build.",
-  },
 ];
 
 export function sectionExtension(

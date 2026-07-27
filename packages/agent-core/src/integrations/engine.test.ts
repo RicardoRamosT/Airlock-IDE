@@ -16,7 +16,37 @@ import {
   steadyView,
 } from "./engine";
 import type { IntegrationManifest } from "./manifest";
-import { VERCEL } from "./registry";
+
+// A LOCAL fixture manifest, not a shipped one. These tests exercise the ENGINE,
+// so binding them to whichever integrations happen to be in the registry made
+// them break when Vercel (their previous stand-in) was removed. Shape mirrors a
+// deploy CLI: activity-surfaced, an auth check, a JSON list poll.
+const DEPLOY: IntegrationManifest = {
+  id: "deploycli",
+  name: "DeployCLI",
+  icon: "rocket",
+  surface: "activity",
+  detect: { authCheck: { cmd: "deploycli", args: ["whoami"] } },
+  poll: {
+    everyMs: 20000,
+    cwdScoped: true,
+    cli: { cmd: "deploycli", args: ["ls", "--json"] },
+  },
+  map: {
+    items: "$.deployments",
+    key: "$.uid",
+    title: "$.name",
+    subtitle: "$.meta.githubCommitRef",
+    href: "$.url",
+    state: {
+      from: "$.readyState",
+      running: ["BUILDING", "QUEUED", "INITIALIZING"],
+      done: ["READY"],
+      failed: ["ERROR", "CANCELED"],
+      default: "idle",
+    },
+  },
+};
 
 const LS_OUT = JSON.stringify({
   deployments: [
@@ -36,10 +66,10 @@ const okRunner: CliRunner = async (_cmd, args) =>
 
 describe("runManifest", () => {
   it("detects, polls, parses, and maps", async () => {
-    const items = await runManifest(VERCEL, "/repo", okRunner);
+    const items = await runManifest(DEPLOY, "/repo", okRunner);
     expect(items).toEqual([
       {
-        id: "int:vercel:dpl_1",
+        id: "int:deploycli:dpl_1",
         title: "web",
         subtitle: "main",
         state: "running",
@@ -53,7 +83,7 @@ describe("runManifest", () => {
       if (args[0] === "whoami") throw new Error("not logged in");
       return LS_OUT;
     };
-    expect(await runManifest(VERCEL, "/repo", failAuth)).toEqual([]);
+    expect(await runManifest(DEPLOY, "/repo", failAuth)).toEqual([]);
   });
 
   it("returns [] when the poll command fails", async () => {
@@ -61,13 +91,13 @@ describe("runManifest", () => {
       if (args[0] === "whoami") return "";
       throw new Error("boom");
     };
-    expect(await runManifest(VERCEL, "/repo", failPoll)).toEqual([]);
+    expect(await runManifest(DEPLOY, "/repo", failPoll)).toEqual([]);
   });
 
   it("returns [] when the output is not JSON", async () => {
     const garbage: CliRunner = async (_c, args) =>
       args[0] === "whoami" ? "" : "not json";
-    expect(await runManifest(VERCEL, "/repo", garbage)).toEqual([]);
+    expect(await runManifest(DEPLOY, "/repo", garbage)).toEqual([]);
   });
 
   it("passes the project root as cwd for cwdScoped manifests", async () => {
@@ -76,7 +106,7 @@ describe("runManifest", () => {
       seen.push({ cwd: opts.cwd });
       return args[0] === "whoami" ? "" : LS_OUT;
     };
-    await runManifest(VERCEL, "/repo", spy);
+    await runManifest(DEPLOY, "/repo", spy);
     expect(seen.every((s) => s.cwd === "/repo")).toBe(true);
   });
 
@@ -86,11 +116,11 @@ describe("runManifest", () => {
       seen.push(opts.cwd);
       return args[0] === "whoami" ? "" : LS_OUT;
     };
-    const items = await runManifest(VERCEL, null, spy);
+    const items = await runManifest(DEPLOY, null, spy);
     expect(seen.every((c) => c === undefined)).toBe(true); // null root -> no cwd
     expect(items).toEqual([
       {
-        id: "int:vercel:dpl_1",
+        id: "int:deploycli:dpl_1",
         title: "web",
         subtitle: "main",
         state: "running",
@@ -112,7 +142,7 @@ describe("steadyView + transient/steady split", () => {
 
   it("steadyView returns the target view for steady manifests, null for transient", () => {
     expect(steadyView(steadyManifest)).toBe("databases");
-    expect(steadyView(VERCEL)).toBeNull(); // VERCEL has no surface -> transient
+    expect(steadyView(DEPLOY)).toBeNull(); // an activity surface is not a steady VIEW
   });
 
   it("pollIntegrations ignores steady manifests (it only feeds the Activity feed)", async () => {
@@ -131,7 +161,7 @@ describe("steadyView + transient/steady split", () => {
 });
 
 describe("detectStatus", () => {
-  const m = VERCEL; // any manifest; we only exercise its detect.authCheck
+  const m = DEPLOY; // any manifest; we only exercise its detect.authCheck
   it("ready when the auth check exits 0", async () => {
     const run: CliRunner = async () => "";
     expect(await detectStatus(m, undefined, 8000, run)).toBe("ready");
@@ -169,17 +199,17 @@ describe("pollIntegrations", () => {
   it("honors everyMs: serves cache within the window, re-runs after it", async () => {
     const { run, polls } = counting();
     const cache: PollCache = {};
-    const first = await pollIntegrations([VERCEL], "/repo", 1000, cache, run);
+    const first = await pollIntegrations([DEPLOY], "/repo", 1000, cache, run);
     expect(first).toHaveLength(1);
     expect(polls()).toBe(1);
 
-    // 5s later: within VERCEL's everyMs (20000) -> cached, no new spawn.
-    const second = await pollIntegrations([VERCEL], "/repo", 6000, cache, run);
+    // 5s later: within DEPLOY's everyMs (20000) -> cached, no new spawn.
+    const second = await pollIntegrations([DEPLOY], "/repo", 6000, cache, run);
     expect(second).toEqual(first);
     expect(polls()).toBe(1);
 
     // 25s after the first run: past everyMs -> re-runs.
-    await pollIntegrations([VERCEL], "/repo", 26000, cache, run);
+    await pollIntegrations([DEPLOY], "/repo", 26000, cache, run);
     expect(polls()).toBe(2);
   });
 });
@@ -271,7 +301,7 @@ describe("pollSteady", () => {
 
   it("ignores transient (Activity) manifests", async () => {
     const run: CliRunner = async () => "";
-    expect(await pollSteady([VERCEL], null, 1000, {}, run)).toEqual([]);
+    expect(await pollSteady([DEPLOY], null, 1000, {}, run)).toEqual([]);
   });
 
   it("surfaces unauthed (no resources) when authed check fails but binary exists", async () => {
@@ -314,20 +344,20 @@ describe("steadyIntegrationFor", () => {
   // This is the actual bug behind CRITICAL #1: the integrations:resources IPC
   // handler used to call pollSteady([m], ...) for a single by-id lookup too,
   // and pollSteady EXCLUDES any manifest whose surface is not a steady view --
-  // VERCEL's is "activity". So the by-id fetch silently returned null for
+  // DEPLOY's is "activity". So the by-id fetch silently returned null for
   // Vercel forever (see the old `s ?? null` in main/ipc.ts), which is how
   // registering ext:vercel with a real section was blocked: there was no data
   // to show. steadyIntegrationFor must NOT apply pollSteady's filter -- it
-  // computes VERCEL's real value directly, same as it would for any manifest.
+  // computes DEPLOY's real value directly, same as it would for any manifest.
   it("computes a real value for an Activity-surfaced manifest, unlike pollSteady", async () => {
-    expect(steadyView(VERCEL)).toBeNull(); // confirms VERCEL is NOT steady-view
+    expect(steadyView(DEPLOY)).toBeNull(); // confirms DEPLOY is NOT steady-view
 
     // pollSteady's own contract: excludes it entirely.
-    expect(await pollSteady([VERCEL], "/repo", 1000, {}, okRunner)).toEqual([]);
+    expect(await pollSteady([DEPLOY], "/repo", 1000, {}, okRunner)).toEqual([]);
 
     // steadyIntegrationFor: computes it anyway.
     const value = await steadyIntegrationFor(
-      VERCEL,
+      DEPLOY,
       "/repo",
       1000,
       {},
@@ -337,7 +367,7 @@ describe("steadyIntegrationFor", () => {
     expect(value.view).toBe("activity"); // no steady view -> informational label
     expect(value.resources).toEqual([
       {
-        id: "int:vercel:dpl_1",
+        id: "int:deploycli:dpl_1",
         title: "web",
         subtitle: "main",
         state: "running",
@@ -351,14 +381,14 @@ describe("steadyIntegrationFor", () => {
       throw Object.assign(new Error("nope"), { code: "ENOENT" });
     };
     expect(
-      (await steadyIntegrationFor(VERCEL, "/repo", 1000, {}, missing)).status,
+      (await steadyIntegrationFor(DEPLOY, "/repo", 1000, {}, missing)).status,
     ).toBe("absent");
 
     const unauthed: CliRunner = async () => {
       throw Object.assign(new Error("not logged in"), { code: 1 });
     };
     expect(
-      (await steadyIntegrationFor(VERCEL, "/repo", 1000, {}, unauthed)).status,
+      (await steadyIntegrationFor(DEPLOY, "/repo", 1000, {}, unauthed)).status,
     ).toBe("unauthed");
   });
 
@@ -369,8 +399,8 @@ describe("steadyIntegrationFor", () => {
       return args[0] === "whoami" ? "" : LS_OUT;
     };
     const cache: SteadyCache = {};
-    await steadyIntegrationFor(VERCEL, "/repo", 1000, cache, run);
-    await steadyIntegrationFor(VERCEL, "/repo", 6000, cache, run); // within 20000
+    await steadyIntegrationFor(DEPLOY, "/repo", 1000, cache, run);
+    await steadyIntegrationFor(DEPLOY, "/repo", 6000, cache, run); // within 20000
     expect(polls).toBe(1);
   });
 });
@@ -420,7 +450,7 @@ describe("isRelevant", () => {
 });
 
 describe("detectWithOutput", () => {
-  const m = VERCEL; // any manifest; only its detect.authCheck is exercised
+  const m = DEPLOY; // any manifest; only its detect.authCheck is exercised
   it("returns ready + the auth check's stdout", async () => {
     const run: CliRunner = async () => '{"name":"My-Sub"}';
     expect(await detectWithOutput(m, undefined, 8000, run)).toEqual({

@@ -303,7 +303,8 @@ adapter over a third-party product you separately PROVISION.** The operative
 word is provisioning, not authorship: Git is third-party software AirLock wraps,
 but there is no account and no connect step, so it is ambient and stays core.
 Docker is a product you installed, which may not be there. Applying that rule
-refiled six services — Neon, Docker, Render, Snowflake, Azure, Vercel — that had
+refiled six services — Neon, Docker, Render, Snowflake, Azure and (briefly)
+Vercel — that had
 been sitting in built-in sections. (Render was missed on the first pass and
 caught by applying the rule mechanically; that is the argument for having one.)
 
@@ -316,6 +317,18 @@ Three kinds of extension coexist, and the differences are real:
 - **status** (`INTEGRATIONS` manifests, `tier: "status"`) — a declarative CLI
   poll. The LIMITED case: it cannot express a connect flow, which is why
   Snowflake and Azure will eventually graduate off it.
+
+**Vercel was DELETED (2026-07-27), not merely disabled.** It was never an
+integration anyone used here: the 2026-06-12 CLI-integration-framework spec
+named it one of three *pilots* whose job was to "prove the engine" — the
+simplest possible manifest (a JSON list command plus an auth check). It proved
+it, then got carried along and eventually promoted to a rail icon in a project
+that will never deploy to Vercel. Deleting it also removed the last
+`surface: "activity"` manifest, so that engine branch now ships with no live
+manifest exercising it — `engine.test.ts` covers it with a LOCAL fixture
+(`DEPLOY`) rather than a shipped integration, which is where that coverage
+belonged anyway. Of the spec's three pilots, gcloud Cloud Run never shipped and
+Snowflake remains.
 
 **Rail policy: extension icons are always shown, enabled or not** — a user
 cannot enable what they cannot see. The rail scrolls, and right-click → Hide is
