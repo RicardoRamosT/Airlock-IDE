@@ -9,7 +9,13 @@ import {
   formatSlackTime,
   initialsFor,
 } from "../lib/slackFormat";
-import { CHANNEL_CAP, filterChannels, visibleChannels } from "../lib/slackList";
+import {
+  CHANNEL_CAP,
+  FIRST_MESSAGE_LIMIT,
+  filterChannels,
+  nextMessageLimit,
+  visibleChannels,
+} from "../lib/slackList";
 import { useApp } from "../store";
 import { SlackWorkspaceCard } from "./SlackWorkspaceCard";
 
@@ -96,6 +102,8 @@ export function SlackSection() {
     { id: string; name: string } | undefined
   >(undefined);
   const [manageError, setManageError] = useState<string | null>(null);
+  // How far back each expanded channel has been asked to fetch.
+  const [limits, setLimits] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
   // Loaded once per project, on the first read that actually succeeds -- which
@@ -130,16 +138,18 @@ export function SlackSection() {
     setFilter("");
     setShowAll(false);
     setManageError(null);
+    setLimits({});
     avatarsFor.current = null;
     void loadList();
   }, [loadList]);
 
   const load = useCallback(
-    async (id: string) => {
+    async (id: string, limit?: number) => {
       if (!root) return;
+      const n = limit ?? FIRST_MESSAGE_LIMIT;
       setState((s) => ({ ...s, [id]: { ...s[id], loading: true } }));
       const res = await window.airlock
-        .slackReadChannel(root, id, 20)
+        .slackReadChannel(root, id, n)
         .catch((e: unknown) => ({
           error: e instanceof Error ? e.message : String(e),
           messages: undefined,
@@ -166,10 +176,20 @@ export function SlackSection() {
     if (!root || expanded.size === 0) return;
     const id = setInterval(() => {
       if (document.visibilityState === "hidden") return;
-      for (const channelId of expanded) void load(channelId);
+      // Pass the channel's CURRENT depth: without it a thread expanded to 100
+      // would silently snap back to 20 on the next tick.
+      for (const channelId of expanded)
+        void load(channelId, limits[channelId] ?? FIRST_MESSAGE_LIMIT);
     }, 30_000);
     return () => clearInterval(id);
-  }, [root, expanded, load]);
+  }, [root, expanded, load, limits]);
+
+  const showEarlier = (id: string) => {
+    const next = nextMessageLimit(limits[id] ?? FIRST_MESSAGE_LIMIT);
+    if (next === null) return;
+    setLimits((l) => ({ ...l, [id]: next }));
+    void load(id, next);
+  };
 
   // Download through the gated main-side path, then hand the cached path to the
   // normal editor open -- so the existing image/PDF viewers and tab machinery
@@ -287,7 +307,8 @@ export function SlackSection() {
           title="Refresh"
           onClick={() => {
             void loadList();
-            for (const id of expanded) void load(id);
+            for (const id of expanded)
+              void load(id, limits[id] ?? FIRST_MESSAGE_LIMIT);
           }}
         >
           Refresh
@@ -372,6 +393,23 @@ export function SlackSection() {
                 {st?.messages?.length === 0 && (
                   <div className="section-note">No messages yet</div>
                 )}
+                {st?.messages &&
+                  st.messages.length > 0 &&
+                  (nextMessageLimit(limits[c.id] ?? FIRST_MESSAGE_LIMIT) ===
+                  null ? (
+                    <div className="section-note">
+                      Showing the most recent 100 messages — the most AirLock
+                      fetches.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="section-empty"
+                      onClick={() => showEarlier(c.id)}
+                    >
+                      Show earlier
+                    </button>
+                  ))}
                 {fileError && (
                   <div className="slack-refusal">
                     <i className="codicon codicon-warning" />

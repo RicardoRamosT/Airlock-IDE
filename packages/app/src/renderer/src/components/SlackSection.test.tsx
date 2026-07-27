@@ -594,3 +594,35 @@ it("keeps the row and shows why when removal fails", async () => {
   expect(await screen.findByText(/disk full/)).toBeTruthy();
   expect(screen.getByText("general-airlock")).toBeTruthy();
 });
+
+const msg = (i: number) => ({
+  ts: `178504766${i}.0`,
+  user: "U1",
+  userName: "Ricardo",
+  text: `m${i}`,
+  files: [],
+});
+
+it("fetches further back on demand, then admits the ceiling", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+  });
+  read.mockResolvedValue({
+    channel: "#general-airlock",
+    messages: [msg(1), msg(2)],
+  });
+  render(<SlackSection />);
+  fireEvent.click(await screen.findByText("general-airlock"));
+  await waitFor(() => expect(read).toHaveBeenCalledWith("/repo", "C1", 20));
+
+  fireEvent.click(await screen.findByText("Show earlier"));
+  await waitFor(() => expect(read).toHaveBeenCalledWith("/repo", "C1", 50));
+
+  fireEvent.click(await screen.findByText("Show earlier"));
+  await waitFor(() => expect(read).toHaveBeenCalledWith("/repo", "C1", 100));
+
+  // At the ceiling the button is replaced by the reason, not left dead.
+  await waitFor(() => expect(screen.queryByText("Show earlier")).toBeNull());
+  expect(screen.getByText(/100 messages/i)).toBeTruthy();
+});
