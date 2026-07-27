@@ -64,7 +64,9 @@ describe("slack client (fake transport)", () => {
       ok: true,
       members: [{ id: "U1", profile: { display_name: "Ally" } }],
     }));
-    expect(await listUsers("t", tx)).toEqual([{ id: "U1", name: "Ally" }]);
+    expect(await listUsers("t", tx)).toEqual([
+      { id: "U1", name: "Ally", avatar: "" },
+    ]);
     expect(tx).toHaveBeenCalledWith("users.list", "t", { limit: "1000" });
   });
 

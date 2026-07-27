@@ -69,6 +69,11 @@ export function parseChannels(json: unknown): SlackChannel[] {
 export interface SlackUser {
   id: string;
   name: string;
+  // users.list already carries the avatar, so showing a real profile picture
+  // costs no extra request. 72px: crisp on a retina 22px row without pulling
+  // the 512 original. Optional: absent for accounts with no image, and for the
+  // many call sites that only care about names.
+  avatar?: string;
 }
 
 export function parseUsers(json: unknown): SlackUser[] {
@@ -84,7 +89,9 @@ export function parseUsers(json: unknown): SlackUser[] {
         str(m.real_name) ||
         str(p.real_name) ||
         str(m.name);
-      return { id: str(m.id), name };
+      const avatar =
+        str(p.image_72) || str(p.image_48) || str(p.image_192) || "";
+      return { id: str(m.id), name, avatar };
     });
 }
 

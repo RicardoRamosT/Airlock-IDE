@@ -1035,6 +1035,9 @@ export interface AirlockApi {
     channel: string,
     fileId: string,
   ): Promise<SlackDownloadResult>;
+  // Slack profile pictures as `userId -> data URL`. Data URLs, not remote
+  // links: the renderer's CSP is `img-src 'self' data:`.
+  slackAvatars(root: string): Promise<Record<string, string>>;
   extensionsGetConfig(
     root: string,
     id: string,

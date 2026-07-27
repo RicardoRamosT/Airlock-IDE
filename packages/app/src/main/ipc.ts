@@ -132,6 +132,7 @@ import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels } from "./extensions/slack";
 import { slackDownloadFileTool } from "./extensions/slackFiles";
 import {
+  slackAvatarsTool,
   slackConnected,
   slackListAllowedChannelsTool,
   slackReadChannelTool,
@@ -1996,6 +1997,11 @@ export function registerIpc(
       return slackDownloadFileTool(root, channel, fileId);
     },
   );
+
+  ipcMain.handle("slack:avatars", async (_e, root: unknown) => {
+    if (typeof root !== "string") return {};
+    return slackAvatarsTool(root);
+  });
 
   ipcMain.handle(
     "slack:readChannel",

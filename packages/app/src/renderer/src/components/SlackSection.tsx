@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SlackAllowedChannel, SlackUiMessage } from "../../../shared/ipc";
 import { openEditorFile } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
@@ -87,6 +87,13 @@ export function SlackSection() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [state, setState] = useState<Record<string, ChannelState>>({});
   const [fileError, setFileError] = useState<string | null>(null);
+  // userId -> data URL. Empty until loaded, and stays empty without users:read
+  // -- the initials circle below is the fallback, so this only ever upgrades.
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
+  // Loaded once per project, on the first read that actually succeeds -- which
+  // is also the first moment we know Slack is connected. Keyed on the root so
+  // connecting (or switching workspaces) mid-session still picks pictures up.
+  const avatarsFor = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +102,8 @@ export function SlackSection() {
     setLoadedList(false);
     setExpanded(new Set());
     setState({});
+    setAvatars({});
+    avatarsFor.current = null;
     if (!root) return;
     void window.airlock
       .slackAllowedChannels(root)
@@ -126,6 +135,13 @@ export function SlackSection() {
         ...s,
         [id]: { loading: false, error: res.error, messages: res.messages },
       }));
+      if (res.messages && avatarsFor.current !== root) {
+        avatarsFor.current = root;
+        window.airlock
+          .slackAvatars(root)
+          .then(setAvatars)
+          .catch(() => {});
+      }
     },
     [root],
   );
@@ -274,14 +290,22 @@ export function SlackSection() {
                       className={`slack-msg${row.startsBlock ? " starts" : ""}`}
                     >
                       {row.startsBlock ? (
-                        <span
-                          className="slack-avatar"
-                          style={{
-                            background: `hsl(${avatarHue(row.msg.user || row.msg.userName)} 45% 38%)`,
-                          }}
-                        >
-                          {initialsFor(row.msg.userName)}
-                        </span>
+                        avatars[row.msg.user] ? (
+                          <img
+                            className="slack-avatar"
+                            src={avatars[row.msg.user]}
+                            alt=""
+                          />
+                        ) : (
+                          <span
+                            className="slack-avatar"
+                            style={{
+                              background: `hsl(${avatarHue(row.msg.user || row.msg.userName)} 45% 38%)`,
+                            }}
+                          >
+                            {initialsFor(row.msg.userName)}
+                          </span>
+                        )
                       ) : (
                         <span className="slack-avatar-spacer" />
                       )}

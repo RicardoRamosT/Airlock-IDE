@@ -1378,6 +1378,12 @@ body,
   color: #fff;
   letter-spacing: 0.02em;
 }
+/* The <img> variant: same box as the initials circle so a mixed list of real
+   pictures and fallbacks stays aligned. */
+img.slack-avatar {
+  object-fit: cover;
+  flex: none;
+}
 .slack-avatar-spacer {
   width: 20px;
 }

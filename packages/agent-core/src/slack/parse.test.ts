@@ -84,6 +84,22 @@ describe("parseChannels kind", () => {
 });
 
 describe("parseUsers", () => {
+  // users.list already carries the avatar, so a real profile picture costs no
+  // extra request -- but only if the parser stops throwing it away.
+  it("keeps the profile image, preferring 72px", () => {
+    const users = parseUsers({
+      ok: true,
+      members: [
+        {
+          id: "U1",
+          name: "u1",
+          profile: { image_48: "http://x/48.png", image_72: "http://x/72.png" },
+        },
+      ],
+    });
+    expect(users[0]?.avatar).toBe("http://x/72.png");
+  });
+
   it("prefers display_name, then real_name, then name; skips deleted", () => {
     expect(
       parseUsers({
@@ -100,8 +116,8 @@ describe("parseUsers", () => {
         ],
       }),
     ).toEqual([
-      { id: "U1", name: "Ally" },
-      { id: "U2", name: "u2" },
+      { id: "U1", name: "Ally", avatar: "" },
+      { id: "U2", name: "u2", avatar: "" },
     ]);
   });
   it("non-ok -> []", () => {

@@ -20,6 +20,7 @@ import {
   convGlyph,
   SLACK_TOKEN_NAME,
 } from "./slack";
+import { slackAvatarsFor } from "./slackAvatars";
 import { rememberHistory } from "./slackHistoryCache";
 import { slackUsersFor } from "./slackUsers";
 
@@ -63,6 +64,19 @@ export async function slackListAllowedChannelsTool(
 
 // Impure dependencies, injected so the gate and the result mapping are unit
 // testable without disk config or the keychain. Production passes nothing.
+// Profile pictures for the users the sidebar is showing. Connection-gated like
+// every other Slack read; returns id -> data URL (see slackAvatars.ts for why
+// main does the fetching).
+export async function slackAvatarsTool(
+  root: string | null,
+): Promise<Record<string, string>> {
+  if (!root) return {};
+  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  if (!token) return {};
+  const users = await slackUsersFor(root, token);
+  return slackAvatarsFor(users);
+}
+
 export interface SlackReadDeps {
   allowed?: (root: string) => Promise<AllowedChannel[]>;
   token?: (root: string) => Promise<string | null>;

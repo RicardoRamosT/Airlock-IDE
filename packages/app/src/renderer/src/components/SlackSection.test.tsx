@@ -31,6 +31,7 @@ beforeEach(() => {
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     slackAllowedChannels: allowed,
     slackReadChannel: read,
+    slackAvatars: async () => ({}),
   };
   withRoot("/repo");
 });
@@ -76,6 +77,49 @@ describe("SlackSection", () => {
     expect(screen.getByText("Ricardo (DM)")).toBeTruthy();
     // Collapsed means no reads -- six channels must not mean six API calls.
     expect(read).not.toHaveBeenCalled();
+  });
+
+  // users.list already carries the avatar; the parser used to drop it, so every
+  // author got a hash-colored initials circle instead of their real picture.
+  it("renders the real profile picture, falling back to initials", async () => {
+    allowed.mockResolvedValue({
+      connected: true,
+      channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+    });
+    read.mockResolvedValue({
+      channel: "#general-airlock",
+      messages: [
+        {
+          ts: "1785047664.3",
+          user: "U1",
+          userName: "Ricardo",
+          text: "a",
+          files: [],
+        },
+        {
+          ts: "1785047999.9",
+          user: "U2",
+          userName: "Nobody",
+          text: "b",
+          files: [],
+        },
+      ],
+    });
+    (
+      window as unknown as { airlock: Record<string, unknown> }
+    ).airlock.slackAvatars = async () => ({ U1: "data:image/png;base64,AAA" });
+    render(<SlackSection />);
+    fireEvent.click(await screen.findByText("general-airlock"));
+    // U1 has a picture. Queried by tag, not role: alt="" is deliberate (the
+    // author's name sits right next to it), which makes it presentational.
+    await waitFor(() =>
+      expect(
+        document.querySelector("img.slack-avatar")?.getAttribute("src"),
+      ).toBe("data:image/png;base64,AAA"),
+    );
+    // ...and U2, who has none, still gets a circle rather than a broken image.
+    expect(document.querySelectorAll("img.slack-avatar")).toHaveLength(1);
+    expect(document.querySelectorAll("span.slack-avatar")).toHaveLength(1);
   });
 
   it("fetches and shows time, name and text when a channel is expanded", async () => {
@@ -367,6 +411,7 @@ describe("SlackSection attachments", () => {
     (window as unknown as { airlock: Record<string, unknown> }).airlock = {
       slackAllowedChannels: allowed,
       slackReadChannel: read,
+      slackAvatars: async () => ({}),
       ...extra,
     };
     render(<SlackSection />);
