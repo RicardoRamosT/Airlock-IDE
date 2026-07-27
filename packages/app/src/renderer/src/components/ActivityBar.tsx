@@ -17,7 +17,6 @@ import { SettingsMenu } from "./SettingsMenu";
 const DOTTED: ReadonlySet<string> = new Set([
   "host",
   "databases",
-  "docker",
   "git",
   "activity",
 ]);

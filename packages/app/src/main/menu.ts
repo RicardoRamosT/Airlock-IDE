@@ -20,7 +20,6 @@ export const SECTION_LABELS: Record<BuiltinSection, string> = {
   git: "Git",
   activity: "Activity",
   databases: "Databases",
-  docker: "Docker",
   host: "Host",
   extensions: "Extensions",
   audit: "Audit",

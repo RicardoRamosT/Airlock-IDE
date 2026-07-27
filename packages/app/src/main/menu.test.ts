@@ -13,7 +13,6 @@ const ALL_VISIBLE: SectionVisibility = {
   git: true,
   activity: true,
   databases: true,
-  docker: true,
   host: true,
   extensions: true,
   audit: true,
@@ -21,7 +20,7 @@ const ALL_VISIBLE: SectionVisibility = {
 };
 
 describe("sectionSubmenuItems", () => {
-  it("returns the ten built-in sections in order as labelled checkboxes", () => {
+  it("returns the nine built-in sections in order as labelled checkboxes", () => {
     const items = sectionSubmenuItems(ALL_VISIBLE, () => {});
     expect(items.map((i) => i.label)).toEqual([
       "Files",
@@ -29,7 +28,6 @@ describe("sectionSubmenuItems", () => {
       "Git",
       "Activity",
       "Databases",
-      "Docker",
       "Host",
       "Audit",
       "Events",
@@ -40,11 +38,11 @@ describe("sectionSubmenuItems", () => {
 
   it("mirrors visibility into each item's checked flag", () => {
     const items = sectionSubmenuItems(
-      { ...ALL_VISIBLE, docker: false },
+      { ...ALL_VISIBLE, host: false },
       () => {},
     );
     const byLabel = Object.fromEntries(items.map((i) => [i.label, i.checked]));
-    expect(byLabel.Docker).toBe(false);
+    expect(byLabel.Host).toBe(false);
     expect(byLabel.Files).toBe(true);
   });
 
@@ -59,15 +57,15 @@ describe("sectionSubmenuItems", () => {
   it("invokes onToggle with the section id and the new checked state", () => {
     const onToggle = vi.fn<(id: Section, visible: boolean) => void>();
     const items = sectionSubmenuItems(ALL_VISIBLE, onToggle);
-    const docker = items.find((i) => i.label === "Docker");
-    expect(docker).toBeDefined();
-    // Simulate the user unchecking Docker.
-    docker?.click?.(
+    const host = items.find((i) => i.label === "Host");
+    expect(host).toBeDefined();
+    // Simulate the user unchecking Host.
+    host?.click?.(
       { checked: false } as never,
       undefined as never,
       undefined as never,
     );
-    expect(onToggle).toHaveBeenCalledWith("docker", false);
+    expect(onToggle).toHaveBeenCalledWith("host", false);
   });
 });
 

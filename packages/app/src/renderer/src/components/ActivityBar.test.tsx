@@ -42,13 +42,13 @@ it("renders one icon per visible section and skips hidden ones", () => {
   useApp.setState({
     sectionVisibility: {
       ...useApp.getState().sectionVisibility,
-      docker: false,
+      host: false,
     },
   });
   render(<ActivityBar />);
   expect(screen.getByTitle("Files")).toBeTruthy();
   expect(screen.getByTitle("Git")).toBeTruthy();
-  expect(screen.queryByTitle("Docker")).toBeNull();
+  expect(screen.queryByTitle("Host")).toBeNull();
 });
 
 it("click on an inactive icon activates that view and persists it", () => {

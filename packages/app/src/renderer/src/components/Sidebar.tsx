@@ -6,16 +6,12 @@ import { useApp } from "../store";
 import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
-import { DockerSection } from "./DockerSection";
 import { EventsSection } from "./EventsSection";
 import { ExtensionResourcesSection } from "./ExtensionResourcesSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
-import { IntegrationsSteadySection } from "./IntegrationsSteadySection";
 import { LocalHostSection } from "./LocalHostSection";
-import { NeonSection } from "./NeonSection";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
-import { RenderSection } from "./RenderSection";
 import { SecretsSection } from "./SecretsSection";
 
 // THE sidebar: one per window (rendered by App, beside the ActivityBar), not
@@ -50,23 +46,8 @@ export function Sidebar() {
   } else if (view === "secrets") body = <SecretsSection />;
   else if (view === "git") body = <GitSection />;
   else if (view === "activity") body = <ActivitySection />;
-  else if (view === "databases")
-    body = (
-      <>
-        <NeonSection />
-        <IntegrationsSteadySection view="databases" />
-        <DatabasesSection />
-      </>
-    );
-  else if (view === "docker") body = <DockerSection />;
-  else if (view === "host")
-    body = (
-      <>
-        <LocalHostSection />
-        <RenderSection />
-        <IntegrationsSteadySection view="host" />
-      </>
-    );
+  else if (view === "databases") body = <DatabasesSection />;
+  else if (view === "host") body = <LocalHostSection />;
   else if (view === "audit") body = <AuditSection />;
   else if (view === "events") body = <EventsSection />;
   else {

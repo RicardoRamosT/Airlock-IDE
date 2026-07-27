@@ -98,7 +98,6 @@ describe("rail groups", () => {
       "git",
       "activity",
       "databases",
-      "docker",
       "host",
       "audit",
       "events",

@@ -358,7 +358,6 @@ export type BuiltinSection =
   | "git"
   | "activity"
   | "databases"
-  | "docker"
   | "host"
   | "extensions"
   | "audit"

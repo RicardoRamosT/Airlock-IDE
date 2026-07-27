@@ -83,7 +83,6 @@ const DEFAULT_PREFS: AppPrefs = {
     git: true,
     activity: true,
     databases: true,
-    docker: true,
     host: true,
     extensions: true,
     audit: true,

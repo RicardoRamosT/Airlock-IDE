@@ -24,7 +24,6 @@ describe("app prefs", () => {
         git: true,
         activity: true,
         databases: true,
-        docker: true,
         host: true,
         extensions: true,
         audit: true,
@@ -101,7 +100,6 @@ describe("app prefs", () => {
         git: true,
         activity: true,
         databases: true,
-        docker: true,
         host: true,
         extensions: true,
         audit: true,
@@ -232,7 +230,6 @@ describe("app prefs", () => {
         git: true,
         activity: true,
         databases: true,
-        docker: true,
         host: true,
         extensions: true,
         audit: true,
@@ -277,7 +274,6 @@ describe("app prefs", () => {
         git: true,
         activity: true,
         databases: true,
-        docker: true,
         host: true,
         extensions: true,
         audit: true,
@@ -339,7 +335,7 @@ describe("app prefs", () => {
     expect(prefs.sectionVisibility.bogus).toBeUndefined();
   });
 
-  it("defaults sectionVisibility to all ten built-in sections visible", async () => {
+  it("defaults sectionVisibility to all nine built-in sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -349,7 +345,6 @@ describe("app prefs", () => {
       git: true,
       activity: true,
       databases: true,
-      docker: true,
       host: true,
       extensions: true,
       audit: true,
@@ -362,7 +357,7 @@ describe("app prefs", () => {
     const file = path.join(dir, "prefs.json");
     // A deliberately partial map (e.g. a malformed patch) must expand to full.
     const next = await savePrefs(file, {
-      sectionVisibility: { docker: false } as SectionVisibility,
+      sectionVisibility: { host: false } as SectionVisibility,
     });
     expect(next.sectionVisibility).toEqual({
       files: true,
@@ -370,8 +365,7 @@ describe("app prefs", () => {
       git: true,
       activity: true,
       databases: true,
-      docker: false,
-      host: true,
+      host: false,
       extensions: true,
       audit: true,
       events: true,
@@ -382,8 +376,7 @@ describe("app prefs", () => {
       git: true,
       activity: true,
       databases: true,
-      docker: false,
-      host: true,
+      host: false,
       extensions: true,
       audit: true,
       events: true,
@@ -400,7 +393,6 @@ describe("app prefs", () => {
       git: true,
       activity: true,
       databases: true,
-      docker: true,
       host: true,
       extensions: true,
       audit: true,
@@ -413,7 +405,7 @@ describe("app prefs", () => {
     const file = path.join(dir, "prefs.json");
     await writeFile(
       file,
-      JSON.stringify({ sectionVisibility: { docker: "no", bogus: 1 } }),
+      JSON.stringify({ sectionVisibility: { host: "no", bogus: 1 } }),
     );
     expect((await loadPrefs(file)).sectionVisibility).toEqual({
       files: true,
@@ -421,7 +413,6 @@ describe("app prefs", () => {
       git: true,
       activity: true,
       databases: true,
-      docker: true,
       host: true,
       extensions: true,
       audit: true,
