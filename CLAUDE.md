@@ -285,7 +285,28 @@ ordered `ExtensionAction[]`; `extensions:list` attaches it to every summary
 main-side — both the manifest-derived rows and the Tier-2 connected ones —
 because the renderer may not value-import agent-core. A surface renders the list
 and performs the action; it never re-derives which actions apply. This replaced
-~90 lines of nested ternaries in the deleted `ExtensionsSection`.
+~90 lines of nested ternaries in the deleted `ExtensionsSection`. **Performing**
+an action is the other half, in `renderer/lib/extensionActions.ts` — shared by
+the hub button and by Claude, so the two paths cannot drift.
+
+**Hub buckets are the CONNECTION STATE, nothing else:** Connected / Not
+connected / Not installed / Disabled. There used to be a fifth, "Has its own
+section", which answered a question nobody asks — every extension has one. It
+existed only because `sectionExtensionSummaries` hardcoded `status: "ready"`
+(the pure registry cannot see liveness), which would otherwise have filed an
+uninstalled Docker under Connected. Main now probes the three for real
+(`sectionExtensionStatuses` in `ide-state.ts`, reusing the docker/neon/render
+probes that already backed their IPCs) and passes them in, so **no hub surface
+special-cases `tier === "section"` any more.** Docker is the one that can be
+installed-but-unusable (daemon down) → `unauthed`, distinct from `absent`; the
+"Installed, not signed in." wording is reserved for Tier-1 CLI manifests, the
+only extensions with a real install-then-login two-step.
+
+**Every row links onward**, the same rule Databases/Host follow. Neon and Render
+connect by pasting an API key into their OWN section and declare no CLI connect
+command, so `extensionActions` gave them nothing — an accurate "Not connected."
+and no way to act on it. Any row with `hasSection` now gets an `openSection`
+action, appended LAST so a real connect action stays the primary button.
 
 **`ExtensionResources` lives in its own file** (`components/ExtensionResources.tsx`),
 extracted verbatim before the sidebar hub was deleted — it used to be defined
@@ -293,8 +314,46 @@ extracted verbatim before the sidebar hub was deleted — it used to be defined
 resource-list implementation with it. Both the page's detail pane and (until its
 removal) the panel imported it, gated on the same `expandable` condition.
 
+**Claude can drive a connect flow, and can never finish one.**
+`extension_status(id?)` returns the hub inventory (and, with an id, that
+extension's resources); `extension_connect(id)` starts the flow via the shared
+dispatcher. Two invariants, both unit-tested: it **cannot disconnect** —
+`primaryConnectAction` only ever selects a connecting action, so a connected
+Slack answers "already connected" instead of picking the destructive action
+sitting next to it — and it **never handles a credential**. The browser
+approval, the pasted key and the CLI prompt stay with the user, and no token is
+ever a tool argument (that would put it in the transcript). It returns the step
+the USER must complete, so Claude never reports a connection that has not
+happened.
+
 Spec: `docs/superpowers/specs/2026-07-27-extensions-reorganization-design.md` ·
 Plan: `docs/superpowers/plans/2026-07-27-extensions-hub-page.md`.
+
+## MCP tool surface
+
+**37 tools** (`main/mcp/tools.ts`, locked by an allowlist test that also asserts
+the count and parity with `resources/mcp-docs/tools.md` — update all three
+together). Two rules learned from trimming it:
+
+- **Count is not the diagnostic; ambiguity is.** Tools hurt when the model must
+  guess between two of them, not when there are many. `open_tab` /
+  `open_app_page` / `open_terminal` / `split_view` share a prefix but have
+  precise, distinct descriptions — merging them would need a
+  discriminated-union schema, which degrades tool selection rather than helping.
+  Left alone deliberately.
+- **Name the resource as an ARGUMENT when the family will grow.**
+  `docker_status`/`neon_status`/`render_services` were not confusable, but one
+  status tool per product does not scale past the five section extensions —
+  hence `extension_status(id?)`. Likewise `add_changelog_entry` folded into
+  `add_changelog_entries`, which already took 1..N.
+
+**Every tool call is logged** (`main/mcp/toolLog.ts` decorates `registerTool`
+once in `server.ts`, so a new tool is instrumented without anyone remembering)
+→ `read_events` with `category: "tool"`. **Arguments are deliberately NOT
+logged** — only name, outcome, duration: `send_terminal_input` and `run_command`
+can carry a credential, and the name alone answers the usage question. Use this
+data before pruning further; the earlier round had to be argued rather than
+measured.
 
 ## What counts as an extension
 
