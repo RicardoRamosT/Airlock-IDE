@@ -55,6 +55,22 @@ export function convGlyph(kind: ConvKind): string {
 // Read a project's Slack channel allow-list (the permission wall) from config.
 // Defensive: any malformed entry is dropped. Exported so the MCP tools reuse the
 // exact same gate as the UI.
+// The workspace the vaulted token belongs to, as recorded by the connect flow
+// (slackWorkspacePatch). Null when nothing was recorded -- the sidebar renders
+// that as "unknown" rather than guessing, because showing the WRONG workspace
+// confidently is the failure mode this identity exists to prevent.
+export async function slackWorkspace(
+  root: string,
+): Promise<{ id: string; name: string } | null> {
+  const cfg = await readProjectConfig(root);
+  const w = cfg.extensions?.slack?.workspace as
+    | { id?: unknown; name?: unknown }
+    | undefined;
+  if (!w || typeof w !== "object") return null;
+  if (typeof w.id !== "string" || typeof w.name !== "string") return null;
+  return { id: w.id, name: w.name };
+}
+
 export async function allowedChannels(root: string): Promise<AllowedChannel[]> {
   const cfg = await readProjectConfig(root);
   const raw = cfg.extensions?.slack?.channels;

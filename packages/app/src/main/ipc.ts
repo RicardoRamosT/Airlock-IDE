@@ -130,7 +130,7 @@ import {
 } from "./extensions/oauth/device";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { eyeOnConnected } from "./extensions/resources";
-import { slackAllChannels } from "./extensions/slack";
+import { slackAllChannels, slackWorkspace } from "./extensions/slack";
 import { slackDownloadFileTool } from "./extensions/slackFiles";
 import {
   slackAvatarsTool,
@@ -1983,11 +1983,12 @@ export function registerIpc(
   // pane and main's implicit window root races the focus sync.
   ipcMain.handle("slack:allowedChannels", async (_e, root: unknown) => {
     if (typeof root !== "string") return { connected: false, channels: [] };
-    const [{ channels }, connected] = await Promise.all([
+    const [{ channels }, connected, workspace] = await Promise.all([
       slackListAllowedChannelsTool(root),
       slackConnected(root),
+      slackWorkspace(root),
     ]);
-    return { connected, channels };
+    return { connected, channels, workspace: workspace ?? undefined };
   });
 
   ipcMain.handle(

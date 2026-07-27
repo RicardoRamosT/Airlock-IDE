@@ -731,6 +731,9 @@ export interface SlackAllowedChannel {
 export interface SlackChannelList {
   connected: boolean;
   channels: SlackAllowedChannel[];
+  // The workspace the token belongs to. Absent when it was never recorded --
+  // the sidebar must show "unknown", never a guess.
+  workspace?: { id: string; name: string };
 }
 export interface SlackUiFile {
   id: string;
