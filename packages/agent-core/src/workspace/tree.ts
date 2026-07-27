@@ -18,6 +18,11 @@ const IGNORED = new Set([
   "dist",
   "out",
   ".airlock",
+  // Slack attachments cached for the message view. Not project source, so it
+  // stays out of the tree and out of search -- but UNLIKE .airlock it is only
+  // HIDDEN, not protected: readFile must still open it, since that is how a
+  // cached attachment reaches an editor tab.
+  ".slack-cache",
   ".DS_Store",
   ORDER_FILE,
 ]);

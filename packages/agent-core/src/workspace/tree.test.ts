@@ -81,6 +81,20 @@ describe("listDirectory", () => {
     expect(names).toEqual(["a.ts"]);
   });
 
+  // The Slack attachment cache is HIDDEN but NOT protected -- the opposite of
+  // .airlock. Hiding it keeps it out of the tree and search; leaving it readable
+  // is what lets a cached attachment open in an editor tab.
+  it("hides .slack-cache from listings but does not protect it", async () => {
+    const root2 = mkdtempSync(path.join(tmpdir(), "airlock-tree-slack-"));
+    mkdirSync(path.join(root2, ".slack-cache"));
+    writeFileSync(path.join(root2, ".slack-cache", "image.png"), "");
+    writeFileSync(path.join(root2, "a.ts"), "");
+    expect((await listDirectory(root2, ".")).map((e) => e.name)).toEqual([
+      "a.ts",
+    ]);
+    expect(targetsVault(".slack-cache/image.png")).toBe(false);
+  });
+
   // H8: the IGNORED filter only hides .airlock when listing its PARENT; a direct
   // listing INTO the vault would enumerate the secret-metadata + audit files.
   // listDirectory must reject it (the fs:listDir handler does too).
