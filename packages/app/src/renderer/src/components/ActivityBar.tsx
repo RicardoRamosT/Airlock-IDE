@@ -1,6 +1,10 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { DotLevel, Section, SectionStatuses } from "../../../shared/ipc";
-import { effectiveView, isSectionVisible } from "../lib/sections";
+import {
+  EXTENSIONS_HUB_SECTION,
+  effectiveView,
+  isSectionVisible,
+} from "../lib/sections";
 import { useGithubAccountDot } from "../lib/useGithubAccountDot";
 import { useSectionStatuses } from "../lib/useSectionStatuses";
 import { useApp } from "../store";
@@ -52,6 +56,7 @@ export function ActivityBar() {
   const sectionMeta = useApp((s) => s.sectionMeta);
   const activeView = useApp((s) => s.activeView);
   const sidebarVisible = useApp((s) => s.sidebarVisible);
+  const appPage = useApp((s) => s.appPage);
   const statuses = useSectionStatuses();
   // Accounts-button dot: green = the account this repo wants is the one in play,
   // yellow = a different account is active (a push here would use the wrong one).
@@ -92,6 +97,19 @@ export function ActivityBar() {
     // A user choice must survive a still-in-flight startup prefs hydrate (the
     // same race the layout buttons guard against).
     s.setLayoutHydrated(true);
+    // The hub is a PAGE, not a panel: its content wants the full workspace
+    // width. Open the page and collapse the sidebar, which would otherwise sit
+    // there empty. Clicking again re-shows the page rather than closing it --
+    // discarding a page tab is more destructive than hiding a panel, so that
+    // stays the tab's own X.
+    if (id === EXTENSIONS_HUB_SECTION) {
+      s.openAppPage("extensions");
+      if (s.sidebarVisible) {
+        s.setSidebarVisible(false);
+        void window.airlock.prefsSet({ sidebarVisible: false });
+      }
+      return;
+    }
     if (id === view && sidebarVisible) {
       s.setSidebarVisible(false);
       void window.airlock.prefsSet({ sidebarVisible: false });
@@ -119,7 +137,15 @@ export function ActivityBar() {
                 {firstExt && <div className="activity-bar-divider" />}
                 <button
                   type="button"
-                  className={`activity-icon${m.id === view && sidebarVisible ? " active" : ""}`}
+                  className={`activity-icon${
+                    m.id === EXTENSIONS_HUB_SECTION
+                      ? appPage === "extensions"
+                        ? " active"
+                        : ""
+                      : m.id === view && sidebarVisible
+                        ? " active"
+                        : ""
+                  }`}
                   title={level ? `${m.label} — ${DOT_TITLE[level]}` : m.label}
                   onClick={() => onIcon(m.id)}
                   onContextMenu={(e) => {

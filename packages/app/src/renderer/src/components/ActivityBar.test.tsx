@@ -155,6 +155,24 @@ it("shows an extension icon that has NO persisted visibility key", () => {
   expect(container.querySelector(".activity-bar-divider")).toBeTruthy();
 });
 
+// The hub's sidebar body was a 260px copy of a full-width page whose main
+// content was a button that opened that page. The icon opens the page directly.
+it("hub icon opens the Extensions page and collapses the sidebar", async () => {
+  useApp.setState({ sidebarVisible: true, appPage: null, activeView: "files" });
+  render(<ActivityBar />);
+  fireEvent.click(screen.getByTitle("Extensions"));
+  expect(useApp.getState().appPage).toBe("extensions");
+  expect(useApp.getState().sidebarVisible).toBe(false);
+  // It must NOT become the sidebar view -- there is no body to show.
+  expect(useApp.getState().activeView).toBe("files");
+});
+
+it("hub icon reads active while its page is showing", () => {
+  useApp.setState({ appPage: "extensions", sidebarVisible: false });
+  render(<ActivityBar />);
+  expect(screen.getByTitle("Extensions").className).toContain("active");
+});
+
 it("hides an extension icon explicitly set to false", () => {
   useApp.setState({
     sectionMeta: composeSectionMeta([{ id: "slack", name: "Slack" }]),
