@@ -1,6 +1,6 @@
 import type { AuthSpec } from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
-import { buildAuthorizeUrl, normalizeTeamId, runBrokerFlow } from "./broker";
+import { buildAuthorizeUrl, runBrokerFlow } from "./broker";
 
 const slack: Extract<AuthSpec, { flow: "broker" }> = {
   kind: "oauth2",
@@ -52,41 +52,49 @@ describe("buildAuthorizeUrl", () => {
 
   it("pins the workspace with &team= when a team id is given", () => {
     const url = new URL(
-      buildAuthorizeUrl(slack, "S", "https://b/callback", "T0123ABCD"),
+      buildAuthorizeUrl(slack, "S", "https://b/callback", {
+        teamId: "T0123ABCD",
+      }),
     );
+    expect(url.searchParams.get("team")).toBe("T0123ABCD");
+    expect(url.host).toBe("slack.com");
+  });
+
+  it("authorizes on the workspace's own subdomain when a domain is given", () => {
+    // `team=` on the generic host is only a hint -- Slack authorizes whatever
+    // workspace the browser session is signed into. The subdomain pins harder.
+    const url = new URL(
+      buildAuthorizeUrl(slack, "S", "https://b/callback", {
+        teamId: "T0123ABCD",
+        domain: "airlockespacio",
+      }),
+    );
+    expect(url.host).toBe("airlockespacio.slack.com");
+    expect(url.pathname).toBe("/oauth/v2/authorize");
     expect(url.searchParams.get("team")).toBe("T0123ABCD");
   });
 
-  it("omits team when none is given (unchanged one-click default)", () => {
-    const url = new URL(buildAuthorizeUrl(slack, "S", "https://b/callback"));
+  it("uses the subdomain even when no team id is known (pasted URL)", () => {
+    const url = new URL(
+      buildAuthorizeUrl(slack, "S", "https://b/callback", {
+        domain: "ricardos-test-workspace",
+      }),
+    );
+    expect(url.host).toBe("ricardos-test-workspace.slack.com");
     expect(url.searchParams.get("team")).toBeNull();
   });
-});
 
-describe("normalizeTeamId", () => {
-  it("upper-cases a bare team id", () => {
-    expect(normalizeTeamId("t0123abcd")).toBe("T0123ABCD");
-  });
-  it("extracts the id from an app.slack.com/client URL", () => {
-    expect(
-      normalizeTeamId("https://app.slack.com/client/T0123ABCD/C07770000"),
-    ).toBe("T0123ABCD");
-  });
-  it("trims and passes unrecognized text through", () => {
-    expect(normalizeTeamId("  acme  ")).toBe("acme");
-  });
-  it("returns empty for empty input", () => {
-    expect(normalizeTeamId("")).toBe("");
-  });
-  it("passes through free text that merely contains a team-like token", () => {
-    expect(normalizeTeamId("team12345678 workspace")).toBe(
-      "team12345678 workspace",
+  it("omits team and keeps the generic host for an empty target", () => {
+    const url = new URL(
+      buildAuthorizeUrl(slack, "S", "https://b/callback", {}),
     );
+    expect(url.searchParams.get("team")).toBeNull();
+    expect(url.host).toBe("slack.com");
   });
-  it("extracts from a lowercase /client/ URL too", () => {
-    expect(normalizeTeamId("https://app.slack.com/client/t0123abcd/c1")).toBe(
-      "T0123ABCD",
-    );
+
+  it("omits team when no target is given (unchanged one-click default)", () => {
+    const url = new URL(buildAuthorizeUrl(slack, "S", "https://b/callback"));
+    expect(url.searchParams.get("team")).toBeNull();
   });
 });
 

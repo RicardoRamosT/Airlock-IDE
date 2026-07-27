@@ -51,6 +51,7 @@ import {
   type PtySession,
   parseAccount,
   parseConnString,
+  parseWorkspaceInput,
   pingDb,
   pinnedEnabledManifests,
   pollSteady,
@@ -122,7 +123,7 @@ import {
 import { reconcileDockStatus } from "./dockstatus/wire";
 import { toRendererErrorEvent } from "./eventlog/rendererError";
 import { emitEvent, queryEvents } from "./eventlog/wire";
-import { normalizeTeamId, runBrokerFlow } from "./extensions/oauth/broker";
+import { runBrokerFlow } from "./extensions/oauth/broker";
 import {
   beginDeviceFlow,
   oauthTokenName,
@@ -2135,7 +2136,7 @@ export function registerIpc(
       }
       if (spec?.flow === "broker") {
         const cfg = (await readProjectConfig(r)).extensions?.[id] ?? {};
-        const team = normalizeTeamId(
+        const target = parseWorkspaceInput(
           typeof cfg.workspacePin === "string" ? cfg.workspacePin : "",
         );
         // Slack: gate the requested scopes on the per-project opt-in. Opted out
@@ -2162,7 +2163,7 @@ export function registerIpc(
                 });
               }
             : undefined;
-        finish(runBrokerFlow(effective, team || undefined), capture);
+        finish(runBrokerFlow(effective, target), capture);
         return { kind: "browser" as const };
       }
       throw new Error(`No OAuth login configured for ${id}`);

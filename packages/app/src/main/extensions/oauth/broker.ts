@@ -7,7 +7,11 @@
 // app redeems that ticket here. Only PUBLIC config (client id, broker URL) is
 // used on this side. buildAuthorizeUrl is pure (tested); runBrokerFlow is the
 // thin I/O half (opens the browser + HTTPS redeem).
-import { type AuthSpec, randomState } from "@airlock/agent-core";
+import {
+  type AuthSpec,
+  randomState,
+  type WorkspaceTarget,
+} from "@airlock/agent-core";
 import { awaitCallback } from "./deeplink";
 
 // The broker arm of the AuthSpec union.
@@ -30,15 +34,22 @@ async function realOpen(url: string): Promise<void> {
 
 // Build the provider's authorize URL. Pure. Scopes join with spec.scopeSep
 // (Slack wants comma; RFC 6749 default is space) under spec.scopeParam (Slack
-// user tokens need "user_scope"; default "scope"). When `team` is set, pins the
-// workspace via the `team` param (Slack).
+// user tokens need "user_scope"; default "scope").
+//
+// `target` pins the Slack workspace, two ways that stack:
+//   - target.teamId -> &team=, which Slack treats as a HINT only.
+//   - target.domain -> authorize on <domain>.slack.com instead of the generic
+//     host, which pins substantially harder.
+// The domain is a validated DNS label (see parseWorkspaceInput /
+// parseSlackWorkspaces), so it can never smuggle characters into the host.
 export function buildAuthorizeUrl(
   spec: BrokerAuthSpec,
   state: string,
   redirectUri: string,
-  team?: string,
+  target?: WorkspaceTarget,
 ): string {
   const u = new URL(spec.authorizeUrl);
+  if (target?.domain) u.host = `${target.domain}.slack.com`;
   u.searchParams.set("client_id", spec.clientId);
   u.searchParams.set(
     spec.scopeParam ?? "scope",
@@ -47,21 +58,8 @@ export function buildAuthorizeUrl(
   u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("response_type", "code");
   u.searchParams.set("state", state);
-  if (team) u.searchParams.set("team", team);
+  if (target?.teamId) u.searchParams.set("team", target.teamId);
   return u.toString();
-}
-
-// Normalize a user-supplied Slack workspace hint into the Team ID Slack's
-// authorize `team` param wants. Accepts a bare id (T0123ABCD) or a pasted Slack
-// URL (app.slack.com/client/T…). Unknown text passes through trimmed -- Slack
-// then falls back to its own workspace switcher rather than us hard-failing.
-export function normalizeTeamId(input: string): string {
-  const s = (input ?? "").trim();
-  if (!s) return "";
-  if (/^T[A-Z0-9]{6,}$/i.test(s)) return s.toUpperCase();
-  const client = s.match(/\/client\/(T[A-Z0-9]{6,})/i);
-  if (client?.[1]) return client[1].toUpperCase();
-  return s;
 }
 
 // Run the whole browser handoff: open the consent screen, await the airlock://
@@ -70,7 +68,7 @@ export function normalizeTeamId(input: string): string {
 // back; the caller vaults it. Throws (friendly message) on timeout / bad config.
 export async function runBrokerFlow(
   spec: BrokerAuthSpec,
-  team?: string,
+  target?: WorkspaceTarget,
   timeoutMs = 5 * 60_000,
   deps: {
     open?: (url: string) => Promise<void>;
@@ -93,7 +91,7 @@ export async function runBrokerFlow(
   // request" on every Slack redirect (the token exchange never ran). randomState()
   // is base64url (no dots), so the only "." is this separator.
   const state = `${spec.brokerProvider}.${randomState()}`;
-  await open(buildAuthorizeUrl(spec, state, `${base}/callback`, team));
+  await open(buildAuthorizeUrl(spec, state, `${base}/callback`, target));
   const { ticket } = await wait(state, timeoutMs);
   const res = await fx(`${base}/redeem`, {
     method: "POST",
