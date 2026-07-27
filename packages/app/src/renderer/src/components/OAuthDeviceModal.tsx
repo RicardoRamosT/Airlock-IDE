@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
   OAuthBeginResult,
+  OAuthRequestedWorkspace,
   SlackWorkspaceOption,
 } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
@@ -38,6 +39,14 @@ export function OAuthDeviceModal() {
   const [workspaces, setWorkspaces] = useState<SlackWorkspaceOption[]>([]);
   const [current, setCurrent] = useState<string | null>(null);
   const [includePrivate, setIncludePrivateState] = useState(false);
+  // Set when Slack authorized a workspace other than the one that was asked
+  // for. The connection is KEPT (the token is valid) but the user has to resolve
+  // the disagreement before channel-picking, because a channel allow-list built
+  // from the wrong workspace is what makes "Claude can't see any messages".
+  const [mismatch, setMismatch] = useState<{
+    workspace: SlackWorkspaceOption;
+    requested: OAuthRequestedWorkspace;
+  } | null>(null);
 
   const id = dev?.id ?? null;
   const name = dev?.name ?? "";
@@ -102,13 +111,22 @@ export function OAuthDeviceModal() {
     if (!manage && !chooser) begin();
   }, [manage, chooser, begin]);
 
-  // Close on a matching success; surface the error on failure.
+  // Close on a clean success; hold the modal open on a workspace mismatch;
+  // surface the error on failure.
   useEffect(() => {
     if (!id) return;
     return window.airlock.onExtensionOAuthResult((e) => {
       if (e.id !== id) return;
-      if (e.ok) setModal(null);
-      else setError(e.error ?? "Login failed.");
+      if (!e.ok) {
+        setError(e.error ?? "Login failed.");
+        return;
+      }
+      if (e.mismatch && e.workspace && e.requested) {
+        setMismatch({ workspace: e.workspace, requested: e.requested });
+        setBegun(null);
+        return;
+      }
+      setModal(null);
     });
   }, [id, setModal]);
 
@@ -141,6 +159,30 @@ export function OAuthDeviceModal() {
     }
     begin();
   }, [id, root, selected, paste, begin]);
+
+  // Adopt the workspace Slack actually authorized as the new pin, so the config
+  // stops disagreeing with itself, then continue as a normal success.
+  const keepConnected = useCallback(async () => {
+    const ws = mismatch?.workspace;
+    if (!id || !root || !ws) return;
+    try {
+      await window.airlock.extensionsSetConfig(root, id, {
+        workspacePin: ws.id,
+        workspacePinDomain: ws.domain,
+        workspacePinName: ws.name,
+      });
+    } catch {
+      /* a failed save shouldn't trap the user in the banner */
+    }
+    setModal(null);
+  }, [id, root, mismatch, setModal]);
+
+  // Retry against the ORIGINAL request: the pin is untouched, so begin() asks
+  // for the same workspace again.
+  const tryAgain = useCallback(() => {
+    setMismatch(null);
+    begin();
+  }, [begin]);
 
   // Persist the private-access opt-in immediately (merged into the slack config).
   // It gates the scopes the NEXT begin() requests -- the user reopens the browser
@@ -183,7 +225,7 @@ export function OAuthDeviceModal() {
                 Current workspace: {current ?? "unknown"}
               </div>
             )}
-            {begun?.kind === "browser" && (
+            {begun?.kind === "browser" && !mismatch && (
               <>
                 <div className="modal-caption">
                   Opening your browser to sign in to {name}. Approve there and
@@ -229,7 +271,35 @@ export function OAuthDeviceModal() {
               <div className="modal-caption">Starting sign-in…</div>
             )}
             {error && <div className="modal-error">{error}</div>}
-            {chooser && (
+            {mismatch && (
+              <div className="sb-card oauth-mismatch">
+                <div className="oauth-mismatch-head">
+                  Connected to “
+                  {mismatch.workspace.name || mismatch.workspace.id}” — but you
+                  asked for “{mismatch.requested.name}”.
+                </div>
+                <div className="section-note">
+                  Slack authorized the workspace your browser was signed into.
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => void keepConnected()}
+                  >
+                    Keep {mismatch.workspace.name || mismatch.workspace.id}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={tryAgain}
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
+            {chooser && !mismatch && (
               <div className="oauth-workspace">
                 <label className="oauth-optin">
                   <input

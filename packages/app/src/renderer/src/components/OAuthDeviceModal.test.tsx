@@ -223,3 +223,90 @@ it("manage mode: shows the current workspace and pre-fills a pin the picker can'
   expect(input.value).toBe("T0BGEUK686M");
   expect(screen.getByText("Open browser to switch")).toBeTruthy();
 });
+
+const MISMATCH: OAuthResultEvent = {
+  id: "slack",
+  ok: true,
+  workspace: { id: "T0AIRLOCK1", name: "Airlock", domain: "airlockespacio" },
+  requested: {
+    teamId: "T0BGEUK686M",
+    domain: "",
+    name: "Ricardo's Test Workspace",
+  },
+  mismatch: true,
+};
+
+async function reachMismatch() {
+  mount("/proj", { kind: "browser" }, SLACK);
+  render(<OAuthDeviceModal />);
+  const row = await screen.findByText("Airlock");
+  await act(async () => {
+    fireEvent.click(row);
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText("Open Slack to approve"));
+  });
+  await act(async () => resultCb?.(MISMATCH));
+}
+
+it("mismatch: stays open and names both workspaces", async () => {
+  await reachMismatch();
+  expect(useApp.getState().modal).not.toBeNull();
+  expect(screen.getByText(/Connected to “Airlock”/i).textContent).toContain(
+    "Ricardo's Test Workspace",
+  );
+  expect(
+    screen.getByText(
+      /Slack authorized the workspace your browser was signed into/i,
+    ),
+  ).toBeTruthy();
+  // The chooser is replaced, so there is exactly one call to action.
+  expect(screen.queryByText("Reopen browser")).toBeNull();
+});
+
+it("mismatch: Keep adopts the connected workspace as the new pin and closes", async () => {
+  await reachMismatch();
+  await act(async () => {
+    fireEvent.click(screen.getByText("Keep Airlock"));
+  });
+  expect(setConfig).toHaveBeenLastCalledWith("/proj", "slack", {
+    workspacePin: "T0AIRLOCK1",
+    workspacePinDomain: "airlockespacio",
+    workspacePinName: "Airlock",
+  });
+  expect(useApp.getState().modal).toBeNull();
+});
+
+it("mismatch: Try again reopens the flow without changing the pin", async () => {
+  await reachMismatch();
+  const before = setConfig.mock.calls.length;
+  await act(async () => {
+    fireEvent.click(screen.getByText("Try again"));
+  });
+  expect(setConfig.mock.calls.length).toBe(before);
+  expect(oauthBegin).toHaveBeenCalledTimes(2);
+  expect(useApp.getState().modal).not.toBeNull();
+});
+
+it("no request made: a connected workspace is recorded, never a mismatch", async () => {
+  mount("/proj", { kind: "browser" }, SLACK, {}, []);
+  render(<OAuthDeviceModal />);
+  const go = await screen.findByText("Open Slack to approve");
+  await act(async () => {
+    fireEvent.click(go);
+  });
+  await act(async () =>
+    resultCb?.({
+      id: "slack",
+      ok: true,
+      workspace: {
+        id: "T0AIRLOCK1",
+        name: "Airlock",
+        domain: "airlockespacio",
+      },
+      requested: { teamId: "", domain: "", name: "" },
+      mismatch: false,
+    }),
+  );
+  expect(useApp.getState().modal).toBeNull();
+});

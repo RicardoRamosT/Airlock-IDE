@@ -4332,6 +4332,20 @@ textarea:focus-visible {
   color: var(--fg);
 }
 
+/* Slack authorized a different workspace than the one that was requested. Not
+   an error (the token is good) -- a fork in the road, so it reads as a card with
+   two actions rather than red error text. */
+.oauth-mismatch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oauth-mismatch-head {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .db-row .codicon-chevron-down,
 .db-row .codicon-chevron-right {
   font-size: 14px;
