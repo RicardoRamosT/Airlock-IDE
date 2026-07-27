@@ -231,6 +231,12 @@ export {
   VERCEL,
 } from "./integrations/registry";
 export {
+  providersFor,
+  SECTION_EXTENSIONS,
+  type SectionExtensionDescriptor,
+  sectionExtension,
+} from "./integrations/sectionExtensions";
+export {
   buildExtensionSummaries,
   type ExtensionSummary,
   type ExtPrefs,
