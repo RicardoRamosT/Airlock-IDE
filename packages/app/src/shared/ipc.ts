@@ -298,7 +298,6 @@ export type DotLevel = "green" | "yellow" | "red" | "grey";
 export interface SectionStatuses {
   host: DotLevel;
   databases: DotLevel;
-  docker: DotLevel;
   git: DotLevel;
   activity: DotLevel;
 }

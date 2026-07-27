@@ -8,19 +8,12 @@ import type { GitStatus, SectionStatuses } from "../shared/ipc";
 import { activityStatus } from "./activity";
 import {
   databaseStatus,
-  dockerStatus,
   gitStatusFor,
   hostStatus,
   neonStatus,
   renderServicesStatus,
 } from "./ide-state";
-import {
-  activityDot,
-  databasesDot,
-  dockerDot,
-  gitDot,
-  hostDot,
-} from "./sectionDots";
+import { activityDot, databasesDot, gitDot, hostDot } from "./sectionDots";
 
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   try {
@@ -30,11 +23,16 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+// Docker has no rail dot (like Slack/GitHub -- its live state lives in its own
+// extension section, not the activity rail), so this deliberately does not
+// fetch or compute one. See the 2026-07-27 extensions reclassification: DOTTED
+// in ActivityBar.tsx dropped "docker" when it moved off the core rail; the
+// SectionStatuses.docker field and this function's dockerStatus() call were
+// its now-orphaned other half.
 export async function sectionStatuses(
   root: string | null,
 ): Promise<SectionStatuses> {
-  const [docker, pg, neon, host, render, git, activity] = await Promise.all([
-    safe(dockerStatus(), { installed: false, running: false, containers: [] }),
+  const [pg, neon, host, render, git, activity] = await Promise.all([
     root ? safe(databaseStatus(root), []) : [],
     safe(neonStatus(root), { connected: false }),
     root
@@ -46,7 +44,6 @@ export async function sectionStatuses(
   ]);
   const renderLive = render.some((s) => s.deployStatus === "live");
   return {
-    docker: dockerDot(docker),
     databases: databasesDot(pg, neon.connected),
     host: hostDot(host.up, host.url !== null, renderLive, render.length > 0),
     git: gitDot(git),
