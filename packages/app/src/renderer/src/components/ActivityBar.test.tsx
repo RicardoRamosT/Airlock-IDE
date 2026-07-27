@@ -163,8 +163,15 @@ it("hub icon opens the Extensions page and collapses the sidebar", async () => {
   fireEvent.click(screen.getByTitle("Extensions"));
   expect(useApp.getState().appPage).toBe("extensions");
   expect(useApp.getState().sidebarVisible).toBe(false);
-  // It must NOT become the sidebar view -- there is no body to show.
+  // "collapses the sidebar" means PERSISTED collapsed -- otherwise the next
+  // prefs hydrate re-opens an empty sidebar.
+  expect(prefsSet).toHaveBeenCalledWith({ sidebarVisible: false });
+  // It must NOT become the sidebar view -- there is no body to show, and
+  // nothing may write it as activeView.
   expect(useApp.getState().activeView).toBe("files");
+  expect(prefsSet).not.toHaveBeenCalledWith(
+    expect.objectContaining({ activeView: "extensions" }),
+  );
 });
 
 it("hub icon reads active while its page is showing", () => {

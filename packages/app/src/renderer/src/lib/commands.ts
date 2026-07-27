@@ -1,7 +1,7 @@
 import type { AppState } from "../store";
 import { closeEditorFile, openEditorFile } from "./editorFiles";
 import { openPickedFolder } from "./openFolder";
-import { isSectionVisible } from "./sections";
+import { EXTENSIONS_HUB_SECTION, isSectionVisible } from "./sections";
 
 export interface Command {
   id: string;
@@ -111,12 +111,26 @@ export function buildCommands(s: AppState, goToFiles: () => void): Command[] {
     const visible = isSectionVisible(s.sectionVisibility, sec.id);
     if (visible) {
       // Switch the sidebar to this view (re-opening it if collapsed) -- the
-      // keyboard twin of clicking the section's activity-bar icon.
+      // keyboard twin of clicking the section's activity-bar icon. The
+      // Extensions hub is the one exception: it has no sidebar body, so its
+      // icon opens a PAGE and collapses the sidebar instead (see ActivityBar's
+      // onIcon, which this branch mirrors). Persisting it as activeView would
+      // write a value effectiveView refuses, leaving the sidebar on a fallback
+      // view with no way to tell why.
+      const isHub = sec.id === EXTENSIONS_HUB_SECTION;
       cmds.push({
         id: `show-section-${sec.id}`,
         title: `Show ${sec.label}`,
         run: () => {
           s.setLayoutHydrated(true);
+          if (isHub) {
+            s.openAppPage("extensions");
+            if (s.sidebarVisible) {
+              s.setSidebarVisible(false);
+              void window.airlock.prefsSet({ sidebarVisible: false });
+            }
+            return;
+          }
           s.setActiveView(sec.id);
           if (!s.sidebarVisible) s.setSidebarVisible(true);
           void window.airlock.prefsSet({

@@ -64,6 +64,35 @@ it("offers Show <Section> commands that activate the view", () => {
   });
 });
 
+// The palette command is meant to be the keyboard twin of the rail icon, and
+// the Extensions hub's icon no longer switches the sidebar -- it opens a PAGE.
+// The old command left the sidebar showing Files (effectiveView refuses the hub
+// id) AND persisted "extensions" as activeView, a value nothing can ever honour.
+it("Show Extensions opens the hub PAGE and collapses the sidebar", () => {
+  useApp.setState({ sidebarVisible: true, appPage: null, activeView: "files" });
+  const cmds = buildCommands(useApp.getState(), () => {});
+  const show = cmds.find((c) => c.id === "show-section-extensions");
+  expect(show?.title).toBe("Show Extensions");
+  show?.run();
+  expect(useApp.getState().appPage).toBe("extensions");
+  expect(useApp.getState().sidebarVisible).toBe(false);
+  expect(useApp.getState().activeView).toBe("files");
+  expect(prefsSet).toHaveBeenCalledWith({ sidebarVisible: false });
+  // Never persisted as a sidebar view.
+  expect(prefsSet).not.toHaveBeenCalledWith(
+    expect.objectContaining({ activeView: "extensions" }),
+  );
+});
+
+it("Show Extensions leaves an already-collapsed sidebar alone", () => {
+  useApp.setState({ sidebarVisible: false, appPage: null });
+  const cmds = buildCommands(useApp.getState(), () => {});
+  cmds.find((c) => c.id === "show-section-extensions")?.run();
+  expect(useApp.getState().appPage).toBe("extensions");
+  expect(useApp.getState().sidebarVisible).toBe(false);
+  expect(prefsSet).not.toHaveBeenCalled();
+});
+
 it("omits Show commands for hidden sections but keeps their toggles", () => {
   useApp.setState({
     sectionVisibility: {
