@@ -337,8 +337,10 @@ export type {
 } from "./slack/parse";
 export { labelConversations } from "./slack/parse";
 export {
+  parseSlackWorkspaces,
   parseWorkspaceInput,
   requestedWorkspaceName,
+  type SlackWorkspace,
   type WorkspaceTarget,
   workspaceMismatch,
 } from "./slack/workspaces";

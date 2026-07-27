@@ -93,3 +93,48 @@ export function requestedWorkspaceName(
   if (requested.domain) return `${requested.domain}.slack.com`;
   return requested.teamId ?? "";
 }
+
+// A workspace the user can be sent to. `domain` may be "" when the local state
+// file never recorded one -- the authorize URL then keeps Slack's generic host.
+export interface SlackWorkspace {
+  id: string;
+  name: string;
+  domain: string;
+}
+
+function obj(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+// Read the workspace list out of the Slack desktop app's root-state.json.
+//
+// That file is NOT ours and it holds session tokens. This reads exactly four
+// fields -- id, name, domain, url -- and returns exactly three, so no
+// token-bearing field can reach the renderer, a log, or the agent. Anything
+// unexpected degrades to [], which simply leaves the paste-a-URL fallback as the
+// only visible option.
+export function parseSlackWorkspaces(json: unknown): SlackWorkspace[] {
+  const raw = obj(json).workspaces;
+  const entries: unknown[] = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object"
+      ? Object.values(raw as Record<string, unknown>)
+      : [];
+  const out: SlackWorkspace[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const w = obj(entry);
+    const id = str(w.id).trim().toUpperCase();
+    if (!TEAM_ID.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    const declared = str(w.domain).trim().toLowerCase();
+    const domain = SLUG.test(declared)
+      ? declared
+      : (parseWorkspaceInput(str(w.url)).domain ?? "");
+    out.push({ id, name: str(w.name).trim() || domain || id, domain });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}

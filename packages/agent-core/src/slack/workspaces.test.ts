@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseSlackWorkspaces,
   parseWorkspaceInput,
   requestedWorkspaceName,
   workspaceMismatch,
@@ -84,7 +85,9 @@ describe("workspaceMismatch", () => {
   });
 
   it("falls back to the domain when no team id was requested", () => {
-    expect(workspaceMismatch({ domain: "acme" }, { domain: "beta" })).toBe(true);
+    expect(workspaceMismatch({ domain: "acme" }, { domain: "beta" })).toBe(
+      true,
+    );
     expect(workspaceMismatch({ domain: "acme" }, { domain: "ACME" })).toBe(
       false,
     );
@@ -128,5 +131,87 @@ describe("requestedWorkspaceName", () => {
 
   it("is empty when nothing was requested", () => {
     expect(requestedWorkspaceName({})).toBe("");
+  });
+});
+
+// Shaped like Slack's root-state.json: a map of team id -> workspace record.
+// The token-bearing fields below are present ON PURPOSE -- the test's job is to
+// prove they never come back out.
+const ROOT_STATE = {
+  lastActiveTeamId: "T0BEVD71P6Z",
+  workspaces: {
+    T0BEVD71P6Z: {
+      id: "T0BEVD71P6Z",
+      name: "Airlock",
+      domain: "airlockespacio",
+      url: "https://airlockespacio.slack.com/",
+      token: "xoxc-should-never-escape",
+      user_id: "U1",
+    },
+    T0VIEWNEAR1: {
+      id: "T0VIEWNEAR1",
+      name: "Viewnear",
+      url: "https://viewnear.slack.com/",
+      token: "xoxc-should-never-escape",
+    },
+  },
+};
+
+describe("parseSlackWorkspaces", () => {
+  it("reads id/name/domain for each workspace, sorted by name", () => {
+    expect(parseSlackWorkspaces(ROOT_STATE)).toEqual([
+      { id: "T0BEVD71P6Z", name: "Airlock", domain: "airlockespacio" },
+      { id: "T0VIEWNEAR1", name: "Viewnear", domain: "viewnear" },
+    ]);
+  });
+
+  it("never surfaces a token-bearing field", () => {
+    const json = JSON.stringify(parseSlackWorkspaces(ROOT_STATE));
+    expect(json).not.toContain("xoxc");
+    expect(json).not.toContain("token");
+  });
+
+  it("derives the domain from `url` when `domain` is absent", () => {
+    const [w] = parseSlackWorkspaces({
+      workspaces: {
+        T1ABCDEF: { id: "T1ABCDEF", url: "https://beta.slack.com/" },
+      },
+    });
+    expect(w?.domain).toBe("beta");
+  });
+
+  it("falls back to the domain, then the id, when there is no name", () => {
+    expect(
+      parseSlackWorkspaces({
+        workspaces: { T1ABCDEF: { id: "T1ABCDEF", domain: "beta" } },
+      })[0]?.name,
+    ).toBe("beta");
+    expect(
+      parseSlackWorkspaces({ workspaces: { T1ABCDEF: { id: "T1ABCDEF" } } })[0]
+        ?.name,
+    ).toBe("T1ABCDEF");
+  });
+
+  it("accepts an array of workspaces too", () => {
+    expect(
+      parseSlackWorkspaces({
+        workspaces: [{ id: "T1ABCDEF", name: "Beta", domain: "beta" }],
+      }),
+    ).toEqual([{ id: "T1ABCDEF", name: "Beta", domain: "beta" }]);
+  });
+
+  it("drops entries without a well-formed team id", () => {
+    expect(
+      parseSlackWorkspaces({
+        workspaces: { bogus: { id: "nope", name: "Nope" }, "": null },
+      }),
+    ).toEqual([]);
+  });
+
+  it("degrades malformed or missing input to an empty list", () => {
+    expect(parseSlackWorkspaces(null)).toEqual([]);
+    expect(parseSlackWorkspaces({})).toEqual([]);
+    expect(parseSlackWorkspaces({ workspaces: "nope" })).toEqual([]);
+    expect(parseSlackWorkspaces("garbage")).toEqual([]);
   });
 });
