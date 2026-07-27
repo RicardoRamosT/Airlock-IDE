@@ -57,10 +57,17 @@ export function groupOf(e: ExtensionSummary, enabled = e.enabled): GroupKey {
 
 // One status -> one colour, for every tier, so a row reads the same wherever it
 // appears.
+//
+// `unauthed` is AMBER, not the accent. It used to reuse `.status-dot.running`,
+// whose colour is var(--accent) -- the exact same blue as `.on` -- so a
+// not-connected row was indistinguishable from a connected one, separated only
+// by a pulse animation that reads as "in progress" anyway (which is what
+// .running means everywhere else: a live container, a running CI job). Amber
+// says "needs you", which is what not-connected actually is.
 function statusDot(e: ExtensionSummary): string {
   if (e.status === "ready" || e.status === "connected") return "status-dot on";
   if (e.status === "error") return "status-dot fail";
-  if (e.status === "unauthed") return "status-dot running"; // available, not connected
+  if (e.status === "unauthed") return "status-dot warn"; // not connected
   return "status-dot"; // absent / disabled -> grey
 }
 

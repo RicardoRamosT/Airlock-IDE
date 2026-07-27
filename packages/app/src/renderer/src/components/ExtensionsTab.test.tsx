@@ -532,15 +532,34 @@ it("moves a row into Disabled the moment Enabled is unchecked", async () => {
 it("renders a status dot per row so the states are distinguishable", async () => {
   const { container } = mount([
     SLACK, // connected -> on
-    { ...SNOWFLAKE, id: "a", name: "A", status: "unauthed" }, // -> running
+    { ...SNOWFLAKE, id: "a", name: "A", status: "unauthed" }, // -> warn
     { ...SNOWFLAKE, id: "b", name: "B", status: "error" }, // -> fail
     SNOWFLAKE, // absent -> grey
   ]);
   const listEl = await waitForList(container);
   expect(listEl.querySelectorAll(".status-dot").length).toBe(4);
   expect(listEl.querySelectorAll(".status-dot.on").length).toBe(1);
-  expect(listEl.querySelectorAll(".status-dot.running").length).toBe(1);
+  expect(listEl.querySelectorAll(".status-dot.warn").length).toBe(1);
   expect(listEl.querySelectorAll(".status-dot.fail").length).toBe(1);
+});
+
+it("does NOT paint not-connected the same colour as connected", async () => {
+  // Caught on a live screenshot after the bucket rework: unauthed used
+  // `.status-dot.running`, whose background is var(--accent) -- the SAME blue
+  // as `.on`. The two states differed only by a pulse, which reads as "in
+  // progress" (its meaning everywhere else) rather than "not connected". With
+  // Neon and Snowflake now correctly reporting unauthed, that put
+  // indistinguishable dots on both sides of the Connected / Not connected line.
+  const { container } = mount([
+    SLACK, // connected
+    { ...SNOWFLAKE, id: "a", name: "A", status: "unauthed" },
+  ]);
+  const listEl = await waitForList(container);
+  const classes = [...listEl.querySelectorAll(".status-dot")].map(
+    (d) => d.className,
+  );
+  expect(new Set(classes).size).toBe(2);
+  expect(classes).not.toContain("status-dot running");
 });
 
 it("tells the truth about a ready row instead of 'not connected'", async () => {
