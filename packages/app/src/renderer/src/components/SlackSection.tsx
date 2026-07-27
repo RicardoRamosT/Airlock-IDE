@@ -10,6 +10,7 @@ import {
   initialsFor,
 } from "../lib/slackFormat";
 import { useApp } from "../store";
+import { SlackWorkspaceCard } from "./SlackWorkspaceCard";
 
 // Glyph per conversation kind, mirroring convGlyph in main so the sidebar and
 // the tool echo read the same.
@@ -90,36 +91,41 @@ export function SlackSection() {
   // userId -> data URL. Empty until loaded, and stays empty without users:read
   // -- the initials circle below is the fallback, so this only ever upgrades.
   const [avatars, setAvatars] = useState<Record<string, string>>({});
+  const [workspace, setWorkspace] = useState<
+    { id: string; name: string } | undefined
+  >(undefined);
   // Loaded once per project, on the first read that actually succeeds -- which
   // is also the first moment we know Slack is connected. Keyed on the root so
   // connecting (or switching workspaces) mid-session still picks pictures up.
   const avatarsFor = useRef<string | null>(null);
 
+  // Extracted so Refresh can re-read the LIST too: a channel added in the
+  // modal, or a workspace switched in another window, should appear without
+  // reopening the project.
+  const loadList = useCallback(async () => {
+    if (!root) return;
+    const c = await window.airlock.slackAllowedChannels(root).catch(() => null);
+    if (!c) {
+      setLoadedList(true);
+      return;
+    }
+    setChannels(c.channels);
+    setConnected(c.connected);
+    setWorkspace(c.workspace);
+    setLoadedList(true);
+  }, [root]);
+
   useEffect(() => {
-    let cancelled = false;
     setChannels([]);
     setConnected(false);
     setLoadedList(false);
     setExpanded(new Set());
     setState({});
     setAvatars({});
+    setWorkspace(undefined);
     avatarsFor.current = null;
-    if (!root) return;
-    void window.airlock
-      .slackAllowedChannels(root)
-      .then((c) => {
-        if (cancelled) return;
-        setChannels(c.channels);
-        setConnected(c.connected);
-        setLoadedList(true);
-      })
-      .catch(() => {
-        if (!cancelled) setLoadedList(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [root]);
+    void loadList();
+  }, [loadList]);
 
   const load = useCallback(
     async (id: string) => {
@@ -234,6 +240,37 @@ export function SlackSection() {
   const now = new Date();
   return (
     <div className="slack-view">
+      <div className="section-toolbar">
+        <button
+          type="button"
+          className="btn"
+          title="Refresh"
+          onClick={() => {
+            void loadList();
+            for (const id of expanded) void load(id);
+          }}
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          className="btn"
+          title="Manage channels"
+          onClick={() => useApp.getState().setModal("slack-channels")}
+        >
+          Channels
+        </button>
+        <button
+          type="button"
+          className="btn"
+          title="Collapse all"
+          disabled={expanded.size === 0}
+          onClick={() => setExpanded(new Set())}
+        >
+          Collapse
+        </button>
+      </div>
+      <SlackWorkspaceCard workspace={workspace} />
       <div className="sb-section-head">
         Channels <span className="sb-badge">{channels.length} allowed</span>
       </div>

@@ -1388,6 +1388,25 @@ body,
   background: var(--hover);
   border-radius: 4px;
 }
+/* Workspace identity: the name reads as a heading, the switch action as a
+   secondary control, so the card answers "which workspace?" at a glance. */
+.slack-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+}
+.slack-workspace-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+}
+.slack-workspace-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .slack-avatar {
   width: 20px;
   height: 20px;
@@ -1402,7 +1421,26 @@ body,
 }
 /* The <img> variant: same box as the initials circle so a mixed list of real
    pictures and fallbacks stays aligned. */
-img.slack-avatar {
+img
+/* Workspace identity: the name reads as a heading, the switch action as a
+   secondary control, so the card answers "which workspace?" at a glance. */ .slack-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+}
+.slack-workspace-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+}
+.slack-workspace-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slack-avatar {
   object-fit: cover;
   flex: none;
 }

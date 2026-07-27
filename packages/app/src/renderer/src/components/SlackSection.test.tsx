@@ -466,3 +466,52 @@ describe("SlackSection attachments", () => {
     expect(await screen.findByText(/Reconnect Slack/i)).toBeTruthy();
   });
 });
+
+// The allow-list modal existed but was reachable ONLY from the empty state, so
+// a project with one channel could never be administered again.
+it("offers channel management from the toolbar once channels exist", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+    workspace: { id: "T1", name: "Airlock" },
+  });
+  render(<SlackSection />);
+  fireEvent.click(await screen.findByTitle("Manage channels"));
+  expect(useApp.getState().modal).toBe("slack-channels");
+});
+
+it("names the connected workspace and offers to switch", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+    workspace: { id: "T1", name: "Airlock" },
+  });
+  render(<SlackSection />);
+  expect(await screen.findByText("Airlock")).toBeTruthy();
+  fireEvent.click(screen.getByText("Switch workspace"));
+  expect(useApp.getState().modal).toBe("connect-slack");
+});
+
+// Showing the wrong workspace confidently is the bug this identity exists to
+// prevent, so an unrecorded one must read as unknown.
+it("says the workspace is unknown rather than guessing", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+  });
+  render(<SlackSection />);
+  expect(await screen.findByText(/Workspace unknown/i)).toBeTruthy();
+});
+
+it("collapses every open thread from the toolbar", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+  });
+  read.mockResolvedValue({ channel: "#general-airlock", messages: [] });
+  render(<SlackSection />);
+  fireEvent.click(await screen.findByText("general-airlock"));
+  expect(await screen.findByText("No messages yet")).toBeTruthy();
+  fireEvent.click(screen.getByTitle("Collapse all"));
+  expect(screen.queryByText("No messages yet")).toBeNull();
+});
