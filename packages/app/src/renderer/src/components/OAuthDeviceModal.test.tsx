@@ -7,15 +7,18 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { OAuthBeginResult } from "../../../shared/ipc";
+import type { OAuthBeginResult, OAuthResultEvent } from "../../../shared/ipc";
 import { useApp } from "../store";
 import { OAuthDeviceModal } from "./OAuthDeviceModal";
 
-let resultCb:
-  | ((e: { id: string; ok: boolean; error?: string }) => void)
-  | null = null;
+let resultCb: ((e: OAuthResultEvent) => void) | null = null;
 let oauthBegin: ReturnType<typeof vi.fn>;
 let setConfig: ReturnType<typeof vi.fn>;
+
+const WORKSPACES = [
+  { id: "T0AIRLOCK1", name: "Airlock", domain: "airlockespacio" },
+  { id: "T0VIEWNEAR", name: "Viewnear", domain: "viewnear" },
+];
 
 afterEach(() => {
   cleanup();
@@ -31,6 +34,7 @@ function mount(
     name: "GitHub",
   },
   cfg: Record<string, unknown> = {},
+  workspaces: { id: string; name: string; domain: string }[] = WORKSPACES,
 ) {
   const t1 = useApp.getState().activeTabId;
   useApp.setState({
@@ -44,6 +48,7 @@ function mount(
     extensionsOAuthBegin: oauthBegin,
     extensionsGetConfig: vi.fn(async () => cfg),
     extensionsSetConfig: setConfig,
+    slackLocalWorkspaces: vi.fn(async () => workspaces),
     onExtensionOAuthResult: (cb: typeof resultCb) => {
       resultCb = cb;
       return () => {};
@@ -58,6 +63,8 @@ const DEVICE: OAuthBeginResult = {
   verificationUri: "https://github.com/login/device",
   expiresIn: 900,
 };
+
+const SLACK = { id: "slack", name: "Slack" };
 
 it("device flow: shows the code and closes on a matching success", async () => {
   mount("/proj", DEVICE);
@@ -78,19 +85,111 @@ it("device flow: shows the error and stays open on a failed result", async () =>
   expect(useApp.getState().modal).not.toBeNull();
 });
 
-it("broker flow: shows the browser waiting state (no code), closes on success", async () => {
-  mount("/proj", { kind: "browser" }, { id: "slack", name: "Slack" });
+it("slack: does NOT auto-open the browser; lists local workspaces by name", async () => {
+  mount("/proj", { kind: "browser" }, SLACK);
   render(<OAuthDeviceModal />);
+  expect(await screen.findByText("Airlock")).toBeTruthy();
+  expect(screen.getByText("viewnear.slack.com")).toBeTruthy();
+  expect(oauthBegin).not.toHaveBeenCalled();
+});
+
+it("slack: picking a workspace saves id + domain + name, then opens the browser", async () => {
+  mount("/proj", { kind: "browser" }, SLACK);
+  render(<OAuthDeviceModal />);
+  // Resolve the row BEFORE act(): a findBy inside act() can't flush the state
+  // update the query is waiting on.
+  const row = await screen.findByText("Airlock");
+  await act(async () => {
+    fireEvent.click(row);
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText("Open Slack to approve"));
+  });
+  expect(setConfig).toHaveBeenCalledWith("/proj", "slack", {
+    workspacePin: "T0AIRLOCK1",
+    workspacePinDomain: "airlockespacio",
+    workspacePinName: "Airlock",
+  });
+  expect(oauthBegin).toHaveBeenCalled();
+  // Both calls are asserted above, so each invocationCallOrder[0] exists.
+  // biome-ignore lint/style/noNonNullAssertion: calls asserted above
+  expect(setConfig.mock.invocationCallOrder[0]!).toBeLessThan(
+    // biome-ignore lint/style/noNonNullAssertion: calls asserted above
+    oauthBegin.mock.invocationCallOrder[0]!,
+  );
+});
+
+it("slack: the paste fallback saves the raw text with no domain or name", async () => {
+  mount("/proj", { kind: "browser" }, SLACK);
+  render(<OAuthDeviceModal />);
+  const more = await screen.findByText("Not listed? Paste your Slack URL");
+  await act(async () => {
+    fireEvent.click(more);
+  });
+  const input = screen.getByPlaceholderText(
+    /slack\.com or T0123ABCD/i,
+  ) as HTMLInputElement;
+  await act(async () => {
+    fireEvent.change(input, {
+      target: { value: "ricardos-test-workspace.slack.com" },
+    });
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText("Open Slack to approve"));
+  });
+  expect(setConfig).toHaveBeenCalledWith("/proj", "slack", {
+    workspacePin: "ricardos-test-workspace.slack.com",
+    workspacePinDomain: "",
+    workspacePinName: "",
+  });
+});
+
+it("slack: with no local Slack app, only the paste fallback shows", async () => {
+  mount("/proj", { kind: "browser" }, SLACK, {}, []);
+  render(<OAuthDeviceModal />);
+  expect(
+    await screen.findByText(/No local Slack workspaces found/i),
+  ).toBeTruthy();
+  expect(screen.getByPlaceholderText(/slack\.com or T0123ABCD/i)).toBeTruthy();
+  expect(screen.queryByText("Not listed? Paste your Slack URL")).toBeNull();
+});
+
+it("slack: closes on a clean (no-mismatch) success", async () => {
+  mount("/proj", { kind: "browser" }, SLACK);
+  render(<OAuthDeviceModal />);
+  const row = await screen.findByText("Airlock");
+  await act(async () => {
+    fireEvent.click(row);
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByText("Open Slack to approve"));
+  });
   expect(
     await screen.findByText(/Opening your browser to sign in to Slack/i),
   ).toBeTruthy();
   expect(document.querySelector(".oauth-code")).toBeNull();
-  await act(async () => resultCb?.({ id: "slack", ok: true }));
+  await act(async () =>
+    resultCb?.({
+      id: "slack",
+      ok: true,
+      workspace: {
+        id: "T0AIRLOCK1",
+        name: "Airlock",
+        domain: "airlockespacio",
+      },
+      requested: {
+        teamId: "T0AIRLOCK1",
+        domain: "airlockespacio",
+        name: "Airlock",
+      },
+      mismatch: false,
+    }),
+  );
   expect(useApp.getState().modal).toBeNull();
 });
 
-it("broker flow: toggling the private-access opt-in persists includePrivate", async () => {
-  mount("/proj", { kind: "browser" }, { id: "slack", name: "Slack" });
+it("slack: toggling the private-access opt-in persists includePrivate", async () => {
+  mount("/proj", { kind: "browser" }, SLACK);
   render(<OAuthDeviceModal />);
   const box = (await screen.findByLabelText(
     /Include private channels/i,
@@ -104,47 +203,23 @@ it("broker flow: toggling the private-access opt-in persists includePrivate", as
   });
 });
 
-it("manage mode: does not auto-begin; shows current workspace pre-filled", async () => {
+it("manage mode: shows the current workspace and pre-fills a pin the picker can't show", async () => {
   mount(
     "/proj",
     { kind: "browser" },
-    { id: "slack", name: "Slack", manage: true },
-    { workspace: { id: "T1", name: "Acme" } },
+    { ...SLACK, manage: true },
+    { workspace: { id: "T0BGEUK686M", name: "Ricardo's Test Workspace" } },
   );
   render(<OAuthDeviceModal />);
-  expect(await screen.findByText(/Current workspace: Acme/i)).toBeTruthy();
+  expect(
+    await screen.findByText(/Current workspace: Ricardo's Test Workspace/i),
+  ).toBeTruthy();
   expect(oauthBegin).not.toHaveBeenCalled();
+  // The saved pin matches no picker row, so the fallback opens pre-filled
+  // rather than silently dropping it.
   const input = (await screen.findByPlaceholderText(
-    /T0123ABCD/i,
+    /slack\.com or T0123ABCD/i,
   )) as HTMLInputElement;
-  expect(input.value).toBe("T1");
-});
-
-it("manage mode: saves the workspace pin then opens the browser", async () => {
-  mount(
-    "/proj",
-    { kind: "browser" },
-    { id: "slack", name: "Slack", manage: true },
-    { workspace: { id: "T1", name: "Acme" } },
-  );
-  render(<OAuthDeviceModal />);
-  const input = (await screen.findByPlaceholderText(
-    /T0123ABCD/i,
-  )) as HTMLInputElement;
-  await act(async () => {
-    fireEvent.change(input, { target: { value: "T2NEWTEAM" } });
-  });
-  await act(async () => {
-    fireEvent.click(screen.getByText("Open browser to switch"));
-  });
-  expect(setConfig).toHaveBeenCalledWith("/proj", "slack", {
-    workspacePin: "T2NEWTEAM",
-  });
-  expect(oauthBegin).toHaveBeenCalled();
-  // Both calls are asserted above, so each invocationCallOrder[0] exists.
-  // biome-ignore lint/style/noNonNullAssertion: calls asserted above
-  expect(setConfig.mock.invocationCallOrder[0]!).toBeLessThan(
-    // biome-ignore lint/style/noNonNullAssertion: calls asserted above
-    oauthBegin.mock.invocationCallOrder[0]!,
-  );
+  expect(input.value).toBe("T0BGEUK686M");
+  expect(screen.getByText("Open browser to switch")).toBeTruthy();
 });

@@ -4273,6 +4273,65 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+/* Slack workspace chooser in the OAuth modal: one selectable row per workspace
+   the local Slack app knows about, named rather than identified by a T0… id
+   nobody has memorized. Selection is a toggle-button, not a radio input, so the
+   whole row is the hit target. */
+.oauth-ws-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  margin: 4px 0;
+}
+
+.oauth-ws-row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.oauth-ws-row:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.oauth-ws-row.on {
+  border-color: var(--accent);
+}
+
+.oauth-ws-domain {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+/* Quiet disclosure for the paste-a-URL fallback -- secondary to the picker, but
+   the only path for a workspace the desktop app has never seen. */
+.oauth-ws-more {
+  appearance: none;
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  padding: 2px 0;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.oauth-ws-more:hover {
+  color: var(--fg);
+}
+
 .db-row .codicon-chevron-down,
 .db-row .codicon-chevron-right {
   font-size: 14px;
