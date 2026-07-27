@@ -51,19 +51,28 @@ export function parseExtSection(section: string): string | null {
   return id.length > 0 ? id : null;
 }
 
-// Built-ins first, extensions after -- the order the rail renders, and what the
-// divider between the two groups is derived from.
+type ExtMeta = { id: string; name: string; icon?: string };
+
+// Rail order below the divider: the hub leads (it is where you look for
+// anything extension-related), then connected extensions, then section
+// extensions, each alphabetical. Alphabetical rather than registry order so an
+// icon sits in the same place in every project -- a rail that reshuffles
+// destroys muscle memory.
 export function composeSectionMeta(
-  exts: { id: string; name: string; icon?: string }[],
+  connected: ExtMeta[],
+  sectionExts: ExtMeta[] = [],
 ): SectionMeta[] {
+  const byName = (a: ExtMeta, b: ExtMeta) => a.name.localeCompare(b.name);
+  const toMeta = (e: ExtMeta): SectionMeta => ({
+    id: extSectionId(e.id) as Section,
+    label: e.name,
+    icon: e.icon ?? "extensions",
+    group: "extensions" as const,
+  });
   return [
     ...BUILTIN_SECTION_META,
-    ...exts.map((e) => ({
-      id: extSectionId(e.id) as Section,
-      label: e.name,
-      icon: e.icon ?? "extensions",
-      group: "extensions" as const,
-    })),
+    ...[...connected].sort(byName).map(toMeta),
+    ...[...sectionExts].sort(byName).map(toMeta),
   ];
 }
 

@@ -48,13 +48,13 @@ describe("composeSectionMeta", () => {
     expect(meta[meta.length - 1]?.icon).toBe("extensions");
   });
 
-  it("preserves the order the extensions arrive in", () => {
+  it("sorts extensions alphabetically by name, not arrival order", () => {
     const meta = composeSectionMeta([
       { id: "slack", name: "Slack" },
       { id: "github", name: "GitHub" },
     ]);
     const ids = meta.filter((m) => m.id.startsWith("ext:")).map((m) => m.id);
-    expect(ids).toEqual(["ext:slack", "ext:github"]);
+    expect(ids).toEqual(["ext:github", "ext:slack"]);
   });
 });
 
@@ -72,10 +72,11 @@ describe("rail groups", () => {
     // And the hub leads that group.
     const extGroup = meta.filter((m) => m.group === "extensions");
     expect(extGroup[0]?.id).toBe(EXTENSIONS_HUB_SECTION);
+    // Alphabetical by name ("GitHub" before "Slack"), not arrival order.
     expect(extGroup.map((m) => m.id)).toEqual([
       "extensions",
-      "ext:slack",
       "ext:github",
+      "ext:slack",
     ]);
   });
 
@@ -154,5 +155,39 @@ describe("effectiveView", () => {
   // sidebar must fall back to a real section rather than render nothing.
   it("falls back when the persisted active view is the hub", () => {
     expect(effectiveView("extensions", {}, BUILTIN_SECTION_META)).toBe("files");
+  });
+});
+
+describe("composeSectionMeta with section extensions", () => {
+  // Extensions all live below the rail divider, in one group, in a stable order:
+  // connected first, then section extensions, each alphabetical. A rail whose
+  // icons move between projects destroys muscle memory.
+  it("places section extensions in the extensions group after connected ones", () => {
+    const meta = composeSectionMeta(
+      [{ id: "slack", name: "Slack", icon: "slack" }],
+      [
+        { id: "neon", name: "Neon", icon: "neon" },
+        { id: "docker", name: "Docker", icon: "docker" },
+      ],
+    );
+    const ext = meta.filter((m) => m.group === "extensions").map((m) => m.id);
+    expect(ext).toEqual(["extensions", "ext:slack", "ext:docker", "ext:neon"]);
+  });
+
+  it("gives a section extension its brand icon and name", () => {
+    const meta = composeSectionMeta(
+      [],
+      [{ id: "neon", name: "Neon", icon: "neon" }],
+    );
+    const neon = meta.find((m) => m.id === "ext:neon");
+    expect(neon).toMatchObject({
+      label: "Neon",
+      icon: "neon",
+      group: "extensions",
+    });
+  });
+
+  it("still works with no section extensions", () => {
+    expect(composeSectionMeta([]).some((m) => m.id === "ext:neon")).toBe(false);
   });
 });
