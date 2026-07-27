@@ -25,6 +25,7 @@ import {
   type EventFilter,
   enabledManifests,
   ensureAirlockDir,
+  extensionActions,
   filterDangerousEnv,
   getGlobalSecret,
   getSecretValue,
@@ -1950,7 +1951,8 @@ export function registerIpc(
         return account ? { ...summary, account } : summary;
       }),
     );
-    return [...tier1, ...connected];
+    const rows = [...tier1, ...connected];
+    return rows.map((r) => ({ ...r, actions: extensionActions(r) }));
   });
 
   // extensions:resources -> for each ENABLED + eye-on (pinned) connected

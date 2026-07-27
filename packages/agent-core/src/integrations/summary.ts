@@ -4,6 +4,7 @@
 // into a UI-neutral ExtensionSummary. No I/O -- the app layer computes the
 // DetectStatus map (engine.detectStatus) and reads prefs, then calls this.
 
+import type { ExtensionAction } from "./actions";
 import type { DetectStatus } from "./engine";
 import { steadyView } from "./engine";
 import type { IntegrationManifest } from "./manifest";
@@ -35,6 +36,11 @@ export interface ExtensionSummary {
   // (each runs its command in a new terminal -- user-initiated).
   install?: { command: string; docsUrl?: string };
   connect?: { command: string; docsUrl?: string };
+  // The actions this row offers, computed by extensionActions and attached
+  // main-side. The renderer cannot value-import agent-core, so shipping the
+  // decision with the data keeps one source of truth instead of a second
+  // implementation in the UI.
+  actions?: ExtensionAction[];
 }
 
 // Per-integration prefs, keyed by manifest/extension id. Both fields optional so
