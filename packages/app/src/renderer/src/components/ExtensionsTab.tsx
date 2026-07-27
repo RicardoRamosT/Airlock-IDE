@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
-import type { ExtensionSummary } from "../../../shared/ipc";
+import type { ExtensionAction, ExtensionSummary } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
+import { useApp } from "../store";
 import { SectionGlyph } from "./SectionGlyph";
 
 // The Extensions page: the grouped list plus a detail pane, at full workspace
 // width so names are not truncated and actions can be labelled buttons rather
 // than three ambiguous icons fighting the name for 260px.
 //
-// This is the MINIMAL body. Part 2 fills the detail pane with per-extension
-// configuration, what Claude can read through it, and the extension's own Page
-// view; the grouping and selection rules here are what it builds on.
+// The detail pane renders every action `extensionActions` (agent-core) decided
+// for the selected row -- install/connect/change-workspace/configure/disconnect
+// -- plus the enable/pin toggles, so this page carries full parity with the
+// sidebar hub it replaces. Per-extension config-schema editing and the
+// extension's own Page view remain future work; the grouping and selection
+// rules here are what they would build on.
 const GROUPS = [
   { key: "connected", label: "Connected" },
   { key: "available", label: "Available" },
@@ -47,6 +52,52 @@ export function ExtensionsTab() {
   }, []);
 
   const current = all.find((e) => e.id === selected) ?? null;
+
+  const setModal = useApp((s) => s.setModal);
+  const setExtensionPref = useApp((s) => s.setExtensionPref);
+  const prefs = useApp((s) => s.extensionsPrefs);
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+
+  // prefsSet REPLACES the whole `extensions` object, so merge the full current
+  // map. The store is updated optimistically; the 5s poll reconciles.
+  const applyPref = (
+    id: string,
+    patch: { enabled?: boolean; pinned?: boolean },
+  ) => {
+    const cur = useApp.getState().extensionsPrefs;
+    setExtensionPref(id, patch);
+    void window.airlock.prefsSet({
+      extensions: { ...cur, [id]: { ...cur[id], ...patch } },
+    });
+  };
+
+  // One place that turns an action into behavior. The DECISION of which actions
+  // exist is agent-core's (extensionActions); this only performs them.
+  const run = (e: ExtensionSummary, a: ExtensionAction) => {
+    switch (a.kind) {
+      case "install":
+      case "connectCli":
+        // User-initiated: the command is put in a terminal, never auto-run.
+        if (a.command) useApp.getState().runInNewTerminal(a.command);
+        break;
+      case "connectOauth":
+        setModal({ oauthDevice: { id: e.id, name: e.name } });
+        break;
+      case "connectToken":
+        setModal("connect-slack");
+        break;
+      case "changeWorkspace":
+        setModal({ oauthDevice: { id: e.id, name: e.name, manage: true } });
+        break;
+      case "configure":
+        setModal("slack-channels");
+        break;
+      case "disconnect":
+        if (root) void window.airlock.extensionsDisconnect(root, e.id);
+        break;
+    }
+  };
 
   return (
     <div className="ext-page">
@@ -87,6 +138,63 @@ export function ExtensionsTab() {
                   ? `Connected${current.account ? ` · ${current.account}` : ""}`
                   : "Installed, not connected."}
             </div>
+            {(() => {
+              const sel = all.find((e) => e.id === selected);
+              if (!sel) return null;
+              const enabled = prefs[sel.id]?.enabled ?? sel.enabled;
+              const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
+              const actions = sel.actions ?? [];
+              return (
+                <div className="ext-detail-actions">
+                  {actions.length > 0 ? (
+                    <div className="ext-detail-buttons">
+                      {actions.map((a) => (
+                        <button
+                          key={a.kind}
+                          type="button"
+                          className={`btn${a.danger ? " danger" : " primary"}`}
+                          onClick={() => run(sel, a)}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    // Say so, rather than leaving a blank pane that reads as broken.
+                    <div className="section-note">
+                      Nothing to configure — {sel.name} is ready to use.
+                    </div>
+                  )}
+                  <label className="oauth-optin">
+                    <input
+                      type="checkbox"
+                      aria-label={`Enable ${sel.name}`}
+                      checked={enabled}
+                      onChange={(ev) =>
+                        applyPref(sel.id, { enabled: ev.target.checked })
+                      }
+                    />
+                    Enabled
+                  </label>
+                  {/* No category means the eye has nowhere to surface it. */}
+                  {sel.category && (
+                    <label className="oauth-optin">
+                      <input
+                        type="checkbox"
+                        aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
+                          pinned ? "from" : "in"
+                        } ${sel.category}`}
+                        checked={pinned}
+                        onChange={(ev) =>
+                          applyPref(sel.id, { pinned: ev.target.checked })
+                        }
+                      />
+                      Show in {sel.category}
+                    </label>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>

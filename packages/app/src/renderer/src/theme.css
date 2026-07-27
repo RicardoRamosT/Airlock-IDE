@@ -5948,6 +5948,24 @@ button.docker-row .codicon-chevron-right {
   height: 100%;
   overflow: hidden;
 }
+/* Detail-pane actions. The page exists so these can be LABELLED buttons
+   instead of the three ambiguous icons that fought the name for 260px in the
+   sidebar, so they stack full-width rather than crowding a row. */
+.ext-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  align-items: flex-start;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.ext-detail-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-gap);
+  margin-bottom: 4px;
+}
 .ext-page-list {
   overflow: auto;
   padding: 8px;
