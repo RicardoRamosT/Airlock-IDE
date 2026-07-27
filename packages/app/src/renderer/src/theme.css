@@ -1327,6 +1327,13 @@ body,
   flex-direction: column;
   gap: var(--sb-row-gap);
 }
+/* The view's gap is the LIST-ROW gap, which is right for the channel rows that
+   make up most of it. The filter is a control block, so without this the
+   CHANNELS head sat 2px under the input and the two read as one crushed lump.
+   2px gap + 8px = the standard --sb-block-gap between blocks. */
+.slack-view > .sb-control + .sb-section-head {
+  margin-top: 8px;
+}
 .slack-channel.is-open {
   padding-bottom: 4px;
 }
@@ -4276,6 +4283,27 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+/* The Slack block inside the modal. It MUST be a flex column: its children
+   include an <input> and two <button>s, which are inline-block by default, so as
+   a plain block container the "Not listed?" link and the primary action landed on
+   the same line and the button painted over the text. */
+.oauth-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+/* The gap owns the rhythm now; the checkbox's own margins would double it. */
+.oauth-workspace > .oauth-optin {
+  margin: 0;
+}
+/* .sb-control's `flex: 1` means "fill the row" in a horizontal sidebar row. In
+   this COLUMN the main axis is vertical, so it would stretch the input to fill
+   the modal. Width comes from the column's default stretch alignment instead. */
+.oauth-workspace > .sb-control {
+  flex: none;
+}
+
 /* Slack workspace chooser in the OAuth modal: one selectable row per workspace
    the local Slack app knows about, named rather than identified by a T0… id
    nobody has memorized. Selection is a toggle-button, not a radio input, so the
@@ -4307,8 +4335,29 @@ textarea:focus-visible {
   background: rgba(128, 128, 128, 0.12);
 }
 
+/* Selected. The border alone was too quiet to register as a response to the
+   click ("I clicked Airlock and nothing happened"), so the fill and the bullet
+   carry it too -- and the primary button below names the chosen workspace. */
 .oauth-ws-row.on {
   border-color: var(--accent);
+  background: var(--selected);
+}
+
+/* The radio bullet. Needs a descendant selector to out-specify codicon's own
+   `.codicon[class*='codicon-']` base rule -- see .titlebar-wing-icon for the
+   same trap. */
+.oauth-ws-row .oauth-ws-tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 13px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--fg-dim);
+}
+.oauth-ws-row.on .oauth-ws-tick {
+  color: var(--accent);
 }
 
 .oauth-ws-domain {

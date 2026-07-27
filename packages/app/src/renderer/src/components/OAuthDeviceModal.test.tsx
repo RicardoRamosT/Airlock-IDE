@@ -103,7 +103,7 @@ it("slack: picking a workspace saves id + domain + name, then opens the browser"
     fireEvent.click(row);
   });
   await act(async () => {
-    fireEvent.click(screen.getByText("Open Slack to approve"));
+    fireEvent.click(screen.getByText("Open Airlock in your browser"));
   });
   expect(setConfig).toHaveBeenCalledWith("/proj", "slack", {
     workspacePin: "T0AIRLOCK1",
@@ -117,6 +117,35 @@ it("slack: picking a workspace saves id + domain + name, then opens the browser"
     // biome-ignore lint/style/noNonNullAssertion: calls asserted above
     oauthBegin.mock.invocationCallOrder[0]!,
   );
+});
+
+// Regression: the row's only selected-state was a border-colour change and the
+// action button's label never moved, so clicking a workspace read as "nothing
+// happened". Selection must be visible in the row AND named on the button.
+it("slack: clicking a workspace visibly selects it and renames the action", async () => {
+  mount("/proj", { kind: "browser" }, SLACK);
+  const { container } = render(<OAuthDeviceModal />);
+  const row = await screen.findByText("Airlock");
+  expect(screen.getByText("Open Slack to approve")).toBeTruthy();
+  expect(container.querySelector(".oauth-ws-row.on")).toBeNull();
+
+  await act(async () => {
+    fireEvent.click(row);
+  });
+
+  const on = container.querySelector(".oauth-ws-row.on");
+  expect(on?.textContent).toContain("Airlock");
+  expect(on?.getAttribute("aria-pressed")).toBe("true");
+  expect(on?.querySelector(".codicon-circle-filled")).toBeTruthy();
+  expect(screen.getByText("Open Airlock in your browser")).toBeTruthy();
+  expect(screen.queryByText("Open Slack to approve")).toBeNull();
+
+  // Picking the other row moves the selection rather than adding a second one.
+  await act(async () => {
+    fireEvent.click(screen.getByText("Viewnear"));
+  });
+  expect(container.querySelectorAll(".oauth-ws-row.on").length).toBe(1);
+  expect(screen.getByText("Open Viewnear in your browser")).toBeTruthy();
 });
 
 it("slack: the paste fallback saves the raw text with no domain or name", async () => {
@@ -162,7 +191,7 @@ it("slack: closes on a clean (no-mismatch) success", async () => {
     fireEvent.click(row);
   });
   await act(async () => {
-    fireEvent.click(screen.getByText("Open Slack to approve"));
+    fireEvent.click(screen.getByText("Open Airlock in your browser"));
   });
   expect(
     await screen.findByText(/Opening your browser to sign in to Slack/i),
@@ -244,7 +273,7 @@ async function reachMismatch() {
     fireEvent.click(row);
   });
   await act(async () => {
-    fireEvent.click(screen.getByText("Open Slack to approve"));
+    fireEvent.click(screen.getByText("Open Airlock in your browser"));
   });
   await act(async () => resultCb?.(MISMATCH));
 }

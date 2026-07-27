@@ -204,11 +204,16 @@ export function OAuthDeviceModal() {
 
   if (!dev) return null;
 
+  // Naming the chosen workspace is the other half of the click feedback: picking
+  // a row visibly rewrites the button, so it is obvious that the click landed and
+  // what the next click will do.
   const openLabel = begun
     ? "Reopen browser"
-    : manage
-      ? "Open browser to switch"
-      : `Open ${name} to approve`;
+    : selected
+      ? `Open ${selected.name} in your browser`
+      : manage
+        ? "Open browser to switch"
+        : `Open ${name} to approve`;
 
   return (
     <div className="modal-backdrop">
@@ -329,6 +334,12 @@ export function OAuthDeviceModal() {
                           aria-pressed={w.id === pin}
                           onClick={() => setPin(w.id)}
                         >
+                          <i
+                            className={`codicon codicon-${
+                              w.id === pin ? "circle-filled" : "circle-outline"
+                            } oauth-ws-tick`}
+                            aria-hidden="true"
+                          />
                           <span>{w.name}</span>
                           <span className="oauth-ws-domain">
                             {w.domain}.slack.com
