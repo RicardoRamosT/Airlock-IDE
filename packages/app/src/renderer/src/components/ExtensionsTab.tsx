@@ -15,40 +15,117 @@ import { SectionGlyph } from "./SectionGlyph";
 // sidebar hub it replaces. Per-extension config-schema editing and the
 // extension's own Page view remain future work; the grouping and selection
 // rules here are what they would build on.
+//
+// The four buckets, their order, and the status dot are the sidebar hub's --
+// ported rather than re-derived, because the page is now the ONLY place a user
+// can read what state an extension is in.
 const GROUPS = [
   { key: "connected", label: "Connected" },
   { key: "available", label: "Available" },
   { key: "absent", label: "Not installed" },
+  { key: "disabled", label: "Disabled" },
 ] as const;
 
 type GroupKey = (typeof GROUPS)[number]["key"];
 
-// Pure: which group a summary belongs to.
-export function groupOf(e: ExtensionSummary): GroupKey {
-  if (e.status === "absent") return "absent";
-  if (e.status === "connected") return "connected";
-  return "available";
+// Pure: which group a summary belongs to. `enabled` is the EFFECTIVE enabled
+// state (the store's optimistic pref overlaid on the polled row), so unchecking
+// "Enabled" moves the row into Disabled at once instead of after the poll.
+// `ready` is a Tier-1 CLI that is installed AND logged in -- it belongs with
+// Connected, not Available; `error` means the probe failed, which is closer to
+// Not installed than to ready-to-use.
+export function groupOf(e: ExtensionSummary, enabled = e.enabled): GroupKey {
+  if (!enabled) return "disabled";
+  if (e.status === "ready" || e.status === "connected") return "connected";
+  if (e.status === "unauthed") return "available";
+  return "absent"; // absent / error / disabled-status
+}
+
+// The sidebar hub's mapping, unchanged, so a status reads the same colour
+// wherever it appears.
+function statusDot(status: ExtensionSummary["status"]): string {
+  if (status === "ready" || status === "connected") return "status-dot on";
+  if (status === "error") return "status-dot fail";
+  if (status === "unauthed") return "status-dot running"; // available, not connected
+  return "status-dot"; // absent / disabled -> grey
+}
+
+// The detail pane's one-line state readout. All SIX statuses get their own
+// sentence: this line is the only place the state is spelled out in words, so
+// "Installed, not connected." on a `ready`/`error`/`disabled` row was a claim
+// the sidebar hub never made.
+export function statusLine(e: ExtensionSummary, enabled: boolean): string {
+  const acct = e.account ? ` · ${e.account}` : "";
+  if (!enabled || e.status === "disabled")
+    return `${e.name} is disabled — it is hidden from Claude and from the sidebar.`;
+  switch (e.status) {
+    case "absent":
+      return `${e.name} is not installed.`;
+    case "unauthed":
+      // Tier-2 extensions are not "installed" at all -- they are a vaulted
+      // token or nothing, so only the Tier-1 wording can mention installation.
+      return e.tier === "connected"
+        ? "Not connected."
+        : "Installed, not signed in.";
+    case "ready":
+      return `Installed and signed in${acct}`;
+    case "connected":
+      return `Connected${acct}`;
+    case "error":
+      return `${e.name} could not be checked — it reported an error.`;
+  }
+}
+
+// What to say when a row offers no buttons at all. "ready to use" is only true
+// for a `ready`/`connected` row; a disabled or errored row has no actions for
+// an entirely different reason.
+export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
+  if (!enabled || e.status === "disabled")
+    return `Enable ${e.name} to see what it offers.`;
+  if (e.status === "error")
+    return `Nothing to do until ${e.name} can be checked again.`;
+  return `Nothing to configure — ${e.name} is ready to use.`;
 }
 
 export function ExtensionsTab() {
   const [all, setAll] = useState<ExtensionSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  // Which extension's resource list is expanded (at most one -- the page shows
+  // one row's detail at a time). Collapsed by DEFAULT and reset by switching
+  // rows, because mounting ExtensionResources starts a 5s poll: for GitHub that
+  // is a live api.github.com request plus a keychain read every 5 seconds.
+  // Nothing fetches until the user asks, same as the sidebar hub's chevron.
+  const [openResources, setOpenResources] = useState<string | null>(null);
 
+  // The row data is polled, not pushed: connect/disconnect/install all happen
+  // elsewhere (a browser tab, a terminal, another window), so a mounted page
+  // has to re-ask. 5s, matching the sidebar hub this replaced -- without it,
+  // Disconnect left the row reading "Connected" until you navigated away.
   useEffect(() => {
     let cancelled = false;
-    void window.airlock
-      .extensionsList()
-      .then((rows) => {
-        if (cancelled) return;
-        setAll(rows);
-        // Open on the first CONNECTED extension, else the first row, else none.
-        setSelected(
-          (rows.find((e) => groupOf(e) === "connected") ?? rows[0])?.id ?? null,
-        );
-      })
-      .catch(() => {});
+    const load = () =>
+      void window.airlock
+        .extensionsList()
+        .then((rows) => {
+          if (cancelled) return;
+          setAll(rows);
+          // Auto-select only when there is NOTHING selected (or the selected
+          // row vanished): a poll must never yank the user's selection. Opens
+          // on the first CONNECTED extension, else the first row, else none.
+          setSelected((prev) => {
+            if (prev !== null && rows.some((e) => e.id === prev)) return prev;
+            return (
+              (rows.find((e) => groupOf(e) === "connected") ?? rows[0])?.id ??
+              null
+            );
+          });
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 5000);
     return () => {
       cancelled = true;
+      clearInterval(t);
     };
   }, []);
 
@@ -86,13 +163,18 @@ export function ExtensionsTab() {
         setModal({ oauthDevice: { id: e.id, name: e.name } });
         break;
       case "connectToken":
-        setModal("connect-slack");
+        // Slack owns the only paste-a-token modal there is. Guarded, so a
+        // future token extension does nothing here rather than opening the
+        // WRONG extension's connect flow.
+        if (e.id === "slack") setModal("connect-slack");
         break;
       case "changeWorkspace":
         setModal({ oauthDevice: { id: e.id, name: e.name, manage: true } });
         break;
       case "configure":
-        setModal("slack-channels");
+        // Likewise: "slack-channels" is Slack's allow-list, not a generic
+        // config editor. Per-extension config-schema editing is future work.
+        if (e.id === "slack") setModal("slack-channels");
         break;
       case "disconnect":
         if (root) void window.airlock.extensionsDisconnect(root, e.id);
@@ -100,11 +182,15 @@ export function ExtensionsTab() {
     }
   };
 
+  // The effective enabled state -- the optimistic pref over the polled row.
+  // Drives BOTH the bucket and the checkbox, so they can never disagree.
+  const enabledOf = (e: ExtensionSummary) => prefs[e.id]?.enabled ?? e.enabled;
+
   return (
     <div className="ext-page">
       <div className="ext-page-list">
         {GROUPS.map((g) => {
-          const rows = all.filter((e) => groupOf(e) === g.key);
+          const rows = all.filter((e) => groupOf(e, enabledOf(e)) === g.key);
           if (rows.length === 0) return null;
           return (
             <div key={g.key}>
@@ -119,7 +205,14 @@ export function ExtensionsTab() {
                   onClick={() => setSelected(e.id)}
                 >
                   <SectionGlyph icon={e.icon ?? "extensions"} />
-                  <span>{e.name}</span>
+                  <span className={statusDot(e.status)} />
+                  {/* The account (Slack workspace / Azure subscription) rides
+                    beside the name, as it did in the sidebar hub: with two
+                    accounts of the same extension the name alone is ambiguous. */}
+                  <span>
+                    {e.name}
+                    {e.account ? ` · ${e.account}` : ""}
+                  </span>
                 </button>
               ))}
             </div>
@@ -130,99 +223,115 @@ export function ExtensionsTab() {
         {current === null ? (
           <div className="section-note">Choose an extension from the list.</div>
         ) : (
-          <>
-            <h2 className="ext-page-title">{current.name}</h2>
-            <div className="section-note">
-              {current.status === "absent"
-                ? `${current.name} is not installed.`
-                : current.status === "connected"
-                  ? `Connected${current.account ? ` · ${current.account}` : ""}`
-                  : "Installed, not connected."}
-            </div>
-            {(() => {
-              // current already IS the selected extension (line above); alias
-              // it here rather than re-running all.find a second time.
-              const sel = current;
-              if (!sel) return null;
-              const enabled = prefs[sel.id]?.enabled ?? sel.enabled;
-              const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
-              const actions = sel.actions ?? [];
-              // Same condition ExtensionsSection.tsx uses to decide a row's
-              // resources are worth fetching: a Tier-1 steady row that is
-              // actually ready and targets a non-activity section, or any
-              // connected Tier-2 row. Without this gate a row with nothing to
-              // show would still poll for an empty list.
-              const expandable =
-                (sel.tier === "status" &&
-                  (sel.status === "ready" || sel.status === "connected") &&
-                  !!sel.category &&
-                  sel.category !== "activity") ||
-                (sel.tier === "connected" && sel.status === "connected");
-              return (
-                <>
-                  <div className="ext-detail-actions">
-                    {actions.length > 0 ? (
-                      <div className="ext-detail-buttons">
-                        {actions.map((a) => (
-                          <button
-                            key={a.kind}
-                            type="button"
-                            className={`btn${a.danger ? " danger" : " primary"}`}
-                            onClick={() => run(sel, a)}
-                          >
-                            {a.label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      // Say so, rather than leaving a blank pane that reads as broken.
-                      <div className="section-note">
-                        Nothing to configure — {sel.name} is ready to use.
-                      </div>
-                    )}
+          (() => {
+            // current already IS the selected extension; alias it here rather
+            // than re-running all.find a second time.
+            const sel = current;
+            const enabled = enabledOf(sel);
+            const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
+            const actions = sel.actions ?? [];
+            // Same condition ExtensionsSection.tsx used to decide a row's
+            // resources are worth fetching: a Tier-1 steady row that is
+            // actually ready and targets a non-activity section, or any
+            // connected Tier-2 row. Without this gate a row with nothing to
+            // show would still offer an expander onto an empty list.
+            const expandable =
+              (sel.tier === "status" &&
+                (sel.status === "ready" || sel.status === "connected") &&
+                !!sel.category &&
+                sel.category !== "activity") ||
+              (sel.tier === "connected" && sel.status === "connected");
+            const resourcesOpen = openResources === sel.id;
+            return (
+              <>
+                <h2 className="ext-page-title">{sel.name}</h2>
+                <div className="section-note">
+                  <span className={statusDot(sel.status)} />{" "}
+                  {statusLine(sel, enabled)}
+                </div>
+                <div className="ext-detail-actions">
+                  {actions.length > 0 ? (
+                    <div className="ext-detail-buttons">
+                      {actions.map((a) => (
+                        <button
+                          key={a.kind}
+                          type="button"
+                          className={`btn${a.danger ? " danger" : " primary"}`}
+                          onClick={() => run(sel, a)}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    // Say so, rather than leaving a blank pane that reads as broken.
+                    <div className="section-note">
+                      {noActionsNote(sel, enabled)}
+                    </div>
+                  )}
+                  <label className="oauth-optin">
+                    <input
+                      type="checkbox"
+                      aria-label={`Enable ${sel.name}`}
+                      checked={enabled}
+                      onChange={(ev) =>
+                        applyPref(sel.id, { enabled: ev.target.checked })
+                      }
+                    />
+                    Enabled
+                  </label>
+                  {/* No category means the eye has nowhere to surface it. */}
+                  {sel.category && (
                     <label className="oauth-optin">
                       <input
                         type="checkbox"
-                        aria-label={`Enable ${sel.name}`}
-                        checked={enabled}
+                        aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
+                          pinned ? "from" : "in"
+                        } ${sel.category}`}
+                        checked={pinned}
                         onChange={(ev) =>
-                          applyPref(sel.id, { enabled: ev.target.checked })
+                          applyPref(sel.id, { pinned: ev.target.checked })
                         }
                       />
-                      Enabled
+                      Show in {sel.category}
                     </label>
-                    {/* No category means the eye has nowhere to surface it. */}
-                    {sel.category && (
-                      <label className="oauth-optin">
-                        <input
-                          type="checkbox"
-                          aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
-                            pinned ? "from" : "in"
-                          } ${sel.category}`}
-                          checked={pinned}
-                          onChange={(ev) =>
-                            applyPref(sel.id, { pinned: ev.target.checked })
-                          }
-                        />
-                        Show in {sel.category}
-                      </label>
-                    )}
-                  </div>
-                  {/* Same resource list the sidebar's expandable row showed --
-                    lifted to ExtensionResources.tsx so deleting the sidebar
-                    doesn't delete the only place that fetched it. */}
-                  {expandable && (
-                    <ExtensionResources
-                      id={sel.id}
-                      name={sel.name}
-                      category={sel.category ?? ""}
-                      connected={sel.tier === "connected"}
-                    />
                   )}
-                </>
-              );
-            })()}
-          </>
+                </div>
+                {/* Same resource list the sidebar's expandable row showed --
+                  lifted to ExtensionResources.tsx so deleting the sidebar
+                  doesn't delete the only place that fetched it. Behind a
+                  collapsed-by-default toggle: ExtensionResources polls while
+                  MOUNTED, so mounting it unasked would turn merely opening this
+                  page into a 5s API + keychain loop. */}
+                {expandable && (
+                  <>
+                    <button
+                      type="button"
+                      className="ext-detail-expand"
+                      aria-expanded={resourcesOpen}
+                      aria-label={`${resourcesOpen ? "Collapse" : "Expand"} ${sel.name} resources`}
+                      onClick={() =>
+                        setOpenResources(resourcesOpen ? null : sel.id)
+                      }
+                    >
+                      <i
+                        className={`codicon codicon-chevron-${resourcesOpen ? "down" : "right"}`}
+                      />
+                      <span>Resources</span>
+                    </button>
+                    {resourcesOpen && (
+                      <ExtensionResources
+                        id={sel.id}
+                        name={sel.name}
+                        category={sel.category ?? ""}
+                        connected={sel.tier === "connected"}
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()
         )}
       </div>
     </div>

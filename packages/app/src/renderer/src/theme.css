@@ -4198,79 +4198,9 @@ textarea:focus-visible {
   opacity: 0.6;
 }
 
-/* Extension Hub rows: a status row plus trailing action/enable controls, laid
-   out as a FIXED-COLUMN grid so each action type lines up vertically across
-   rows (a tidy table). One 22px column per action in a canonical order --
-   swap, configure, connect/disconnect (shared), pin -- then the enable
-   checkbox. Empty cells keep their track (grid tracks are fixed, not content-
-   sized), so columns stay aligned even when a row omits an action. The pin
-   reveals on row hover unless pinned (opacity:0 still holds its column). */
-.ext-row .ext-actions {
-  margin-left: auto;
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(4, 22px) auto;
-  align-items: center;
-  justify-items: center;
-  gap: var(--sb-gap);
-}
-.ext-row .ext-actions .row-action {
-  margin-left: 0;
-}
-/* Canonical column per action type (classes set in ExtensionsSection.tsx). */
-.ext-col-swap {
-  grid-column: 1;
-}
-.ext-col-config {
-  grid-column: 2;
-}
-.ext-col-conn {
-  grid-column: 3;
-}
-.ext-col-pin {
-  grid-column: 4;
-}
-.ext-row .ext-actions input[type="checkbox"] {
-  grid-column: 5;
-  margin: 0;
-  cursor: pointer;
-}
-.ext-row:hover .row-action.reveal {
-  opacity: 1;
-}
-.ext-row.disabled .db-name,
-.ext-row.disabled > .codicon {
-  opacity: 0.55;
-}
-
-/* Extension Hub row + its optional expanded resource body. */
-.ext-item {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Leading expand chevron, with an equal-width spacer on non-expandable rows so
-   every row's icon / dot / name stay column-aligned. */
-.ext-expand,
-.ext-expand-spacer {
-  width: 16px;
-  flex: none;
-}
-.ext-expand {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--fg-dim);
-}
-.ext-expand:hover {
-  color: var(--fg);
-}
-
-/* Resource list under the row; .neon-children gives the indent + row gap. */
+/* Resource list under an expanded extension; .neon-children gives the indent +
+   row gap. Rendered on the Extensions PAGE (the sidebar hub that used to own
+   the surrounding row grid is gone, along with its CSS). */
 .ext-resources {
   margin-top: 2px;
 }
@@ -6001,6 +5931,25 @@ button.docker-row .codicon-chevron-right {
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 600;
+}
+/* Resource-list expander, the page's version of the sidebar hub's chevron.
+   Collapsed by default ON PURPOSE: mounting the list starts a 5s poll (for
+   GitHub, a live API request plus a keychain read every 5s), so it must take a
+   click -- never merely opening the page. */
+.ext-detail-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.ext-detail-expand:hover {
+  color: var(--fg);
 }
 
 /* A Slack attachment: a compact reference, never a large inline image -- the

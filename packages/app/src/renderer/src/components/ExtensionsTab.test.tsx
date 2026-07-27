@@ -10,7 +10,12 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExtensionSummary, IntegrationItem } from "../../../shared/ipc";
 import { useApp } from "../store";
-import { ExtensionsTab } from "./ExtensionsTab";
+import {
+  ExtensionsTab,
+  groupOf,
+  noActionsNote,
+  statusLine,
+} from "./ExtensionsTab";
 
 // --- Pre-existing coverage (from a3251af, the page's "minimal body"): the
 // list/grouping/selection shell, which Task 3 does not touch. Kept alongside
@@ -63,7 +68,8 @@ it("groups extensions and shows FULL names (no truncation)", async () => {
   // Scope to the list: the selected extension's name also appears as the
   // detail-pane title, so an unscoped query is ambiguous by design.
   const listEl = container.querySelector(".ext-page-list") as HTMLElement;
-  expect(await within(listEl).findByText("Slack")).toBeTruthy();
+  // The account rides beside the name, as it did in the sidebar hub.
+  expect(await within(listEl).findByText("Slack · Airlock")).toBeTruthy();
   expect(within(listEl).getByText("Vercel")).toBeTruthy();
   expect(within(listEl).getByText("Connected")).toBeTruthy();
   expect(within(listEl).getByText("Not installed")).toBeTruthy();
@@ -71,9 +77,14 @@ it("groups extensions and shows FULL names (no truncation)", async () => {
 
 it("opens on the first CONNECTED extension", async () => {
   legacyList.mockResolvedValue(SUMMARIES);
-  render(<ExtensionsTab />);
-  // The detail header names the bound account.
-  expect(await screen.findByText(/Airlock/)).toBeTruthy();
+  const { container } = render(<ExtensionsTab />);
+  expect((await screen.findByRole("heading", { level: 2 })).textContent).toBe(
+    "Slack",
+  );
+  // The detail state line names the bound account. Scoped to the detail pane:
+  // the list row shows it too, so an unscoped /Airlock/ matches twice.
+  const detail = container.querySelector(".ext-page-detail") as HTMLElement;
+  expect(within(detail).getByText(/Connected · Airlock/)).toBeTruthy();
 });
 
 it("switches the detail pane when another extension is picked", async () => {
@@ -101,6 +112,7 @@ let prefsSet: ReturnType<typeof vi.fn>;
 // three mocks above dodge this only because they land in a `Record<string,
 // unknown>`-typed window.airlock, which erases the check.
 let runInNewTerminal: ReturnType<typeof vi.fn<(command: string) => void>>;
+let resourcesFor: ReturnType<typeof vi.fn>;
 
 const SLACK: ExtensionSummary = {
   id: "slack",
@@ -145,6 +157,7 @@ function mount(rows: ExtensionSummary[], resources: IntegrationItem[] = []) {
   disconnect = vi.fn(async () => ({ ok: true }));
   prefsSet = vi.fn(async () => ({}));
   runInNewTerminal = vi.fn<(command: string) => void>();
+  resourcesFor = vi.fn(async () => resources);
   // A root is required: Disconnect is root-scoped, and without one the button
   // silently does nothing and the assertion below would never fire.
   const t1 = useApp.getState().activeTabId;
@@ -162,7 +175,7 @@ function mount(rows: ExtensionSummary[], resources: IntegrationItem[] = []) {
     extensionsList: list,
     extensionsDisconnect: disconnect,
     prefsSet,
-    extensionsResourcesFor: vi.fn(async () => resources),
+    extensionsResourcesFor: resourcesFor,
     integrationsResources: vi.fn(async () => []),
   };
   return render(<ExtensionsTab />);
@@ -284,11 +297,318 @@ it("says so plainly when a row has nothing to act on", async () => {
 // lifted to its own file) has no equivalent on the page unless it is rendered
 // here too -- otherwise deleting the sidebar deletes the only place a user
 // could see what Claude can read through a connected extension.
-it("shows the selected extension's resources", async () => {
-  mount(
-    [SLACK],
-    [{ id: "c1", title: "#general", subtitle: "12 members", state: "done" }],
-  );
+const CHANNELS: IntegrationItem[] = [
+  { id: "c1", title: "#general", subtitle: "12 members", state: "done" },
+];
+
+it("shows the selected extension's resources once expanded", async () => {
+  mount([SLACK], CHANNELS);
   await selectRow("Slack");
+  await act(async () => {
+    fireEvent.click(screen.getByLabelText("Expand Slack resources"));
+  });
   expect(await screen.findByText("#general")).toBeTruthy();
+});
+
+// ExtensionResources polls every 5s while MOUNTED -- for GitHub that is a live
+// api.github.com request PLUS a keychain read, every 5 seconds. Auto-selecting
+// a connected row on load must therefore NOT mount it: nothing may fetch until
+// the user asks, which is the contract the sidebar hub's chevron had.
+it("fetches no resources until the user expands them", async () => {
+  mount([SLACK], CHANNELS);
+  await selectRow("Slack");
+  expect(screen.queryByText("#general")).toBeNull();
+  expect(resourcesFor).not.toHaveBeenCalled();
+});
+
+it("collapses again -- and stops polling -- on a second click", async () => {
+  mount([SLACK], CHANNELS);
+  await selectRow("Slack");
+  const toggle = () =>
+    screen.getByLabelText(/(Expand|Collapse) Slack resources/);
+  await act(async () => {
+    fireEvent.click(toggle());
+  });
+  expect(await screen.findByText("#general")).toBeTruthy();
+  await act(async () => {
+    fireEvent.click(toggle());
+  });
+  expect(screen.queryByText("#general")).toBeNull();
+});
+
+it("offers no expander on a row with no resources to show", async () => {
+  // An absent Tier-1 row has nothing granted, so there is nothing to poll for.
+  mount([SNOWFLAKE]);
+  await selectRow("Snowflake");
+  expect(screen.queryByLabelText(/Snowflake resources/)).toBeNull();
+});
+
+it("collapses the resource list when another extension is selected", async () => {
+  mount([SLACK, SNOWFLAKE], CHANNELS);
+  await selectRow("Slack");
+  await act(async () => {
+    fireEvent.click(screen.getByLabelText("Expand Slack resources"));
+  });
+  expect(await screen.findByText("#general")).toBeTruthy();
+  await selectRow("Snowflake");
+  await selectRow("Slack");
+  expect(screen.queryByText("#general")).toBeNull();
+});
+
+// --- Finding #6: the action kinds are extension-agnostic, the modals are not.
+it("does not open Slack's connect modal for another token extension", async () => {
+  mount([
+    {
+      ...SLACK,
+      id: "linear",
+      name: "Linear",
+      status: "unauthed",
+      authKind: "token",
+      account: undefined,
+      actions: [{ kind: "connectToken", label: "Connect Linear" }],
+    },
+  ]);
+  await selectRow("Linear");
+  await act(async () => {
+    fireEvent.click(screen.getByText("Connect Linear"));
+  });
+  expect(useApp.getState().modal).toBeNull();
+});
+
+it("does not open Slack's channel allow-list for another extension", async () => {
+  mount([
+    {
+      ...SLACK,
+      id: "github",
+      name: "GitHub",
+      account: undefined,
+      actions: [{ kind: "configure", label: "Configure GitHub" }],
+    },
+  ]);
+  await selectRow("GitHub");
+  await act(async () => {
+    fireEvent.click(screen.getByText("Configure GitHub"));
+  });
+  expect(useApp.getState().modal).toBeNull();
+});
+
+// --- Finding #1: the page is the ONLY surface that performs actions, so a
+// mounted page that never re-asks shows a stale world until you navigate away.
+it("re-polls every 5s so an action's result lands without navigating away", async () => {
+  vi.useFakeTimers();
+  mount([SLACK]);
+  await act(async () => {});
+  expect(screen.getByText("Disconnect Slack")).toBeTruthy();
+  // Disconnect happened (here, or in another window, or via the CLI).
+  list.mockImplementation(async () => [
+    {
+      ...SLACK,
+      status: "unauthed",
+      actions: [{ kind: "connectOauth", label: "Connect Slack" }],
+    },
+  ]);
+  await act(async () => {
+    vi.advanceTimersByTime(5000);
+  });
+  expect(screen.queryByText("Disconnect Slack")).toBeNull();
+  expect(screen.getByText("Connect Slack")).toBeTruthy();
+  vi.useRealTimers();
+});
+
+it("a poll never yanks the selection off the row the user picked", async () => {
+  vi.useFakeTimers();
+  mount([SLACK, SNOWFLAKE]);
+  await act(async () => {});
+  // Auto-selected the connected row...
+  const title = () =>
+    (document.querySelector(".ext-page-title") as HTMLElement).textContent;
+  expect(title()).toBe("Slack");
+  const listEl = document.querySelector(".ext-page-list") as HTMLElement;
+  await act(async () => {
+    fireEvent.click(within(listEl).getByText("Snowflake"));
+  });
+  expect(title()).toBe("Snowflake");
+  // ...and three polls later the user's pick is still the one showing.
+  await act(async () => {
+    vi.advanceTimersByTime(15000);
+  });
+  expect(list.mock.calls.length).toBeGreaterThan(1);
+  expect(title()).toBe("Snowflake");
+  vi.useRealTimers();
+});
+
+it("re-picks a selection when the selected extension disappears", async () => {
+  vi.useFakeTimers();
+  mount([SLACK, SNOWFLAKE]);
+  await act(async () => {});
+  const title = () =>
+    (document.querySelector(".ext-page-title") as HTMLElement).textContent;
+  expect(title()).toBe("Slack");
+  list.mockImplementation(async () => [SNOWFLAKE]);
+  await act(async () => {
+    vi.advanceTimersByTime(5000);
+  });
+  expect(title()).toBe("Snowflake");
+  vi.useRealTimers();
+});
+
+it("stops polling on unmount", async () => {
+  vi.useFakeTimers();
+  const { unmount } = mount([SLACK]);
+  await act(async () => {});
+  const after = list.mock.calls.length;
+  unmount();
+  await act(async () => {
+    vi.advanceTimersByTime(20000);
+  });
+  expect(list.mock.calls.length).toBe(after);
+  vi.useRealTimers();
+});
+
+// --- Finding #3: the state readout, not just the buttons. The parity gate was
+// scoped to ACTIONS, so three of the six statuses displayed something false.
+
+// The list renders only after the first fetch resolves. A row is auto-selected
+// in the same commit, so the detail pane's <h2> is the unambiguous thing to
+// wait on (group headings and row names are not).
+async function waitForList(container: HTMLElement): Promise<HTMLElement> {
+  await screen.findByRole("heading", { level: 2 });
+  return container.querySelector(".ext-page-list") as HTMLElement;
+}
+
+it("buckets a ready Tier-1 CLI as Connected, not Available", async () => {
+  const { container } = mount([{ ...SNOWFLAKE, status: "ready", actions: [] }]);
+  const listEl = await waitForList(container);
+  expect(within(listEl).getByText("Connected")).toBeTruthy();
+  expect(within(listEl).queryByText("Available")).toBeNull();
+});
+
+it("buckets an errored row as Not installed", async () => {
+  const { container } = mount([{ ...SNOWFLAKE, status: "error", actions: [] }]);
+  const listEl = await waitForList(container);
+  expect(within(listEl).getByText("Not installed")).toBeTruthy();
+});
+
+it("gives a disabled extension its own bucket", async () => {
+  const { container } = mount([
+    { ...SNOWFLAKE, status: "disabled", enabled: false, actions: [] },
+  ]);
+  const listEl = await waitForList(container);
+  expect(within(listEl).getByText("Disabled")).toBeTruthy();
+  expect(within(listEl).queryByText("Not installed")).toBeNull();
+});
+
+it("moves a row into Disabled the moment Enabled is unchecked", async () => {
+  // The bucket reads the EFFECTIVE enabled state (optimistic pref over the
+  // polled row), so it cannot disagree with the checkbox next to it.
+  const { container } = mount([SLACK]);
+  await selectRow("Slack");
+  await act(async () => {
+    fireEvent.click(screen.getByLabelText("Enable Slack"));
+  });
+  const listEl = container.querySelector(".ext-page-list") as HTMLElement;
+  expect(within(listEl).getByText("Disabled")).toBeTruthy();
+  expect(within(listEl).queryByText("Connected")).toBeNull();
+});
+
+it("renders a status dot per row so the states are distinguishable", async () => {
+  const { container } = mount([
+    SLACK, // connected -> on
+    { ...SNOWFLAKE, id: "a", name: "A", status: "unauthed" }, // -> running
+    { ...SNOWFLAKE, id: "b", name: "B", status: "error" }, // -> fail
+    SNOWFLAKE, // absent -> grey
+  ]);
+  const listEl = await waitForList(container);
+  expect(listEl.querySelectorAll(".status-dot").length).toBe(4);
+  expect(listEl.querySelectorAll(".status-dot.on").length).toBe(1);
+  expect(listEl.querySelectorAll(".status-dot.running").length).toBe(1);
+  expect(listEl.querySelectorAll(".status-dot.fail").length).toBe(1);
+});
+
+it("tells the truth about a ready row instead of 'not connected'", async () => {
+  mount([{ ...SNOWFLAKE, status: "ready", actions: [] }]);
+  await selectRow("Snowflake");
+  expect(screen.queryByText(/not connected/i)).toBeNull();
+  expect(screen.getByText(/Installed and signed in/)).toBeTruthy();
+});
+
+it("tells the truth about a disabled row instead of 'ready to use'", async () => {
+  mount([{ ...SNOWFLAKE, status: "disabled", enabled: false, actions: [] }]);
+  await selectRow("Snowflake");
+  expect(screen.queryByText(/ready to use/i)).toBeNull();
+  expect(screen.getByText(/is disabled/)).toBeTruthy();
+  expect(screen.getByText(/Enable Snowflake to see/)).toBeTruthy();
+});
+
+it("tells the truth about an errored row instead of 'ready to use'", async () => {
+  mount([{ ...SNOWFLAKE, status: "error", actions: [] }]);
+  await selectRow("Snowflake");
+  expect(screen.queryByText(/ready to use/i)).toBeNull();
+  expect(screen.getByText(/reported an error/)).toBeTruthy();
+});
+
+// --- The pure bits, directly.
+it("groupOf buckets all six statuses the way the sidebar hub did", () => {
+  const of = (status: ExtensionSummary["status"], enabled = true): string =>
+    groupOf({ ...SLACK, status, enabled }, enabled);
+  // ready = a Tier-1 CLI installed AND logged in: it belongs with Connected.
+  expect(of("ready")).toBe("connected");
+  expect(of("connected")).toBe("connected");
+  expect(of("unauthed")).toBe("available");
+  expect(of("absent")).toBe("absent");
+  // A failed probe is closer to Not installed than to ready-to-use.
+  expect(of("error")).toBe("absent");
+  expect(of("disabled", false)).toBe("disabled");
+  // Disabled wins over every status: it is what unchecking "Enabled" produces.
+  expect(of("connected", false)).toBe("disabled");
+  expect(of("ready", false)).toBe("disabled");
+  expect(of("absent", false)).toBe("disabled");
+});
+
+it("groupOf defaults to the row's own enabled flag", () => {
+  expect(groupOf({ ...SLACK, enabled: false })).toBe("disabled");
+  expect(groupOf({ ...SLACK, enabled: true })).toBe("connected");
+});
+
+it("statusLine says something distinct and true for each status", () => {
+  const line = (e: Partial<ExtensionSummary>, enabled = true) =>
+    statusLine({ ...SLACK, ...e }, enabled);
+  expect(line({ status: "absent", name: "Azure" })).toBe(
+    "Azure is not installed.",
+  );
+  expect(line({ status: "unauthed", tier: "connected" })).toBe(
+    "Not connected.",
+  );
+  expect(line({ status: "unauthed", tier: "status" })).toBe(
+    "Installed, not signed in.",
+  );
+  expect(line({ status: "ready", tier: "status", account: "sub-1" })).toBe(
+    "Installed and signed in · sub-1",
+  );
+  expect(line({ status: "connected", account: "Airlock" })).toBe(
+    "Connected · Airlock",
+  );
+  expect(line({ status: "error", name: "Azure" })).toContain("error");
+  expect(line({ status: "disabled", name: "Azure" }, false)).toContain(
+    "Azure is disabled",
+  );
+  // An optimistic un-check reads as disabled even before the poll catches up.
+  expect(line({ status: "connected" }, false)).toContain("is disabled");
+  // No two statuses share a sentence.
+  const all = (
+    ["absent", "unauthed", "ready", "connected", "error"] as const
+  ).map((status) => line({ status }));
+  expect(new Set(all).size).toBe(all.length);
+});
+
+it("noActionsNote never claims a disabled or errored row is ready to use", () => {
+  expect(noActionsNote({ ...SLACK, status: "ready" }, true)).toContain(
+    "ready to use",
+  );
+  expect(noActionsNote({ ...SLACK, status: "disabled" }, false)).toBe(
+    "Enable Slack to see what it offers.",
+  );
+  expect(noActionsNote({ ...SLACK, status: "error" }, true)).toContain(
+    "checked again",
+  );
 });
