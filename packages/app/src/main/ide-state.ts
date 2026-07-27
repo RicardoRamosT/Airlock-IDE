@@ -15,6 +15,7 @@
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
 
+import type { ExtensionSummary } from "@airlock/agent-core";
 import {
   type DockerStatus,
   diffEnvVars,
@@ -78,6 +79,43 @@ export async function listSidebarSections(
 // Docker engine + container status. Machine-global (no root needed).
 export function dockerStatus(): Promise<DockerStatus> {
   return dockerContainers();
+}
+
+// The REAL connection state of each section extension, for the hub.
+//
+// These rows used to carry a hardcoded `status: "ready"` from
+// sectionExtensionSummaries, because agent-core's registry is pure and knows
+// nothing about liveness -- so the hub could not honestly say whether Docker
+// was running, and every surface special-cased the tier to avoid claiming it
+// was. All three probes already existed in main (they back the docker:/neon:/
+// render: IPCs); this just calls them together so the hub can bucket by
+// connection state like every other row.
+//
+// Docker is the only one of the three that can be "installed but unusable"
+// (daemon down) -- that is `unauthed` ("Not connected"), distinct from `absent`
+// ("Not installed"). Neon and Render are an API key or nothing, so they never
+// report absent. Snowflake/Azure are omitted deliberately: they are ALSO Tier-1
+// manifests, whose detect status wins in mergeSectionExtensions.
+export async function sectionExtensionStatuses(
+  root: string | null,
+): Promise<Record<string, ExtensionSummary["status"]>> {
+  const settle = async (
+    probe: () => Promise<ExtensionSummary["status"]>,
+  ): Promise<ExtensionSummary["status"]> => probe().catch(() => "error");
+  const [docker, neon, render] = await Promise.all([
+    settle(async () => {
+      const d = await dockerContainers();
+      if (!d.installed) return "absent";
+      return d.running ? "connected" : "unauthed";
+    }),
+    settle(async () =>
+      (await keyForProject(root)) !== null ? "connected" : "unauthed",
+    ),
+    settle(async () =>
+      (await getGlobalSecret(RENDER_KEY)) !== null ? "connected" : "unauthed",
+    ),
+  ]);
+  return { docker, neon, render };
 }
 
 // Resolve the API key for the project's bound Neon account; throw if none

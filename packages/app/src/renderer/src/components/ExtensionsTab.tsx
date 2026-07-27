@@ -21,15 +21,14 @@ import { SectionGlyph } from "./SectionGlyph";
 // read what state an extension is in. (A fifth bucket, "section", was added
 // 2026-07-27 for extensions whose real state the hub cannot verify -- see
 // groupOf.)
+// Buckets answer ONE question -- can I use this right now? -- so they are
+// ordered by how far from usable each is. An earlier scheme mixed in a
+// "Has its own section" bucket, which told a user nothing (every extension has
+// a section) and existed only to dodge a fabricated status; the statuses are
+// real now, so the question is honest again.
 const GROUPS = [
   { key: "connected", label: "Connected" },
-  // Section extensions (Docker, Neon, Render, ...) are not verified at this
-  // layer -- see the tier === "section" note on groupOf. Its own bucket, between
-  // Connected and Available, keeps it from being read as either "confirmed
-  // connected" or "confirmed available but not connected", neither of which the
-  // hub can back up.
-  { key: "section", label: "Has its own section" },
-  { key: "available", label: "Available" },
+  { key: "available", label: "Not connected" },
   { key: "absent", label: "Not installed" },
   { key: "disabled", label: "Disabled" },
 ] as const;
@@ -43,28 +42,21 @@ type GroupKey = (typeof GROUPS)[number]["key"];
 // Connected, not Available; `error` means the probe failed, which is closer to
 // Not installed than to ready-to-use.
 //
-// tier === "section" (Docker, Neon, Render, Snowflake, Azure, Vercel as
-// SECTION_EXTENSIONS descriptors) is checked BEFORE any of that: summary.ts
-// hands these rows a placeholder `status: "ready"` because it deliberately does
-// not know their real liveness (that lives in their own section). Filing them
-// under "Connected" on the strength of that placeholder is exactly the bug
-// this branch fixes -- a user who never installed Docker was shown "Connected".
+// Every tier is bucketed by the SAME rule. Section extensions used to be
+// exempted here, because summary.ts handed them a placeholder `status: "ready"`
+// that would have filed an uninstalled Docker under "Connected". The fix then
+// was a bucket of their own; the fix now is that main probes them for real
+// (extensions:list), so there is nothing left to exempt.
 export function groupOf(e: ExtensionSummary, enabled = e.enabled): GroupKey {
   if (!enabled) return "disabled";
-  if (e.tier === "section") return "section";
   if (e.status === "ready" || e.status === "connected") return "connected";
   if (e.status === "unauthed") return "available";
   return "absent"; // absent / error / disabled-status
 }
 
-// The sidebar hub's mapping, unchanged for tiers it can actually verify, so a
-// status reads the same colour wherever it appears. A tier === "section" row
-// is excluded from that promise on purpose: its placeholder "ready" status (see
-// summary.ts) is not something this layer can verify, so painting it green
-// would assert a connection state the hub cannot back up. Grey is the honest
-// answer -- the same "nothing claimed" grey absent/disabled already use.
+// One status -> one colour, for every tier, so a row reads the same wherever it
+// appears.
 function statusDot(e: ExtensionSummary): string {
-  if (e.tier === "section") return "status-dot";
   if (e.status === "ready" || e.status === "connected") return "status-dot on";
   if (e.status === "error") return "status-dot fail";
   if (e.status === "unauthed") return "status-dot running"; // available, not connected
@@ -79,21 +71,20 @@ export function statusLine(e: ExtensionSummary, enabled: boolean): string {
   const acct = e.account ? ` · ${e.account}` : "";
   if (!enabled || e.status === "disabled")
     return `${e.name} is disabled — it is hidden from Claude and from the sidebar.`;
-  // A section extension's placeholder "ready" status (see summary.ts) is not
-  // something this layer verified, so "Installed and signed in" -- the case
-  // below for a genuinely-detected Tier-1 CLI -- would be a claim the hub
-  // cannot back up. Point at the truth instead: its own section.
-  if (e.tier === "section")
-    return `${e.name} has its own section, where its real state is shown.`;
   switch (e.status) {
     case "absent":
       return `${e.name} is not installed.`;
     case "unauthed":
       // Tier-2 extensions are not "installed" at all -- they are a vaulted
       // token or nothing, so only the Tier-1 wording can mention installation.
-      return e.tier === "connected"
-        ? "Not connected."
-        : "Installed, not signed in.";
+      // Only a Tier-1 CLI manifest has a genuine install-THEN-login two-step.
+      // A tier-2 extension is a vaulted token or nothing, and a section
+      // extension is an API key (Neon, Render) or a reachable daemon (Docker)
+      // -- telling a user with Docker installed but stopped that it is
+      // "not signed in" names the wrong problem.
+      return e.tier === "status"
+        ? "Installed, not signed in."
+        : "Not connected.";
     case "ready":
       return `Installed and signed in${acct}`;
     case "connected":
@@ -109,19 +100,11 @@ export function statusLine(e: ExtensionSummary, enabled: boolean): string {
 export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
   if (!enabled || e.status === "disabled")
     return `Enable ${e.name} to see what it offers.`;
-  // Mirrors statusLine's tier check: "ready to use" below would be the same
-  // unverifiable claim for a section extension that statusLine already avoids.
-  if (e.tier === "section")
-    return `${e.name} has no actions here -- manage it from its own section.`;
   if (e.status === "error")
     return `Nothing to do until ${e.name} can be checked again.`;
-  // A Tier-1 manifest with no install/connect command declared (Vercel: only a
-  // browser login outside AirLock) offers no button while absent/unauthed
-  // either -- "ready to use" below would be exactly backwards. Found while
-  // re-checking this file for the 2026-07-27 duplicate-row fix: Vercel's
-  // manifest row is now the ONLY row a user sees for it (see
-  // mergeSectionExtensions), where before it could sit unnoticed beside the
-  // always-"ready" section row.
+  // A Tier-1 manifest that declares no install/connect command (its sign-in
+  // happens in a browser, outside AirLock) offers no button while
+  // absent/unauthed either -- "ready to use" below would be exactly backwards.
   if (e.status === "absent" || e.status === "unauthed")
     return "Nothing to do here yet.";
   return `Nothing to configure — ${e.name} is ready to use.`;

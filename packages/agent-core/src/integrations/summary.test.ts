@@ -122,6 +122,29 @@ describe("sectionExtensionSummaries", () => {
     expect(neon).toMatchObject({ icon: "neon", category: "databases" });
   });
 
+  // The status used to be a hardcoded "ready" -- a claim the registry could not
+  // back up, which forced every hub surface to special-case tier === "section"
+  // and produced a bucket ("Has its own section") that answered nothing.
+  it("takes each row's status from the probed map", () => {
+    const rows = sectionExtensionSummaries(
+      descriptors,
+      {},
+      {
+        neon: "connected",
+        docker: "absent",
+      },
+    );
+    expect(rows.map((r) => [r.id, r.status])).toEqual([
+      ["neon", "connected"],
+      ["docker", "absent"],
+    ]);
+  });
+
+  it("reports an unprobed id as absent rather than claiming it is connected", () => {
+    const rows = sectionExtensionSummaries(descriptors, {}, {});
+    expect(rows.every((r) => r.status === "absent")).toBe(true);
+  });
+
   it("defaults to enabled and honours an explicit disable", () => {
     const rows = sectionExtensionSummaries(descriptors, {
       docker: { enabled: false },

@@ -654,20 +654,27 @@ it("noActionsNote never claims an absent or unauthed Tier-1 row is ready to use"
   expect(unauthed).toBe("Nothing to do here yet.");
 });
 
-// --- CRITICAL #2 (2026-07-27 fix wave): summary.ts's sectionExtensionSummaries
-// hands every SECTION_EXTENSIONS row (Docker, Neon, Render, Snowflake, Azure,
-// Vercel) a PLACEHOLDER status:"ready" because it deliberately cannot see their
-// real liveness -- that lives in their own section. Before this fix, groupOf/
-// statusDot/statusLine/noActionsNote switched on status alone, so a user who
-// had NEVER installed Docker saw it filed under "Connected" with a green dot
-// and "Installed and signed in" / "ready to use" -- actively false. Every
-// assertion below FAILS against that pre-fix code (which ignored `tier`
-// entirely) and passes once tier === "section" is branched on first.
+// --- Section extensions are bucketed by their REAL connection state.
+//
+// Two earlier versions of this block were both wrong. First, every surface
+// switched on status alone while summary.ts fabricated status:"ready" for
+// section rows, so a machine with no Docker showed it "Connected", green,
+// "Installed and signed in". The fix for that special-cased tier === "section"
+// everywhere and gave it a bucket called "Has its own section" -- honest, but
+// it answered a question nobody asks (all extensions have a section) and left
+// the hub unable to say anything about Docker at all.
+//
+// Now main probes the three for real (sectionExtensionStatuses in ide-state.ts)
+// and the tier special case is gone. These assertions pin BOTH directions --
+// uninstalled is never Connected, and running genuinely is -- which is what
+// makes the special case unnecessary rather than merely absent.
 const DOCKER_SECTION: ExtensionSummary = {
   id: "docker",
   name: "Docker",
   tier: "section",
-  status: "ready",
+  // What main's probe actually reports for a machine with no Docker. This was
+  // "ready" while summary.ts fabricated that status for every section row.
+  status: "absent",
   enabled: true,
   pinned: false,
   hasConfig: false,
@@ -677,9 +684,16 @@ const DOCKER_SECTION: ExtensionSummary = {
   actions: [],
 };
 
-it("groupOf files a section extension under its own bucket, never Connected", () => {
-  expect(groupOf(DOCKER_SECTION)).toBe("section");
+it("groupOf files an uninstalled section extension as Not installed, never Connected", () => {
+  expect(groupOf(DOCKER_SECTION)).toBe("absent");
   expect(groupOf(DOCKER_SECTION)).not.toBe("connected");
+});
+
+it("groupOf files a RUNNING section extension as Connected", () => {
+  // The half the placeholder could never express: with a real status, a
+  // section extension can be genuinely connected and is bucketed like any
+  // other row -- no tier special case in either direction.
+  expect(groupOf({ ...DOCKER_SECTION, status: "connected" })).toBe("connected");
 });
 
 it("groupOf still buckets a disabled section extension as Disabled", () => {
@@ -688,33 +702,49 @@ it("groupOf still buckets a disabled section extension as Disabled", () => {
   );
 });
 
-it("statusLine never tells a section extension it is installed and signed in", () => {
+it("statusLine names the real problem instead of pointing at another section", () => {
   const line = statusLine(DOCKER_SECTION, true);
   expect(line).not.toMatch(/installed and signed in/i);
-  expect(line).toContain("its own section");
+  // The old text was "Docker has its own section, where its real state is
+  // shown" -- true, but it made the hub a signpost instead of an answer.
+  expect(line).not.toMatch(/its own section/i);
+  expect(line).toBe("Docker is not installed.");
 });
 
-it("noActionsNote never tells a section extension it is ready to use", () => {
+it("statusLine says a stopped daemon is not connected, NOT 'not signed in'", () => {
+  // Docker installed with the daemon down is `unauthed`. The Tier-1 CLI
+  // wording would name the wrong problem: there is no sign-in step here.
+  expect(statusLine({ ...DOCKER_SECTION, status: "unauthed" }, true)).toBe(
+    "Not connected.",
+  );
+});
+
+it("noActionsNote never tells an uninstalled section extension it is ready to use", () => {
   expect(noActionsNote(DOCKER_SECTION, true)).not.toMatch(/ready to use/i);
 });
 
-it("buckets a section extension apart from Connected and never paints its dot green", async () => {
+it("buckets an uninstalled section extension under Not installed with a grey dot", async () => {
   const { container } = mount([DOCKER_SECTION]);
   const listEl = await waitForList(container);
-  // A user who never installed Docker must not see it filed as Connected.
-  expect(within(listEl).getByText("Has its own section")).toBeTruthy();
+  // A user who never installed Docker must not see it filed as Connected...
+  expect(within(listEl).getByText("Not installed")).toBeTruthy();
   expect(within(listEl).queryByText("Connected")).toBeNull();
   expect(listEl.querySelectorAll(".status-dot.on").length).toBe(0);
+  // ...nor under a bucket named for something every extension has.
+  expect(within(listEl).queryByText(/has its own section/i)).toBeNull();
 });
 
-it("tells the truth about a section extension in the detail pane too", async () => {
+it("paints a connected section extension green, under Connected", async () => {
+  const { container } = mount([{ ...DOCKER_SECTION, status: "connected" }]);
+  const listEl = await waitForList(container);
+  expect(within(listEl).getByText("Connected")).toBeTruthy();
+  expect(listEl.querySelectorAll(".status-dot.on").length).toBe(1);
+});
+
+it("states the real reason in the detail pane too", async () => {
   const { container } = mount([DOCKER_SECTION]);
   await waitForList(container);
   expect(screen.queryByText(/installed and signed in/i)).toBeNull();
   expect(screen.queryByText(/ready to use/i)).toBeNull();
-  // Both statusLine and noActionsNote point at "its own section" (by design --
-  // neither claims a connection state), so scope to statusLine's exact wording.
-  expect(
-    screen.getByText(/its own section, where its real state is shown/),
-  ).toBeTruthy();
+  expect(screen.getByText("Docker is not installed.")).toBeTruthy();
 });

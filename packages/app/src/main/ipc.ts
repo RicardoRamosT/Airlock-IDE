@@ -173,6 +173,7 @@ import {
   renderServiceEnvReveal,
   renderServicesStatus,
   resolveDevUrl,
+  sectionExtensionStatuses,
 } from "./ide-state";
 import {
   lspCompletion,
@@ -1866,14 +1867,15 @@ export function registerIpc(
   // integrations:resources -> the resources for ONE integration, account-wide,
   // with NO pin/relevance filter (unlike integrations:steady). Powers the
   // Extension Hub's expand-in-place, and (2026-07-27) a manifest's own
-  // extension section (ManifestExtensionSection, for Snowflake/Azure/Vercel) --
+  // extension section (ManifestExtensionSection, for Snowflake/Azure) --
   // see & control a connection's resources from any project. Reuses the shared
   // steadyCache (everyMs-throttled) so it never double-spawns a CLI the Host
   // view already polled. Uses steadyIntegrationFor rather than pollSteady
-  // SPECIFICALLY so this also works for an Activity-surfaced manifest (Vercel)
-  // that contributes no Databases/Host provider row -- pollSteady excludes
-  // those, which previously made this always return null for Vercel and left
-  // its rail icon a permanent dead end. Returns null only for an unknown id.
+  // SPECIFICALLY so this also works for an Activity-surfaced manifest that
+  // contributes no Databases/Host provider row -- pollSteady excludes those,
+  // which made this return null and left such an icon a permanent dead end.
+  // (No shipped manifest is Activity-surfaced today; engine.test.ts covers the
+  // branch with a local fixture.) Returns null only for an unknown id.
   ipcMain.handle("integrations:resources", async (e, id: string) => {
     const root = rootForEvent(e);
     const m = INTEGRATIONS.find((x) => x.id === id);
@@ -1960,16 +1962,20 @@ export function registerIpc(
         return account ? { ...summary, account } : summary;
       }),
     );
-    // Snowflake/Azure/Vercel are EACH both a tier1 manifest (INTEGRATIONS,
-    // above) and a SECTION_EXTENSIONS descriptor -- mergeSectionExtensions
-    // dedupes those to one row (the real manifest status wins, brand icon
-    // kept), so the hub is a complete inventory WITHOUT listing any of the
-    // three twice. Neon/Docker/Render have no manifest, so their section rows
-    // pass through unchanged.
+    // Snowflake/Azure are EACH both a tier1 manifest (INTEGRATIONS, above) and
+    // a SECTION_EXTENSIONS descriptor -- mergeSectionExtensions dedupes those
+    // to one row (the manifest's detect status wins, brand icon kept), so the
+    // hub is a complete inventory WITHOUT listing either twice. Neon/Docker/
+    // Render have no manifest, so their section rows pass through carrying the
+    // status sectionExtensionStatuses just probed for them.
     const rows = [
       ...mergeSectionExtensions(
         tier1,
-        sectionExtensionSummaries(SECTION_EXTENSIONS, ext),
+        sectionExtensionSummaries(
+          SECTION_EXTENSIONS,
+          ext,
+          await sectionExtensionStatuses(root),
+        ),
       ),
       ...connected,
     ];

@@ -50,7 +50,7 @@ export interface ExtensionSummary {
   // regardless of which tier its STATUS comes from. Added 2026-07-27 so the
   // renderer can select rail icons by this flag instead of by `tier ===
   // "section"`: an id with BOTH a manifest and a SECTION_EXTENSIONS entry
-  // (Snowflake/Azure/Vercel) surfaces as tier:"status" post-merge (see
+  // (Snowflake/Azure) surfaces as tier:"status" post-merge (see
   // mergeSectionExtensions below), and would otherwise lose its rail icon.
   hasSection?: boolean;
 }
@@ -134,6 +134,7 @@ export function pinnedEnabledManifests(
 export function sectionExtensionSummaries(
   descriptors: SectionExtensionDescriptor[],
   prefs: ExtPrefs,
+  statuses: Record<string, ExtensionSummary["status"]> = {},
 ): ExtensionSummary[] {
   return descriptors.map((d) => ({
     id: d.id,
@@ -141,7 +142,13 @@ export function sectionExtensionSummaries(
     icon: d.icon,
     tier: "section" as const,
     category: d.contributesTo,
-    status: "ready" as const,
+    // A REAL status, probed by the caller. This used to be a hardcoded "ready",
+    // which forced every hub surface to special-case tier === "section" -- and
+    // produced a bucket called "Has its own section", which says nothing a user
+    // cares about (all of them have one). Each of these three already had a
+    // probe in main: Docker's daemon, Neon's account, Render's API key. An
+    // unprobed id reads "absent" rather than claiming a connection.
+    status: statuses[d.id] ?? "absent",
     enabled: isEnabled(prefs, d.id),
     pinned: prefs[d.id]?.pinned === true,
     hasConfig: false,
@@ -150,24 +157,23 @@ export function sectionExtensionSummaries(
 }
 
 // Fold section-extension rows into the Tier-1 manifest list, so an id present
-// in BOTH (Snowflake, Azure, Vercel are each a real IntegrationManifest in
+// in BOTH (Snowflake and Azure are each a real IntegrationManifest in
 // INTEGRATIONS *and* a SECTION_EXTENSIONS descriptor) produces exactly ONE hub
 // row instead of two. Found 2026-07-27: `extensions:list` used to concatenate
 // `buildExtensionSummaries(INTEGRATIONS, ...)` and
 // `sectionExtensionSummaries(SECTION_EXTENSIONS, ...)` with no dedup, so the
-// hub listed these three services twice each -- once with a real detect
-// status, once with sectionExtensionSummaries' placeholder "ready" -- which
-// makes the "complete inventory" this row exists for a WRONG one instead.
+// hub listed these services twice each -- once with a real detect status, once
+// with a section row -- which makes the "complete inventory" this row exists
+// for a WRONG one instead.
 //
-// The manifest row wins for an overlapping id: its status is a REAL detect
-// result (CLI found / signed in), never the placeholder. It keeps its own
-// `category` too (Vercel's Tier-1 category is "activity", which gives its pin
-// toggle somewhere useful to surface into; the section descriptor has none).
-// The ONE field it does NOT keep is `icon`: a Tier-1 manifest's icon is a
-// generic codicon (Vercel's own registry entry: "rocket") meant for the
-// Activity feed, not the brand glyph SECTION_EXTENSIONS declares for the same
-// id (SectionGlyph renders "snowflake"/"azure"/"vercel" as an inline brand
-// mark) -- so the rail icon would otherwise visibly regress to a codicon.
+// The manifest row wins for an overlapping id: its status comes from the
+// manifest's own detect command (CLI found / signed in), which is more
+// specific than the section probe. It keeps its own `category` too (the
+// section descriptor's is coarser). The ONE field it does NOT keep is `icon`:
+// a Tier-1 manifest's icon is a generic codicon meant for the Activity feed,
+// not the brand glyph SECTION_EXTENSIONS declares for the same id (SectionGlyph
+// renders "snowflake" as an inline brand mark) -- so the rail icon would
+// otherwise visibly regress to a codicon.
 //
 // Every row this returns that is EITHER an unmatched section-extension row OR
 // the surviving manifest row for a matched one carries `hasSection: true`, so
