@@ -371,6 +371,19 @@ export {
 } from "./update/devManifest";
 export { compareVersions, isNewer } from "./update/version";
 export { type DocumentData, readDocument } from "./workspace/document";
+export type {
+  DocxAlign,
+  DocxBlock,
+  DocxCell,
+  DocxDoc,
+  DocxImageRun,
+  DocxInline,
+  DocxPage,
+  DocxParagraph,
+  DocxRow,
+  DocxTable,
+  DocxTextRun,
+} from "./workspace/docxModel";
 export {
   createDir,
   createFile,

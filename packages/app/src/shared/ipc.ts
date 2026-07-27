@@ -8,6 +8,11 @@ import type {
   DiffSide,
   DirEntry,
   DocumentData,
+  DocxBlock,
+  DocxDoc,
+  DocxInline,
+  DocxParagraph,
+  DocxTable,
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
@@ -77,6 +82,11 @@ export type {
   DiffSide,
   DirEntry,
   DocumentData,
+  DocxBlock,
+  DocxDoc,
+  DocxInline,
+  DocxParagraph,
+  DocxTable,
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
@@ -854,8 +864,9 @@ export interface AirlockApi {
   // Parse an .xlsx/.xlsm workbook into WorkbookData for the inline viewer.
   // tooLarge => offer Open Externally. ExcelJS runs main-side only.
   readWorkbook(root: string, relPath: string): Promise<WorkbookData>;
-  // Parse a .docx into HTML for the inline document viewer. The renderer
-  // rebuilds it as React elements rather than injecting it -- see docxHtml.ts.
+  // Parse a .docx into the structured DocxDoc the inline viewer draws --
+  // paragraphs, runs and tables carrying their own colour/size/alignment. Data,
+  // never markup: there is no HTML string to inject or sanitise.
   readDocument(root: string, relPath: string): Promise<DocumentData>;
   // Open a workspace file in the OS default app (binary files / oversized
   // images). Path-confined; the .airlock vault is rejected.

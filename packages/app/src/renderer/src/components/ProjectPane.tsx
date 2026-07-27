@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FileContent } from "../../../shared/ipc";
-import { isDocxPath } from "../lib/docxHtml";
+import { isDocxPath } from "../lib/docxPath";
 import { isExcelPath } from "../lib/excelTypes";
 import { isImagePath } from "../lib/imageTypes";
 import { isPdfPath } from "../lib/pdfTypes";

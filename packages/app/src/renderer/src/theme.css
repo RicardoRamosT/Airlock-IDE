@@ -4930,89 +4930,110 @@ button.docker-row .codicon-chevron-right {
    page-like surface rather than the full-bleed grid a spreadsheet wants. All
    styling lives here: the converter carries over no attributes from the
    document itself, so nothing inside can restyle the app. */
+/* --- Word document viewer -------------------------------------------------
+   Renders PAPER, not app chrome: a real white page at the document's own page
+   width, with the file's own colours, font sizes and alignment. Light-on-white
+   even in the dark theme, deliberately -- Word colours are chosen against white
+   (this file's #1c5cab headings sit at ~2:1 on our near-black panel), so
+   honouring them and honouring the theme are mutually exclusive. A document
+   preview shows the document, the way a PDF preview does. */
 .docx-viewer-host {
   width: 100%;
   height: 100%;
   overflow: auto;
+  /* The desk the page sits on: darker than the panel so the sheet reads as a
+     physical page with an edge, in both themes. */
+  background: var(--docx-desk, #14161a);
   padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .docx-page {
-  max-width: 68ch;
-  margin: 0 auto;
-  color: var(--fg);
-  font-size: 13px;
-  line-height: 1.65;
-}
-.docx-page h1,
-.docx-page h2,
-.docx-page h3,
-.docx-page h4,
-.docx-page h5,
-.docx-page h6 {
-  line-height: 1.3;
-  margin: 1.4em 0 0.5em;
-  font-weight: 650;
-}
-.docx-page h1 {
-  font-size: 1.7em;
-}
-.docx-page h2 {
-  font-size: 1.35em;
-}
-.docx-page h3 {
-  font-size: 1.15em;
-}
-.docx-page p {
-  margin: 0 0 0.85em;
-}
-.docx-page ul,
-.docx-page ol {
-  margin: 0 0 0.85em;
-  padding-left: 1.6em;
-}
-.docx-page li {
-  margin: 0.2em 0;
-}
-.docx-page blockquote {
-  margin: 0 0 0.85em;
-  padding-left: 12px;
-  border-left: 2px solid var(--border);
-  color: var(--fg-dim);
-}
-.docx-page pre,
-.docx-page code {
-  font-family: "SF Mono", Menlo, monospace;
-  font-size: 0.92em;
-}
-/* Wide tables scroll with the page rather than forcing the prose wider. */
-.docx-page table {
-  border-collapse: collapse;
-  margin: 0 0 1em;
+  /* width + padding come from the document's own sectPr (inline styles), so a
+     Letter page with 1in margins measures exactly that. */
+  box-sizing: border-box;
   max-width: 100%;
+  background: #fff;
+  color: #000;
+  border-radius: 2px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  /* Word's default body face; individual runs override via w:rFonts. */
+  --docx-fallback: "Calibri", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--docx-fallback);
+  font-size: 11pt;
+  line-height: 1.5;
 }
-.docx-page td,
-.docx-page th {
-  border: 1px solid var(--border);
-  padding: 4px 8px;
+/* Word paragraph spacing is explicit (w:spacing), so no default margins --
+   otherwise every gap is applied twice and the page runs long. */
+.docx-page .docx-p,
+.docx-page .docx-h,
+.docx-page .docx-li {
+  margin: 0;
+  /* Word breaks long words rather than overflowing the text column. */
+  overflow-wrap: break-word;
+}
+/* Headings inherit their look from the document's own run formatting; only the
+   size fallback differs, for a heading that specifies no w:sz. */
+.docx-page .docx-h {
+  font-weight: 700;
+  line-height: 1.3;
+}
+.docx-page h1.docx-h {
+  font-size: 16pt;
+}
+.docx-page h2.docx-h {
+  font-size: 14pt;
+}
+.docx-page h3.docx-h {
+  font-size: 12pt;
+}
+.docx-page h4.docx-h,
+.docx-page h5.docx-h,
+.docx-page h6.docx-h {
+  font-size: 11pt;
+}
+/* A paragraph bottom border -- the rule under a title block. */
+.docx-page .docx-rule {
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2pt;
+}
+/* List items are paragraphs with a marker, not <ul>: Word tracks the level and
+   indent itself, so a real list would double the indentation. */
+.docx-page .docx-li {
+  display: list-item;
+  list-style-position: outside;
+}
+.docx-page .docx-li-bullet {
+  list-style-type: disc;
+}
+.docx-page .docx-li-number {
+  list-style-type: decimal;
+}
+.docx-page .docx-table {
+  border-collapse: collapse;
+  max-width: 100%;
+  margin: 6pt 0;
+}
+.docx-page .docx-table td,
+.docx-page .docx-table th {
+  border: 1px solid #b7b7b7;
+  padding: 3pt 6pt;
   vertical-align: top;
   text-align: left;
 }
-.docx-page th {
-  background: var(--bg-alt, rgba(127, 127, 127, 0.08));
-  font-weight: 600;
-}
-.docx-page img {
+.docx-page .docx-img {
   max-width: 100%;
   height: auto;
-  border-radius: 3px;
 }
 .docx-empty {
-  color: var(--fg-dim);
+  color: #666;
 }
+/* AirLock's own voice, so it stays OFF the page and in the app's theme. */
 .docx-notes {
-  margin-top: 2em;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  max-width: 612pt;
+  width: 100%;
   color: var(--fg-dim);
   font-size: 11px;
 }
