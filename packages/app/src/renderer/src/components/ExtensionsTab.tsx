@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ExtensionSummary } from "../../../shared/ipc";
+import { SectionGlyph } from "./SectionGlyph";
 
 // The Extensions page: the grouped list plus a detail pane, at full workspace
 // width so names are not truncated and actions can be labelled buttons rather
@@ -65,7 +66,7 @@ export function ExtensionsTab() {
                   className={`ext-page-row${e.id === selected ? " active" : ""}`}
                   onClick={() => setSelected(e.id)}
                 >
-                  <i className={`codicon codicon-${e.icon ?? "extensions"}`} />
+                  <SectionGlyph icon={e.icon ?? "extensions"} />
                   <span>{e.name}</span>
                 </button>
               ))}

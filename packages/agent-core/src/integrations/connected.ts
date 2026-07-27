@@ -118,7 +118,7 @@ const SLACK_BROKER_URL = "https://airlock-auth.airlock-workers.workers.dev";
 export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
   id: "slack",
   name: "Slack",
-  icon: "comment-discussion",
+  icon: "slack", // a BRAND mark, not a codicon -- see SectionGlyph
   description:
     "Let Claude read context from Slack channels you explicitly allow.",
   // No `category`: Slack owns its own sidebar section (ext:slack) rather than

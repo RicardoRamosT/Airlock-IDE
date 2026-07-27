@@ -956,7 +956,22 @@ body,
   background: var(--selected);
 }
 
-.activity-icon .codicon {
+/* A brand mark (Slack) standing in for a codicon. Sized in em so it tracks
+   whatever font-size the surrounding icon rule sets, and filled with
+   currentColor so it dims and brightens with its neighbours instead of being a
+   fixed-colour logo sitting in a grey rail. Slightly under 1em because a
+   codicon glyph carries its own padding inside the em box and this path does
+   not -- at a true 1em the mark reads noticeably larger than the icons above
+   it. */
+.brand-glyph {
+  display: block;
+  flex: none;
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.activity-icon .codicon,
+.activity-icon .brand-glyph {
   font-size: 20px;
 }
 
@@ -1379,6 +1394,26 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Thread pager. Replaced a single "Show earlier" link that widened the SAME
+   request (20 -> 50 -> 100) and so could never reach past Slack's 100-per-call
+   ceiling; this walks Slack's own cursors, so the whole conversation is
+   reachable ten at a time. */
+.slack-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-gap);
+  margin-bottom: 6px;
+}
+.slack-pager .btn {
+  flex: 1;
+}
+.slack-page-n {
+  flex: none;
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .slack-thread {

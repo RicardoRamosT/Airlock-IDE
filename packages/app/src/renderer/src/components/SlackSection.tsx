@@ -4,9 +4,13 @@ import { openEditorFile } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import {
   CHANNEL_CAP,
-  FIRST_MESSAGE_LIMIT,
+  cursorAt,
+  FIRST_PAGE,
   filterChannels,
-  nextMessageLimit,
+  PAGE_SIZE,
+  type PageCursors,
+  pageBack,
+  pageForward,
   visibleChannels,
 } from "../lib/slackList";
 import { useApp } from "../store";
@@ -29,8 +33,8 @@ export function SlackSection() {
     { id: string; name: string } | undefined
   >(undefined);
   const [manageError, setManageError] = useState<string | null>(null);
-  // How far back each expanded channel has been asked to fetch.
-  const [limits, setLimits] = useState<Record<string, number>>({});
+  // Where each expanded channel sits in its history (cursor stack + index).
+  const [pages, setPages] = useState<Record<string, PageCursors>>({});
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
   // Loaded once per project, on the first read that actually succeeds -- which
@@ -65,7 +69,7 @@ export function SlackSection() {
     setFilter("");
     setShowAll(false);
     setManageError(null);
-    setLimits({});
+    setPages({});
     avatarsFor.current = null;
     void loadList();
   }, [loadList]);
@@ -82,19 +86,24 @@ export function SlackSection() {
   }, [root, loadList]);
 
   const load = useCallback(
-    async (id: string, limit?: number) => {
+    async (id: string, cursor?: string) => {
       if (!root) return;
-      const n = limit ?? FIRST_MESSAGE_LIMIT;
       setState((s) => ({ ...s, [id]: { ...s[id], loading: true } }));
       const res = await window.airlock
-        .slackReadChannel(root, id, n)
+        .slackReadChannel(root, id, PAGE_SIZE, cursor)
         .catch((e: unknown) => ({
           error: e instanceof Error ? e.message : String(e),
           messages: undefined,
+          nextCursor: undefined,
         }));
       setState((s) => ({
         ...s,
-        [id]: { loading: false, error: res.error, messages: res.messages },
+        [id]: {
+          loading: false,
+          error: res.error,
+          messages: res.messages,
+          nextCursor: res.nextCursor,
+        },
       }));
       if (res.messages && avatarsFor.current !== root) {
         avatarsFor.current = root;
@@ -114,19 +123,30 @@ export function SlackSection() {
     if (!root || expanded.size === 0) return;
     const id = setInterval(() => {
       if (document.visibilityState === "hidden") return;
-      // Pass the channel's CURRENT depth: without it a thread expanded to 100
-      // would silently snap back to 20 on the next tick.
-      for (const channelId of expanded)
-        void load(channelId, limits[channelId] ?? FIRST_MESSAGE_LIMIT);
+      for (const channelId of expanded) {
+        // Only refresh a channel sitting on the NEWEST page. New messages
+        // arrive at page 1, and re-fetching page 4 every 30s would both waste
+        // the call and yank someone reading history.
+        if ((pages[channelId] ?? FIRST_PAGE).index !== 0) continue;
+        void load(channelId);
+      }
     }, 30_000);
     return () => clearInterval(id);
-  }, [root, expanded, load, limits]);
+  }, [root, expanded, load, pages]);
 
-  const showEarlier = (id: string) => {
-    const next = nextMessageLimit(limits[id] ?? FIRST_MESSAGE_LIMIT);
-    if (next === null) return;
-    setLimits((l) => ({ ...l, [id]: next }));
-    void load(id, next);
+  // Older = walk one page back through history using the cursor Slack returned
+  // with the current page; Newer = pop back toward the most recent.
+  const goOlder = (id: string) => {
+    const next = state[id]?.nextCursor;
+    if (!next) return;
+    const p = pageForward(pages[id] ?? FIRST_PAGE, next);
+    setPages((m) => ({ ...m, [id]: p }));
+    void load(id, cursorAt(p));
+  };
+  const goNewer = (id: string) => {
+    const p = pageBack(pages[id] ?? FIRST_PAGE);
+    setPages((m) => ({ ...m, [id]: p }));
+    void load(id, cursorAt(p));
   };
 
   // Download through the gated main-side path, then hand the cached path to the
@@ -245,8 +265,10 @@ export function SlackSection() {
           title="Refresh"
           onClick={() => {
             void loadList();
+            // Refresh re-reads the page you are ON, not page 1: losing your
+            // place in history is not what "refresh" should mean.
             for (const id of expanded)
-              void load(id, limits[id] ?? FIRST_MESSAGE_LIMIT);
+              void load(id, cursorAt(pages[id] ?? FIRST_PAGE));
           }}
         >
           Refresh
@@ -295,13 +317,14 @@ export function SlackSection() {
           channel={c}
           open={expanded.has(c.id)}
           state={state[c.id]}
-          limit={limits[c.id] ?? FIRST_MESSAGE_LIMIT}
+          page={(pages[c.id] ?? FIRST_PAGE).index}
           avatars={avatars}
           now={now}
           fileError={fileError}
           onToggle={() => toggle(c.id)}
           onRemove={() => void removeChannel(c.id)}
-          onShowEarlier={() => showEarlier(c.id)}
+          onOlder={() => goOlder(c.id)}
+          onNewer={() => goNewer(c.id)}
           onOpenFile={(fileId) => void openFile(c.id, fileId)}
         />
       ))}

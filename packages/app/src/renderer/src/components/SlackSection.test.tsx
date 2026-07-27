@@ -145,7 +145,7 @@ describe("SlackSection", () => {
     fireEvent.click(await screen.findByText("general-airlock"));
     expect(await screen.findByText("Ricardo")).toBeTruthy();
     expect(screen.getByText("test")).toBeTruthy();
-    expect(read).toHaveBeenCalledWith("/repo", "C1", expect.any(Number));
+    expect(read).toHaveBeenCalledWith("/repo", "C1", 10, undefined);
   });
 
   it("shows the REASON a channel could not be read, not an empty list", async () => {
@@ -611,7 +611,9 @@ const msg = (i: number) => ({
   files: [],
 });
 
-it("fetches further back on demand, then admits the ceiling", async () => {
+// Replaced the "Show earlier" ladder, which re-fetched a bigger single window
+// (20 -> 50 -> 100) and could never reach past Slack's 100-per-request cap.
+it("pages ten at a time through history using Slack's cursors", async () => {
   allowed.mockResolvedValue({
     connected: true,
     channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
@@ -619,18 +621,51 @@ it("fetches further back on demand, then admits the ceiling", async () => {
   read.mockResolvedValue({
     channel: "#general-airlock",
     messages: [msg(1), msg(2)],
+    nextCursor: "cur1",
   });
   render(<SlackSection />);
   fireEvent.click(await screen.findByText("general-airlock"));
-  await waitFor(() => expect(read).toHaveBeenCalledWith("/repo", "C1", 20));
 
-  fireEvent.click(await screen.findByText("Show earlier"));
-  await waitFor(() => expect(read).toHaveBeenCalledWith("/repo", "C1", 50));
+  // Page 1 asks for TEN, with no cursor.
+  await waitFor(() =>
+    expect(read).toHaveBeenCalledWith("/repo", "C1", 10, undefined),
+  );
+  expect(screen.getByText("Page 1")).toBeTruthy();
+  // Nowhere newer to go yet.
+  expect((screen.getByText("Newer") as HTMLButtonElement).disabled).toBe(true);
 
-  fireEvent.click(await screen.findByText("Show earlier"));
-  await waitFor(() => expect(read).toHaveBeenCalledWith("/repo", "C1", 100));
+  // Older walks to page 2 with the cursor the first page returned.
+  read.mockResolvedValue({
+    channel: "#general-airlock",
+    messages: [msg(3)],
+    nextCursor: "cur2",
+  });
+  fireEvent.click(screen.getByText("Older"));
+  await waitFor(() =>
+    expect(read).toHaveBeenCalledWith("/repo", "C1", 10, "cur1"),
+  );
+  await screen.findByText("Page 2");
 
-  // At the ceiling the button is replaced by the reason, not left dead.
-  await waitFor(() => expect(screen.queryByText("Show earlier")).toBeNull());
-  expect(screen.getByText(/100 messages/i)).toBeTruthy();
+  // Newer goes back to the page-1 cursor rather than re-deriving it.
+  fireEvent.click(screen.getByText("Newer"));
+  await waitFor(() => expect(screen.getByText("Page 1")).toBeTruthy());
+  expect(read).toHaveBeenLastCalledWith("/repo", "C1", 10, undefined);
+});
+
+it("stops offering Older at the start of the conversation", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+  });
+  // No nextCursor => Slack has nothing older.
+  read.mockResolvedValue({
+    channel: "#general-airlock",
+    messages: [msg(1)],
+  });
+  render(<SlackSection />);
+  fireEvent.click(await screen.findByText("general-airlock"));
+  await waitFor(() => expect(read).toHaveBeenCalled());
+  // A conversation that fits on one page gets no pager chrome at all.
+  await waitFor(() => expect(screen.queryByText("Older")).toBeNull());
+  expect(screen.queryByText("Page 1")).toBeNull();
 });

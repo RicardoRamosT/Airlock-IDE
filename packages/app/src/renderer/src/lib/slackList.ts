@@ -5,8 +5,8 @@ import type { SlackAllowedChannel } from "../../../shared/ipc";
 
 // How many channels render before the list collapses behind "... N more".
 export const CHANNEL_CAP = 15;
-// How many messages a thread fetches when first expanded.
-export const FIRST_MESSAGE_LIMIT = 20;
+// How many messages one page of a thread shows.
+export const PAGE_SIZE = 10;
 
 // Rows display as "# name" / "@ name", so a query copied from the screen may
 // carry the glyph. Strip it rather than returning no matches.
@@ -36,11 +36,37 @@ export function visibleChannels(
   };
 }
 
-// The ladder stops at 100 because slackChannelHistory clamps its limit to
-// [1,100] -- Slack's own per-request ceiling. Returning null lets the UI state
-// that plainly instead of offering a no-op button.
-const LADDER: Record<number, number | null> = { 20: 50, 50: 100, 100: null };
+// Where a channel is in its history, as a stack of Slack page cursors.
+//
+// This replaced a "Show earlier" ladder that re-fetched a BIGGER single window
+// (20 -> 50 -> 100). That capped at 100 because conversations.history clamps a
+// single request to 100, so the oldest messages in a busy channel were simply
+// unreachable. Paging by cursor has no ceiling: each step asks Slack for the
+// next page behind the current one, so the whole conversation is walkable.
+//
+// stack[i] is the cursor that fetches page i. Page 0 is the newest and needs no
+// cursor, so stack[0] is always undefined.
+export interface PageCursors {
+  stack: (string | undefined)[];
+  index: number;
+}
 
-export function nextMessageLimit(current: number): number | null {
-  return LADDER[current] ?? null;
+export const FIRST_PAGE: PageCursors = { stack: [undefined], index: 0 };
+
+export function cursorAt(p: PageCursors): string | undefined {
+  return p.stack[p.index];
+}
+
+// Step to older messages. The stack is TRUNCATED at the current page first: a
+// refresh can hand back different cursors, and keeping stale ones behind the
+// current position would make "Newer" walk into pages that no longer line up.
+export function pageForward(p: PageCursors, next: string): PageCursors {
+  const stack = [...p.stack.slice(0, p.index + 1), next];
+  return { stack, index: p.index + 1 };
+}
+
+// Step back toward the newest page. A no-op at page 0 so the caller can bind it
+// to a button without guarding.
+export function pageBack(p: PageCursors): PageCursors {
+  return p.index <= 0 ? p : { stack: p.stack, index: p.index - 1 };
 }

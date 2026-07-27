@@ -2030,12 +2030,19 @@ export function registerIpc(
 
   ipcMain.handle(
     "slack:readChannel",
-    async (_e, root: unknown, channel: unknown, limit: unknown) => {
+    async (
+      _e,
+      root: unknown,
+      channel: unknown,
+      limit: unknown,
+      cursor: unknown,
+    ) => {
       if (typeof root !== "string" || typeof channel !== "string") {
         return { error: "Invalid payload" };
       }
       const n = typeof limit === "number" ? limit : 20;
-      return slackReadChannelTool(root, channel, n);
+      const c = typeof cursor === "string" && cursor ? cursor : undefined;
+      return slackReadChannelTool(root, channel, n, {}, c);
     },
   );
 

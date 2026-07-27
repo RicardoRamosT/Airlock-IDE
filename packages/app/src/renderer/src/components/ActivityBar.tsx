@@ -5,6 +5,7 @@ import { useGithubAccountDot } from "../lib/useGithubAccountDot";
 import { useSectionStatuses } from "../lib/useSectionStatuses";
 import { useApp } from "../store";
 import { AccountsPopover } from "./AccountsPopover";
+import { SectionGlyph } from "./SectionGlyph";
 import { SettingsMenu } from "./SettingsMenu";
 
 // The sections that report a connection/work status dot (the others are local
@@ -132,7 +133,7 @@ export function ActivityBar() {
                   }}
                 >
                   <span className="activity-icon-glyph">
-                    <i className={`codicon codicon-${m.icon}`} />
+                    <SectionGlyph icon={m.icon} />
                     {level && <span className={`activity-dot ${level}`} />}
                   </span>
                 </button>

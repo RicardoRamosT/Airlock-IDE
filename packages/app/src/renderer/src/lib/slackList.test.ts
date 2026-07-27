@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { SlackAllowedChannel } from "../../../shared/ipc";
 import {
   CHANNEL_CAP,
+  cursorAt,
+  FIRST_PAGE,
   filterChannels,
-  nextMessageLimit,
+  pageBack,
+  pageForward,
   visibleChannels,
 } from "./slackList";
 
@@ -74,16 +77,50 @@ describe("visibleChannels", () => {
   });
 });
 
-describe("nextMessageLimit", () => {
-  it("climbs 20 -> 50 -> 100 then stops", () => {
-    expect(nextMessageLimit(20)).toBe(50);
-    expect(nextMessageLimit(50)).toBe(100);
-    // null, not 100: the UI must say "that is the maximum" rather than offer a
-    // button that fetches the same thing again.
-    expect(nextMessageLimit(100)).toBeNull();
+// This replaced a 20 -> 50 -> 100 "Show earlier" ladder. The ladder could not
+// reach past 100 (conversations.history clamps one request to 100), so the
+// oldest messages in a busy channel were simply unreachable; cursor paging has
+// no such ceiling.
+describe("page cursors", () => {
+  it("starts on the newest page, which needs no cursor", () => {
+    expect(FIRST_PAGE.index).toBe(0);
+    expect(cursorAt(FIRST_PAGE)).toBeUndefined();
   });
 
-  it("treats an unknown limit as exhausted rather than guessing", () => {
-    expect(nextMessageLimit(999)).toBeNull();
+  it("walks forward through history and back again", () => {
+    const p1 = pageForward(FIRST_PAGE, "cur1");
+    expect(p1.index).toBe(1);
+    expect(cursorAt(p1)).toBe("cur1");
+
+    const p2 = pageForward(p1, "cur2");
+    expect(p2.index).toBe(2);
+    expect(cursorAt(p2)).toBe("cur2");
+
+    // Going back re-uses the cursor that fetched that page, so "Newer" lands on
+    // the same messages rather than re-deriving them.
+    const back = pageBack(p2);
+    expect(back.index).toBe(1);
+    expect(cursorAt(back)).toBe("cur1");
+    expect(cursorAt(pageBack(back))).toBeUndefined();
+  });
+
+  it("cannot step back past the newest page", () => {
+    expect(pageBack(FIRST_PAGE)).toEqual(FIRST_PAGE);
+  });
+
+  it("drops stale cursors ahead of the current page", () => {
+    // Walk out to page 2, come back to page 1, then go forward with a DIFFERENT
+    // cursor (a refresh handed back new ones). The old page-2 cursor must not
+    // survive behind the new one.
+    const p2 = pageForward(pageForward(FIRST_PAGE, "cur1"), "cur2");
+    const reforked = pageForward(pageBack(p2), "cur2-fresh");
+    expect(reforked.index).toBe(2);
+    expect(reforked.stack).toEqual([undefined, "cur1", "cur2-fresh"]);
+  });
+
+  it("does not mutate the page it was given", () => {
+    const before = { ...FIRST_PAGE, stack: [...FIRST_PAGE.stack] };
+    pageForward(FIRST_PAGE, "cur1");
+    expect(FIRST_PAGE).toEqual(before);
   });
 });

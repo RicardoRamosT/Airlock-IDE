@@ -104,10 +104,15 @@ export async function channelHistory(
   channel: string,
   limit: number,
   tx: SlackTransport = fetchTransport,
+  // Slack's paging handle from the previous page. Omitted = the newest page.
+  // This is what lets the sidebar walk PAST the 100-message per-request ceiling
+  // instead of just asking for a bigger single window.
+  cursor?: string,
 ): Promise<SlackHistory> {
-  const json = await tx("conversations.history", token, {
+  const params: Record<string, string> = {
     channel,
     limit: String(Math.max(1, Math.min(100, Math.floor(limit) || 20))),
-  });
-  return parseHistory(json);
+  };
+  if (cursor) params.cursor = cursor;
+  return parseHistory(await tx("conversations.history", token, params));
 }

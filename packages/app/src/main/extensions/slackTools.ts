@@ -41,6 +41,8 @@ export interface SlackReadResult {
   channel?: string;
   messages?: SlackNamedMessage[];
   error?: string;
+  // Slack's handle for the page BEHIND this one. Absent at the oldest page.
+  nextCursor?: string;
 }
 
 // Whether this project has a vaulted Slack token. Returns a BOOLEAN only -- the
@@ -84,6 +86,8 @@ export interface SlackReadDeps {
     token: string,
     channel: string,
     limit: number,
+    tx?: unknown,
+    cursor?: string,
   ) => Promise<SlackHistory>;
   users?: (root: string, token: string) => Promise<SlackUser[]>;
   remember?: (root: string, channelId: string, history: SlackHistory) => void;
@@ -94,6 +98,10 @@ export async function slackReadChannelTool(
   channel: string,
   limit: number,
   deps: SlackReadDeps = {},
+  // Slack's paging handle from the previous page; omitted = the newest page.
+  // The gate above is unchanged -- a cursor cannot reach a channel the
+  // allow-list does not already permit.
+  cursor?: string,
 ): Promise<SlackReadResult> {
   if (!root) return { error: "No project is focused." };
   const getAllowed = deps.allowed ?? allowedChannels;
@@ -117,7 +125,7 @@ export async function slackReadChannelTool(
   const token = await getToken(root);
   if (!token) return { error: "Slack is not connected for this project." };
   try {
-    const history = await getHistory(token, match.id, limit);
+    const history = await getHistory(token, match.id, limit, undefined, cursor);
     // Let an attachment click in this channel prove membership against THIS
     // fetch instead of paying for its own round trip a moment later.
     remember(root, match.id, history);
@@ -130,6 +138,9 @@ export async function slackReadChannelTool(
     return {
       channel: `${convGlyph(match.kind)}${match.name}`,
       messages: nameMessages(history.messages, users),
+      // Present only while older pages remain, so the UI can disable "Older"
+      // at the true end of the conversation rather than guessing from a count.
+      nextCursor: history.nextCursor,
     };
   } catch (e) {
     // Surface the reason (timeout/abort vs network) instead of a generic string

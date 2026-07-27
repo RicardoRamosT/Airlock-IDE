@@ -175,7 +175,10 @@ export interface SlackMessage {
 // tool -- and the sidebar built on it -- reported "no messages" for a
 // conversation they were never allowed to read.
 export type SlackHistory =
-  | { ok: true; messages: SlackMessage[] }
+  // nextCursor is Slack's own paging handle (response_metadata.next_cursor):
+  // present when MORE history exists behind this page, absent at the end. It is
+  // opaque -- never parsed, only handed back on the next request.
+  | { ok: true; messages: SlackMessage[]; nextCursor?: string }
   | { ok: false; error: string };
 
 // An explicit ok:false is Slack REFUSING and carries a code. Anything else
@@ -188,7 +191,7 @@ export function parseHistory(json: unknown): SlackHistory {
   }
   if (r.ok !== true) return { ok: false, error: "bad_response" };
   if (!Array.isArray(r.messages)) return { ok: false, error: "bad_response" };
-  return {
+  const out: SlackHistory = {
     ok: true,
     messages: r.messages
       .map((m) => obj(m))
@@ -199,4 +202,9 @@ export function parseHistory(json: unknown): SlackHistory {
         files: parseFiles(m.files),
       })),
   };
+  // Slack sends an EMPTY next_cursor on the last page, so treat "" as "no more"
+  // rather than handing back a cursor that fetches nothing.
+  const cursor = str(obj(r.response_metadata).next_cursor);
+  if (cursor) out.nextCursor = cursor;
+  return out;
 }

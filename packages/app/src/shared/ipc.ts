@@ -796,6 +796,9 @@ export interface SlackReadResultIpc {
   channel?: string;
   messages?: SlackUiMessage[];
   error?: string;
+  // Slack's handle for the page of OLDER messages behind this one. Absent once
+  // the oldest page has been reached, which is how the pager knows to stop.
+  nextCursor?: string;
 }
 
 /** Exposed on window.airlock by the preload script. */
@@ -1075,6 +1078,8 @@ export interface AirlockApi {
     root: string,
     channel: string,
     limit?: number,
+    // Page handle from a previous call; omit for the newest page.
+    cursor?: string,
   ): Promise<SlackReadResultIpc>;
   // Download an attachment through the gated main-side path; returns a
   // project-relative path to a cached copy (never a URL needing the token).

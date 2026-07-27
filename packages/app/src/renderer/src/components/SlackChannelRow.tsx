@@ -6,7 +6,6 @@ import {
   formatSlackTime,
   initialsFor,
 } from "../lib/slackFormat";
-import { nextMessageLimit } from "../lib/slackList";
 
 export // Glyph per conversation kind, mirroring convGlyph in main so the sidebar and
 // the tool echo read the same.
@@ -29,6 +28,9 @@ export interface ChannelState {
   loading: boolean;
   error?: string;
   messages?: SlackUiMessage[];
+  // Slack's handle for the page of OLDER messages behind this one. Absent at
+  // the start of the conversation, which is what disables "Older".
+  nextCursor?: string;
 }
 
 // One rendered row: a day separator or a message that may or may not start a
@@ -82,25 +84,27 @@ export function SlackChannelRow({
   channel,
   open,
   state,
-  limit,
+  page,
   avatars,
   now,
   fileError,
   onToggle,
   onRemove,
-  onShowEarlier,
+  onOlder,
+  onNewer,
   onOpenFile,
 }: {
   channel: SlackAllowedChannel;
   open: boolean;
   state?: ChannelState;
-  limit: number;
+  page: number; // 0-based; 0 is the most recent page
   avatars: Record<string, string>;
   now: Date;
   fileError: string | null;
   onToggle: () => void;
   onRemove: () => void;
-  onShowEarlier: () => void;
+  onOlder: () => void;
+  onNewer: () => void;
   onOpenFile: (fileId: string) => void;
 }) {
   const st = state;
@@ -141,21 +145,31 @@ export function SlackChannelRow({
           {st?.messages?.length === 0 && (
             <div className="section-note">No messages yet</div>
           )}
-          {st?.messages &&
-            st.messages.length > 0 &&
-            (nextMessageLimit(limit) === null ? (
-              <div className="section-note">
-                Showing the most recent 100 messages — the most AirLock fetches.
-              </div>
-            ) : (
+          {/* Pager. Sits ABOVE the messages because the page renders
+              oldest-first, so "older" is the direction you are already reading
+              toward. Shown once there is anywhere to go -- a conversation that
+              fits on one page gets no chrome. */}
+          {st?.messages && (page > 0 || st.nextCursor) && (
+            <div className="slack-pager">
               <button
                 type="button"
-                className="section-empty"
-                onClick={onShowEarlier}
+                className="btn"
+                disabled={page === 0 || st.loading}
+                onClick={onNewer}
               >
-                Show earlier
+                Newer
               </button>
-            ))}
+              <span className="slack-page-n">Page {page + 1}</span>
+              <button
+                type="button"
+                className="btn"
+                disabled={!st.nextCursor || st.loading}
+                onClick={onOlder}
+              >
+                Older
+              </button>
+            </div>
+          )}
           {fileError && (
             <div className="slack-refusal">
               <i className="codicon codicon-warning" />
