@@ -19,8 +19,6 @@ import type {
   ExcelAlign,
   ExcelCell,
   ExcelSheet,
-  ExtensionAction,
-  ExtensionActionKind,
   ExtensionSummary,
   FileContent,
   FileVersions,
