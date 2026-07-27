@@ -37,6 +37,7 @@ import type {
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
+import { emitEvent } from "../eventlog/wire";
 import { githubReadIssueTool } from "../extensions/githubTools";
 import {
   slackListAllowedChannelsTool,
@@ -52,6 +53,7 @@ import { loadPrefs, publicPrefs, savePrefs } from "../prefs";
 import { encodeJson, OnceTransport } from "./onceTransport";
 import { applyPrefPatch } from "./prefWrite";
 import { type DocEntry, loadDocList, registerDocResources } from "./resources";
+import { withToolLogging } from "./toolLog";
 import { registerTools } from "./tools";
 
 export interface McpDeps {
@@ -158,7 +160,11 @@ function broadcastJournalChanged(root: string): void {
 // exactly the allowlisted tools and that none returns a secret value), so the
 // security invariant holds identically on every per-request server.
 function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
-  const mcp = new McpServer({ name: "airlock", version: "1.0.0" });
+  // Every tool call lands in the event log (category "tool"); see ./toolLog.
+  const mcp = withToolLogging(
+    new McpServer({ name: "airlock", version: "1.0.0" }),
+    emitEvent,
+  );
 
   // Register the v1 read + UI-control tools (see ./tools). Each is a thin
   // wrapper over the shared ide-state read layer / the menu visibility funnel;
