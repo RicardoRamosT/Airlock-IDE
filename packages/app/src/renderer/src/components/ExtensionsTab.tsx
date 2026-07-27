@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ExtensionAction, ExtensionSummary } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { ExtensionResources } from "./ExtensionResources";
 import { SectionGlyph } from "./SectionGlyph";
 
 // The Extensions page: the grouped list plus a detail pane, at full workspace
@@ -139,60 +140,86 @@ export function ExtensionsTab() {
                   : "Installed, not connected."}
             </div>
             {(() => {
-              const sel = all.find((e) => e.id === selected);
+              // current already IS the selected extension (line above); alias
+              // it here rather than re-running all.find a second time.
+              const sel = current;
               if (!sel) return null;
               const enabled = prefs[sel.id]?.enabled ?? sel.enabled;
               const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
               const actions = sel.actions ?? [];
+              // Same condition ExtensionsSection.tsx uses to decide a row's
+              // resources are worth fetching: a Tier-1 steady row that is
+              // actually ready and targets a non-activity section, or any
+              // connected Tier-2 row. Without this gate a row with nothing to
+              // show would still poll for an empty list.
+              const expandable =
+                (sel.tier === "status" &&
+                  (sel.status === "ready" || sel.status === "connected") &&
+                  !!sel.category &&
+                  sel.category !== "activity") ||
+                (sel.tier === "connected" && sel.status === "connected");
               return (
-                <div className="ext-detail-actions">
-                  {actions.length > 0 ? (
-                    <div className="ext-detail-buttons">
-                      {actions.map((a) => (
-                        <button
-                          key={a.kind}
-                          type="button"
-                          className={`btn${a.danger ? " danger" : " primary"}`}
-                          onClick={() => run(sel, a)}
-                        >
-                          {a.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    // Say so, rather than leaving a blank pane that reads as broken.
-                    <div className="section-note">
-                      Nothing to configure — {sel.name} is ready to use.
-                    </div>
-                  )}
-                  <label className="oauth-optin">
-                    <input
-                      type="checkbox"
-                      aria-label={`Enable ${sel.name}`}
-                      checked={enabled}
-                      onChange={(ev) =>
-                        applyPref(sel.id, { enabled: ev.target.checked })
-                      }
-                    />
-                    Enabled
-                  </label>
-                  {/* No category means the eye has nowhere to surface it. */}
-                  {sel.category && (
+                <>
+                  <div className="ext-detail-actions">
+                    {actions.length > 0 ? (
+                      <div className="ext-detail-buttons">
+                        {actions.map((a) => (
+                          <button
+                            key={a.kind}
+                            type="button"
+                            className={`btn${a.danger ? " danger" : " primary"}`}
+                            onClick={() => run(sel, a)}
+                          >
+                            {a.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      // Say so, rather than leaving a blank pane that reads as broken.
+                      <div className="section-note">
+                        Nothing to configure — {sel.name} is ready to use.
+                      </div>
+                    )}
                     <label className="oauth-optin">
                       <input
                         type="checkbox"
-                        aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
-                          pinned ? "from" : "in"
-                        } ${sel.category}`}
-                        checked={pinned}
+                        aria-label={`Enable ${sel.name}`}
+                        checked={enabled}
                         onChange={(ev) =>
-                          applyPref(sel.id, { pinned: ev.target.checked })
+                          applyPref(sel.id, { enabled: ev.target.checked })
                         }
                       />
-                      Show in {sel.category}
+                      Enabled
                     </label>
+                    {/* No category means the eye has nowhere to surface it. */}
+                    {sel.category && (
+                      <label className="oauth-optin">
+                        <input
+                          type="checkbox"
+                          aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
+                            pinned ? "from" : "in"
+                          } ${sel.category}`}
+                          checked={pinned}
+                          onChange={(ev) =>
+                            applyPref(sel.id, { pinned: ev.target.checked })
+                          }
+                        />
+                        Show in {sel.category}
+                      </label>
+                    )}
+                  </div>
+                  {/* Same resource list the sidebar's expandable row showed --
+                    lifted to ExtensionResources.tsx so deleting the sidebar
+                    doesn't delete the only place that fetched it. */}
+                  {expandable && (
+                    <ExtensionResources
+                      id={sel.id}
+                      name={sel.name}
+                      category={sel.category ?? ""}
+                      connected={sel.tier === "connected"}
+                    />
                   )}
-                </div>
+                </>
               );
             })()}
           </>

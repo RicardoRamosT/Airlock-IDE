@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ExtensionSummary } from "../../../shared/ipc";
+import type { ExtensionSummary, IntegrationItem } from "../../../shared/ipc";
 import { useApp } from "../store";
 import { ExtensionsTab } from "./ExtensionsTab";
 
@@ -22,6 +22,12 @@ beforeEach(() => {
   legacyList.mockReset();
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     extensionsList: legacyList,
+    // SUMMARIES' Slack row is tier:"connected"/status:"connected", which is
+    // now expandable (Task 3 fix round 1 wires up ExtensionResources), so it
+    // fetches on select/auto-select even though these tests don't assert on
+    // resources -- stub both sources or the effect throws.
+    extensionsResourcesFor: vi.fn(async () => []),
+    integrationsResources: vi.fn(async () => []),
   };
 });
 
@@ -132,7 +138,9 @@ const SNOWFLAKE: ExtensionSummary = {
   ],
 };
 
-function mount(rows: ExtensionSummary[]) {
+// `resources` seeds extensionsResourcesFor's resolved value (default: none) --
+// only the one resource-list test below needs a non-empty return.
+function mount(rows: ExtensionSummary[], resources: IntegrationItem[] = []) {
   list = vi.fn(async () => rows);
   disconnect = vi.fn(async () => ({ ok: true }));
   prefsSet = vi.fn(async () => ({}));
@@ -154,7 +162,7 @@ function mount(rows: ExtensionSummary[]) {
     extensionsList: list,
     extensionsDisconnect: disconnect,
     prefsSet,
-    extensionsResourcesFor: vi.fn(async () => []),
+    extensionsResourcesFor: vi.fn(async () => resources),
     integrationsResources: vi.fn(async () => []),
   };
   return render(<ExtensionsTab />);
@@ -270,4 +278,17 @@ it("says so plainly when a row has nothing to act on", async () => {
   mount([{ ...SNOWFLAKE, status: "ready", actions: [] }]);
   await selectRow("Snowflake");
   expect(screen.getByText(/nothing to configure/i)).toBeTruthy();
+});
+
+// Fix round 1: the sidebar's expand-a-row resource list (ExtensionResources,
+// lifted to its own file) has no equivalent on the page unless it is rendered
+// here too -- otherwise deleting the sidebar deletes the only place a user
+// could see what Claude can read through a connected extension.
+it("shows the selected extension's resources", async () => {
+  mount(
+    [SLACK],
+    [{ id: "c1", title: "#general", subtitle: "12 members", state: "done" }],
+  );
+  await selectRow("Slack");
+  expect(await screen.findByText("#general")).toBeTruthy();
 });
