@@ -88,3 +88,13 @@ export function extensionActions(e: ExtensionSummary): ExtensionAction[] {
   }
   return out;
 }
+
+// Attach every row's actions. This is the SEAM the whole hub page rests on: the
+// renderer cannot value-import agent-core, so the decision has to ride along
+// with the data, and the only place that can attach it is the extensions:list
+// IPC handler. As an inline `.map` there it was untestable -- deleting it left
+// every test green while every button in the UI vanished. Named and exported
+// here so it is a unit with a test instead.
+export function withActions(rows: ExtensionSummary[]): ExtensionSummary[] {
+  return rows.map((r) => ({ ...r, actions: extensionActions(r) }));
+}

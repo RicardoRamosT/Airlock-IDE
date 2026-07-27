@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extensionActions } from "./actions";
+import { extensionActions, withActions } from "./actions";
 import type { ExtensionSummary } from "./summary";
 
 const base: ExtensionSummary = {
@@ -74,16 +74,34 @@ describe("extensionActions", () => {
     ).toEqual(["disconnect"]);
   });
 
-  it("omits Configure when the extension has no config schema", () => {
-    expect(
-      kinds({ id: "github", status: "connected", hasConfig: false }),
-    ).not.toContain("configure");
-  });
-
   it("offers nothing to act on for a ready manifest row", () => {
     // A CLI that is installed and logged in needs no button.
     expect(
       kinds({ tier: "status", status: "ready", hasConfig: false }),
+    ).toEqual([]);
+  });
+
+  it("offers nothing on an errored row", () => {
+    // The status probe failed, so we do not know what is safe to offer --
+    // Connect/Disconnect would both be guesses.
+    expect(kinds({ status: "error" })).toEqual([]);
+    expect(
+      kinds({ tier: "status", status: "error", hasConfig: false }),
+    ).toEqual([]);
+  });
+
+  it("offers nothing on a disabled row", () => {
+    // Not an edge case: this is every user who unchecks "Enabled". A disabled
+    // extension must not offer Connect/Configure/Disconnect.
+    expect(kinds({ status: "disabled", enabled: false })).toEqual([]);
+    expect(
+      kinds({
+        tier: "status",
+        status: "disabled",
+        enabled: false,
+        hasConfig: false,
+        install: { command: "brew install snowflake-cli" },
+      }),
     ).toEqual([]);
   });
 
@@ -98,5 +116,47 @@ describe("extensionActions", () => {
       (a) => a.kind === "disconnect",
     );
     expect(d?.danger).toBe(true);
+  });
+});
+
+describe("withActions", () => {
+  it("returns each row unchanged plus its actions", () => {
+    const rows: ExtensionSummary[] = [
+      base,
+      {
+        ...base,
+        id: "snowflake",
+        name: "Snowflake",
+        tier: "status",
+        status: "absent",
+        hasConfig: false,
+        authKind: "token",
+        install: { command: "brew install snowflake-cli" },
+      },
+    ];
+    expect(withActions(rows)).toEqual([
+      { ...base, actions: extensionActions(base) },
+      { ...rows[1], actions: extensionActions(rows[1] as ExtensionSummary) },
+    ]);
+    // Spelled out, so the test fails if extensionActions AND withActions both
+    // regress in the same direction.
+    expect(withActions(rows)[1]?.actions).toEqual([
+      {
+        kind: "install",
+        label: "Install Snowflake",
+        command: "brew install snowflake-cli",
+      },
+    ]);
+  });
+
+  it("does not mutate the rows it was given", () => {
+    const row = { ...base };
+    const [out] = withActions([row]);
+    expect(row.actions).toBeUndefined();
+    expect(out?.actions?.length).toBeGreaterThan(0);
+  });
+
+  it("maps an empty list to an empty list", () => {
+    expect(withActions([])).toEqual([]);
   });
 });

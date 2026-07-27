@@ -176,6 +176,7 @@ export {
   type ExtensionAction,
   type ExtensionActionKind,
   extensionActions,
+  withActions,
 } from "./integrations/actions";
 export {
   type AuthSpec,

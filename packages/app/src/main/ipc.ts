@@ -25,7 +25,6 @@ import {
   type EventFilter,
   enabledManifests,
   ensureAirlockDir,
-  extensionActions,
   filterDangerousEnv,
   getGlobalSecret,
   getSecretValue,
@@ -88,6 +87,7 @@ import {
   unstageFiles,
   vaultedSecrets,
   type WorkspaceTarget,
+  withActions,
   withDb,
   workspaceMismatch,
   writeFolderOrder,
@@ -1952,7 +1952,9 @@ export function registerIpc(
       }),
     );
     const rows = [...tier1, ...connected];
-    return rows.map((r) => ({ ...r, actions: extensionActions(r) }));
+    // withActions (agent-core) attaches each row's actions: the renderer cannot
+    // value-import agent-core, so the decision has to ride along with the data.
+    return withActions(rows);
   });
 
   // extensions:resources -> for each ENABLED + eye-on (pinned) connected
