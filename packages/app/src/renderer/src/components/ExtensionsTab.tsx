@@ -115,6 +115,15 @@ export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
     return `${e.name} has no actions here -- manage it from its own section.`;
   if (e.status === "error")
     return `Nothing to do until ${e.name} can be checked again.`;
+  // A Tier-1 manifest with no install/connect command declared (Vercel: only a
+  // browser login outside AirLock) offers no button while absent/unauthed
+  // either -- "ready to use" below would be exactly backwards. Found while
+  // re-checking this file for the 2026-07-27 duplicate-row fix: Vercel's
+  // manifest row is now the ONLY row a user sees for it (see
+  // mergeSectionExtensions), where before it could sit unnoticed beside the
+  // always-"ready" section row.
+  if (e.status === "absent" || e.status === "unauthed")
+    return "Nothing to do here yet.";
   return `Nothing to configure — ${e.name} is ready to use.`;
 }
 

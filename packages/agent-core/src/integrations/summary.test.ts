@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AZURE, VERCEL } from "./registry";
+import type { ExtensionSummary } from "./summary";
 import {
   buildExtensionSummaries,
   enabledManifests,
+  mergeSectionExtensions,
   pinnedEnabledManifests,
   sectionExtensionSummaries,
 } from "./summary";
@@ -120,5 +122,149 @@ describe("sectionExtensionSummaries", () => {
       docker: { enabled: false },
     });
     expect(rows.map((r) => r.enabled)).toEqual([true, false]);
+  });
+});
+
+// The duplicate-row bug (found 2026-07-27, filed against the whole-branch
+// review that shipped sectionExtensionSummaries): snowflake/azure/vercel are
+// EACH both a real IntegrationManifest (INTEGRATIONS) and a SECTION_EXTENSIONS
+// descriptor, and extensions:list used to concatenate buildExtensionSummaries
+// and sectionExtensionSummaries with no dedup -- so the hub listed each of
+// these three TWICE: once with a real detect status, once with
+// sectionExtensionSummaries' placeholder "ready". Every assertion below would
+// FAIL against that naive concatenation (`[...tier1, ...sectionRows]`), which
+// is exactly the pre-fix behavior -- confirmed by temporarily swapping
+// mergeSectionExtensions for that one-liner and re-running this file (all
+// six tests below failed; restored and re-ran green).
+describe("mergeSectionExtensions", () => {
+  const status = (
+    id: string,
+    icon: string,
+    category: string | undefined,
+    detectStatus: ExtensionSummary["status"],
+  ): ExtensionSummary => ({
+    id,
+    name: id,
+    icon,
+    tier: "status",
+    category,
+    status: detectStatus,
+    enabled: true,
+    pinned: false,
+    hasConfig: false,
+    authKind: "token",
+  });
+
+  const section = (
+    id: string,
+    icon: string,
+    category: string | undefined,
+  ): ExtensionSummary => ({
+    id,
+    name: id,
+    icon,
+    tier: "section",
+    category,
+    status: "ready",
+    enabled: true,
+    pinned: false,
+    hasConfig: false,
+    authKind: "token",
+  });
+
+  // Mirrors the real shape: INTEGRATIONS = [vercel, snowflake, azure] (real
+  // detect status, generic codicon icons), SECTION_EXTENSIONS = [neon, docker,
+  // render, snowflake, azure, vercel] (placeholder "ready", brand icons).
+  const tier1 = [
+    status("vercel", "rocket", "activity", "absent"),
+    status("snowflake", "database", "databases", "ready"),
+    status("azure", "cloud", "host", "unauthed"),
+  ];
+  const sectionRows = [
+    section("neon", "neon", "databases"),
+    section("docker", "docker", "databases"),
+    section("render", "render", "host"),
+    section("snowflake", "snowflake", "databases"),
+    section("azure", "azure", "host"),
+    section("vercel", "vercel", undefined),
+  ];
+
+  it("produces exactly one row per id -- no duplicates for an overlapping id", () => {
+    const out = mergeSectionExtensions(tier1, sectionRows);
+    const ids = out.map((r) => r.id);
+    expect([...ids].sort()).toEqual(
+      ["azure", "docker", "neon", "render", "snowflake", "vercel"].sort(),
+    );
+    expect(new Set(ids).size).toBe(ids.length); // no id repeats
+  });
+
+  it("the manifest row wins for an overlapping id: real status, not the placeholder", () => {
+    const out = mergeSectionExtensions(tier1, sectionRows);
+    expect(out.find((r) => r.id === "snowflake")).toMatchObject({
+      tier: "status",
+      status: "ready",
+    });
+    expect(out.find((r) => r.id === "azure")).toMatchObject({
+      tier: "status",
+      status: "unauthed",
+    });
+    expect(out.find((r) => r.id === "vercel")).toMatchObject({
+      tier: "status",
+      status: "absent",
+    });
+  });
+
+  it("keeps the section descriptor's brand icon on the surviving manifest row", () => {
+    const out = mergeSectionExtensions(tier1, sectionRows);
+    // The Tier-1 manifest's own icon ("rocket"/"database"/"cloud") is a
+    // generic codicon; SectionGlyph only renders a brand mark for the
+    // SECTION_EXTENSIONS icon id ("snowflake"/"azure"/"vercel"), so keeping
+    // the manifest's own icon here would visibly regress the rail icon.
+    expect(out.find((r) => r.id === "snowflake")?.icon).toBe("snowflake");
+    expect(out.find((r) => r.id === "azure")?.icon).toBe("azure");
+    expect(out.find((r) => r.id === "vercel")?.icon).toBe("vercel");
+  });
+
+  it("keeps the manifest row's own category, not the section descriptor's", () => {
+    const out = mergeSectionExtensions(tier1, sectionRows);
+    // Vercel's Tier-1 category is "activity" (gives its pin toggle somewhere
+    // to surface into); its SECTION_EXTENSIONS descriptor has none at all.
+    expect(out.find((r) => r.id === "vercel")?.category).toBe("activity");
+  });
+
+  it("flags every surviving row hasSection: true, overlapping or not", () => {
+    const out = mergeSectionExtensions(tier1, sectionRows);
+    for (const id of [
+      "neon",
+      "docker",
+      "render",
+      "snowflake",
+      "azure",
+      "vercel",
+    ]) {
+      expect(out.find((r) => r.id === id)?.hasSection, id).toBe(true);
+    }
+  });
+
+  it("never drops neon/docker/render, which have no manifest counterpart", () => {
+    const out = mergeSectionExtensions(tier1, sectionRows);
+    expect(out.find((r) => r.id === "neon")).toMatchObject({
+      tier: "section",
+      status: "ready",
+    });
+    expect(out.find((r) => r.id === "docker")).toMatchObject({
+      tier: "section",
+    });
+    expect(out.find((r) => r.id === "render")).toMatchObject({
+      tier: "section",
+    });
+  });
+
+  it("marks a Tier-1 row with no section counterpart as hasSection: false", () => {
+    const out = mergeSectionExtensions(
+      [status("linear", "codicon-x", "activity", "ready")],
+      sectionRows,
+    );
+    expect(out.find((r) => r.id === "linear")?.hasSection).toBe(false);
   });
 });

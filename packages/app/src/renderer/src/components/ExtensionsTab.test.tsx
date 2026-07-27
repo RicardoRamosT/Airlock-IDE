@@ -625,6 +625,29 @@ it("noActionsNote never claims a disabled or errored row is ready to use", () =>
   );
 });
 
+// Found while re-checking this file for the 2026-07-27 duplicate-row fix
+// (mergeSectionExtensions, agent-core/summary.ts): a Tier-1 manifest with no
+// install/connect command declared (Vercel -- only a browser login outside
+// AirLock) has no button while absent or unauthed either, and the fallback
+// below it would say "ready to use" -- exactly backwards for either state.
+// This became directly reachable once the duplicate-row fix made Vercel's
+// manifest row (real status: often "absent", since most users lack the
+// vercel CLI) the ONLY hub row for it, rather than one of a duplicate pair.
+it("noActionsNote never claims an absent or unauthed Tier-1 row is ready to use", () => {
+  const absent = noActionsNote(
+    { ...SLACK, tier: "status", status: "absent" },
+    true,
+  );
+  const unauthed = noActionsNote(
+    { ...SLACK, tier: "status", status: "unauthed" },
+    true,
+  );
+  expect(absent).not.toMatch(/ready to use/i);
+  expect(unauthed).not.toMatch(/ready to use/i);
+  expect(absent).toBe("Nothing to do here yet.");
+  expect(unauthed).toBe("Nothing to do here yet.");
+});
+
 // --- CRITICAL #2 (2026-07-27 fix wave): summary.ts's sectionExtensionSummaries
 // hands every SECTION_EXTENSIONS row (Docker, Neon, Render, Snowflake, Azure,
 // Vercel) a PLACEHOLDER status:"ready" because it deliberately cannot see their

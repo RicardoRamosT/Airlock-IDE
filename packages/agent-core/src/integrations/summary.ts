@@ -45,6 +45,14 @@ export interface ExtensionSummary {
   // decision with the data keeps one source of truth instead of a second
   // implementation in the UI.
   actions?: ExtensionAction[];
+  // True iff this id is registered in SECTION_EXTENSIONS -- i.e. it owns an
+  // ALWAYS-VISIBLE rail icon (and, for "databases"/"host", a provider row),
+  // regardless of which tier its STATUS comes from. Added 2026-07-27 so the
+  // renderer can select rail icons by this flag instead of by `tier ===
+  // "section"`: an id with BOTH a manifest and a SECTION_EXTENSIONS entry
+  // (Snowflake/Azure/Vercel) surfaces as tier:"status" post-merge (see
+  // mergeSectionExtensions below), and would otherwise lose its rail icon.
+  hasSection?: boolean;
 }
 
 // Per-integration prefs, keyed by manifest/extension id. Both fields optional so
@@ -139,4 +147,48 @@ export function sectionExtensionSummaries(
     hasConfig: false,
     authKind: "token" as const,
   }));
+}
+
+// Fold section-extension rows into the Tier-1 manifest list, so an id present
+// in BOTH (Snowflake, Azure, Vercel are each a real IntegrationManifest in
+// INTEGRATIONS *and* a SECTION_EXTENSIONS descriptor) produces exactly ONE hub
+// row instead of two. Found 2026-07-27: `extensions:list` used to concatenate
+// `buildExtensionSummaries(INTEGRATIONS, ...)` and
+// `sectionExtensionSummaries(SECTION_EXTENSIONS, ...)` with no dedup, so the
+// hub listed these three services twice each -- once with a real detect
+// status, once with sectionExtensionSummaries' placeholder "ready" -- which
+// makes the "complete inventory" this row exists for a WRONG one instead.
+//
+// The manifest row wins for an overlapping id: its status is a REAL detect
+// result (CLI found / signed in), never the placeholder. It keeps its own
+// `category` too (Vercel's Tier-1 category is "activity", which gives its pin
+// toggle somewhere useful to surface into; the section descriptor has none).
+// The ONE field it does NOT keep is `icon`: a Tier-1 manifest's icon is a
+// generic codicon (Vercel's own registry entry: "rocket") meant for the
+// Activity feed, not the brand glyph SECTION_EXTENSIONS declares for the same
+// id (SectionGlyph renders "snowflake"/"azure"/"vercel" as an inline brand
+// mark) -- so the rail icon would otherwise visibly regress to a codicon.
+//
+// Every row this returns that is EITHER an unmatched section-extension row OR
+// the surviving manifest row for a matched one carries `hasSection: true`, so
+// a renderer-side rail-icon selector can key off that flag instead of `tier
+// === "section"` (which an overlapping id no longer has after this merge).
+export function mergeSectionExtensions(
+  tier1: ExtensionSummary[],
+  sectionRows: ExtensionSummary[],
+): ExtensionSummary[] {
+  const sectionById = new Map(sectionRows.map((r) => [r.id, r]));
+  const tier1Ids = new Set(tier1.map((r) => r.id));
+
+  const mergedTier1 = tier1.map((r) => {
+    const section = sectionById.get(r.id);
+    if (!section) return { ...r, hasSection: false };
+    return { ...r, icon: section.icon, hasSection: true };
+  });
+
+  const survivingSectionRows = sectionRows
+    .filter((r) => !tier1Ids.has(r.id))
+    .map((r) => ({ ...r, hasSection: true }));
+
+  return [...mergedTier1, ...survivingSectionRows];
 }

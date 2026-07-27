@@ -245,6 +245,7 @@ export {
   type ExtensionSummary,
   type ExtPrefs,
   enabledManifests,
+  mergeSectionExtensions,
   pinnedEnabledManifests,
   sectionExtensionSummaries,
 } from "./integrations/summary";

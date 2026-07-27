@@ -9,8 +9,8 @@ import { composeSectionMeta } from "./sections";
 // extensions:list builds those summaries by POLLING, which is far too
 // expensive to sit behind "which sections exist". They keep surfacing through
 // their category sections (Host, Databases, ...) until that pipeline is cheap
-// enough. Connected and section-tier extensions are never polled, so both get
-// a dedicated rail icon -- but the two gate differently:
+// enough. Connected and section extensions are never polled, so both get a
+// dedicated rail icon -- but the two gate differently:
 //
 // - Connected extensions follow the app-level enabled state, NOT per-project
 //   connection: tokens are vaulted per project, so keying it on connection
@@ -19,6 +19,17 @@ import { composeSectionMeta } from "./sections";
 // - Section extensions are added UNCONDITIONALLY, enabled or not: a user
 //   cannot enable what they cannot see. Right-click -> Hide is the escape
 //   valve for a rail that gets too long.
+//
+// Section extensions are selected by `hasSection`, NOT `tier === "section"`
+// (changed 2026-07-27, the duplicate-row fix): Snowflake/Azure/Vercel are each
+// BOTH a real manifest and a SECTION_EXTENSIONS descriptor, and
+// mergeSectionExtensions (agent-core) lets the manifest row win for the hub
+// list -- so an overlapping id arrives here as `tier: "status"` carrying a
+// REAL detect status, not `tier: "section"`. Keying this filter on tier alone
+// would silently drop its rail icon the moment its manifest data won out.
+// `hasSection` is the flag mergeSectionExtensions sets on exactly the ids that
+// should always have a rail icon, independent of which tier its status rides
+// in on.
 export function useSyncSectionMeta(): void {
   const setSectionMeta = useApp((s) => s.setSectionMeta);
 
@@ -38,7 +49,7 @@ export function useSyncSectionMeta(): void {
               // cannot enable what they cannot see. Right-click -> Hide is the
               // escape valve.
               all
-                .filter((e) => e.tier === "section")
+                .filter((e) => e.hasSection === true)
                 .map((e) => ({ id: e.id, name: e.name, icon: e.icon })),
             ),
           );

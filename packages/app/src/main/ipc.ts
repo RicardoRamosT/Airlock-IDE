@@ -47,6 +47,7 @@ import {
   listFilesRecursive,
   listSecrets,
   listTables,
+  mergeSectionExtensions,
   move,
   neonConnectionUri,
   type PtySession,
@@ -1959,10 +1960,18 @@ export function registerIpc(
         return account ? { ...summary, account } : summary;
       }),
     );
+    // Snowflake/Azure/Vercel are EACH both a tier1 manifest (INTEGRATIONS,
+    // above) and a SECTION_EXTENSIONS descriptor -- mergeSectionExtensions
+    // dedupes those to one row (the real manifest status wins, brand icon
+    // kept), so the hub is a complete inventory WITHOUT listing any of the
+    // three twice. Neon/Docker/Render have no manifest, so their section rows
+    // pass through unchanged.
     const rows = [
-      ...tier1,
+      ...mergeSectionExtensions(
+        tier1,
+        sectionExtensionSummaries(SECTION_EXTENSIONS, ext),
+      ),
       ...connected,
-      ...sectionExtensionSummaries(SECTION_EXTENSIONS, ext),
     ];
     // withActions (agent-core) attaches each row's actions: the renderer cannot
     // value-import agent-core, so the decision has to ride along with the data.
