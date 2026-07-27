@@ -303,9 +303,8 @@ adapter over a third-party product you separately PROVISION.** The operative
 word is provisioning, not authorship: Git is third-party software AirLock wraps,
 but there is no account and no connect step, so it is ambient and stays core.
 Docker is a product you installed, which may not be there. Applying that rule
-refiled six services — Neon, Docker, Render, Snowflake, Azure and (briefly)
-Vercel — that had
-been sitting in built-in sections. (Render was missed on the first pass and
+refiled the services that had been sitting in built-in sections: Neon, Docker,
+Render, Snowflake and Azure. (Render was missed on the first pass and
 caught by applying the rule mechanically; that is the argument for having one.)
 
 Three kinds of extension coexist, and the differences are real:
