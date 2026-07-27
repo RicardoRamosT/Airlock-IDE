@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SlackAllowedChannel, SlackUiMessage } from "../../../shared/ipc";
+import { openEditorFile } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import {
   avatarHue,
@@ -85,6 +86,7 @@ export function SlackSection() {
   const [loadedList, setLoadedList] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [state, setState] = useState<Record<string, ChannelState>>({});
+  const [fileError, setFileError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +141,25 @@ export function SlackSection() {
     }, 30_000);
     return () => clearInterval(id);
   }, [root, expanded, load]);
+
+  // Download through the gated main-side path, then hand the cached path to the
+  // normal editor open -- so the existing image/PDF viewers and tab machinery
+  // are reused rather than duplicated in a 260px sidebar.
+  const openFile = async (channelId: string, fileId: string) => {
+    if (!root) return;
+    setFileError(null);
+    const res = await window.airlock
+      .slackDownloadFile(root, channelId, fileId)
+      .catch((e: unknown) => ({
+        error: e instanceof Error ? e.message : String(e),
+        relPath: undefined,
+      }));
+    if (res.error || !res.relPath) {
+      setFileError(res.error ?? "Could not open that file.");
+      return;
+    }
+    await openEditorFile(tabId, res.relPath);
+  };
 
   const toggle = (id: string) => {
     setExpanded((prev) => {
@@ -229,6 +250,12 @@ export function SlackSection() {
                 {st?.messages?.length === 0 && (
                   <div className="section-note">No messages yet</div>
                 )}
+                {fileError && (
+                  <div className="slack-refusal">
+                    <i className="codicon codicon-warning" />
+                    <span>{fileError}</span>
+                  </div>
+                )}
                 {rows.map((row) =>
                   row.day ? (
                     <div key={row.key} className="slack-day">
@@ -266,7 +293,23 @@ export function SlackSection() {
                             </span>
                           </div>
                         )}
-                        <div className="slack-msg-text">{row.msg.text}</div>
+                        {row.msg.text && (
+                          <div className="slack-msg-text">{row.msg.text}</div>
+                        )}
+                        {row.msg.files.map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            className="slack-file"
+                            title={`Open ${f.name}`}
+                            onClick={() => void openFile(c.id, f.id)}
+                          >
+                            <i
+                              className={`codicon codicon-${f.kind === "image" ? "file-media" : "file"}`}
+                            />
+                            <span className="slack-file-name">{f.name}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   ) : null,

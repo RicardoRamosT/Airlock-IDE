@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SlackAllowedChannel } from "../../../shared/ipc";
@@ -90,6 +91,7 @@ describe("SlackSection", () => {
           user: "U1",
           userName: "Ricardo",
           text: "test",
+          files: [],
         },
       ],
     });
@@ -136,8 +138,20 @@ describe("SlackSection transcript", () => {
   it("renders oldest-first (Slack returns newest-first)", async () => {
     const today = Math.floor(Date.now() / 1000);
     withMessages([
-      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "second" },
-      { ts: `${today - 60}.1`, user: "U1", userName: "Ricardo", text: "first" },
+      {
+        ts: `${today}.2`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "second",
+        files: [],
+      },
+      {
+        ts: `${today - 60}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "first",
+        files: [],
+      },
     ]);
     fireEvent.click(await screen.findByText("general-airlock"));
     const texts = (await screen.findAllByText(/first|second/)).map(
@@ -149,8 +163,20 @@ describe("SlackSection transcript", () => {
   it("groups consecutive messages from one author under a single name", async () => {
     const today = Math.floor(Date.now() / 1000);
     withMessages([
-      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "second" },
-      { ts: `${today - 60}.1`, user: "U1", userName: "Ricardo", text: "first" },
+      {
+        ts: `${today}.2`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "second",
+        files: [],
+      },
+      {
+        ts: `${today - 60}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "first",
+        files: [],
+      },
     ]);
     fireEvent.click(await screen.findByText("general-airlock"));
     await screen.findByText("first");
@@ -163,12 +189,19 @@ describe("SlackSection transcript", () => {
     // header, so the later one silently inherited the earlier timestamp.
     const today = Math.floor(Date.now() / 1000);
     withMessages([
-      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "hola" },
+      {
+        ts: `${today}.2`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "hola",
+        files: [],
+      },
       {
         ts: `${today - 15 * 3600}.1`,
         user: "U1",
         userName: "Ricardo",
         text: "test",
+        files: [],
       },
     ]);
     fireEvent.click(await screen.findByText("general-airlock"));
@@ -183,8 +216,20 @@ describe("SlackSection transcript", () => {
   it("still groups messages written close together", async () => {
     const today = Math.floor(Date.now() / 1000);
     withMessages([
-      { ts: `${today}.2`, user: "U1", userName: "Ricardo", text: "second" },
-      { ts: `${today - 30}.1`, user: "U1", userName: "Ricardo", text: "first" },
+      {
+        ts: `${today}.2`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "second",
+        files: [],
+      },
+      {
+        ts: `${today - 30}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "first",
+        files: [],
+      },
     ]);
     fireEvent.click(await screen.findByText("general-airlock"));
     await screen.findByText("first");
@@ -194,8 +239,20 @@ describe("SlackSection transcript", () => {
   it("starts a new block when the author changes", async () => {
     const today = Math.floor(Date.now() / 1000);
     withMessages([
-      { ts: `${today}.2`, user: "U2", userName: "Ana", text: "hers" },
-      { ts: `${today - 60}.1`, user: "U1", userName: "Ricardo", text: "his" },
+      {
+        ts: `${today}.2`,
+        user: "U2",
+        userName: "Ana",
+        text: "hers",
+        files: [],
+      },
+      {
+        ts: `${today - 60}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "his",
+        files: [],
+      },
     ]);
     fireEvent.click(await screen.findByText("general-airlock"));
     expect(await screen.findByText("Ricardo")).toBeTruthy();
@@ -205,12 +262,19 @@ describe("SlackSection transcript", () => {
   it("shows a day separator and renders join notices quietly", async () => {
     const today = Math.floor(Date.now() / 1000);
     withMessages([
-      { ts: `${today}.1`, user: "U1", userName: "Ricardo", text: "hi" },
+      {
+        ts: `${today}.1`,
+        user: "U1",
+        userName: "Ricardo",
+        text: "hi",
+        files: [],
+      },
       {
         ts: `${today - 86400 * 3}.1`,
         user: "U1",
         userName: "Ricardo",
         text: "<@U1> has joined the channel",
+        files: [],
       },
     ]);
     fireEvent.click(await screen.findByText("general-airlock"));
@@ -272,5 +336,76 @@ describe("SlackSection polling", () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
     expect(read).toHaveBeenCalledTimes(after);
+  });
+});
+
+describe("SlackSection attachments", () => {
+  const IMG = {
+    id: "F1",
+    name: "image.png",
+    mimetype: "image/png",
+    size: 2048,
+    kind: "image",
+  };
+  function withAttachment(extra: Record<string, unknown> = {}) {
+    allowed.mockResolvedValue({
+      connected: true,
+      channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+    });
+    read.mockResolvedValue({
+      channel: "#general-airlock",
+      messages: [
+        {
+          ts: `${Math.floor(Date.now() / 1000)}.1`,
+          user: "U1",
+          userName: "Ricardo",
+          text: "",
+          files: [IMG],
+        },
+      ],
+    });
+    (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+      slackAllowedChannels: allowed,
+      slackReadChannel: read,
+      ...extra,
+    };
+    render(<SlackSection />);
+  }
+
+  it("renders an attachment as a compact chip, not a blank row", async () => {
+    withAttachment();
+    fireEvent.click(await screen.findByText("general-airlock"));
+    expect(await screen.findByText("image.png")).toBeTruthy();
+  });
+
+  it("opens the downloaded file in a tab when the chip is clicked", async () => {
+    const slackDownloadFile = vi.fn(async () => ({
+      relPath: ".airlock/slack/image.png",
+    }));
+    const readFile = vi.fn(async () => ({ content: "", binary: true }));
+    withAttachment({ slackDownloadFile, readFile });
+    fireEvent.click(await screen.findByText("general-airlock"));
+    fireEvent.click(await screen.findByText("image.png"));
+    await waitFor(() =>
+      expect(slackDownloadFile).toHaveBeenCalledWith("/repo", "C1", "F1"),
+    );
+    // The existing editor path is what actually opens the tab.
+    await waitFor(() =>
+      expect(readFile).toHaveBeenCalledWith(
+        "/repo",
+        ".airlock/slack/image.png",
+      ),
+    );
+  });
+
+  it("shows the refusal reason when the download is refused", async () => {
+    const slackDownloadFile = vi.fn(async () => ({
+      error:
+        "Slack needs the files:read permission. Reconnect Slack for this project to enable attachments.",
+    }));
+    withAttachment({ slackDownloadFile });
+    fireEvent.click(await screen.findByText("general-airlock"));
+    fireEvent.click(await screen.findByText("image.png"));
+    expect(await screen.findByText(/Reconnect Slack/i)).toBeTruthy();
   });
 });
