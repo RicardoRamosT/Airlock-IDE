@@ -1317,11 +1317,19 @@ body,
 .slack-channel.is-open {
   padding-bottom: 4px;
 }
+/* The head is a ROW, not a button: it holds the expand toggle and the remove
+   action side by side, and a button cannot legally nest inside a button. */
 .slack-channel-head {
   display: flex;
   align-items: center;
-  gap: 4px;
   width: 100%;
+}
+.slack-channel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
   height: var(--row-h);
   padding: 0 4px;
   border: 0;
@@ -1332,13 +1340,17 @@ body,
   text-align: left;
   cursor: pointer;
 }
-.slack-channel-head:hover {
+.slack-channel-toggle:hover {
   background: var(--hover);
   color: var(--fg);
 }
-.slack-channel.is-open .slack-channel-head {
+.slack-channel.is-open .slack-channel-toggle {
   color: var(--fg);
   font-weight: 600;
+}
+/* The reveal trigger is wired per row container; this is Slack's. */
+.slack-channel-head:hover .row-action.reveal {
+  opacity: 1;
 }
 .slack-channel-glyph {
   opacity: 0.55;

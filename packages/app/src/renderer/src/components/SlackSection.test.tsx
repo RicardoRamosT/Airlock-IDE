@@ -553,3 +553,44 @@ it("says so when a filter matches nothing", async () => {
   });
   expect(screen.getByText(/No channels match/i)).toBeTruthy();
 });
+
+it("removes a channel from the allow-list from its row", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [
+      { id: "C1", name: "general-airlock", kind: "public" },
+      { id: "C2", name: "redes", kind: "public" },
+    ],
+  });
+  const extensionsSetConfig = vi.fn(async () => undefined);
+  (
+    window as unknown as { airlock: Record<string, unknown> }
+  ).airlock.extensionsSetConfig = extensionsSetConfig;
+  render(<SlackSection />);
+  await screen.findByText("general-airlock");
+  fireEvent.click(screen.getByTitle("Stop sharing general-airlock"));
+  await waitFor(() =>
+    expect(extensionsSetConfig).toHaveBeenCalledWith("/repo", "slack", {
+      channels: [{ id: "C2", name: "redes", kind: "public" }],
+    }),
+  );
+  await waitFor(() => expect(screen.queryByText("general-airlock")).toBeNull());
+});
+
+// Optimistically dropping the row would claim Claude lost access it still has.
+it("keeps the row and shows why when removal fails", async () => {
+  allowed.mockResolvedValue({
+    connected: true,
+    channels: [{ id: "C1", name: "general-airlock", kind: "public" }],
+  });
+  (
+    window as unknown as { airlock: Record<string, unknown> }
+  ).airlock.extensionsSetConfig = vi.fn(async () => {
+    throw new Error("disk full");
+  });
+  render(<SlackSection />);
+  await screen.findByText("general-airlock");
+  fireEvent.click(screen.getByTitle("Stop sharing general-airlock"));
+  expect(await screen.findByText(/disk full/)).toBeTruthy();
+  expect(screen.getByText("general-airlock")).toBeTruthy();
+});

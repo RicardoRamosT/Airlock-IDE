@@ -95,6 +95,7 @@ export function SlackSection() {
   const [workspace, setWorkspace] = useState<
     { id: string; name: string } | undefined
   >(undefined);
+  const [manageError, setManageError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
   // Loaded once per project, on the first read that actually succeeds -- which
@@ -128,6 +129,7 @@ export function SlackSection() {
     setWorkspace(undefined);
     setFilter("");
     setShowAll(false);
+    setManageError(null);
     avatarsFor.current = null;
     void loadList();
   }, [loadList]);
@@ -189,6 +191,32 @@ export function SlackSection() {
     // exactly what made this chip look inert before.
     const opened = await openEditorFile(tabId, res.relPath);
     if (!opened) setFileError("Could not open that file.");
+  };
+
+  // Removing is the SAFE direction of a permission change (Claude loses
+  // access), so it is one click with no confirmation -- while granting access
+  // still goes through the modal. Writes through the same path the modal uses,
+  // so there is one way to mutate the allow-list.
+  const removeChannel = async (id: string) => {
+    if (!root) return;
+    setManageError(null);
+    const next = channels.filter((c) => c.id !== id);
+    try {
+      await window.airlock.extensionsSetConfig(root, "slack", {
+        channels: next.map((c) => ({ id: c.id, name: c.name, kind: c.kind })),
+      });
+    } catch (e) {
+      // Do NOT drop the row: showing a channel as un-shared while Claude can
+      // still read it is a lie in the dangerous direction.
+      setManageError(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    setChannels(next);
+    setExpanded((prev) => {
+      const s = new Set(prev);
+      s.delete(id);
+      return s;
+    });
   };
 
   const toggle = (id: string) => {
@@ -283,6 +311,12 @@ export function SlackSection() {
         </button>
       </div>
       <SlackWorkspaceCard workspace={workspace} />
+      {manageError && (
+        <div className="slack-refusal">
+          <i className="codicon codicon-warning" />
+          <span>{manageError}</span>
+        </div>
+      )}
       <input
         className="sb-control"
         type="text"
@@ -302,18 +336,28 @@ export function SlackSection() {
         const rows = st?.messages ? buildRows(st.messages, now) : [];
         return (
           <div key={c.id} className={`slack-channel${open ? " is-open" : ""}`}>
-            <button
-              type="button"
-              className="slack-channel-head"
-              aria-expanded={open}
-              onClick={() => toggle(c.id)}
-            >
-              <i
-                className={`codicon codicon-chevron-${open ? "down" : "right"}`}
-              />
-              <span className="slack-channel-glyph">{glyph(c.kind)}</span>
-              <span className="slack-channel-name">{c.name}</span>
-            </button>
+            <div className="slack-channel-head">
+              <button
+                type="button"
+                className="slack-channel-toggle"
+                aria-expanded={open}
+                onClick={() => toggle(c.id)}
+              >
+                <i
+                  className={`codicon codicon-chevron-${open ? "down" : "right"}`}
+                />
+                <span className="slack-channel-glyph">{glyph(c.kind)}</span>
+                <span className="slack-channel-name">{c.name}</span>
+              </button>
+              <button
+                type="button"
+                className="row-action reveal"
+                title={`Stop sharing ${c.name}`}
+                onClick={() => void removeChannel(c.id)}
+              >
+                <i className="codicon codicon-close" aria-hidden="true" />
+              </button>
+            </div>
             {open && (
               <div className="slack-thread">
                 {st?.loading && !st.messages && (
