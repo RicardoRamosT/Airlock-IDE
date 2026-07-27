@@ -414,7 +414,15 @@ export type AgentCommand =
   | { type: "close_terminal"; terminalId: string }
   | { type: "open_app_page"; page: AppPage }
   | { type: "close_app_page"; page: AppPage }
-  | { type: "start_dev_server"; command: string; startedBy: "user" | "agent" };
+  | { type: "start_dev_server"; command: string; startedBy: "user" | "agent" }
+  // Start an extension's connect flow. It performs the SAME primary action the
+  // Extension Hub's button would (install / CLI connect / OAuth dialog / open
+  // the extension's section) and reports what the USER must now do. It can
+  // never select "disconnect" -- see primaryConnectAction -- so asking Claude
+  // to connect something cannot tear down a working connection, and it never
+  // completes the auth itself: a browser approval or a pasted key stays a human
+  // step, which is where consent actually lives.
+  | { type: "connect_extension"; id: string };
 
 /**
  * The layout metadata an IDE-control command returns: one entry per open tab
@@ -446,8 +454,24 @@ export interface TabsSnapshot {
  * round-trip NEVER rejects -- a failure resolves to { ok: false } so a tool call
  * degrades gracefully.
  */
+/**
+ * What a connect_extension command started. `nextStep` is the human action that
+ * remains (approve in the browser, paste a key) -- null when the action needed
+ * nobody. `started` is false when the extension was ALREADY connected, or when
+ * it offers no path forward, so Claude reports the truth instead of implying a
+ * flow began.
+ */
+export interface ConnectStarted {
+  id: string;
+  name: string;
+  started: boolean;
+  action: string | null; // the ExtensionAction kind that ran
+  status: string; // the extension's status when the command was received
+  nextStep: string | null;
+}
+
 export type AgentCommandResult =
-  | { ok: true; data: TabsSnapshot }
+  | { ok: true; data: TabsSnapshot | ConnectStarted }
   | { ok: false; error: string };
 
 export interface AnthropicStatus {

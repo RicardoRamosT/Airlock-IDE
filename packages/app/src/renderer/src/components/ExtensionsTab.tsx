@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
-import type {
-  ExtensionAction,
-  ExtensionSummary,
-  Section,
-} from "../../../shared/ipc";
+import type { ExtensionAction, ExtensionSummary } from "../../../shared/ipc";
+import { runExtensionAction } from "../lib/extensionActions";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ExtensionResources } from "./ExtensionResources";
@@ -174,7 +171,6 @@ export function ExtensionsTab() {
 
   const current = all.find((e) => e.id === selected) ?? null;
 
-  const setModal = useApp((s) => s.setModal);
   const setExtensionPref = useApp((s) => s.setExtensionPref);
   const prefs = useApp((s) => s.extensionsPrefs);
   const tabId = useProjectTab();
@@ -193,49 +189,11 @@ export function ExtensionsTab() {
     });
   };
 
-  // One place that turns an action into behavior. The DECISION of which actions
-  // exist is agent-core's (extensionActions); this only performs them.
+  // One place that turns an action into behavior -- shared with the agent path
+  // (see lib/extensionActions), so a connect started by Claude and one started
+  // by this button do exactly the same thing.
   const run = (e: ExtensionSummary, a: ExtensionAction) => {
-    switch (a.kind) {
-      case "install":
-      case "connectCli":
-        // User-initiated: the command is put in a terminal, never auto-run.
-        if (a.command) useApp.getState().runInNewTerminal(a.command);
-        break;
-      case "connectOauth":
-        setModal({ oauthDevice: { id: e.id, name: e.name } });
-        break;
-      case "connectToken":
-        // Slack owns the only paste-a-token modal there is. Guarded, so a
-        // future token extension does nothing here rather than opening the
-        // WRONG extension's connect flow.
-        if (e.id === "slack") setModal("connect-slack");
-        break;
-      case "changeWorkspace":
-        setModal({ oauthDevice: { id: e.id, name: e.name, manage: true } });
-        break;
-      case "configure":
-        // Likewise: "slack-channels" is Slack's allow-list, not a generic
-        // config editor. Per-extension config-schema editing is future work.
-        if (e.id === "slack") setModal("slack-channels");
-        break;
-      case "disconnect":
-        if (root) void window.airlock.extensionsDisconnect(root, e.id);
-        break;
-      case "openSection": {
-        // Reveal the extension's own rail area. For Neon and Render this is
-        // the ONLY way to connect (an API key is pasted there), so this is a
-        // connect path, not just navigation. The sidebar was collapsed when
-        // the hub opened, so it has to come back; the page tab stays open --
-        // discarding it is the tab's own X, not a side effect of navigating.
-        const s = useApp.getState();
-        const id = `ext:${e.id}` as Section;
-        s.setActiveView(id);
-        s.setSidebarVisible(true);
-        void window.airlock.prefsSet({ activeView: id, sidebarVisible: true });
-        break;
-      }
-    }
+    runExtensionAction(e, a, root);
   };
 
   // The effective enabled state -- the optimistic pref over the polled row.

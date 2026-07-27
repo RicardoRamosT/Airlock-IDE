@@ -1,7 +1,12 @@
 import { useEffect } from "react";
-import type { AgentCommand, TabsSnapshot } from "../../../shared/ipc";
+import type {
+  AgentCommand,
+  ConnectStarted,
+  TabsSnapshot,
+} from "../../../shared/ipc";
 import { useApp } from "../store";
 import { startManagedDevTerminal } from "./devServer";
+import { primaryConnectAction, runExtensionAction } from "./extensionActions";
 
 // Renderer-side handler for the agent IDE-control commands (the main->renderer
 // round-trip in main/agent-commands.ts, mirroring useMenuActions). Mounted once
@@ -55,7 +60,7 @@ function buildSnapshot(): TabsSnapshot {
 // Perform one IDE-control command against the store. open_tab is async (it opens
 // the folder main-side first via workspaceOpen, so main's root + recents + the
 // MCP registration follow), so this is async and the caller replies after it.
-async function applyCommand(cmd: AgentCommand): Promise<void> {
+async function applyCommand(cmd: AgentCommand): Promise<ConnectStarted | null> {
   const s = useApp.getState();
   switch (cmd.type) {
     case "list_tabs":
@@ -111,17 +116,67 @@ async function applyCommand(cmd: AgentCommand): Promise<void> {
     case "start_dev_server":
       await startManagedDevTerminal(cmd.command, cmd.startedBy);
       break;
+    case "connect_extension":
+      return connectExtension(cmd.id);
   }
+  return null;
+}
+
+// Start an extension's connect flow, exactly as its Hub button would -- the
+// same runExtensionAction both paths share, so the two cannot drift.
+//
+// It reports what the user must still DO rather than claiming success: every
+// one of these flows ends in a human step (approve in the browser, paste a key,
+// answer a CLI prompt), and a tool that returned "connected" the moment it
+// opened a dialog would have Claude confidently lying about the outcome.
+async function connectExtension(id: string): Promise<ConnectStarted> {
+  const rows = await window.airlock.extensionsList();
+  const e = rows.find((r) => r.id === id);
+  if (!e)
+    throw new Error(
+      `Unknown extension "${id}". Call extension_status to list them.`,
+    );
+
+  const action = primaryConnectAction(e);
+  if (!action) {
+    // Already connected, or genuinely offers nothing -- distinct outcomes, so
+    // say which. Neither is an error.
+    return {
+      id: e.id,
+      name: e.name,
+      started: false,
+      action: null,
+      status: e.status,
+      nextStep:
+        e.status === "connected" || e.status === "ready"
+          ? `${e.name} is already connected.`
+          : `${e.name} offers no connect action here.`,
+    };
+  }
+
+  const root =
+    useApp.getState().tabState[useApp.getState().activeTabId]?.root ?? null;
+  const nextStep = runExtensionAction(e, action, root);
+  return {
+    id: e.id,
+    name: e.name,
+    started: true,
+    action: action.kind,
+    status: e.status,
+    nextStep,
+  };
 }
 
 export function useAgentCommands(): void {
   useEffect(() => {
     return window.airlock.onAgentCommand(async ({ id, cmd }) => {
       try {
-        await applyCommand(cmd);
+        // Most commands answer with the layout snapshot; connect_extension
+        // answers with what it started, which a snapshot cannot express.
+        const extra = await applyCommand(cmd);
         window.airlock.agentCommandResult(id, {
           ok: true,
-          data: buildSnapshot(),
+          data: extra ?? buildSnapshot(),
         });
       } catch (e) {
         window.airlock.agentCommandResult(id, { ok: false, error: String(e) });

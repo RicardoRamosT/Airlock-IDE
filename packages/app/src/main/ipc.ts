@@ -24,6 +24,7 @@ import {
   dockerStop,
   duplicate,
   type EventFilter,
+  type ExtensionSummary,
   enabledManifests,
   ensureAirlockDir,
   filterDangerousEnv,
@@ -457,6 +458,19 @@ export function sanitizeEventFilter(raw: unknown): EventFilter {
 // as an accessor so the latest captured value is read at spawn time and
 // ipc.ts holds no module-level mutable state.
 //
+// The Extension Hub inventory, shared with the MCP extension_status tool.
+// listExtensions closes over registerIpc's prefs path and poll cache, so it is
+// published here rather than re-implemented; empty until registerIpc has run.
+let listExtensionsImpl:
+  | ((root: string | null) => Promise<ExtensionSummary[]>)
+  | null = null;
+
+export function listExtensionsForAgent(
+  root: string | null,
+): Promise<ExtensionSummary[]> {
+  return listExtensionsImpl ? listExtensionsImpl(root) : Promise.resolve([]);
+}
+
 // prefsFile is the absolute path to the app-global prefs JSON (userData). The
 // prefs:get/set handlers below are NOT requireRoot-gated -- preferences are
 // app-global and must work before any folder is opened.
@@ -1888,8 +1902,10 @@ export function registerIpc(
   // all integrations, throttled per-id by poll.everyMs, then folds prefs
   // (enabled/pinned). Detect (an auth check) never mutates; a failure degrades to
   // "absent" so a missing/slow CLI never breaks the list.
-  ipcMain.handle("extensions:list", async (e) => {
-    const root = rootForEvent(e);
+  // Extracted from the IPC handler so the MCP extension_status tool answers from
+  // the SAME inventory the Hub renders -- a second implementation is how the
+  // agent's view of what is connected drifts from the user's.
+  const listExtensions = async (root: string | null) => {
     const prefs = await loadPrefs(prefsFile);
     const ext = prefs.extensions ?? {};
     const now = Date.now();
@@ -1982,7 +1998,13 @@ export function registerIpc(
     // withActions (agent-core) attaches each row's actions: the renderer cannot
     // value-import agent-core, so the decision has to ride along with the data.
     return withActions(rows);
-  });
+  };
+
+  ipcMain.handle("extensions:list", (e) => listExtensions(rootForEvent(e)));
+  // Hand the same inventory to the MCP layer. registerIpc runs once at startup,
+  // well before any per-request MCP server is built, so the holder is always
+  // populated by the time a tool can call it.
+  listExtensionsImpl = listExtensions;
 
   // extensions:resources -> for each ENABLED + eye-on (pinned) connected
   // extension, its granted resources tagged with the section its eye targets

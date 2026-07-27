@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 39 tools over this MCP server. Ten are **read-only status** tools
+airlock exposes 37 tools over this MCP server. Nine are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
 (`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
@@ -35,12 +35,21 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 
 ## Status reads — app-global (no open folder required)
 
-- **`docker_status`** — Docker engine state (installed/running) and the container list.
-  Use it to check containers, or to decide whether the Docker section is relevant.
-- **`neon_status`** — whether a Neon account is connected, and the Neon projects when it is.
-  Use it before reasoning about Neon databases.
-- **`render_services`** — the Render services with deploy state (filtered to this repo when
-  a folder is open and its origin matches). Use it to check deploy status vs local HEAD.
+- **`extension_status`** — every extension and whether it is connected. With **no id**: the
+  full inventory (Docker, Neon, Render, Snowflake, Azure, Slack, GitHub) with each one's
+  status (`connected` / `unauthed` = not connected / `absent` = not installed / `disabled`),
+  account label, and available actions — the same rows the Extensions hub shows. With an
+  **id**: that extension's status plus its resources — Docker's engine state and container
+  list, Neon's projects, Render's services with deploy state. Status and resource metadata
+  only, never a token or API key. This replaced the old per-product `docker_status`,
+  `neon_status` and `render_services`: naming the extension as an argument scales as
+  extensions are added, one tool per product does not.
+- **`extension_connect`** — start an extension's connect flow, doing exactly what its button
+  in the Extensions hub does: run its install/login command in a **visible terminal**, open
+  its sign-in dialog, or open its own section (Neon and Render, where an API key is pasted).
+  It returns what was started and **the step the user must complete** — it does not finish
+  the connection and never accepts or handles a token, because the browser approval or
+  pasted key is where consent actually lives. It can never disconnect anything.
 - **`activity_status`** — the focused project's Activity feed: in-progress CI runs, Render
   deploys, and transitional Docker containers, each with its state and a **stable entry id**.
   This is the same list the Activity panel shows (`sidebar-activity.md`) — status metadata
@@ -68,12 +77,12 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 - **`set_pref`** — set an app-global preference to drive a feature (e.g. `{ key:
   "quotaMeter", value: { enabled: true } }`). Requires Self-verification; only UI/feature
   toggles are allowed, security settings are refused.
-- **`add_changelog_entry`** — append an entry to this project's Changelog (shown in the
-  Overview page): `{ text, tag? }`, tag one of change|fix|decision|note (default note).
-- **`add_changelog_entries`** — append MANY entries in ONE call: `{ entries: [{ text,
-  tag?, details?, ts? }] }`. **Use this instead of looping `add_changelog_entry`** when
-  populating or backfilling a Changelog — it is one atomic write and one UI refresh
-  instead of N. `ts` is optional epoch-ms; pass it to preserve a historical date
+- **`add_changelog_entries`** — append one or many entries to this project's Changelog
+  (shown in the Overview page) in ONE call: `{ entries: [{ text, tag?, details?, ts? }] }`,
+  tag one of change|fix|decision|note (default note). A single entry is just a
+  one-element list — there is deliberately no separate singular tool, since this one
+  already covered it. One atomic write and one UI refresh per call, so batch the whole
+  set rather than calling repeatedly. `ts` is optional epoch-ms; pass it to preserve a historical date
   (default now), and entries may be listed in any order (they are stored
   chronologically). Max 200 per call; returns `added` + `skipped` (invalid rows are
   skipped, not fatal).
@@ -305,8 +314,11 @@ main-side; you never see it.
 ## Picking a tool
 
 - Curating the sidebar → `list_sidebar_sections`, then `set_sidebar_section_visibility`.
-- "Is X set up / reachable?" → the matching status read (`database_status`, `host_status`,
-  `docker_status`, `render_services`, `neon_status`).
+- "Is X set up / reachable?" → `extension_status` for any extension (Docker, Neon, Render,
+  Snowflake, Azure, Slack, GitHub), or `database_status` / `host_status` for the vaulted
+  databases and the dev server, which are core rather than extensions.
+- "Connect / set up X" → `extension_status` to see what is missing, then `extension_connect`
+  to start the flow, then tell the user the `nextStep` it returns.
 - "Start / stop the dev server" → `start_dev_server` / `stop_dev_server` (runs only the
   project's configured dev command; use `host_status` to check the managed state).
 - "What is building / deploying right now?" → `activity_status` (the live CI/deploy/container
@@ -319,10 +331,10 @@ main-side; you never see it.
 - "Commit the staged changes" → `git_commit` with a message (`git_status` first to see what
   is staged). A suspected secret in the staged content blocks the commit and reports the
   leak locations — surface them to the user before even considering `confirm: true`.
-- "Record what changed" → `add_changelog_entry` for a single change as you make it.
-  **"Populate / backfill the changelog"** → `add_changelog_entries`, batching the whole set
+- "Record what changed" → `add_changelog_entries` with a one-element list.
+  **"Populate / backfill the changelog"** → the same tool, batching the whole set
   into as few calls as possible; pass each entry's `ts` (the commit's date in epoch ms) so
-  the history keeps its real dates. Never loop `add_changelog_entry` per entry — each call
+  the history keeps its real dates. Never call it once per entry — each call
   rewrites the whole journal and refreshes the UI. To revise entries, `update_changelog_notes`
   (notes only; the git-derived Changes rows are read-only).
 - "The secret I need isn't vaulted yet" → `request_secret` with the name (a secure prompt

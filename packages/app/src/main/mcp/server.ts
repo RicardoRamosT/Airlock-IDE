@@ -43,10 +43,10 @@ import {
   slackListAllowedChannelsTool,
   slackReadChannelTool,
 } from "../extensions/slackTools";
+import { listExtensionsForAgent } from "../ipc";
 import { gatherProfile } from "../overview/gather";
 import {
   appendJournalEntries,
-  appendJournalEntry,
   updateNoteEntries,
 } from "../overview/journalStore";
 import { loadPrefs, publicPrefs, savePrefs } from "../prefs";
@@ -172,6 +172,7 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
   registerTools(mcp, {
     prefsFile: deps.prefsFile,
     getWorkspaceRoot: deps.getWorkspaceRoot,
+    listExtensions: listExtensionsForAgent,
     getBaseEnv: deps.getBaseEnv,
     requestSecretFromUser: deps.requestSecretFromUser,
     importEnvFiles: deps.importEnvFiles,
@@ -196,14 +197,9 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
       slackReadChannelTool(root, channel, limit),
     githubReadIssue: (root, owner, repo, issue) =>
       githubReadIssueTool(root, owner, repo, issue),
-    addChangelogEntry: async (root, text, tag, details) => {
-      const r = await appendJournalEntry(root, text, tag, Date.now(), details);
-      // Broadcast so an open Overview/Changelog view refreshes live.
-      if (r.ok) broadcastJournalChanged(root);
-      return r;
-    },
-    // Bulk variants: ONE read + write + broadcast for the whole batch, so
-    // populating a changelog costs one call instead of N.
+    // ONE read + write + broadcast for the whole batch, so a changelog
+    // import costs one call instead of N. The single-entry variant was folded
+    // into this one (see tools.ts).
     addChangelogEntries: async (root, entries) => {
       const r = await appendJournalEntries(root, entries, Date.now());
       if (r.ok) broadcastJournalChanged(root);

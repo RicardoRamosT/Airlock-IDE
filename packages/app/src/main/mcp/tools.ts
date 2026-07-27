@@ -55,9 +55,8 @@ export const TOOL_NAMES: string[] = [
   "list_sidebar_sections",
   "set_sidebar_section_visibility",
   "database_status",
-  "docker_status",
-  "neon_status",
-  "render_services",
+  "extension_status",
+  "extension_connect",
   "git_status",
   "git_commit",
   "host_status",
@@ -88,10 +87,41 @@ export const TOOL_NAMES: string[] = [
   "github_read_issue",
   "capture_screenshot",
   "set_pref",
-  "add_changelog_entry",
   "add_changelog_entries",
   "update_changelog_notes",
 ];
+
+// An extension's own resources, from the SAME readers the per-product tools
+// used before they were merged into extension_status -- so folding three tools
+// into one lost no capability. An extension with nothing to list (Slack,
+// GitHub, and the manifest integrations) answers null rather than an empty
+// array, which would imply "connected but empty".
+async function extensionResources(
+  id: string,
+  root: string | null,
+): Promise<unknown> {
+  if (id === "docker") return await ide.dockerStatus();
+  if (id === "render") return await ide.renderServicesStatus(root);
+  if (id === "neon") {
+    // Resolve the focused project's Neon account (multi-account: each project
+    // binds its own key).
+    const connected = (await ide.neonStatus(root)).connected;
+    if (!connected) return { connected, projects: [] };
+    // Org-based account: aggregate projects across every org the key can see.
+    // A project-scoped key can't list orgs (404) -> report connected, no
+    // projects, rather than failing the tool.
+    try {
+      const orgs = await ide.neonOrganizations(root);
+      const projects = (
+        await Promise.all(orgs.map((o) => ide.neonProjects(root, o.id)))
+      ).flat();
+      return { connected, projects };
+    } catch {
+      return { connected, projects: [] };
+    }
+  }
+  return null;
+}
 
 // Dependencies registerTools needs to reach app state. changeVisibility is
 // injectable (defaulting to the real menu funnel) so the guard test can spy on
@@ -99,6 +129,12 @@ export const TOOL_NAMES: string[] = [
 export interface ToolDeps {
   prefsFile: string;
   getWorkspaceRoot: () => string | null;
+  // The Extension Hub inventory (ipc.ts's listExtensionsForAgent). Shared with
+  // the hub rather than re-derived, so the agent's picture of what is connected
+  // cannot drift from the user's.
+  listExtensions: (
+    root: string | null,
+  ) => Promise<import("@airlock/agent-core").ExtensionSummary[]>;
   // Self-verification toolkit (opt-in): the gate + the two power tools' backends.
   selfVerifyEnabled: () => Promise<boolean>;
   captureScreenshot: () => Promise<string | null>; // base64 PNG of the focused window
@@ -106,16 +142,6 @@ export interface ToolDeps {
     key: string,
     value: unknown,
   ) => Promise<{ ok: boolean; error?: string }>;
-  // Append an entry to the project's Changelog journal (.airlock/journal.jsonl).
-  addChangelogEntry: (
-    root: string,
-    text: string,
-    tag?: string,
-    details?: string,
-  ) => Promise<
-    | { ok: true; entry: import("../../shared/ipc").JournalEntry }
-    | { ok: false; error: string }
-  >;
   // Bulk Changelog writes: one read + write + refresh broadcast per batch.
   addChangelogEntries: (
     root: string,
@@ -303,45 +329,54 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     async () => ok(await ide.listSidebarSections(deps.prefsFile)),
   );
 
+  // ONE tool for every extension, rather than one tool per product.
+  //
+  // This replaces docker_status / neon_status / render_services. Those three
+  // were not confusable -- their names and descriptions are product-specific --
+  // but the PATTERN does not scale: there are five section extensions today
+  // with Snowflake and Azure graduating, and "add another _status tool per
+  // product" ends in the sprawl that makes tool choice hard. Naming the
+  // extension as an ARGUMENT scales; naming it in the tool does not.
+  //
+  // No capability is lost: with an id it returns that extension's resources
+  // from the very same readers the three tools used, so Docker still reports
+  // containers, Neon its projects, Render its services.
   mcp.registerTool(
-    "docker_status",
-    { description: "Report Docker engine and container status." },
-    async () => ok(await ide.dockerStatus()),
-  );
-
-  mcp.registerTool(
-    "neon_status",
+    "extension_status",
     {
       description:
-        "Report Neon connection state and its projects when connected.",
+        "Inspect AirLock extensions (Docker, Neon, Render, Snowflake, Azure, Slack, GitHub). With no id: every extension with its connection status (connected / unauthed = not connected / absent = not installed / disabled), account label, and the actions available -- the inventory behind the Extensions hub. With an id: that extension's status PLUS its resources (Docker containers, Neon projects, Render services). Status and resource metadata only -- NO secret values, tokens or API keys. Use extension_connect to start a connect flow.",
+      inputSchema: { id: z.string().optional() },
     },
-    async () => {
-      // Resolve the focused project's Neon account (multi-account: each project
-      // binds its own key).
+    async ({ id }) => {
       const root = deps.getWorkspaceRoot();
-      const connected = (await ide.neonStatus(root)).connected;
-      if (!connected) return ok({ connected, projects: [] });
-      // Org-based account: aggregate projects across every org the key can see.
-      // A project-scoped key can't list orgs (404) -> report connected, no
-      // projects, rather than failing the tool.
-      let projects: Awaited<ReturnType<typeof ide.neonProjects>> = [];
-      try {
-        const orgs = await ide.neonOrganizations(root);
-        projects = (
-          await Promise.all(orgs.map((o) => ide.neonProjects(root, o.id)))
-        ).flat();
-      } catch {
-        projects = [];
-      }
-      return ok({ connected, projects });
+      const rows = await deps.listExtensions(root);
+      if (!id) return ok({ extensions: rows });
+
+      const row = rows.find((r) => r.id === id);
+      if (!row)
+        return err(
+          `Unknown extension "${id}". Call extension_status with no id to list them.`,
+        );
+      return ok({ ...row, resources: await extensionResources(id, root) });
     },
   );
 
-  // render handles a null root itself (it falls back to all matching services).
+  // Guiding a user through connecting something is the point, so this reports
+  // what the HUMAN must still do and never claims to have finished the job.
+  // It cannot disconnect anything (primaryConnectAction, renderer side, only
+  // ever selects a connecting action), and it never handles a credential: the
+  // browser approval, the pasted key and the CLI prompt all stay with the user,
+  // which is where consent actually lives. A token passed as a tool argument
+  // would land in the transcript.
   mcp.registerTool(
-    "render_services",
-    { description: "List Render services with their deploy state." },
-    async () => ok(await ide.renderServicesStatus(deps.getWorkspaceRoot())),
+    "extension_connect",
+    {
+      description:
+        "Start the connect flow for an extension, doing exactly what its button in the Extensions hub does: run its install/login command in a visible terminal, open its sign-in dialog, or open its own section (for Neon and Render, where an API key is pasted). Returns what was started and the step the USER must complete -- it does NOT finish the connection, and never accepts or handles a token. Cannot disconnect anything. Call extension_status first to see what needs connecting.",
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => drive({ type: "connect_extension", id }),
   );
 
   // The aggregated Activity feed. Like render_services it handles a null root
@@ -608,38 +643,20 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
   // Append an entry to the project's Changelog journal (.airlock/journal.jsonl),
   // shown in the Overview page. Benign + per-project -> not gated. On-demand: the
   // agent calls it when a change/decision/fix is worth recording.
-  mcp.registerTool(
-    "add_changelog_entry",
-    {
-      description:
-        "Append an entry to this project's Changelog (shown in the Overview page). " +
-        "Use it on-demand to record a change, fix, or decision. `text` is the one-line " +
-        "title; optional `details` is a markdown body for the why/what. tag is one of " +
-        "change|fix|decision|note (default note).",
-      inputSchema: {
-        text: z.string(),
-        tag: z.enum(["change", "fix", "decision", "note"]).optional(),
-        details: z.string().optional(),
-      },
-    },
-    async ({ text, tag, details }) => {
-      const root = deps.getWorkspaceRoot();
-      if (!root) return err(NO_WORKSPACE);
-      const r = await deps.addChangelogEntry(root, text, tag, details);
-      return r.ok ? ok({ added: true, entry: r.entry }) : err(r.error);
-    },
-  );
-
-  // Bulk append: the whole batch in ONE call (and one atomic write), for
-  // populating/backfilling a Changelog without N round-trips. Same gating as the
-  // single-entry tool (benign + per-project).
+  // The ONLY Changelog append. There used to be a second, single-entry
+  // add_changelog_entry beside this one -- and this tool's own description had
+  // to spend a sentence telling the model when to prefer it, which is a schema
+  // problem wearing a description as a bandage. This one takes 1..N, so the
+  // singular was strictly subsumed. Benign + per-project gating, one atomic
+  // write, one UI refresh per call.
   mcp.registerTool(
     "add_changelog_entries",
     {
       description:
-        "Append MANY entries to this project's Changelog in one call -- use this " +
-        "instead of calling add_changelog_entry repeatedly when populating or " +
-        "backfilling (one atomic write, one UI refresh). Each entry is " +
+        "Append one or many entries to this project's Changelog (shown in the " +
+        "Overview page) in a single call -- one atomic write, one UI refresh. " +
+        "Use it to record a change, fix, or decision, and to backfill history. " +
+        "Each entry is " +
         "{ text, tag?, details?, ts? }: `text` is the one-line title, `tag` is one of " +
         "change|fix|decision|note (default note), `details` is an optional markdown " +
         "body, and `ts` is an optional epoch-ms timestamp -- pass it to preserve a " +

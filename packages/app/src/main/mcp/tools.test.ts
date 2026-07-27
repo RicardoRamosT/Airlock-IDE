@@ -71,6 +71,9 @@ function fakeServer(): { mcp: McpServer; tools: Recorded[] } {
 const baseDeps = {
   prefsFile: "/tmp/airlock-test-prefs.json",
   getWorkspaceRoot: () => null as string | null,
+  listExtensions: vi.fn(
+    async () => [] as import("@airlock/agent-core").ExtensionSummary[],
+  ),
   selfVerifyEnabled: vi.fn(async () => false),
   captureScreenshot: vi.fn(async () => null as string | null),
   setPref: vi.fn(async () => ({ ok: true }) as { ok: boolean; error?: string }),
@@ -166,11 +169,6 @@ const baseDeps = {
   slackListAllowedChannels: vi.fn(async () => ({ channels: [] })),
   slackReadChannel: vi.fn(async () => ({ error: "not connected" })),
   githubReadIssue: vi.fn(async () => ({ error: "not connected" })),
-  addChangelogEntry: vi.fn(
-    async (): Promise<
-      { ok: true; entry: JournalEntry } | { ok: false; error: string }
-    > => ({ ok: true, entry: { ts: 1, tag: "note", text: "x" } }),
-  ),
   addChangelogEntries: vi.fn(
     async (): Promise<
       | { ok: true; added: number; skipped: number; entries: JournalEntry[] }
@@ -202,7 +200,7 @@ describe("registerTools allowlist guard", () => {
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(39);
+    expect(registered).toHaveLength(37);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");
@@ -1153,63 +1151,43 @@ describe("self-verification tools gate on selfVerify", () => {
   });
 });
 
-describe("add_changelog_entry", () => {
-  function getTool(deps = baseDeps) {
+// add_changelog_entry (single) was FOLDED INTO add_changelog_entries. The
+// plural already accepted 1..N, so the singular was strictly subsumed -- and
+// the plural's own description had to spend a sentence telling the model when
+// to prefer it over the singular, which is a schema problem wearing a
+// description as a bandage. This pins that the single-entry case, the common
+// one, still works through the surviving tool.
+describe("add_changelog_entry was folded into the bulk tool", () => {
+  it("no longer registers a separate single-entry tool", () => {
     const { mcp, tools } = fakeServer();
-    registerTools(mcp, deps);
-    const t = tools.find((x) => x.name === "add_changelog_entry");
-    if (!t) throw new Error("add_changelog_entry not registered");
-    return t.handler;
-  }
-  it("NO_WORKSPACE when no root", async () => {
-    const res = (await getTool()({ text: "hi" })) as { isError?: boolean };
-    expect(res.isError).toBe(true);
+    registerTools(mcp, baseDeps);
+    expect(tools.find((x) => x.name === "add_changelog_entry")).toBeUndefined();
+    expect(tools.find((x) => x.name === "add_changelog_entries")).toBeTruthy();
   });
-  it("appends via deps when a root is open", async () => {
-    const addChangelogEntry = vi.fn(async () => ({
+
+  it("still appends a SINGLE entry, with its tag and details", async () => {
+    const addChangelogEntries = vi.fn(async () => ({
       ok: true as const,
-      entry: { ts: 1, tag: "change" as const, text: "did X" },
+      added: 1,
+      skipped: 0,
+      entries: [{ ts: 1, tag: "change" as const, text: "did X", details: "d" }],
     }));
-    const handler = getTool({
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, {
       ...baseDeps,
       getWorkspaceRoot: () => "/repo",
-      addChangelogEntry,
+      addChangelogEntries,
     });
-    const res = (await handler({ text: "did X", tag: "change" })) as {
-      content: { text: string }[];
-    };
-    expect(addChangelogEntry).toHaveBeenCalledWith(
-      "/repo",
-      "did X",
-      "change",
-      undefined,
-    );
-    expect(JSON.parse(res.content[0]?.text ?? "{}").added).toBe(true);
-  });
-  it("errors when deps refuse (empty text)", async () => {
-    const handler = getTool({
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      addChangelogEntry: vi.fn(async () => ({
-        ok: false as const,
-        error: "empty",
-      })),
-    });
-    const res = (await handler({ text: "" })) as { isError?: boolean };
-    expect(res.isError).toBe(true);
-  });
-  it("passes details through to deps", async () => {
-    const addChangelogEntry = vi.fn(async () => ({
-      ok: true as const,
-      entry: { ts: 1, tag: "change" as const, text: "t", details: "d" },
-    }));
-    const handler = getTool({
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      addChangelogEntry,
-    });
-    await handler({ text: "t", tag: "change", details: "d" });
-    expect(addChangelogEntry).toHaveBeenCalledWith("/repo", "t", "change", "d");
+    const t = tools.find((x) => x.name === "add_changelog_entries");
+    if (!t) throw new Error("add_changelog_entries not registered");
+    const res = (await t.handler({
+      entries: [{ text: "did X", tag: "change", details: "d" }],
+    })) as { content: { text: string }[] };
+
+    expect(addChangelogEntries).toHaveBeenCalledWith("/repo", [
+      { text: "did X", tag: "change", details: "d" },
+    ]);
+    expect(JSON.parse(res.content[0]?.text ?? "{}").added).toBe(1);
   });
 });
 
@@ -1319,6 +1297,110 @@ describe("update_changelog_notes (bulk)", () => {
     const res = (await handler({ updates: [{ ts: 9, text: "x" }] })) as {
       isError?: boolean;
     };
+    expect(res.isError).toBe(true);
+  });
+});
+
+// extension_status / extension_connect replaced docker_status, neon_status and
+// render_services. Those three were not confusable with each other -- the
+// PATTERN was the problem, since one tool per product does not scale as
+// extensions are added. These assertions pin the two properties that made the
+// merge safe: no capability was lost, and the new connect tool cannot do
+// anything the user did not ask for.
+describe("extension tools", () => {
+  const row = (patch: Record<string, unknown> = {}) =>
+    ({
+      id: "docker",
+      name: "Docker",
+      icon: "docker",
+      tier: "section",
+      status: "connected",
+      enabled: true,
+      pinned: false,
+      hasConfig: false,
+      authKind: "token",
+      hasSection: true,
+      actions: [],
+      ...patch,
+    }) as unknown as import("@airlock/agent-core").ExtensionSummary;
+
+  type ToolRes = { isError?: boolean; content: { text: string }[] };
+  const call = (
+    t: { handler: (a: Record<string, unknown>) => Promise<unknown> },
+    args: Record<string, unknown>,
+  ) => t.handler(args) as Promise<ToolRes>;
+
+  function extTool(name: string, over: Record<string, unknown> = {}) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, { ...baseDeps, ...over });
+    const t = tools.find((x) => x.name === name);
+    if (!t) throw new Error(`${name} not registered`);
+    return t;
+  }
+
+  it("extension_status with no id returns the whole inventory", async () => {
+    const t = extTool("extension_status", {
+      listExtensions: vi.fn(async () => [
+        row(),
+        row({ id: "neon", name: "Neon" }),
+      ]),
+    });
+    const out = JSON.parse((await call(t, {})).content[0]?.text ?? "{}") as {
+      extensions: { id: string }[];
+    };
+    expect(out.extensions.map((e) => e.id)).toEqual(["docker", "neon"]);
+  });
+
+  it("extension_status reports the status, so 'is it connected' has an answer", async () => {
+    const t = extTool("extension_status", {
+      listExtensions: vi.fn(async () => [row({ status: "absent" })]),
+    });
+    const out = JSON.parse((await call(t, {})).content[0]?.text ?? "{}") as {
+      extensions: { status: string }[];
+    };
+    expect(out.extensions[0]?.status).toBe("absent");
+  });
+
+  it("extension_status errors on an unknown id instead of answering emptily", async () => {
+    const t = extTool("extension_status", {
+      listExtensions: vi.fn(async () => [row()]),
+    });
+    const res = await call(t, { id: "nope" });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toContain("Unknown extension");
+  });
+
+  it("extension_connect forwards a connect_extension command", async () => {
+    const runAgentCommand = vi.fn(async () => ({
+      ok: true as const,
+      data: {
+        id: "slack",
+        name: "Slack",
+        started: true,
+        action: "connectOauth",
+        status: "unauthed",
+        nextStep: "approve it in your browser",
+      },
+    }));
+    const t = extTool("extension_connect", { runAgentCommand });
+    const res = await call(t, { id: "slack" });
+    expect(runAgentCommand).toHaveBeenCalledWith({
+      type: "connect_extension",
+      id: "slack",
+    });
+    // The user-facing next step must survive to the caller: a tool that said
+    // only "ok" would have Claude report a connection that has not happened.
+    expect(res.content[0]?.text).toContain("approve it in your browser");
+  });
+
+  it("extension_connect surfaces a failure as a tool error", async () => {
+    const t = extTool("extension_connect", {
+      runAgentCommand: vi.fn(async () => ({
+        ok: false as const,
+        error: "no window",
+      })),
+    });
+    const res = await call(t, { id: "slack" });
     expect(res.isError).toBe(true);
   });
 });
