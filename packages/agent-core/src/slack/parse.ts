@@ -119,10 +119,41 @@ export function labelConversations(
 }
 
 // conversations.history -> recent messages (newest-first from Slack).
+// A Slack attachment, reduced to what we actually use. Deliberately NO
+// url_private: that URL needs the vaulted token, so it must never reach the
+// renderer or the agent. Bytes are fetched main-side by file id instead.
+export interface SlackFile {
+  id: string;
+  name: string;
+  mimetype: string;
+  size: number;
+  kind: "image" | "other";
+}
+
+export function parseFiles(raw: unknown): SlackFile[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SlackFile[] = [];
+  for (const f of raw) {
+    const o = obj(f);
+    const id = str(o.id);
+    if (!id) continue; // without an id there is nothing we could fetch
+    const mimetype = str(o.mimetype);
+    out.push({
+      id,
+      name: str(o.name) || "file",
+      mimetype,
+      size: typeof o.size === "number" ? o.size : 0,
+      kind: mimetype.startsWith("image/") ? "image" : "other",
+    });
+  }
+  return out;
+}
+
 export interface SlackMessage {
   ts: string;
   user: string;
   text: string;
+  files: SlackFile[];
 }
 
 // Either the messages or WHY Slack refused. Returning [] for a refusal (the old
@@ -147,6 +178,11 @@ export function parseHistory(json: unknown): SlackHistory {
     ok: true,
     messages: r.messages
       .map((m) => obj(m))
-      .map((m) => ({ ts: str(m.ts), user: str(m.user), text: str(m.text) })),
+      .map((m) => ({
+        ts: str(m.ts),
+        user: str(m.user),
+        text: str(m.text),
+        files: parseFiles(m.files),
+      })),
   };
 }

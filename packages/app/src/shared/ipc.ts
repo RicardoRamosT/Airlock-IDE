@@ -730,11 +730,19 @@ export interface SlackChannelList {
   connected: boolean;
   channels: SlackAllowedChannel[];
 }
+export interface SlackUiFile {
+  id: string;
+  name: string;
+  mimetype: string;
+  size: number;
+  kind: string;
+}
 export interface SlackUiMessage {
   ts: string;
   user: string;
   userName: string;
   text: string;
+  files: SlackUiFile[];
 }
 export interface SlackReadResultIpc {
   channel?: string;

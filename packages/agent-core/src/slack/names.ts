@@ -3,13 +3,14 @@
 // path so the agent and the sidebar see the same names -- resolving only in the
 // renderer would leave the agent staring at raw "U0BF0KLPNP3" ids.
 import { renderEmoji } from "./emoji";
-import type { SlackMessage, SlackUser } from "./parse";
+import type { SlackFile, SlackMessage, SlackUser } from "./parse";
 
 export interface SlackNamedMessage {
   ts: string;
   user: string;
   userName: string;
   text: string;
+  files: SlackFile[];
 }
 
 // Slack writes mentions as <@U123> or <@U123|label>. An id we cannot resolve is
@@ -37,5 +38,6 @@ export function nameMessages(
     // Emoji AFTER mentions: both operate on :colon: / <@…> forms that do not
     // overlap, and the agent should see 🙂 rather than a shortcode too.
     text: renderEmoji(resolveMentions(m.text, users)),
+    files: m.files,
   }));
 }

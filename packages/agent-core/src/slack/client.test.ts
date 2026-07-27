@@ -76,7 +76,7 @@ describe("slack client (fake transport)", () => {
     const r = await channelHistory("t", "C1", 5000, tx);
     expect(r).toEqual({
       ok: true,
-      messages: [{ ts: "1.1", user: "U1", text: "hi" }],
+      messages: [{ ts: "1.1", user: "U1", text: "hi", files: [] }],
     });
     expect(tx).toHaveBeenCalledWith("conversations.history", "t", {
       channel: "C1",
@@ -93,7 +93,7 @@ describe("channelHistory result shape", () => {
     });
     await expect(channelHistory("tok", "C1", 20, tx)).resolves.toEqual({
       ok: true,
-      messages: [{ ts: "1.0", user: "U1", text: "hi" }],
+      messages: [{ ts: "1.0", user: "U1", text: "hi", files: [] }],
     });
   });
 

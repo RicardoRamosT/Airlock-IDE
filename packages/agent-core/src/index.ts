@@ -330,6 +330,7 @@ export type {
   ConvKind,
   SlackAuth,
   SlackChannel,
+  SlackFile,
   SlackHistory,
   SlackMessage,
   SlackUser,

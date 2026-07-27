@@ -4,6 +4,7 @@ import {
   labelConversations,
   parseAuthTest,
   parseChannels,
+  parseFiles,
   parseHistory,
   parseUsers,
 } from "./parse";
@@ -165,15 +166,15 @@ describe("parseHistory", () => {
     expect(r).toEqual({
       ok: true,
       messages: [
-        { ts: "1.1", user: "U1", text: "hi" },
-        { ts: "2.2", user: "U2", text: "there" },
+        { ts: "1.1", user: "U1", text: "hi", files: [] },
+        { ts: "2.2", user: "U2", text: "there", files: [] },
       ],
     });
   });
   it("tolerates missing user/text and bad payloads", () => {
     expect(parseHistory({ ok: true, messages: [{ ts: "3.3" }] })).toEqual({
       ok: true,
-      messages: [{ ts: "3.3", user: "", text: "" }],
+      messages: [{ ts: "3.3", user: "", text: "", files: [] }],
     });
     expect(parseHistory(null)).toEqual({ ok: false, error: "bad_response" });
   });
@@ -187,7 +188,9 @@ describe("parseHistory ok/error split", () => {
     });
     expect(r).toEqual({
       ok: true,
-      messages: [{ ts: "1785047664.355179", user: "U1", text: "test" }],
+      messages: [
+        { ts: "1785047664.355179", user: "U1", text: "test", files: [] },
+      ],
     });
   });
 
@@ -225,6 +228,116 @@ describe("parseHistory ok/error split", () => {
     expect(parseHistory({ ok: false })).toEqual({
       ok: false,
       error: "unknown_error",
+    });
+  });
+});
+
+describe("parseFiles", () => {
+  it("maps a Slack file object to the fields we need", () => {
+    expect(
+      parseFiles([
+        {
+          id: "F123",
+          name: "image.png",
+          mimetype: "image/png",
+          size: 4096,
+          url_private: "https://files.slack.com/x.png",
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "F123",
+        name: "image.png",
+        mimetype: "image/png",
+        size: 4096,
+        kind: "image",
+      },
+    ]);
+  });
+
+  it("classifies non-images as other", () => {
+    expect(
+      parseFiles([
+        { id: "F1", name: "a.pdf", mimetype: "application/pdf", size: 1 },
+      ])[0]?.kind,
+    ).toBe("other");
+  });
+
+  it("NEVER carries url_private -- the renderer must not receive a URL needing the token", () => {
+    const out = parseFiles([
+      {
+        id: "F1",
+        name: "a.png",
+        mimetype: "image/png",
+        size: 1,
+        url_private: "https://x",
+      },
+    ]);
+    expect(JSON.stringify(out)).not.toContain("url_private");
+    expect(JSON.stringify(out)).not.toContain("https://x");
+  });
+
+  it("degrades on junk instead of throwing", () => {
+    expect(parseFiles(undefined)).toEqual([]);
+    expect(parseFiles("nope")).toEqual([]);
+    expect(parseFiles([null, 7])).toEqual([]);
+  });
+
+  it("skips a file with no id (nothing could be fetched for it)", () => {
+    expect(parseFiles([{ name: "x.png", mimetype: "image/png" }])).toEqual([]);
+  });
+
+  it("defaults a missing name/mimetype/size rather than dropping the file", () => {
+    expect(parseFiles([{ id: "F9" }])).toEqual([
+      { id: "F9", name: "file", mimetype: "", size: 0, kind: "other" },
+    ]);
+  });
+});
+
+describe("parseHistory carries files", () => {
+  it("attaches parsed files to the message", () => {
+    const r = parseHistory({
+      ok: true,
+      messages: [
+        {
+          ts: "1.0",
+          user: "U1",
+          text: "",
+          files: [
+            { id: "F1", name: "shot.png", mimetype: "image/png", size: 10 },
+          ],
+        },
+      ],
+    });
+    expect(r).toEqual({
+      ok: true,
+      messages: [
+        {
+          ts: "1.0",
+          user: "U1",
+          text: "",
+          files: [
+            {
+              id: "F1",
+              name: "shot.png",
+              mimetype: "image/png",
+              size: 10,
+              kind: "image",
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("gives a message with no files an empty array, never undefined", () => {
+    const r = parseHistory({
+      ok: true,
+      messages: [{ ts: "1.0", user: "U1", text: "hi" }],
+    });
+    expect(r).toEqual({
+      ok: true,
+      messages: [{ ts: "1.0", user: "U1", text: "hi", files: [] }],
     });
   });
 });
