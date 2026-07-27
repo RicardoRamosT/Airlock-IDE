@@ -76,7 +76,10 @@ export {
 } from "./db/explorer";
 export {
   type Container,
+  type DbContainer,
+  type DbEngine,
   type DockerStatus,
+  databaseContainers,
   dockerContainers,
   dockerStart,
   dockerStop,

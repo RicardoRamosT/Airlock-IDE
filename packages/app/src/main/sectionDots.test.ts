@@ -17,6 +17,7 @@ const docker = (installed: boolean, running: boolean, states: string[]) => ({
     image: "img",
     state,
     status: "",
+    ports: "",
   })),
 });
 

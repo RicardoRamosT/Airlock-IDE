@@ -9,6 +9,9 @@ export interface Container {
   image: string;
   state: string; // running | exited | created | paused | ...
   status: string; // human string, e.g. "Up 3 hours"
+  // Docker's published-port string, e.g. "0.0.0.0:5432->5432/tcp". Already
+  // present in `docker ps --format '{{json .}}'`; it used to be discarded.
+  ports: string;
 }
 
 export type DockerRunner = (args: string[]) => Promise<string>;
@@ -39,6 +42,7 @@ export function parseDockerPs(raw: string): Container[] {
       image: String(o.Image ?? ""),
       state: String(o.State ?? "").toLowerCase(),
       status: String(o.Status ?? ""),
+      ports: String(o.Ports ?? ""),
     });
   }
   return out;
@@ -84,4 +88,58 @@ export async function dockerStop(
 ): Promise<void> {
   assertId(id);
   await run(["stop", id]);
+}
+
+// The database engines AirLock recognises in an image name. Only `postgres` is
+// connectable (the client is pg, via withDb/readRows); the rest are listed so
+// the Docker section can show them, and so Databases can say "found, but not
+// something I can query" rather than pretending they do not exist.
+const ENGINES = ["postgres", "mysql", "mariadb", "mongo", "redis"] as const;
+export type DbEngine = (typeof ENGINES)[number];
+
+export interface DbContainer {
+  id: string;
+  name: string;
+  image: string;
+  engine: DbEngine;
+  // Published host port, or null when the container publishes nothing (it is
+  // reachable only inside the docker network). Null, never a guess: a wrong
+  // port fails at connect time, which is worse than admitting we do not know.
+  hostPort: number | null;
+}
+
+// The repository part of an image reference: strip a registry/namespace prefix
+// and a tag or digest. "docker.io/library/mysql:8" -> "mysql".
+function repoOf(image: string): string {
+  const noDigest = image.split("@")[0] ?? "";
+  const lastSegment = noDigest.split("/").pop() ?? "";
+  return (lastSegment.split(":")[0] ?? "").toLowerCase();
+}
+
+// The FIRST published host port. Docker formats these as
+// "0.0.0.0:15432->5432/tcp, :::15432->5432/tcp"; the number before "->" is the
+// host side, which is the one you can actually connect to.
+function hostPortOf(ports: string): number | null {
+  const m = /:(\d+)->/.exec(ports);
+  const n = m?.[1] ? Number(m[1]) : Number.NaN;
+  return Number.isInteger(n) ? n : null;
+}
+
+export function databaseContainers(cs: Container[]): DbContainer[] {
+  const out: DbContainer[] = [];
+  for (const c of cs) {
+    const repo = repoOf(c.image);
+    // Exact repository match, not a substring: "my-postgres-backup-tool" is
+    // not a Postgres server.
+    const engine = ENGINES.find((e) => repo === e);
+    if (!engine) continue;
+    out.push({
+      id: c.id,
+      name: c.name,
+      image: c.image,
+      engine,
+      hostPort: hostPortOf(c.ports),
+    });
+  }
+  return out;
 }
