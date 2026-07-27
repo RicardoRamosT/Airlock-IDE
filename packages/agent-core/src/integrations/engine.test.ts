@@ -12,6 +12,7 @@ import {
   pollSteady,
   runManifest,
   type SteadyCache,
+  steadyIntegrationFor,
   steadyView,
 } from "./engine";
 import type { IntegrationManifest } from "./manifest";
@@ -281,6 +282,96 @@ describe("pollSteady", () => {
     };
     const [s] = await pollSteady([steadyM], null, 1000, {}, run);
     expect(s).toMatchObject({ status: "unauthed", resources: [] });
+  });
+});
+
+describe("steadyIntegrationFor", () => {
+  const steadyM: IntegrationManifest = {
+    id: "wh2",
+    name: "Warehouses2",
+    surface: { view: "databases" },
+    detect: { authCheck: { cmd: "wh", args: ["test"] } },
+    poll: { everyMs: 30000, cli: { cmd: "wh", args: ["ls", "--json"] } },
+    map: {
+      items: "$",
+      key: "$.name",
+      title: "$.name",
+      state: { from: "$.state", default: "idle" },
+    },
+  };
+
+  it("returns the same shape pollSteady would, for a steady-view manifest", async () => {
+    const run: CliRunner = async (_c, args) =>
+      args[0] === "test" ? "" : JSON.stringify([{ name: "W1", state: "idle" }]);
+    const value = await steadyIntegrationFor(steadyM, null, 1000, {}, run);
+    expect(value).toMatchObject({
+      id: "wh2",
+      view: "databases",
+      status: "ready",
+    });
+  });
+
+  // This is the actual bug behind CRITICAL #1: the integrations:resources IPC
+  // handler used to call pollSteady([m], ...) for a single by-id lookup too,
+  // and pollSteady EXCLUDES any manifest whose surface is not a steady view --
+  // VERCEL's is "activity". So the by-id fetch silently returned null for
+  // Vercel forever (see the old `s ?? null` in main/ipc.ts), which is how
+  // registering ext:vercel with a real section was blocked: there was no data
+  // to show. steadyIntegrationFor must NOT apply pollSteady's filter -- it
+  // computes VERCEL's real value directly, same as it would for any manifest.
+  it("computes a real value for an Activity-surfaced manifest, unlike pollSteady", async () => {
+    expect(steadyView(VERCEL)).toBeNull(); // confirms VERCEL is NOT steady-view
+
+    // pollSteady's own contract: excludes it entirely.
+    expect(await pollSteady([VERCEL], "/repo", 1000, {}, okRunner)).toEqual([]);
+
+    // steadyIntegrationFor: computes it anyway.
+    const value = await steadyIntegrationFor(
+      VERCEL,
+      "/repo",
+      1000,
+      {},
+      okRunner,
+    );
+    expect(value.status).toBe("ready");
+    expect(value.view).toBe("activity"); // no steady view -> informational label
+    expect(value.resources).toEqual([
+      {
+        id: "int:vercel:dpl_1",
+        title: "web",
+        subtitle: "main",
+        state: "running",
+        href: "u1",
+      },
+    ]);
+  });
+
+  it("reports absent/unauthed for an Activity-surfaced manifest exactly like detectStatus would", async () => {
+    const missing: CliRunner = async () => {
+      throw Object.assign(new Error("nope"), { code: "ENOENT" });
+    };
+    expect(
+      (await steadyIntegrationFor(VERCEL, "/repo", 1000, {}, missing)).status,
+    ).toBe("absent");
+
+    const unauthed: CliRunner = async () => {
+      throw Object.assign(new Error("not logged in"), { code: 1 });
+    };
+    expect(
+      (await steadyIntegrationFor(VERCEL, "/repo", 1000, {}, unauthed)).status,
+    ).toBe("unauthed");
+  });
+
+  it("honors everyMs via the shared cache, same as pollSteady", async () => {
+    let polls = 0;
+    const run: CliRunner = async (_c, args) => {
+      if (args[0] !== "whoami") polls++;
+      return args[0] === "whoami" ? "" : LS_OUT;
+    };
+    const cache: SteadyCache = {};
+    await steadyIntegrationFor(VERCEL, "/repo", 1000, cache, run);
+    await steadyIntegrationFor(VERCEL, "/repo", 6000, cache, run); // within 20000
+    expect(polls).toBe(1);
   });
 });
 

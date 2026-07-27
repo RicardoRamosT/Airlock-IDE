@@ -83,6 +83,7 @@ import {
   slackAuthTest,
   slackScopes,
   stageFiles,
+  steadyIntegrationFor,
   switchBranch,
   switchGhAccount,
   targetsVault,
@@ -1863,16 +1864,20 @@ export function registerIpc(
 
   // integrations:resources -> the resources for ONE integration, account-wide,
   // with NO pin/relevance filter (unlike integrations:steady). Powers the
-  // Extension Hub's expand-in-place: see & control a connection's resources
-  // from any project. Reuses the shared steadyCache (everyMs-throttled) so it
-  // never double-spawns a CLI the Host view already polled. Returns null for an
-  // unknown id or a transient (Activity) manifest (pollSteady skips those).
+  // Extension Hub's expand-in-place, and (2026-07-27) a manifest's own
+  // extension section (ManifestExtensionSection, for Snowflake/Azure/Vercel) --
+  // see & control a connection's resources from any project. Reuses the shared
+  // steadyCache (everyMs-throttled) so it never double-spawns a CLI the Host
+  // view already polled. Uses steadyIntegrationFor rather than pollSteady
+  // SPECIFICALLY so this also works for an Activity-surfaced manifest (Vercel)
+  // that contributes no Databases/Host provider row -- pollSteady excludes
+  // those, which previously made this always return null for Vercel and left
+  // its rail icon a permanent dead end. Returns null only for an unknown id.
   ipcMain.handle("integrations:resources", async (e, id: string) => {
     const root = rootForEvent(e);
     const m = INTEGRATIONS.find((x) => x.id === id);
     if (!m) return null;
-    const [s] = await pollSteady([m], root, Date.now(), steadyCache);
-    return s ?? null;
+    return steadyIntegrationFor(m, root, Date.now(), steadyCache);
   });
 
   // extensions:list -> ExtensionSummary[] for the Extension Hub view. Detects

@@ -206,6 +206,53 @@ export interface SteadyCache {
   [id: string]: { at: number; value: SteadyIntegration };
 }
 
+// Compute ONE manifest's current steady value: detect, then (when ready) poll +
+// map, throttled per-id by the SteadyCache. Shared by pollSteady (the
+// Databases/Host routers' bulk feed, steady-view manifests only) and
+// steadyIntegrationFor (one manifest by id, regardless of surface) so the two
+// never drift into different detect/poll/cache logic.
+async function steadyValue(
+  m: IntegrationManifest,
+  root: string | null,
+  now: number,
+  cache: SteadyCache,
+  run: CliRunner,
+): Promise<SteadyIntegration> {
+  const cached = cache[m.id];
+  if (cached && now - cached.at < m.poll.everyMs) return cached.value;
+  // steadyView() is null for an Activity-surfaced manifest (e.g. Vercel) --
+  // "activity" is then just an informational label: steadyIntegrationFor's
+  // caller (a manifest's own extension section) does not route by `view` the
+  // way the Databases/Host provider rows do.
+  const view = steadyView(m) ?? "activity";
+  const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
+  const timeoutMs = m.poll.timeoutMs ?? 8000;
+  const status = await detectStatus(m, cwd, timeoutMs, run);
+  let resources: IntegrationItem[] = [];
+  if (status === "ready") {
+    try {
+      const out = await run(m.poll.cli.cmd, m.poll.cli.args, {
+        cwd,
+        timeoutMs,
+      });
+      resources = mapToItems(m, JSON.parse(out));
+    } catch {
+      resources = []; // authed, but this probe failed/garbage: show header, no rows
+    }
+  }
+  const value: SteadyIntegration = {
+    id: m.id,
+    name: m.name,
+    view,
+    status,
+    resources,
+    ...(m.install ? { install: m.install } : {}),
+    ...(m.connect ? { connect: m.connect } : {}),
+  };
+  cache[m.id] = { at: now, value };
+  return value;
+}
+
 // Steady analogue of pollIntegrations: for each VIEW-targeted manifest, detect
 // (absent|unauthed|ready), and when ready poll + mapToItems for its resources.
 // Per-manifest everyMs throttle via SteadyCache; each degrades independently
@@ -218,37 +265,28 @@ export async function pollSteady(
   run: CliRunner = realRunner,
 ): Promise<SteadyIntegration[]> {
   const steady = manifests.filter((m) => steadyView(m) !== null);
-  return Promise.all(
-    steady.map(async (m) => {
-      const cached = cache[m.id];
-      if (cached && now - cached.at < m.poll.everyMs) return cached.value;
-      const view = steadyView(m) as string;
-      const cwd = m.poll.cwdScoped ? (root ?? undefined) : undefined;
-      const timeoutMs = m.poll.timeoutMs ?? 8000;
-      const status = await detectStatus(m, cwd, timeoutMs, run);
-      let resources: IntegrationItem[] = [];
-      if (status === "ready") {
-        try {
-          const out = await run(m.poll.cli.cmd, m.poll.cli.args, {
-            cwd,
-            timeoutMs,
-          });
-          resources = mapToItems(m, JSON.parse(out));
-        } catch {
-          resources = []; // authed, but this probe failed/garbage: show header, no rows
-        }
-      }
-      const value: SteadyIntegration = {
-        id: m.id,
-        name: m.name,
-        view,
-        status,
-        resources,
-        ...(m.install ? { install: m.install } : {}),
-        ...(m.connect ? { connect: m.connect } : {}),
-      };
-      cache[m.id] = { at: now, value };
-      return value;
-    }),
-  );
+  return Promise.all(steady.map((m) => steadyValue(m, root, now, cache, run)));
+}
+
+// Same computation as pollSteady, for ONE manifest, regardless of its surface.
+// pollSteady exists to feed the Databases/Host routers, so it only ever looks
+// at manifests with a steady VIEW -- an Activity-surfaced one (Vercel) is
+// deliberately excluded there, since it contributes no provider row to either
+// section. But a manifest's OWN extension section (e.g. ext:vercel, registered
+// in the renderer's EXTENSION_VIEWS) wants this manifest's real detect status
+// and current resources too, even though it is not steady-view. Used by the
+// integrations:resources IPC handler, which looks a manifest up by id for
+// exactly that section -- see the 2026-07-27 fix: before this existed, that
+// handler ran manifests through pollSteady's steady-view filter even for a
+// single by-id lookup, so it silently returned null for Vercel and any other
+// Activity-surfaced manifest, which is how ext:vercel ended up a permanent
+// dead end.
+export async function steadyIntegrationFor(
+  m: IntegrationManifest,
+  root: string | null,
+  now: number,
+  cache: SteadyCache,
+  run: CliRunner = realRunner,
+): Promise<SteadyIntegration> {
+  return steadyValue(m, root, now, cache, run);
 }

@@ -209,6 +209,7 @@ export {
   runManifest,
   type SteadyCache,
   type SteadyIntegration,
+  steadyIntegrationFor,
   steadyView,
 } from "./integrations/engine";
 export { evalExpr } from "./integrations/expr";

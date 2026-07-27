@@ -3,7 +3,7 @@ import type { IntegrationItem, ItemAction } from "../../../shared/ipc";
 import { useApp } from "../store";
 
 // Shared by the sidebar sections that surface integration resources
-// (IntegrationsSteadySection, and the Git/Activity extension-resource rows).
+// (ManifestExtensionSection, and the Git/Activity extension-resource rows).
 function dotClass(state: IntegrationItem["state"]): string {
   if (state === "done") return "status-dot on";
   if (state === "failed") return "status-dot fail";
