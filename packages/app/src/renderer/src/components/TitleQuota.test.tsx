@@ -37,6 +37,41 @@ it("renders a wing per window with its rounded percentage", () => {
   expect(screen.getByText("42%")).toBeTruthy();
 });
 
+// The countdowns used to be tooltip-only, so the titlebar showed two bare
+// percentages and you had to hover to learn when either window resets.
+it("shows the reset countdown on BOTH wings, not just in the tooltip", () => {
+  useApp.setState({
+    quotaMeterEnabled: true,
+    quota: status({
+      fiveHour: { usedPercentage: 38, resetsAt: now() + 3 * 3600 + 780 },
+      sevenDay: { usedPercentage: 42, resetsAt: now() + 2 * 86400 + 4 * 3600 },
+    } as Partial<QuotaStatus>),
+  });
+  const { container } = render(<TitleQuota>{child}</TitleQuota>);
+  const shown = [...container.querySelectorAll(".titlebar-wing-reset")].map(
+    (n) => n.textContent,
+  );
+  expect(shown).toEqual(["3h13m", "2d 4h"]);
+});
+
+it("reads idle on a window that has not started yet", () => {
+  useApp.setState({
+    quotaMeterEnabled: true,
+    quota: status({
+      fiveHour: {
+        usedPercentage: 0,
+        resetsAt: now() + 3600,
+        awaitingNextWindow: true,
+      },
+    } as Partial<QuotaStatus>),
+  });
+  const { container } = render(<TitleQuota>{child}</TitleQuota>);
+  expect(
+    container.querySelector(".titlebar-wing.left .titlebar-wing-reset")
+      ?.textContent,
+  ).toBe("idle");
+});
+
 it("always keeps the title centered between the wings", () => {
   useApp.setState({ quotaMeterEnabled: true, quota: status() });
   const { container } = render(<TitleQuota>{child}</TitleQuota>);

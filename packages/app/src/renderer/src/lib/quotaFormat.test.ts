@@ -8,6 +8,7 @@ import {
   QUOTA_YELLOW_AT,
   quotaFillColor,
   quotaFillHue,
+  wingCountdown,
 } from "./quotaFormat";
 
 const win = (over: Partial<QuotaWindow> = {}): QuotaWindow => ({
@@ -84,5 +85,23 @@ describe("quotaFillColor", () => {
     expect(quotaFillHue(-40)).toBe(quotaFillHue(0));
     expect(quotaFillHue(Number.NaN)).toBe(quotaFillHue(0));
     expect(quotaFillColor(50)).toMatch(/^hsl\(\d+ \d+% \d+%\)$/);
+  });
+});
+
+describe("wingCountdown", () => {
+  it("is the short countdown for a running window", () => {
+    expect(wingCountdown({ resetsAt: 1000 + 3 * 3600 + 780 }, 1000)).toBe(
+      "3h13m",
+    );
+  });
+  it("reads idle for a window that has not started", () => {
+    expect(wingCountdown({ resetsAt: 9999, awaitingNextWindow: true }, 1)).toBe(
+      "idle",
+    );
+    // Boundary passed by the UI's own clock, before the next emit re-flags it.
+    expect(wingCountdown({ resetsAt: 500 }, 900)).toBe("idle");
+  });
+  it("is empty when there is no window, so no stray dash is drawn", () => {
+    expect(wingCountdown(null, 1000)).toBe("");
   });
 });

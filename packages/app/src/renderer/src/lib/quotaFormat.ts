@@ -70,6 +70,21 @@ export function quotaFillHue(pct: number): number {
   return m ? Number(m[1]) : Number.NaN;
 }
 
+// The countdown as it appears ON the titlebar gauge, next to the percentage.
+// Short by necessity -- it shares a 92px track with the number -- so the long
+// phrasings stay in the tooltip. Empty string when there is nothing to say, so
+// the gauge shows the percentage alone rather than a stray dash.
+export function wingCountdown(
+  w: { resetsAt: number; awaitingNextWindow?: true } | null,
+  now: number,
+): string {
+  if (!w) return "";
+  // "idle" rather than a countdown: the window has not started, so any number
+  // here would be counting down to something that is not running.
+  if (isWindowAwaiting(w, now)) return "idle";
+  return formatCountdown(w.resetsAt - now);
+}
+
 // Whether a window should read as "starts on next use" rather than a countdown.
 // Either the tracker already synthesized the awaiting row (its reset was seen
 // passed at emit time), OR the boundary has passed since the last emit by the

@@ -6,6 +6,7 @@ import {
   isWindowAwaiting,
   quotaFillColor,
   STALE_AFTER_SECONDS,
+  wingCountdown,
 } from "../lib/quotaFormat";
 import { useApp } from "../store";
 
@@ -21,6 +22,7 @@ import { useApp } from "../store";
 function Wing({
   side,
   pct,
+  reset,
   icon,
   label,
   title,
@@ -28,6 +30,7 @@ function Wing({
 }: {
   side: "left" | "right";
   pct: number | null;
+  reset: string;
   icon: "clock" | "calendar";
   label: string;
   title: string;
@@ -58,7 +61,14 @@ function Wing({
           }}
         />
       )}
-      <span className="titlebar-wing-num">{shown}</span>
+      {/* Percentage anchored OUTWARD (beside its clock/calendar marker) and the
+          countdown INWARD, so the two countdowns flank the title and the two
+          percentages sit at the extremes. Both fit the 92px track because the
+          countdown is the short form ("3h13m", "2d 4h"). */}
+      <span className="titlebar-wing-num">
+        <span className="titlebar-wing-pct">{shown}</span>
+        {reset && <span className="titlebar-wing-reset">{reset}</span>}
+      </span>
     </span>
   );
   return (
@@ -107,8 +117,8 @@ export function TitleQuota({ children }: { children: ReactNode }) {
   const five = live?.fiveHour ?? null;
   const seven = live?.sevenDay ?? null;
 
-  // The reset countdowns move into the tooltip: they do not fit a bar, and they
-  // are reference rather than glance-level information.
+  // The tooltip keeps the FULL phrasing ("session starts on next use"); the
+  // gauge itself shows the short form. Same facts, two levels of detail.
   const resets = [
     five &&
       (isWindowAwaiting(five, now)
@@ -134,6 +144,7 @@ export function TitleQuota({ children }: { children: ReactNode }) {
         side="left"
         icon="clock"
         pct={five ? five.usedPercentage : null}
+        reset={wingCountdown(five, now)}
         label="5-hour usage"
         title={title}
         onClick={openUsage}
@@ -143,6 +154,7 @@ export function TitleQuota({ children }: { children: ReactNode }) {
         side="right"
         icon="calendar"
         pct={seven ? seven.usedPercentage : null}
+        reset={wingCountdown(seven, now)}
         label="7-day usage"
         title={title}
         onClick={openUsage}

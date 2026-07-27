@@ -298,7 +298,10 @@ body,
   z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Percentage outward, countdown inward -- see the note in TitleQuota. */
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 6px;
   height: 100%;
   font-family: "SF Mono", Menlo, monospace;
   font-size: 10px;
@@ -306,6 +309,19 @@ body,
   font-variant-numeric: tabular-nums;
   color: var(--wing-num-fg);
   text-shadow: var(--wing-num-halo);
+}
+/* The right wing mirrors the left: its percentage sits beside its calendar
+   marker on the far right, so the countdown lands next to the title. */
+.titlebar-wing.right .titlebar-wing-num {
+  flex-direction: row-reverse;
+}
+/* The countdown is reference detail sitting next to the headline number, so it
+   is lighter -- readable, but the percentage still wins the glance. */
+.titlebar-wing-reset {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.75;
+  white-space: nowrap;
 }
 /* No data yet: dim the placeholder and drop the halo (nothing to read it against). */
 .titlebar-wing.is-idle .titlebar-wing-num {
