@@ -65,8 +65,19 @@ describe("SLACK_DESCRIPTOR", () => {
   });
 
   it("slackScopes gates the scope tier on the opt-in", () => {
-    expect(slackScopes(false)).toEqual(["channels:read", "channels:history"]);
+    expect(slackScopes(false)).toEqual([
+      "channels:read",
+      "channels:history",
+      "files:read",
+    ]);
     expect(slackScopes(true)).toContain("im:read");
-    expect(slackScopes(true).length).toBe(9);
+    expect(slackScopes(true).length).toBe(10);
+  });
+});
+
+describe("slackScopes covers file access", () => {
+  it("requests files:read in BOTH tiers (files appear in public channels too)", () => {
+    expect(slackScopes(false)).toContain("files:read");
+    expect(slackScopes(true)).toContain("files:read");
   });
 });

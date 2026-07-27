@@ -138,6 +138,8 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
     scopes: [
       "channels:history",
       "channels:read",
+      // Attachments: fetching url_private needs files:read.
+      "files:read",
       "groups:history",
       "groups:read",
       "im:history",
@@ -164,7 +166,13 @@ export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
 // Public-only scopes: list + read public channels. No private/DM/group, no user
 // directory. The DEFAULT tier for a project that has NOT opted into private
 // access (extensions.slack.includePrivate).
-export const SLACK_PUBLIC_SCOPES = ["channels:read", "channels:history"];
+export const SLACK_PUBLIC_SCOPES = [
+  "channels:read",
+  "channels:history",
+  // Attachments: fetching url_private needs files:read. Requested in BOTH
+  // tiers because files appear in public channels too.
+  "files:read",
+];
 
 // The scopes AirLock requests at connect, gated by the per-project opt-in.
 // Public-only by default; the full set (adds private/DM/group read+history +

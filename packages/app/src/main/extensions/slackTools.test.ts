@@ -81,11 +81,17 @@ describe("slackReadChannelTool result mapping", () => {
       20,
       deps({
         ok: true,
-        messages: [{ ts: "1.0", user: "U1", text: "hi <@U1>" }],
+        messages: [{ ts: "1.0", user: "U1", text: "hi <@U1>", files: [] }],
       }),
     );
     expect(res.messages).toEqual([
-      { ts: "1.0", user: "U1", userName: "Ricardo", text: "hi @Ricardo" },
+      {
+        ts: "1.0",
+        user: "U1",
+        userName: "Ricardo",
+        text: "hi @Ricardo",
+        files: [],
+      },
     ]);
   });
 
@@ -97,7 +103,12 @@ describe("slackReadChannelTool result mapping", () => {
       deps({
         ok: true,
         messages: [
-          { ts: "1.0", user: "U1", text: "hola :slightly_smiling_face:" },
+          {
+            ts: "1.0",
+            user: "U1",
+            text: "hola :slightly_smiling_face:",
+            files: [],
+          },
         ],
       }),
     );
