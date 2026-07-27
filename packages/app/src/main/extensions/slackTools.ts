@@ -20,6 +20,7 @@ import {
   convGlyph,
   SLACK_TOKEN_NAME,
 } from "./slack";
+import { rememberHistory } from "./slackHistoryCache";
 import { slackUsersFor } from "./slackUsers";
 
 // Resolve a user/agent-supplied channel token (id, "name", or "#name") to an
@@ -71,6 +72,7 @@ export interface SlackReadDeps {
     limit: number,
   ) => Promise<SlackHistory>;
   users?: (root: string, token: string) => Promise<SlackUser[]>;
+  remember?: (root: string, channelId: string, history: SlackHistory) => void;
 }
 
 export async function slackReadChannelTool(
@@ -86,6 +88,7 @@ export async function slackReadChannelTool(
     ((r: string) => getSecretValue(r, SLACK_TOKEN_NAME).catch(() => null));
   const getHistory = deps.history ?? slackChannelHistory;
   const getUsers = deps.users ?? slackUsersFor;
+  const remember = deps.remember ?? rememberHistory;
 
   const allowed = await getAllowed(root);
   const match = resolveAllowedChannel(allowed, channel);
@@ -101,6 +104,9 @@ export async function slackReadChannelTool(
   if (!token) return { error: "Slack is not connected for this project." };
   try {
     const history = await getHistory(token, match.id, limit);
+    // Let an attachment click in this channel prove membership against THIS
+    // fetch instead of paying for its own round trip a moment later.
+    remember(root, match.id, history);
     if (!history.ok) {
       // Say WHY. An empty list here would claim the channel is empty when
       // Slack actually refused the read.

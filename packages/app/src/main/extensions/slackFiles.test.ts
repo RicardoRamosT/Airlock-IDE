@@ -23,7 +23,14 @@ function deps(over: Record<string, unknown> = {}) {
     token: async () => "xoxp-test",
     history: async () => withFile,
     fetchBytes: async () => ({ bytes: Buffer.from("png"), name: "shot.png" }),
-    writeCache: async (_root: string, name: string) => `.airlock/slack/${name}`,
+    writeCache: async (
+      _root: string,
+      channelId: string,
+      fileId: string,
+      name: string,
+    ) => `.slack-cache/${channelId}/${fileId}/${name}`,
+    cached: async () => null,
+    recent: () => null,
     ...over,
   };
 }
@@ -31,7 +38,67 @@ function deps(over: Record<string, unknown> = {}) {
 describe("slackDownloadFileTool", () => {
   it("returns the cached relPath for a file in an allow-listed channel", async () => {
     const r = await slackDownloadFileTool("/repo", "bugs", "F1", deps());
-    expect(r).toEqual({ relPath: ".airlock/slack/shot.png" });
+    expect(r).toEqual({ relPath: ".slack-cache/C1/F1/shot.png" });
+  });
+
+  // The click was doing three sequential Slack round trips EVERY time, ~2-3s.
+  // An already-downloaded file must cost nothing.
+  it("serves an already-cached file without touching the network", async () => {
+    let touched = false;
+    const spy = async () => {
+      touched = true;
+      return withFile;
+    };
+    const r = await slackDownloadFileTool(
+      "/repo",
+      "bugs",
+      "F1",
+      deps({
+        cached: async () => ".slack-cache/C1/F1/shot.png",
+        token: async () => {
+          touched = true;
+          return "xoxp-test";
+        },
+        history: spy,
+        fetchBytes: async () => {
+          touched = true;
+          return { bytes: Buffer.from(""), name: "x" };
+        },
+      }),
+    );
+    expect(r).toEqual({ relPath: ".slack-cache/C1/F1/shot.png" });
+    expect(touched).toBe(false);
+  });
+
+  // The cache is a speed-up, NOT a bypass: live policy still decides.
+  it("REFUSES a cached file whose channel left the allow-list", async () => {
+    const r = await slackDownloadFileTool(
+      "/repo",
+      "secret",
+      "F1",
+      deps({ cached: async () => ".slack-cache/C9/F1/shot.png" }),
+    );
+    expect(r.error).toContain("not allowed");
+    expect(r.relPath).toBeUndefined();
+  });
+
+  // The sidebar just fetched this channel's history to render the chip.
+  it("proves membership against a fresh history instead of re-fetching", async () => {
+    let fetched = false;
+    const r = await slackDownloadFileTool(
+      "/repo",
+      "bugs",
+      "F1",
+      deps({
+        recent: () => withFile,
+        history: async () => {
+          fetched = true;
+          return withFile;
+        },
+      }),
+    );
+    expect(r.relPath).toBe(".slack-cache/C1/F1/shot.png");
+    expect(fetched).toBe(false);
   });
 
   it("REFUSES a channel outside the allow-list without fetching anything", async () => {

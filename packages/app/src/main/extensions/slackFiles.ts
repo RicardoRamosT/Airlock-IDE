@@ -5,7 +5,13 @@
 //
 // The vaulted token is used here and never leaves: the renderer receives a
 // project-relative path to a cached copy, never a URL that needs auth.
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import {
   getSecretValue,
@@ -17,6 +23,7 @@ import {
   allowedChannels,
   SLACK_TOKEN_NAME,
 } from "./slack";
+import { recentHistory } from "./slackHistoryCache";
 import { resolveAllowedChannel } from "./slackTools";
 
 // Big enough for a screenshot, small enough that a stray video cannot fill the
@@ -37,7 +44,19 @@ export interface SlackFileDeps {
     token: string,
     fileId: string,
   ) => Promise<{ bytes: Buffer; name: string } | { error: string }>;
-  writeCache?: (root: string, name: string, bytes: Buffer) => Promise<string>;
+  writeCache?: (
+    root: string,
+    channelId: string,
+    fileId: string,
+    name: string,
+    bytes: Buffer,
+  ) => Promise<string>;
+  cached?: (
+    root: string,
+    channelId: string,
+    fileId: string,
+  ) => Promise<string | null>;
+  recent?: (root: string, channelId: string) => SlackHistory | null;
 }
 
 // Fetch a file's bytes via files.info -> url_private. Requires files:read; a
@@ -97,18 +116,42 @@ async function ensureLocallyIgnored(root: string): Promise<void> {
   }
 }
 
+// One directory per (channel, file), so a cached copy can be found WITHOUT
+// knowing its filename, and so a file cached under one channel can never be
+// served for another -- the directory itself carries the membership proof.
+const fileDir = (channelId: string, fileId: string) =>
+  path.posix.join(CACHE_DIR, safeSeg(channelId), safeSeg(fileId));
+
+// Slack ids are [A-Z0-9]+, but never trust that: a segment must not escape.
+const safeSeg = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, "_");
+
+async function realCached(
+  root: string,
+  channelId: string,
+  fileId: string,
+): Promise<string | null> {
+  const rel = fileDir(channelId, fileId);
+  const entries = await readdir(path.join(root, rel)).catch(
+    () => [] as string[],
+  );
+  const name = entries[0];
+  return name ? path.posix.join(rel, name) : null;
+}
+
 async function realWriteCache(
   root: string,
+  channelId: string,
+  fileId: string,
   name: string,
   bytes: Buffer,
 ): Promise<string> {
-  const dir = path.join(root, CACHE_DIR);
-  await mkdir(dir, { recursive: true });
+  const rel = fileDir(channelId, fileId);
+  await mkdir(path.join(root, rel), { recursive: true });
   await ensureLocallyIgnored(root);
   // Flatten the name: a Slack filename is untrusted and must not escape the dir.
-  const safe = name.replace(/[/\\]/g, "_");
-  await writeFile(path.join(dir, safe), bytes);
-  return path.posix.join(CACHE_DIR, safe);
+  const safe = name.replace(/[/\\]/g, "_") || fileId;
+  await writeFile(path.join(root, rel, safe), bytes);
+  return path.posix.join(rel, safe);
 }
 
 export async function slackDownloadFileTool(
@@ -125,15 +168,27 @@ export async function slackDownloadFileTool(
   const getHistory = deps.history ?? slackChannelHistory;
   const fetchBytes = deps.fetchBytes ?? realFetchBytes;
   const writeCache = deps.writeCache ?? realWriteCache;
+  const cached = deps.cached ?? realCached;
+  const recent = deps.recent ?? recentHistory;
 
   const allowed = await getAllowed(root);
   const match = resolveAllowedChannel(allowed, channel);
   if (!match) return { error: `Channel "${channel}" is not allowed.` };
 
+  // Already downloaded? Serve it without touching the network. The allow-list
+  // check above still ran, so live policy is still enforced; what is reused is
+  // the MEMBERSHIP proof, and that is an immutable historical fact -- a file
+  // that was in this channel's history cannot later not have been.
+  const hit = await cached(root, match.id, fileId);
+  if (hit) return { relPath: hit };
+
   const token = await getToken(root);
   if (!token) return { error: "Slack is not connected for this project." };
 
-  const history = await getHistory(token, match.id, PROOF_WINDOW);
+  // Reuse the history the sidebar just fetched when it is fresh; otherwise pay
+  // for the proof.
+  const history =
+    recent(root, match.id) ?? (await getHistory(token, match.id, PROOF_WINDOW));
   if (!history.ok) return { error: `Slack refused: ${history.error}` };
   const present = history.messages.some((m) =>
     m.files.some((f) => f.id === fileId),
@@ -159,6 +214,6 @@ export async function slackDownloadFileTool(
     }
     return { error: `Slack refused: ${got.error}` };
   }
-  const relPath = await writeCache(root, got.name, got.bytes);
+  const relPath = await writeCache(root, match.id, fileId, got.name, got.bytes);
   return { relPath };
 }
