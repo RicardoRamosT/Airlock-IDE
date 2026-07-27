@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import type { SlackAllowedChannel } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
+import { mergeAllowList, unlistedCount } from "../lib/slackAllowList";
 import { useApp } from "../store";
 
 type Channel = {
@@ -18,6 +20,9 @@ export function SlackChannelsModal() {
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // The allow-list as stored, kept so a save can preserve entries this picker
+  // cannot display (DMs when includePrivate is off, or a partial fetch).
+  const [current, setCurrent] = useState<SlackAllowedChannel[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +38,14 @@ export function SlackChannelsModal() {
         if (cancelled) return;
         setChannels(all);
         const cur = Array.isArray(cfg.channels) ? cfg.channels : [];
+        setCurrent(
+          cur.filter(
+            (x): x is SlackAllowedChannel =>
+              !!x &&
+              typeof x === "object" &&
+              typeof (x as { id?: unknown }).id === "string",
+          ),
+        );
         const ids = new Set(
           cur
             .map((c) =>
@@ -65,9 +78,11 @@ export function SlackChannelsModal() {
     setBusy(true);
     setError(null);
     try {
-      const allow = channels
-        .filter((c) => selected.has(c.id))
-        .map((c) => ({ id: c.id, name: c.name, kind: c.kind }));
+      // NOT `channels.filter(...)`: the picker only lists what
+      // conversations.list returned, so filtering against it DELETED
+      // allow-listed conversations it could not show -- observed as three DMs
+      // vanishing from a six-channel allow-list the user never edited.
+      const allow = mergeAllowList(channels, selected, current);
       await window.airlock.extensionsSetConfig(root, "slack", {
         channels: allow,
       });
@@ -88,6 +103,16 @@ export function SlackChannelsModal() {
           unreachable.
         </div>
         {error && <div className="modal-error">{error}</div>}
+        {/* A preserved-but-invisible entry is better than a deleted one, but
+            neither should be unmentioned: say what this list cannot show. */}
+        {channels !== null && unlistedCount(channels, current) > 0 && (
+          <div className="section-note">
+            {unlistedCount(channels, current)} allow-listed conversation
+            {unlistedCount(channels, current) === 1 ? "" : "s"} (DMs or private
+            channels) are not listed here and will be kept. Remove them from the
+            Slack sidebar.
+          </div>
+        )}
         <div className="slack-channel-list">
           {channels === null ? (
             <div className="section-note">Loading channels…</div>

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ensureAirlockDir } from "./airlockDir";
 
@@ -52,16 +52,31 @@ export async function readProjectConfig(root: string): Promise<ProjectConfig> {
   }
 }
 
+let tmpSeq = 0;
+const nextTmpId = () => `${Date.now().toString(36)}${(tmpSeq++).toString(36)}`;
+
 export async function writeProjectConfig(
   root: string,
   patch: Partial<ProjectConfig>,
 ): Promise<ProjectConfig> {
   const next = { ...(await readProjectConfig(root)), ...patch };
   await ensureAirlockDir(root); // create .airlock + drop the ignore-all .gitignore
+  // ATOMIC: write a temp file, then rename over the target. A plain writeFile
+  // truncates first, so any concurrent reader -- the sidebar re-reading the
+  // Slack allow-list, a tool resolving devCommand -- could parse a half-written
+  // file. readProjectConfig turns a parse failure into DEFAULTS, so that window
+  // presented as "every setting silently reverted": an emptied channel
+  // allow-list, includePrivate flipping to false. rename(2) is atomic within a
+  // filesystem, so a reader sees either the old file or the new one, never a
+  // partial one.
   // mode 0o600: least-privilege, matching the secrets meta hardening.
-  await writeFile(configFile(root), `${JSON.stringify(next, null, 2)}\n`, {
+  // Unique per CALL, not just per process: two concurrent writes sharing one
+  // temp path would race, and the loser's rename would fail with ENOENT.
+  const tmp = `${configFile(root)}.${process.pid}.${nextTmpId()}.tmp`;
+  await writeFile(tmp, `${JSON.stringify(next, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });
+  await rename(tmp, configFile(root));
   return next;
 }
