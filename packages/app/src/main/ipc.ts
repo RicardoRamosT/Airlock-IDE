@@ -366,6 +366,19 @@ export function broadcastActivityChanged(): void {
   }
 }
 
+// A project's extension config changed on disk (channel allow-list saved, a
+// connect recording its workspace, a disconnect). Sections that render that
+// config only loaded it on mount, so a connect or a channel pick sat invisible
+// until the user hit Refresh. Broadcast to ALL windows, not just the caller: the
+// same project can be open in another window, and the config is per-project, not
+// per-window. Carries the root only -- no config values, no token.
+export function broadcastExtensionsChanged(root: string): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.webContents.isDestroyed())
+      w.webContents.send("extensions:changed", { root });
+  }
+}
+
 const RENDER_KEY = "RENDER_API_KEY";
 
 // MAIN-ONLY: resolve a Neon branch/db connection URI (carries a password) using
@@ -2054,6 +2067,7 @@ export function registerIpc(
           [id]: { ...curExt, ...(cfg as Record<string, unknown>) },
         },
       });
+      broadcastExtensionsChanged(r);
       return saved.extensions?.[id] ?? {};
     },
   );
@@ -2196,6 +2210,9 @@ export function registerIpc(
                     [id]: { ...(exts[id] ?? {}), ...patch },
                   },
                 });
+                // The sidebar renders this workspace; without a nudge it kept
+                // showing "unknown" until the user hit Refresh.
+                broadcastExtensionsChanged(r);
                 return {
                   workspace: {
                     id: a.teamId ?? "",

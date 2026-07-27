@@ -70,6 +70,17 @@ export function SlackSection() {
     void loadList();
   }, [loadList]);
 
+  // Re-read when the config changes underneath us. Without this the list only
+  // loaded on mount, so connecting a workspace or saving the channel allow-list
+  // left the section stale until the user pressed Refresh -- and a workspace
+  // that HAD been identified still read "unknown".
+  useEffect(() => {
+    if (!root) return;
+    return window.airlock.onExtensionsChanged((e) => {
+      if (e.root === root) void loadList();
+    });
+  }, [root, loadList]);
+
   const load = useCallback(
     async (id: string, limit?: number) => {
       if (!root) return;

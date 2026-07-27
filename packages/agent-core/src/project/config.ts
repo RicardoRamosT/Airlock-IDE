@@ -33,7 +33,13 @@ function configFile(root: string): string {
   return path.join(root, ".airlock", "config.json");
 }
 
-export async function readProjectConfig(root: string): Promise<ProjectConfig> {
+// Load the config AND report whether the file was unparseable. Readers only want
+// the config, but the writer has to know: merging a patch onto defaults, when a
+// perfectly good file was merely unreadable, is how one bad byte becomes an
+// emptied Slack allow-list and a forgotten devCommand.
+async function loadProjectConfig(
+  root: string,
+): Promise<{ cfg: ProjectConfig; corruptText?: string }> {
   // Distinguish an absent file (normal: return defaults silently) from a
   // malformed file (a user typo: still return defaults, but warn so the
   // ignored config is not silently hidden).
@@ -42,24 +48,73 @@ export async function readProjectConfig(root: string): Promise<ProjectConfig> {
     text = await readFile(configFile(root), "utf8");
   } catch {
     // Read failure (ENOENT or otherwise) means no usable config - defaults.
-    return { ...DEFAULTS };
+    return { cfg: { ...DEFAULTS } };
   }
   try {
-    return { ...DEFAULTS, ...(JSON.parse(text) as Partial<ProjectConfig>) };
+    return {
+      cfg: { ...DEFAULTS, ...(JSON.parse(text) as Partial<ProjectConfig>) },
+    };
   } catch {
     console.warn("[airlock] .airlock/config.json malformed, using defaults");
-    return { ...DEFAULTS };
+    return { cfg: { ...DEFAULTS }, corruptText: text };
   }
+}
+
+export async function readProjectConfig(root: string): Promise<ProjectConfig> {
+  return (await loadProjectConfig(root)).cfg;
 }
 
 let tmpSeq = 0;
 const nextTmpId = () => `${Date.now().toString(36)}${(tmpSeq++).toString(36)}`;
 
-export async function writeProjectConfig(
+// One in-flight write per root, chained. rename(2) already guarantees each FILE
+// is whole, but the read-modify-write around it is not atomic: two overlapping
+// calls both read the same "before" state, and the later rename discards
+// whatever the earlier one added. That is a silent data loss with a very
+// confusing face -- the Slack allow-list vanishing seconds after a connect
+// recorded the workspace, or the workspace reading "unknown" right after
+// auth.test identified it. Same class as the quota reconcile serialization in
+// main/quota/wire.ts.
+const writeChains = new Map<string, Promise<unknown>>();
+
+export function writeProjectConfig(
   root: string,
   patch: Partial<ProjectConfig>,
 ): Promise<ProjectConfig> {
-  const next = { ...(await readProjectConfig(root)), ...patch };
+  const tail = writeChains.get(root) ?? Promise.resolve();
+  // Both arms run the write: a predecessor that REJECTED must not cancel the
+  // calls queued behind it, it only has to finish first.
+  const run = tail.then(
+    () => writeConfigNow(root, patch),
+    () => writeConfigNow(root, patch),
+  );
+  const link = run.catch(() => {});
+  writeChains.set(root, link);
+  // Let the map shrink again once this call is the last one queued, so a
+  // long-lived process does not retain an entry per root it ever touched.
+  void link.then(() => {
+    if (writeChains.get(root) === link) writeChains.delete(root);
+  });
+  return run;
+}
+
+async function writeConfigNow(
+  root: string,
+  patch: Partial<ProjectConfig>,
+): Promise<ProjectConfig> {
+  const { cfg, corruptText } = await loadProjectConfig(root);
+  if (corruptText !== undefined) {
+    // The file would not parse, so `cfg` is DEFAULTS and this write is about to
+    // replace the user's real settings with defaults+patch. Keep the original
+    // bytes first: a recoverable .corrupt file beats a silently emptied config.
+    // Best-effort -- failing to save the copy must not block the write, or the
+    // app would be wedged by an unwritable directory.
+    await writeFile(`${configFile(root)}.corrupt`, corruptText, {
+      encoding: "utf8",
+      mode: 0o600,
+    }).catch(() => {});
+  }
+  const next = { ...cfg, ...patch };
   await ensureAirlockDir(root); // create .airlock + drop the ignore-all .gitignore
   // ATOMIC: write a temp file, then rename over the target. A plain writeFile
   // truncates first, so any concurrent reader -- the sidebar re-reading the

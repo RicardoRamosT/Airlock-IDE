@@ -1109,6 +1109,10 @@ export interface AirlockApi {
   // arrives via onExtensionOAuthResult once the user approves.
   extensionsOAuthBegin(root: string, id: string): Promise<OAuthBeginResult>;
   onExtensionOAuthResult(cb: (e: OAuthResultEvent) => void): () => void;
+  // A project's extension config changed on disk (channel allow-list saved, a
+  // connect recording its workspace). Carries the root so a section can ignore
+  // other projects. Fires in EVERY window, including the one that caused it.
+  onExtensionsChanged(cb: (e: { root: string }) => void): () => void;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only

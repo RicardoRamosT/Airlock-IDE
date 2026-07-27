@@ -192,6 +192,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("extensions:oauthBegin", root, id),
   onExtensionOAuthResult: (cb) =>
     subscribe<OAuthResultEvent>("extensions:oauthResult", cb),
+  onExtensionsChanged: (cb) =>
+    subscribe<{ root: string }>("extensions:changed", cb),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostUnverifiedServers: (root) =>

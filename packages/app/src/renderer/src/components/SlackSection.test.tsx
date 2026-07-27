@@ -30,6 +30,8 @@ beforeEach(() => {
   read.mockReset();
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     slackAllowedChannels: allowed,
+    // The section re-reads on this broadcast; the mock must provide it.
+    onExtensionsChanged: () => () => {},
     slackReadChannel: read,
     slackAvatars: async () => ({}),
   };
@@ -410,6 +412,8 @@ describe("SlackSection attachments", () => {
     });
     (window as unknown as { airlock: Record<string, unknown> }).airlock = {
       slackAllowedChannels: allowed,
+      // The section re-reads on this broadcast; the mock must provide it.
+      onExtensionsChanged: () => () => {},
       slackReadChannel: read,
       slackAvatars: async () => ({}),
       ...extra,

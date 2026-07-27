@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -101,4 +101,56 @@ it("never exposes a partial config to a concurrent reader", async () => {
       | undefined;
     expect(slack?.channels).toHaveLength(4000);
   }
+});
+
+// Two features writing DIFFERENT keys at the same time -- e.g. the Slack connect
+// recording `workspace` while the channel picker saves `channels`. Each call
+// merges its patch onto the file it read, so without serialization the later
+// rename silently discards whatever the earlier one added: the allow-list
+// disappears, or the workspace reads "unknown" seconds after being identified.
+it("concurrent writes to different keys do not drop each other", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+  await writeProjectConfig(root, { devCommand: "seed" });
+
+  await Promise.all([
+    writeProjectConfig(root, { devUrl: "http://a" }),
+    writeProjectConfig(root, { neonAccountId: "n1" }),
+    writeProjectConfig(root, {
+      extensions: { slack: { channels: ["C1"] } },
+    } as Partial<ProjectConfig>),
+  ]);
+
+  const cfg = await readProjectConfig(root);
+  const slack = cfg.extensions?.slack as { channels?: unknown[] } | undefined;
+  expect({
+    devCommand: cfg.devCommand,
+    devUrl: cfg.devUrl,
+    neonAccountId: cfg.neonAccountId,
+    channels: slack?.channels,
+  }).toEqual({
+    devCommand: "seed",
+    devUrl: "http://a",
+    neonAccountId: "n1",
+    channels: ["C1"],
+  });
+});
+
+// A single unparseable byte must not become "defaults + patch" on the next
+// write: that is the amplifier that turns one bad file into an emptied Slack
+// allow-list and a forgotten devCommand.
+it("preserves an unparseable config instead of overwriting it with defaults", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+  await writeProjectConfig(root, {
+    devCommand: "npm run dev",
+    extensions: { slack: { channels: ["C1", "C2"] } },
+  } as Partial<ProjectConfig>);
+  const file = path.join(root, ".airlock", "config.json");
+  const good = await readFile(file, "utf8");
+  // Exactly the corruption seen in the wild: the trailing brace is gone.
+  await writeFile(file, good.trimEnd().slice(0, -1), "utf8");
+
+  await writeProjectConfig(root, { devUrl: "http://x" });
+
+  const kept = await readFile(`${file}.corrupt`, "utf8");
+  expect(JSON.parse(`${kept.trimEnd()}}`).devCommand).toBe("npm run dev");
 });
