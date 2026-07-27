@@ -744,6 +744,10 @@ export interface SlackUiMessage {
   text: string;
   files: SlackUiFile[];
 }
+export interface SlackDownloadResult {
+  relPath?: string;
+  error?: string;
+}
 export interface SlackReadResultIpc {
   channel?: string;
   messages?: SlackUiMessage[];
@@ -1024,6 +1028,13 @@ export interface AirlockApi {
     channel: string,
     limit?: number,
   ): Promise<SlackReadResultIpc>;
+  // Download an attachment through the gated main-side path; returns a
+  // project-relative path to a cached copy (never a URL needing the token).
+  slackDownloadFile(
+    root: string,
+    channel: string,
+    fileId: string,
+  ): Promise<SlackDownloadResult>;
   extensionsGetConfig(
     root: string,
     id: string,

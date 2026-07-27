@@ -130,6 +130,7 @@ import {
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels } from "./extensions/slack";
+import { slackDownloadFileTool } from "./extensions/slackFiles";
 import {
   slackConnected,
   slackListAllowedChannelsTool,
@@ -1981,6 +1982,20 @@ export function registerIpc(
     ]);
     return { connected, channels };
   });
+
+  ipcMain.handle(
+    "slack:downloadFile",
+    async (_e, root: unknown, channel: unknown, fileId: unknown) => {
+      if (
+        typeof root !== "string" ||
+        typeof channel !== "string" ||
+        typeof fileId !== "string"
+      ) {
+        return { error: "Invalid payload" };
+      }
+      return slackDownloadFileTool(root, channel, fileId);
+    },
+  );
 
   ipcMain.handle(
     "slack:readChannel",

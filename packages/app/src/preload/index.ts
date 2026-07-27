@@ -171,6 +171,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("slack:allowedChannels", root),
   slackReadChannel: (root: string, channel: string, limit?: number) =>
     ipcRenderer.invoke("slack:readChannel", root, channel, limit),
+  slackDownloadFile: (root: string, channel: string, fileId: string) =>
+    ipcRenderer.invoke("slack:downloadFile", root, channel, fileId),
   extensionsGetConfig: (root, id) =>
     ipcRenderer.invoke("extensions:getConfig", root, id),
   extensionsSetConfig: (root, id, cfg) =>
