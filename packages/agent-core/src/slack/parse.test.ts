@@ -25,7 +25,11 @@ describe("parseAuthTest", () => {
       user: "ricardo",
       teamId: "T1",
       userId: "U1",
+      domain: "acme",
     });
+  });
+  it("omits domain when auth.test returns no usable url", () => {
+    expect(parseAuthTest({ ok: true, team_id: "T1" }).domain).toBeUndefined();
   });
   it("reads the error on failure", () => {
     expect(parseAuthTest({ ok: false, error: "invalid_auth" })).toEqual({

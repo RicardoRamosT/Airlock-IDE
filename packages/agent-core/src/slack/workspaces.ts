@@ -57,3 +57,39 @@ export function parseWorkspaceInput(text: string): WorkspaceTarget {
   if (sub?.[1] && !RESERVED.has(sub[1])) out.domain = sub[1];
   return out;
 }
+
+// Did Slack authorize a workspace other than the one that was asked for?
+//
+// `team=` on the authorize URL is a HINT -- if the browser is signed into a
+// different workspace, Slack authorizes that one. So this is the only place
+// correctness gets established, and it can only run after the fact.
+//
+// Deliberately conservative: with nothing requested, or with no field the two
+// sides share, the answer is false. A false alarm here blocks a connect that
+// was actually fine.
+export function workspaceMismatch(
+  requested: WorkspaceTarget,
+  actual: WorkspaceTarget,
+): boolean {
+  const rid = (requested.teamId ?? "").toUpperCase();
+  const aid = (actual.teamId ?? "").toUpperCase();
+  if (rid && aid) return rid !== aid;
+  const rd = (requested.domain ?? "").toLowerCase();
+  const ad = (actual.domain ?? "").toLowerCase();
+  if (rd && ad) return rd !== ad;
+  return false;
+}
+
+// A non-empty label for the workspace that was REQUESTED, for the mismatch
+// banner. The picker knows the human name; a pasted URL does not, so it degrades
+// to the domain and then to the raw id. Empty only when nothing was requested --
+// in which case there is no mismatch and no banner.
+export function requestedWorkspaceName(
+  requested: WorkspaceTarget,
+  name?: string,
+): string {
+  const n = (name ?? "").trim();
+  if (n) return n;
+  if (requested.domain) return `${requested.domain}.slack.com`;
+  return requested.teamId ?? "";
+}

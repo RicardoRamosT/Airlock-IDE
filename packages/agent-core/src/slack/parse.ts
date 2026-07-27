@@ -2,6 +2,7 @@
 // Pure parsers for the Slack Web API responses AirlLock consumes. Defensive:
 // any non-ok / malformed payload degrades to a safe empty/not-ok value rather
 // than throwing, so a transport hiccup never crashes a caller.
+import { parseWorkspaceInput } from "./workspaces";
 
 function obj(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -17,6 +18,9 @@ export interface SlackAuth {
   user?: string;
   teamId?: string;
   userId?: string;
+  // Workspace subdomain, read out of auth.test's `url`. Needed to verify a
+  // connect that was requested by URL/domain rather than by team id.
+  domain?: string;
   error?: string;
 }
 
@@ -25,13 +29,16 @@ export function parseAuthTest(json: unknown): SlackAuth {
   if (r.ok !== true) {
     return { ok: false, error: str(r.error) || "auth_failed" };
   }
-  return {
+  const a: SlackAuth = {
     ok: true,
     team: str(r.team),
     user: str(r.user),
     teamId: str(r.team_id),
     userId: str(r.user_id),
   };
+  const domain = parseWorkspaceInput(str(r.url)).domain;
+  if (domain) a.domain = domain;
+  return a;
 }
 
 // conversations.list -> the conversations a token can see (archived skipped).
