@@ -313,7 +313,6 @@ body,
 .titlebar-wing-reset {
   display: flex;
   align-items: center;
-  justify-content: center;
   flex: none;
   /* Fixed box: the title card is centred between the wings, so a countdown
      that changed width would nudge the title every time it ticked over. */
@@ -325,6 +324,17 @@ body,
   white-space: nowrap;
   color: var(--fg-dim);
   transition: color 140ms ease;
+}
+/* Hug the marker rather than centring in the fixed box: centred text puts a
+   different gap next to each icon depending on how long the countdown happens
+   to be ("4h31m" vs "5d 13h"), which reads as the two wings being misaligned.
+   Anchoring inward keeps the icon-to-text distance identical on both sides and
+   sends the variable slack to the outer edge, where nothing sits beside it. */
+.titlebar-wing.left .titlebar-wing-reset {
+  justify-content: flex-end;
+}
+.titlebar-wing.right .titlebar-wing-reset {
+  justify-content: flex-start;
 }
 .titlebar-wing:hover .titlebar-wing-reset {
   color: var(--fg);
