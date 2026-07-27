@@ -73,8 +73,10 @@ import {
   requestedWorkspaceName,
   resolveWithin,
   runGit,
+  SECTION_EXTENSIONS,
   type SteadyCache,
   searchProject,
+  sectionExtensionSummaries,
   setGlobalSecret,
   setSecret,
   slackAuthTest,
@@ -1951,7 +1953,11 @@ export function registerIpc(
         return account ? { ...summary, account } : summary;
       }),
     );
-    const rows = [...tier1, ...connected];
+    const rows = [
+      ...tier1,
+      ...connected,
+      ...sectionExtensionSummaries(SECTION_EXTENSIONS, ext),
+    ];
     // withActions (agent-core) attaches each row's actions: the renderer cannot
     // value-import agent-core, so the decision has to ride along with the data.
     return withActions(rows);

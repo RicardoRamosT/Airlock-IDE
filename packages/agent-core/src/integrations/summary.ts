@@ -8,6 +8,7 @@ import type { ExtensionAction } from "./actions";
 import type { DetectStatus } from "./engine";
 import { steadyView } from "./engine";
 import type { IntegrationManifest } from "./manifest";
+import type { SectionExtensionDescriptor } from "./sectionExtensions";
 
 // One row in the Extension Hub. Superset of DetectStatus so future Tier-2
 // ("connected") extensions can report "connected"/"error"; "disabled" is
@@ -16,7 +17,10 @@ export interface ExtensionSummary {
   id: string;
   name: string;
   icon?: string; // codicon name; renderer falls back to a generic icon
-  tier: "status" | "connected";
+  // "section": a hub row for a SECTION_EXTENSIONS descriptor -- a service that
+  // owns a rail section (Docker, Neon, ...) rather than a polled manifest or an
+  // OAuth "connected" extension. See sectionExtensionSummaries below.
+  tier: "status" | "connected" | "section";
   // The sidebar section the eye surfaces this into: a SECTION_META view id
   // ("host"/"databases" for steady manifests, "activity" for transient ones);
   // undefined only when there is no target section (a Tier-2 Hub-only ext).
@@ -103,4 +107,27 @@ export function pinnedEnabledManifests(
   return manifests.filter(
     (m) => prefs[m.id]?.pinned === true && isEnabled(prefs, m.id),
   );
+}
+
+// Hub rows for the section extensions. Their live status is owned by their own
+// sections (Docker's CLI probe, Neon's accounts), which this registry
+// deliberately knows nothing about -- so the hub row reports "ready" and lets
+// the extension's own area say more. The row exists so the hub is a COMPLETE
+// inventory; it was missing Neon and Docker entirely.
+export function sectionExtensionSummaries(
+  descriptors: SectionExtensionDescriptor[],
+  prefs: ExtPrefs,
+): ExtensionSummary[] {
+  return descriptors.map((d) => ({
+    id: d.id,
+    name: d.name,
+    icon: d.icon,
+    tier: "section" as const,
+    category: d.contributesTo,
+    status: "ready" as const,
+    enabled: isEnabled(prefs, d.id),
+    pinned: prefs[d.id]?.pinned === true,
+    hasConfig: false,
+    authKind: "token" as const,
+  }));
 }

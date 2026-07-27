@@ -4,6 +4,7 @@ import {
   buildExtensionSummaries,
   enabledManifests,
   pinnedEnabledManifests,
+  sectionExtensionSummaries,
 } from "./summary";
 
 describe("buildExtensionSummaries", () => {
@@ -77,5 +78,47 @@ describe("enabledManifests", () => {
   it("drops only explicitly-disabled manifests", () => {
     const r = enabledManifests([VERCEL, AZURE], { vercel: { enabled: false } });
     expect(r.map((m) => m.id)).toEqual(["azure"]);
+  });
+});
+
+// The hub is the discovery surface, and it did not list Neon or Docker at all
+// -- so "go to Extensions to see what exists" was a dead end for exactly the
+// services this reorganization is about.
+describe("sectionExtensionSummaries", () => {
+  const descriptors = [
+    {
+      id: "neon",
+      name: "Neon",
+      icon: "neon",
+      contributesTo: "databases" as const,
+      description: "d",
+    },
+    {
+      id: "docker",
+      name: "Docker",
+      icon: "docker",
+      contributesTo: "databases" as const,
+      description: "d",
+    },
+  ];
+
+  it("produces a hub row per descriptor, tiered as section", () => {
+    const rows = sectionExtensionSummaries(descriptors, {});
+    expect(rows.map((r) => [r.id, r.tier])).toEqual([
+      ["neon", "section"],
+      ["docker", "section"],
+    ]);
+  });
+
+  it("carries the brand icon and the category it contributes to", () => {
+    const [neon] = sectionExtensionSummaries(descriptors, {});
+    expect(neon).toMatchObject({ icon: "neon", category: "databases" });
+  });
+
+  it("defaults to enabled and honours an explicit disable", () => {
+    const rows = sectionExtensionSummaries(descriptors, {
+      docker: { enabled: false },
+    });
+    expect(rows.map((r) => r.enabled)).toEqual([true, false]);
   });
 });

@@ -245,6 +245,7 @@ export {
   type ExtPrefs,
   enabledManifests,
   pinnedEnabledManifests,
+  sectionExtensionSummaries,
 } from "./integrations/summary";
 export {
   type ClaudeRunner,
