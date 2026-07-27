@@ -15,10 +15,17 @@ afterEach(cleanup);
 // Stub the window.airlock host/dev-server surface LocalHostSection queries on
 // mount so it lands in the explicit-devUrl tier: a configured URL, a
 // down/up probe, and "nothing else here" (no detected/unverified/managed).
-function stubHost(opts: { url: string | null; up: boolean }) {
+// `services` seeds the Render provider row (the "from your extensions" block,
+// fetched independently of the dev-server probe above); defaults to none.
+function stubHost(opts: {
+  url: string | null;
+  up: boolean;
+  services?: unknown[];
+}) {
   const devServerStart = vi.fn(() =>
     Promise.resolve({ ok: true as const, state: {} }),
   );
+  const hostOpenExternal = vi.fn();
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     hostLocalUrl: vi.fn(() => Promise.resolve(opts.url)),
     hostProbe: vi.fn(() => Promise.resolve({ up: opts.up })),
@@ -27,9 +34,10 @@ function stubHost(opts: { url: string | null; up: boolean }) {
     devServerStatus: vi.fn(() => Promise.resolve(null)),
     onDevServerChanged: vi.fn(() => () => {}),
     devServerStart,
-    hostOpenExternal: vi.fn(),
+    hostOpenExternal,
+    renderServices: vi.fn(() => Promise.resolve(opts.services ?? [])),
   };
-  return { devServerStart };
+  return { devServerStart, hostOpenExternal };
 }
 
 // useProjectTab() falls back to activeTabId with no provider; LocalHostSection
@@ -68,6 +76,7 @@ it("shows a Start button on an unverified server and wires it to start", async (
     onDevServerChanged: vi.fn(() => () => {}),
     devServerStart,
     hostOpenExternal: vi.fn(),
+    renderServices: vi.fn(() => Promise.resolve([])),
   };
   seedRoot();
   render(<LocalHostSection />);
@@ -89,4 +98,44 @@ it("shows no Start button when the dev-URL host is reachable", async () => {
     expect(container.querySelector(".status-dot.on")).toBeTruthy(),
   );
   expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+});
+
+// The "from your extensions" block: same rule as Databases -- Render and
+// Azure are ALWAYS listed, connected or not, each with a true reason. This
+// holds regardless of which dev-server branch above is showing.
+it("lists Render and Azure as providers, with a reason each", async () => {
+  stubHost({ url: null, up: false });
+  seedRoot();
+  render(<LocalHostSection />);
+  expect(await screen.findByText("Render")).toBeTruthy();
+  expect(screen.getByText("Azure")).toBeTruthy();
+  // Render has no services -- a true reason, not a blank row.
+  expect(screen.getByText("not connected")).toBeTruthy();
+  // Azure is redirect-only; its live state lives in its own section.
+  expect(screen.getByText("open for web apps")).toBeTruthy();
+});
+
+it("gives a Render instance an Open action to its service URL, not Connect", async () => {
+  const { hostOpenExternal } = stubHost({
+    url: null,
+    up: false,
+    services: [
+      {
+        id: "srv-1",
+        name: "my-api",
+        url: "https://my-api.onrender.com",
+        deployStatus: "live",
+      },
+    ],
+  });
+  seedRoot();
+  render(<LocalHostSection />);
+  expect(await screen.findByText("my-api")).toBeTruthy();
+  expect(screen.getByText("live")).toBeTruthy();
+  // Host answers "what is running", not "what can I query" -- Open, never
+  // Connect (that verb is Databases').
+  expect(screen.queryByText("Connect")).toBeNull();
+  const open = screen.getByRole("button", { name: "Open" });
+  fireEvent.click(open);
+  expect(hostOpenExternal).toHaveBeenCalledWith("https://my-api.onrender.com");
 });

@@ -96,7 +96,7 @@ export function Sidebar() {
                 <button
                   type="button"
                   className="row-action"
-                  title="Refresh dev server, Render & Azure"
+                  title="Refresh dev server"
                   onClick={() => useApp.getState().bumpHostRefresh()}
                 >
                   <i className="codicon codicon-refresh" />

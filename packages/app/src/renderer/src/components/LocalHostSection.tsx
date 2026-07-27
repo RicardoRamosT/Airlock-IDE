@@ -3,10 +3,12 @@ import type {
   DetectedDevServer,
   DevServerStartResult,
   DevServerState,
+  RenderServiceStatus,
 } from "../../../shared/ipc";
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { type ProviderRow, ProviderRows } from "./ProviderRows";
 
 // Re-probe cadence for the dev-server status while the window is focused. A
 // probe is a sub-second localhost TCP connect, so 5s keeps the dot live (a
@@ -59,6 +61,10 @@ export function LocalHostSection() {
   // Unverified servers: common dev ports listening but unattributable to this
   // project (the detached/raw case). Shown only when no managed/attributed/devUrl.
   const [unverified, setUnverified] = useState<number[]>([]);
+
+  // Render provider row data (the "from your extensions" block below). Seeded
+  // via a mount-only effect after the managed-state seed effect.
+  const [services, setServices] = useState<RenderServiceStatus[] | null>(null);
 
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
@@ -128,6 +134,16 @@ export function LocalHostSection() {
       off();
     };
   }, [root]);
+
+  // The "from your extensions" provider row block: Render is app-global
+  // (account-level, NOT root-gated) -- like Databases' Docker/Neon fetch --
+  // so this runs once on mount, independent of the dev-server refresh above.
+  useEffect(() => {
+    void window.airlock
+      .renderServices()
+      .then(setServices)
+      .catch(() => setServices([]));
+  }, []);
 
   const save = async () => {
     const next = draft.trim();
@@ -208,212 +224,332 @@ export function LocalHostSection() {
         ? "status-dot fail"
         : "status-dot";
 
-  // Command confirm/input (shown when a Start returns needsCommand).
-  if (cmdEditing) {
-    return (
-      <div className="docker">
-        <div className="docker-row">
-          <input
-            className="sb-control"
-            value={cmdDraft}
-            onChange={(e) => setCmdDraft(e.target.value)}
-            placeholder="npm run dev"
-            spellCheck={false}
-          />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void onConfirmCommand()}
-            disabled={cmdDraft.trim() === ""}
-            title="Confirm dev command"
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setCmdEditing(false)}
-            title="Cancel"
-          >
-            Cancel
-          </button>
+  // The "from your extensions" block, mirroring DatabasesSection's providers
+  // array exactly: always present (rule 1), regardless of which dev-server
+  // branch below is showing -- see devServerPanel() and the return at the
+  // bottom of this component. Render gets real instances, each an "Open"
+  // action to its service URL (Host answers "what is running", not "what can
+  // I query" -- never "Connect"). Azure is redirect-only: its live state
+  // belongs to its own section, so this row never probes it.
+  const providers: ProviderRow[] = [
+    {
+      id: "render",
+      name: "Render",
+      icon: "render",
+      state:
+        services === null
+          ? "checking…"
+          : services.length === 0
+            ? "not connected"
+            : `${services.length} service${services.length === 1 ? "" : "s"}`,
+      instances: (services ?? []).map((s) => ({
+        key: s.id,
+        label: s.name,
+        detail: s.deployStatus,
+        action: {
+          label: "Open",
+          onClick: () => void window.airlock.hostOpenExternal(s.url),
+        },
+      })),
+    },
+    {
+      id: "azure",
+      name: "Azure",
+      icon: "azure",
+      // Azure's live state belongs to its own section; the row exists so
+      // Host never hides that the provider is available.
+      state: "open for web apps",
+      instances: [],
+    },
+  ];
+
+  // Local dev-server panel: the branching logic below (starting/running/
+  // exited/detected/unverified/idle) is the pre-existing behavior, unchanged
+  // -- wrapped in a function so every branch is followed by the
+  // always-present provider rows (rule 1), not just whichever branch used to
+  // be last.
+  const devServerPanel = () => {
+    // Command confirm/input (shown when a Start returns needsCommand).
+    if (cmdEditing) {
+      return (
+        <div className="docker">
+          <div className="docker-row">
+            <input
+              className="sb-control"
+              value={cmdDraft}
+              onChange={(e) => setCmdDraft(e.target.value)}
+              placeholder="npm run dev"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void onConfirmCommand()}
+              disabled={cmdDraft.trim() === ""}
+              title="Confirm dev command"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setCmdEditing(false)}
+              title="Cancel"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // Managed server states (priority over explicit-devUrl when not idle).
-  const devStatus = dev?.status ?? "idle";
+    // Managed server states (priority over explicit-devUrl when not idle).
+    const devStatus = dev?.status ?? "idle";
 
-  if (devStatus === "starting") {
-    return (
-      <div className="docker">
-        <div className="docker-row">
-          <span className="status-dot" />
-          <span className="docker-name">&#x25D0; starting&hellip;</span>
-          <button
-            type="button"
-            className="row-action"
-            onClick={onStop}
-            title="Stop dev server"
-          >
-            <i className="codicon codicon-debug-stop" />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (devStatus === "running" && dev) {
-    const startedByLabel = dev.startedBy === "agent" ? "Claude" : "you";
-    return (
-      <div className="docker">
-        <div className="docker-row" title={dev.url ?? undefined}>
-          <span className="status-dot on" />
-          <span className="docker-name host-url">
-            {dev.url ?? "port unknown"}
-          </span>
-          {dev.url && (
+    if (devStatus === "starting") {
+      return (
+        <div className="docker">
+          <div className="docker-row">
+            <span className="status-dot" />
+            <span className="docker-name">&#x25D0; starting&hellip;</span>
             <button
               type="button"
               className="row-action"
-              onClick={() =>
-                dev.url && void window.airlock.hostOpenExternal(dev.url)
-              }
+              onClick={onStop}
+              title="Stop dev server"
+            >
+              <i className="codicon codicon-debug-stop" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (devStatus === "running" && dev) {
+      const startedByLabel = dev.startedBy === "agent" ? "Claude" : "you";
+      return (
+        <div className="docker">
+          <div className="docker-row" title={dev.url ?? undefined}>
+            <span className="status-dot on" />
+            <span className="docker-name host-url">
+              {dev.url ?? "port unknown"}
+            </span>
+            {dev.url && (
+              <button
+                type="button"
+                className="row-action"
+                onClick={() =>
+                  dev.url && void window.airlock.hostOpenExternal(dev.url)
+                }
+                title="Open in browser"
+              >
+                <i className="codicon codicon-link-external" />
+              </button>
+            )}
+            <button
+              type="button"
+              className="row-action"
+              onClick={onStop}
+              title="Stop dev server"
+            >
+              <i className="codicon codicon-debug-stop" />
+            </button>
+            <button
+              type="button"
+              className="row-action"
+              onClick={() => void onRestart()}
+              title="Restart dev server"
+            >
+              <i className="codicon codicon-debug-restart" />
+            </button>
+          </div>
+          <div className="section-note">
+            <button
+              type="button"
+              className="section-note"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: dev.terminalId ? "pointer" : "default",
+                textAlign: "left",
+              }}
+              onClick={() => {
+                if (dev.terminalId) {
+                  // Find the tab that owns this terminal and switch to it.
+                  const state = useApp.getState();
+                  for (const [tid, tt] of Object.entries(state.tabTerminals)) {
+                    const term = tt.terminals.find(
+                      (t) => t.id === dev.terminalId,
+                    );
+                    if (term) {
+                      switchTab(tid);
+                      setActiveTerminal(dev.terminalId, tid);
+                      break;
+                    }
+                  }
+                }
+              }}
+              title={dev.terminalId ? "Focus dev terminal" : undefined}
+            >
+              started by {startedByLabel} · dev terminal
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (devStatus === "exited" && dev) {
+      const exitSuffix = dev.exitCode != null ? ` (code ${dev.exitCode})` : "";
+      return (
+        <div className="docker">
+          <div className="docker-row">
+            <span className="status-dot fail" />
+            <span className="docker-name">
+              &#x2715; dev server exited{exitSuffix}
+            </span>
+          </div>
+          <div className="section-toolbar">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void onStart()}
+              title="Start dev server"
+            >
+              Start
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Detected (unmanaged): a raw-started server attributed to this project, but
+    // AirLock didn't launch it. Hedge + Manage(adopt). Below managed states.
+    if (devStatus === "idle" && detected) {
+      const detUrl = `http://localhost:${detected.port}`;
+      return (
+        <div className="docker">
+          <div className="docker-row" title={detUrl}>
+            <span className="status-dot" />
+            <span className="docker-name host-url">{detUrl}</span>
+            <button
+              type="button"
+              className="row-action"
+              onClick={() => void window.airlock.hostOpenExternal(detUrl)}
               title="Open in browser"
             >
               <i className="codicon codicon-link-external" />
             </button>
-          )}
-          <button
-            type="button"
-            className="row-action"
-            onClick={onStop}
-            title="Stop dev server"
-          >
-            <i className="codicon codicon-debug-stop" />
-          </button>
-          <button
-            type="button"
-            className="row-action"
-            onClick={() => void onRestart()}
-            title="Restart dev server"
-          >
-            <i className="codicon codicon-debug-restart" />
-          </button>
+          </div>
+          <div className="section-note">
+            AirLock didn&rsquo;t start this — it may or may not be this
+            project&rsquo;s dev server.
+          </div>
+          <div className="section-toolbar">
+            <button
+              type="button"
+              className="btn"
+              onClick={onManage}
+              title="Let AirLock manage this running server (adopt in place)"
+            >
+              Manage
+            </button>
+          </div>
         </div>
-        <div className="section-note">
-          <button
-            type="button"
-            className="section-note"
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              cursor: dev.terminalId ? "pointer" : "default",
-              textAlign: "left",
-            }}
-            onClick={() => {
-              if (dev.terminalId) {
-                // Find the tab that owns this terminal and switch to it.
-                const state = useApp.getState();
-                for (const [tid, tt] of Object.entries(state.tabTerminals)) {
-                  const term = tt.terminals.find(
-                    (t) => t.id === dev.terminalId,
-                  );
-                  if (term) {
-                    switchTab(tid);
-                    setActiveTerminal(dev.terminalId, tid);
-                    break;
-                  }
-                }
-              }
-            }}
-            title={dev.terminalId ? "Focus dev terminal" : undefined}
-          >
-            started by {startedByLabel} · dev terminal
-          </button>
-        </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (devStatus === "exited" && dev) {
-    const exitSuffix = dev.exitCode != null ? ` (code ${dev.exitCode})` : "";
+    // Unverified (tier 3): a server is listening on a common dev port that AirLock
+    // can't attribute to this project. Honest hedge + non-destructive guidance —
+    // never a kill button (we can't confirm it's this project's process).
+    if (devStatus === "idle" && !detected && unverified.length > 0) {
+      return (
+        <div className="docker">
+          {unverified.map((port) => {
+            const u = `http://localhost:${port}`;
+            return (
+              <div key={port} className="docker-row" title={u}>
+                <span className="status-dot" />
+                <span className="docker-name host-url">{u} · unverified</span>
+                <button
+                  type="button"
+                  className="row-action"
+                  onClick={() => void window.airlock.hostOpenExternal(u)}
+                  title="Open in browser"
+                >
+                  <i className="codicon codicon-link-external" />
+                </button>
+                <button
+                  type="button"
+                  className="row-action"
+                  onClick={() => void setAsDevUrl(port)}
+                  title="Set as this project's dev URL (track it)"
+                >
+                  <i className="codicon codicon-pin" />
+                </button>
+              </div>
+            );
+          })}
+          <div className="section-note">
+            A server is running here, but AirLock didn&rsquo;t start it and
+            can&rsquo;t confirm it&rsquo;s this project&rsquo;s — so it
+            can&rsquo;t Stop/Restart it. Start runs this project&rsquo;s dev
+            server through AirLock so it can manage it (if this port is taken,
+            your dev command picks another).
+          </div>
+          <div className="section-toolbar">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void onStart()}
+              title="Start this project's dev server through AirLock (managed)"
+            >
+              Start
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // idle state (or no managed server): show explicit-devUrl probe path + Start.
     return (
       <div className="docker">
-        <div className="docker-row">
-          <span className="status-dot fail" />
-          <span className="docker-name">
-            &#x2715; dev server exited{exitSuffix}
-          </span>
-        </div>
-        <div className="section-toolbar">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void onStart()}
-            title="Start dev server"
-          >
-            Start
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Detected (unmanaged): a raw-started server attributed to this project, but
-  // AirLock didn't launch it. Hedge + Manage(adopt). Below managed states.
-  if (devStatus === "idle" && detected) {
-    const detUrl = `http://localhost:${detected.port}`;
-    return (
-      <div className="docker">
-        <div className="docker-row" title={detUrl}>
-          <span className="status-dot" />
-          <span className="docker-name host-url">{detUrl}</span>
-          <button
-            type="button"
-            className="row-action"
-            onClick={() => void window.airlock.hostOpenExternal(detUrl)}
-            title="Open in browser"
-          >
-            <i className="codicon codicon-link-external" />
-          </button>
-        </div>
-        <div className="section-note">
-          AirLock didn&rsquo;t start this — it may or may not be this
-          project&rsquo;s dev server.
-        </div>
-        <div className="section-toolbar">
-          <button
-            type="button"
-            className="btn"
-            onClick={onManage}
-            title="Let AirLock manage this running server (adopt in place)"
-          >
-            Manage
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Unverified (tier 3): a server is listening on a common dev port that AirLock
-  // can't attribute to this project. Honest hedge + non-destructive guidance —
-  // never a kill button (we can't confirm it's this project's process).
-  if (devStatus === "idle" && !detected && unverified.length > 0) {
-    return (
-      <div className="docker">
-        {unverified.map((port) => {
-          const u = `http://localhost:${port}`;
-          return (
-            <div key={port} className="docker-row" title={u}>
-              <span className="status-dot" />
-              <span className="docker-name host-url">{u} · unverified</span>
+        {editing ? (
+          <div className="docker-row">
+            <input
+              className="sb-control"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="http://localhost:5173"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void save()}
+              disabled={draft.trim() === ""}
+              title="Save dev server URL"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setEditing(false)}
+              title="Cancel"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : url ? (
+          <>
+            <div className="docker-row" title={url}>
+              <span className={dotClass} />
+              <span className="docker-name host-url">{url}</span>
               <button
                 type="button"
                 className="row-action"
-                onClick={() => void window.airlock.hostOpenExternal(u)}
+                onClick={() => void window.airlock.hostOpenExternal(url)}
                 title="Open in browser"
               >
                 <i className="codicon codicon-link-external" />
@@ -421,131 +557,64 @@ export function LocalHostSection() {
               <button
                 type="button"
                 className="row-action"
-                onClick={() => void setAsDevUrl(port)}
-                title="Set as this project's dev URL (track it)"
+                onClick={() => {
+                  setDraft(url);
+                  setEditing(true);
+                }}
+                title="Edit dev server URL"
               >
-                <i className="codicon codicon-pin" />
+                <i className="codicon codicon-edit" />
               </button>
             </div>
-          );
-        })}
-        <div className="section-note">
-          A server is running here, but AirLock didn&rsquo;t start it and
-          can&rsquo;t confirm it&rsquo;s this project&rsquo;s — so it
-          can&rsquo;t Stop/Restart it. Start runs this project&rsquo;s dev
-          server through AirLock so it can manage it (if this port is taken,
-          your dev command picks another).
-        </div>
-        <div className="section-toolbar">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void onStart()}
-            title="Start this project's dev server through AirLock (managed)"
-          >
-            Start
-          </button>
-        </div>
+            {up === false && (
+              <div className="section-toolbar">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void onStart()}
+                  title="Start dev server"
+                >
+                  Start
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="section-note">No dev server detected</div>
+            <div className="section-toolbar">
+              {root && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void onStart()}
+                  title="Start dev server"
+                >
+                  Start
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setDraft("http://localhost:3000");
+                  setEditing(true);
+                }}
+                title="Set dev server URL"
+              >
+                Set URL
+              </button>
+            </div>
+          </>
+        )}
       </div>
     );
-  }
+  };
 
-  // idle state (or no managed server): show explicit-devUrl probe path + Start.
   return (
-    <div className="docker">
-      {editing ? (
-        <div className="docker-row">
-          <input
-            className="sb-control"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="http://localhost:5173"
-            spellCheck={false}
-          />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void save()}
-            disabled={draft.trim() === ""}
-            title="Save dev server URL"
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setEditing(false)}
-            title="Cancel"
-          >
-            Cancel
-          </button>
-        </div>
-      ) : url ? (
-        <>
-          <div className="docker-row" title={url}>
-            <span className={dotClass} />
-            <span className="docker-name host-url">{url}</span>
-            <button
-              type="button"
-              className="row-action"
-              onClick={() => void window.airlock.hostOpenExternal(url)}
-              title="Open in browser"
-            >
-              <i className="codicon codicon-link-external" />
-            </button>
-            <button
-              type="button"
-              className="row-action"
-              onClick={() => {
-                setDraft(url);
-                setEditing(true);
-              }}
-              title="Edit dev server URL"
-            >
-              <i className="codicon codicon-edit" />
-            </button>
-          </div>
-          {up === false && (
-            <div className="section-toolbar">
-              <button
-                type="button"
-                className="btn"
-                onClick={() => void onStart()}
-                title="Start dev server"
-              >
-                Start
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="section-note">No dev server detected</div>
-          <div className="section-toolbar">
-            {root && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => void onStart()}
-                title="Start dev server"
-              >
-                Start
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                setDraft("http://localhost:3000");
-                setEditing(true);
-              }}
-              title="Set dev server URL"
-            >
-              Set URL
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+    <>
+      {devServerPanel()}
+      <ProviderRows rows={providers} />
+    </>
   );
 }

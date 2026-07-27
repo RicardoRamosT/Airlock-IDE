@@ -459,9 +459,11 @@ export interface AppState {
   dbRefreshNonce: number;
   bumpDbRefresh: () => void;
 
-  // Bumped by the single HOST-view header Refresh to re-run every host section
-  // at once (LocalHostSection probe + RenderSection services + Azure). Each
-  // section re-runs its own loader on change. Renderer-only.
+  // Bumped by the single HOST-view header Refresh to re-run the local
+  // dev-server probe (LocalHostSection). Render/Azure are now provider rows
+  // fetched once on mount (same pattern as Databases' Docker/Neon rows), not
+  // wired to this nonce -- see LocalHostSection's provider-rows effect.
+  // Renderer-only.
   hostRefreshNonce: number;
   bumpHostRefresh: () => void;
 
