@@ -298,10 +298,7 @@ body,
   z-index: 2;
   display: flex;
   align-items: center;
-  /* Percentage outward, countdown inward -- see the note in TitleQuota. */
-  justify-content: space-between;
-  gap: 6px;
-  padding: 0 6px;
+  justify-content: center;
   height: 100%;
   font-family: "SF Mono", Menlo, monospace;
   font-size: 10px;
@@ -310,18 +307,27 @@ body,
   color: var(--wing-num-fg);
   text-shadow: var(--wing-num-halo);
 }
-/* The right wing mirrors the left: its percentage sits beside its calendar
-   marker on the far right, so the countdown lands next to the title. */
-.titlebar-wing.right .titlebar-wing-num {
-  flex-direction: row-reverse;
-}
-/* The countdown is reference detail sitting next to the headline number, so it
-   is lighter -- readable, but the percentage still wins the glance. */
+/* The reset countdown, on the titlebar beside its marker rather than inside the
+   gauge. Styled as chrome to match the icon -- muted, brightening with the rest
+   of the control on hover -- so the percentage keeps the glance. */
 .titlebar-wing-reset {
-  font-size: 9px;
-  font-weight: 500;
-  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* Fixed box: the title card is centred between the wings, so a countdown
+     that changed width would nudge the title every time it ticked over. */
+  min-width: 42px;
+  height: 100%;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  color: var(--fg-dim);
+  transition: color 140ms ease;
+}
+.titlebar-wing:hover .titlebar-wing-reset {
+  color: var(--fg);
 }
 /* No data yet: dim the placeholder and drop the halo (nothing to read it against). */
 .titlebar-wing.is-idle .titlebar-wing-num {

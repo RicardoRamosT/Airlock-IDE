@@ -133,15 +133,22 @@ it("marks which window each wing is with an icon, not a text caption", () => {
 it("puts each marker OUTSIDE its gauge box, on the far side of the group", () => {
   useApp.setState({ quotaMeterEnabled: true, quota: status() });
   const { container } = render(<TitleQuota>{child}</TitleQuota>);
-  // Never inside the track -- the fill and percentage own that space.
+  // Never inside the track -- the fill and percentage own that space. Same for
+  // the countdown, which sits next to the marker on the titlebar itself.
   expect(container.querySelector(".titlebar-wing-track .codicon")).toBeNull();
+  expect(
+    container.querySelector(".titlebar-wing-track .titlebar-wing-reset"),
+  ).toBeNull();
   const kids = (sel: string) =>
     [...(container.querySelector(sel)?.children ?? [])].map((c) => c.className);
-  // Session marker first (far left), week marker last (far right).
+  // Marker outermost, then its countdown, then the gauge: session on the far
+  // left, week on the far right, each mirroring the other.
   expect(kids(".titlebar-wing.left")[0]).toContain("codicon-clock");
-  expect(kids(".titlebar-wing.left")[1]).toContain("titlebar-wing-track");
+  expect(kids(".titlebar-wing.left")[1]).toContain("titlebar-wing-reset");
+  expect(kids(".titlebar-wing.left")[2]).toContain("titlebar-wing-track");
   expect(kids(".titlebar-wing.right")[0]).toContain("titlebar-wing-track");
-  expect(kids(".titlebar-wing.right")[1]).toContain("codicon-calendar");
+  expect(kids(".titlebar-wing.right")[1]).toContain("titlebar-wing-reset");
+  expect(kids(".titlebar-wing.right")[2]).toContain("codicon-calendar");
 });
 
 it("keeps both wings (empty) when no session is feeding it, so nothing shifts", () => {

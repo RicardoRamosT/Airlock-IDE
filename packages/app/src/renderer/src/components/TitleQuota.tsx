@@ -48,6 +48,13 @@ function Wing({
       aria-hidden="true"
     />
   );
+  // The countdown rides OUTSIDE the gauge, next to the marker: the track is a
+  // bar whose whole job is the percentage, and a second number competing for
+  // those 92px made both harder to read. Fixed width so the title card between
+  // the wings does not shift as "59m" becomes "1h00m".
+  const clock = reset ? (
+    <span className="titlebar-wing-reset">{reset}</span>
+  ) : null;
   const track = (
     <span className="titlebar-wing-track">
       {pct !== null && (
@@ -61,14 +68,7 @@ function Wing({
           }}
         />
       )}
-      {/* Percentage anchored OUTWARD (beside its clock/calendar marker) and the
-          countdown INWARD, so the two countdowns flank the title and the two
-          percentages sit at the extremes. Both fit the 92px track because the
-          countdown is the short form ("3h13m", "2d 4h"). */}
-      <span className="titlebar-wing-num">
-        <span className="titlebar-wing-pct">{shown}</span>
-        {reset && <span className="titlebar-wing-reset">{reset}</span>}
-      </span>
+      <span className="titlebar-wing-num">{shown}</span>
     </span>
   );
   return (
@@ -79,9 +79,19 @@ function Wing({
       aria-label={`${label} ${pct === null ? "no data yet" : shown} — open usage details`}
       onClick={onClick}
     >
-      {side === "left" ? mark : null}
+      {side === "left" ? (
+        <>
+          {mark}
+          {clock}
+        </>
+      ) : null}
       {track}
-      {side === "right" ? mark : null}
+      {side === "right" ? (
+        <>
+          {clock}
+          {mark}
+        </>
+      ) : null}
     </button>
   );
 }
