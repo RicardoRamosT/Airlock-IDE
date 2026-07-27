@@ -226,6 +226,7 @@ const api: AirlockApi = {
   sectionStatuses: (root) => ipcRenderer.invoke("section:statuses", root),
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
+  dockerDatabases: () => ipcRenderer.invoke("docker:databases"),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
   listExternalTerminals: () => ipcRenderer.invoke("terminal:listExternal"),

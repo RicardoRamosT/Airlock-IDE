@@ -14,6 +14,7 @@ import {
   createFile,
   createPtySession,
   type DetectStatus,
+  databaseContainers,
   deleteSecret,
   detectInstalledTerminals,
   detectStatus,
@@ -2269,6 +2270,15 @@ export function registerIpc(
   ipcMain.handle("docker:stop", (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");
     return dockerStop(id);
+  });
+
+  // Database containers Docker is running, for the Databases provider row.
+  // Value-free: image, name and the published host port -- never a credential.
+  ipcMain.handle("docker:databases", async () => {
+    const { containers } = await dockerStatus().catch(() => ({
+      containers: [],
+    }));
+    return databaseContainers(containers);
   });
 
   ipcMain.handle(

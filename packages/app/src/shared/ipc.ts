@@ -3,6 +3,7 @@ import type {
   AnthropicIndicator,
   AuditEntry,
   Container,
+  DbContainer,
   DbTable,
   DevServerState,
   DiffSide,
@@ -80,6 +81,7 @@ export type {
   AnthropicIndicator,
   AuditEntry,
   Container,
+  DbContainer,
   DbTable,
   DiffSide,
   DirEntry,
@@ -1175,6 +1177,10 @@ export interface AirlockApi {
   }>;
   dockerStart(id: string): Promise<void>;
   dockerStop(id: string): Promise<void>;
+  // Database-shaped containers (image recognised as postgres/mysql/mariadb/
+  // mongo/redis), for the Databases provider row. Value-free: name, image,
+  // engine and published host port only -- never a credential.
+  dockerDatabases(): Promise<DbContainer[]>;
   // Traffic-light status per service section for the activity-rail dots. One
   // aggregate read (main fans out to docker/db/host/git/activity).
   sectionStatuses(root: string | null): Promise<SectionStatuses>;

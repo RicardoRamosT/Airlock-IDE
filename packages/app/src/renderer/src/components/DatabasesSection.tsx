@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DbEntry, DbTable } from "../../../shared/ipc";
+import type { DbContainer, DbEntry, DbTable } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
+import { type ProviderRow, ProviderRows } from "./ProviderRows";
 
 type PingState = "checking" | "ok" | "fail";
 
@@ -16,6 +17,8 @@ export function DatabasesSection() {
   const [tables, setTables] = useState<Record<string, DbTable[]>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [dockerDbs, setDockerDbs] = useState<DbContainer[] | null>(null);
+  const [neonConnected, setNeonConnected] = useState<boolean | null>(null);
 
   // List the vaulted Postgres DBs, then ping each one. Pings run in parallel
   // and stream their results into `pings` as they resolve, so a slow/unreachable
@@ -53,6 +56,21 @@ export function DatabasesSection() {
   useEffect(() => {
     refresh().catch(console.error);
   }, [refresh]);
+
+  // The "from your extensions" provider row block: Docker and Neon are both
+  // machine/account-wide (no project root needed to ask "is it there"), so
+  // this fetch runs once on mount, independent of the manual-list refresh
+  // above.
+  useEffect(() => {
+    void window.airlock
+      .dockerDatabases()
+      .then(setDockerDbs)
+      .catch(() => setDockerDbs([]));
+    void window.airlock
+      .neonStatus()
+      .then((s) => setNeonConnected(s.connected))
+      .catch(() => setNeonConnected(false));
+  }, []);
 
   if (!root) return <OpenFolderEmpty />;
 
@@ -99,6 +117,74 @@ export function DatabasesSection() {
     }
     await refresh();
   };
+
+  // Every row is present in every state; only the reason line and the actions
+  // differ. `null` state means "still probing", which is also a true thing
+  // to say (rule 1: never blank, never omitted).
+  const providers: ProviderRow[] = [
+    {
+      id: "neon",
+      name: "Neon",
+      icon: "neon",
+      state:
+        neonConnected === null
+          ? "checking…"
+          : neonConnected
+            ? "connected"
+            : "not connected",
+      // Provider-level connect (rule 2): is the Neon EXTENSION signed in --
+      // distinct from connecting to a specific instance, which Neon has none
+      // of here (its branches/databases live in its own section).
+      ...(neonConnected === false
+        ? {
+            connect: {
+              label: "Connect Neon",
+              onClick: () => useApp.getState().setActiveView("ext:neon"),
+            },
+          }
+        : {}),
+      instances: [],
+    },
+    {
+      id: "docker",
+      name: "Docker",
+      icon: "docker",
+      state:
+        dockerDbs === null
+          ? "checking…"
+          : dockerDbs.length === 0
+            ? "no database containers"
+            : `${dockerDbs.length} database container${dockerDbs.length === 1 ? "" : "s"}`,
+      instances: (dockerDbs ?? []).map((d) => ({
+        key: d.id,
+        label: d.name,
+        detail: `${d.image}${d.hostPort ? ` · :${d.hostPort}` : ""}`,
+        // Instance-level connect (rule 2), only where it can work (rule 3):
+        // the client is Postgres (pg), and the container must publish a host
+        // port to be reachable at all. No prefill plumbing exists between
+        // this section and the add-database dialog, so this opens the dialog
+        // plain rather than inventing a new channel.
+        ...(d.engine === "postgres" && d.hostPort
+          ? {
+              action: {
+                label: "Connect",
+                onClick: () => setModal("add-database"),
+              },
+            }
+          : {}),
+      })),
+    },
+    {
+      id: "snowflake",
+      name: "Snowflake",
+      icon: "snowflake",
+      // No Connect: AirLock's client is Postgres and cannot query Snowflake.
+      // The arrow to its own section (rendered by ProviderRows itself) is the
+      // honest affordance.
+      state: "open for warehouses",
+      instances: [],
+    },
+  ];
 
   return (
     <div className="databases">
@@ -193,6 +279,7 @@ export function DatabasesSection() {
           );
         })
       )}
+      <ProviderRows rows={providers} />
     </div>
   );
 }
