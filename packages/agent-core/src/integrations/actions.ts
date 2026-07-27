@@ -19,7 +19,8 @@ export type ExtensionActionKind =
   | "connectToken"
   | "changeWorkspace"
   | "configure"
-  | "disconnect";
+  | "disconnect"
+  | "openSection";
 
 export interface ExtensionAction {
   kind: ExtensionActionKind;
@@ -35,6 +36,22 @@ export interface ExtensionAction {
 // GitHub, whose account is chosen per project instead.
 const HAS_WORKSPACE = new Set(["slack"]);
 
+// An extension that owns a rail area can always be opened, and for several of
+// them that is the ONLY way in: Neon and Render connect by pasting an API key
+// into their own section, so they offer no connect action here at all. Without
+// this the hub states an accurate "Not connected." and then strands the user --
+// the same dead end the Databases/Host router rule exists to forbid ("every row
+// links onward"). Appended LAST so a real connect action, where one exists,
+// stays the primary button.
+function withOpenSection(
+  e: ExtensionSummary,
+  out: ExtensionAction[],
+): ExtensionAction[] {
+  if (e.hasSection === true)
+    out.push({ kind: "openSection", label: `Open ${e.name}` });
+  return out;
+}
+
 export function extensionActions(e: ExtensionSummary): ExtensionAction[] {
   const out: ExtensionAction[] = [];
 
@@ -48,7 +65,7 @@ export function extensionActions(e: ExtensionSummary): ExtensionAction[] {
         command: e.install.command,
       });
     }
-    return out;
+    return withOpenSection(e, out);
   }
 
   if (e.status === "unauthed") {
@@ -65,7 +82,7 @@ export function extensionActions(e: ExtensionSummary): ExtensionAction[] {
         command: e.connect.command,
       });
     }
-    return out;
+    return withOpenSection(e, out);
   }
 
   // Connected (tier-2) or ready (a manifest CLI that is installed and logged
@@ -86,7 +103,7 @@ export function extensionActions(e: ExtensionSummary): ExtensionAction[] {
       danger: true,
     });
   }
-  return out;
+  return withOpenSection(e, out);
 }
 
 // Attach every row's actions. This is the SEAM the whole hub page rests on: the

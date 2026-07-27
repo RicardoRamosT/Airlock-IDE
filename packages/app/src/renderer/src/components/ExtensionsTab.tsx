@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import type { ExtensionAction, ExtensionSummary } from "../../../shared/ipc";
+import type {
+  ExtensionAction,
+  ExtensionSummary,
+  Section,
+} from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ExtensionResources } from "./ExtensionResources";
@@ -218,6 +222,19 @@ export function ExtensionsTab() {
       case "disconnect":
         if (root) void window.airlock.extensionsDisconnect(root, e.id);
         break;
+      case "openSection": {
+        // Reveal the extension's own rail area. For Neon and Render this is
+        // the ONLY way to connect (an API key is pasted there), so this is a
+        // connect path, not just navigation. The sidebar was collapsed when
+        // the hub opened, so it has to come back; the page tab stays open --
+        // discarding it is the tab's own X, not a side effect of navigating.
+        const s = useApp.getState();
+        const id = `ext:${e.id}` as Section;
+        s.setActiveView(id);
+        s.setSidebarVisible(true);
+        void window.airlock.prefsSet({ activeView: id, sidebarVisible: true });
+        break;
+      }
     }
   };
 

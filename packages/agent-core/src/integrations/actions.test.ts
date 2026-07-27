@@ -160,3 +160,65 @@ describe("withActions", () => {
     expect(withActions([])).toEqual([]);
   });
 });
+
+// Neon and Render connect by pasting an API key into their OWN section -- they
+// declare no CLI connect command, so before this the hub gave a not-connected
+// Neon row an accurate "Not connected." and then NO way to act on it. That is
+// the dead end the Databases/Host router rule forbids ("every row links
+// onward"), reproduced on the surface whose whole job is discovery.
+describe("openSection", () => {
+  const sectionRow = (patch: Partial<ExtensionSummary> = {}) =>
+    ({
+      id: "neon",
+      name: "Neon",
+      icon: "neon",
+      tier: "section",
+      status: "unauthed",
+      enabled: true,
+      pinned: false,
+      hasConfig: false,
+      authKind: "token",
+      hasSection: true,
+      ...patch,
+    }) as ExtensionSummary;
+
+  it("gives a not-connected section extension a way in", () => {
+    const acts = extensionActions(sectionRow());
+    expect(acts).toEqual([{ kind: "openSection", label: "Open Neon" }]);
+  });
+
+  it("offers it for an absent section extension too", () => {
+    expect(
+      extensionActions(sectionRow({ status: "absent" })).map((a) => a.kind),
+    ).toEqual(["openSection"]);
+  });
+
+  it("stays LAST, so a real connect action remains the primary button", () => {
+    const acts = extensionActions(
+      sectionRow({
+        id: "snowflake",
+        name: "Snowflake",
+        tier: "status",
+        status: "absent",
+        install: { command: "brew install snowflake-cli" },
+      }),
+    );
+    expect(acts.map((a) => a.kind)).toEqual(["install", "openSection"]);
+  });
+
+  it("is NOT offered to an extension with no section of its own", () => {
+    // Slack owns no rail area of this kind; an "Open Slack" button would go
+    // nowhere.
+    const acts = extensionActions(
+      sectionRow({
+        id: "slack",
+        name: "Slack",
+        tier: "connected",
+        status: "unauthed",
+        authKind: "oauth2",
+        hasSection: false,
+      }),
+    );
+    expect(acts.map((a) => a.kind)).toEqual(["connectOauth"]);
+  });
+});
