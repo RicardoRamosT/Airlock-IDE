@@ -7,6 +7,7 @@ import type {
   DevServerState,
   DiffSide,
   DirEntry,
+  DocumentData,
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
@@ -75,6 +76,7 @@ export type {
   DbTable,
   DiffSide,
   DirEntry,
+  DocumentData,
   EnvDiffEntry,
   EnvFileImport,
   EventFilter,
@@ -820,6 +822,9 @@ export interface AirlockApi {
   // Parse an .xlsx/.xlsm workbook into WorkbookData for the inline viewer.
   // tooLarge => offer Open Externally. ExcelJS runs main-side only.
   readWorkbook(root: string, relPath: string): Promise<WorkbookData>;
+  // Parse a .docx into HTML for the inline document viewer. The renderer
+  // rebuilds it as React elements rather than injecting it -- see docxHtml.ts.
+  readDocument(root: string, relPath: string): Promise<DocumentData>;
   // Open a workspace file in the OS default app (binary files / oversized
   // images). Path-confined; the .airlock vault is rejected.
   openExternalFile(root: string, relPath: string): Promise<void>;

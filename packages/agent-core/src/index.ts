@@ -362,6 +362,7 @@ export {
   type UpdateSource,
 } from "./update/devManifest";
 export { compareVersions, isNewer } from "./update/version";
+export { type DocumentData, readDocument } from "./workspace/document";
 export {
   createDir,
   createFile,

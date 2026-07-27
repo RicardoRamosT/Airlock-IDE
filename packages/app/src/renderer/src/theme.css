@@ -4735,6 +4735,103 @@ button.docker-row .codicon-chevron-right {
 }
 
 /* Inline Excel (.xlsx/.xlsm) viewer */
+/* .docx preview. A Word document is prose, so it gets a readable measure on a
+   page-like surface rather than the full-bleed grid a spreadsheet wants. All
+   styling lives here: the converter carries over no attributes from the
+   document itself, so nothing inside can restyle the app. */
+.docx-viewer-host {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 24px 16px 48px;
+}
+.docx-page {
+  max-width: 68ch;
+  margin: 0 auto;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.docx-page h1,
+.docx-page h2,
+.docx-page h3,
+.docx-page h4,
+.docx-page h5,
+.docx-page h6 {
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+  font-weight: 650;
+}
+.docx-page h1 {
+  font-size: 1.7em;
+}
+.docx-page h2 {
+  font-size: 1.35em;
+}
+.docx-page h3 {
+  font-size: 1.15em;
+}
+.docx-page p {
+  margin: 0 0 0.85em;
+}
+.docx-page ul,
+.docx-page ol {
+  margin: 0 0 0.85em;
+  padding-left: 1.6em;
+}
+.docx-page li {
+  margin: 0.2em 0;
+}
+.docx-page blockquote {
+  margin: 0 0 0.85em;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  color: var(--fg-dim);
+}
+.docx-page pre,
+.docx-page code {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 0.92em;
+}
+/* Wide tables scroll with the page rather than forcing the prose wider. */
+.docx-page table {
+  border-collapse: collapse;
+  margin: 0 0 1em;
+  max-width: 100%;
+}
+.docx-page td,
+.docx-page th {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  vertical-align: top;
+  text-align: left;
+}
+.docx-page th {
+  background: var(--bg-alt, rgba(127, 127, 127, 0.08));
+  font-weight: 600;
+}
+.docx-page img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 3px;
+}
+.docx-empty {
+  color: var(--fg-dim);
+}
+.docx-notes {
+  margin-top: 2em;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.docx-notes summary {
+  cursor: pointer;
+}
+.docx-notes ul {
+  padding-left: 1.4em;
+}
+
 .xlsx-viewer-host {
   display: flex;
   flex-direction: column;

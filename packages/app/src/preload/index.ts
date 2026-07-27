@@ -52,6 +52,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("fs:readPdf", root, relPath),
   readWorkbook: (root, relPath) =>
     ipcRenderer.invoke("fs:readExcel", root, relPath),
+  readDocument: (root, relPath) =>
+    ipcRenderer.invoke("fs:readDocx", root, relPath),
   openExternalFile: (root, relPath) =>
     ipcRenderer.invoke("fs:openExternalFile", root, relPath),
   createFile: (root, relPath) => ipcRenderer.invoke("fs:create", root, relPath),
