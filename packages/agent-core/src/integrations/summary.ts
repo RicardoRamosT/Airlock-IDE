@@ -109,11 +109,20 @@ export function pinnedEnabledManifests(
   );
 }
 
-// Hub rows for the section extensions. Their live status is owned by their own
+// Hub rows for the section extensions. `status: "ready"` here is a PLACEHOLDER,
+// not a claim of connectedness -- their real liveness is owned by their own
 // sections (Docker's CLI probe, Neon's accounts), which this registry
-// deliberately knows nothing about -- so the hub row reports "ready" and lets
-// the extension's own area say more. The row exists so the hub is a COMPLETE
-// inventory; it was missing Neon and Docker entirely.
+// deliberately knows nothing about, so it cannot report anything truer than
+// this. NOT inventing a real status is deliberate too: a new status union
+// member would ripple through every exhaustive switch that already handles
+// "absent" | "unauthed" | "ready" | "connected" | "error" | "disabled". The
+// burden this placeholder creates falls on any PRESENTATION of these rows: it
+// must branch on `tier === "section"` and never read this "ready" as
+// "installed and signed in" (see ExtensionsTab's groupOf/statusDot/statusLine/
+// noActionsNote, fixed 2026-07-27 after the hub was found painting all six
+// section extensions green with no Install button, disconnected or not). The
+// row exists so the hub is a COMPLETE inventory; it was missing Neon and
+// Docker entirely.
 export function sectionExtensionSummaries(
   descriptors: SectionExtensionDescriptor[],
   prefs: ExtPrefs,

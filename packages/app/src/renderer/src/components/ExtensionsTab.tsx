@@ -16,11 +16,19 @@ import { SectionGlyph } from "./SectionGlyph";
 // extension's own Page view remain future work; the grouping and selection
 // rules here are what they would build on.
 //
-// The four buckets, their order, and the status dot are the sidebar hub's --
-// ported rather than re-derived, because the page is now the ONLY place a user
-// can read what state an extension is in.
+// The buckets, their order, and the status dot are the sidebar hub's -- ported
+// rather than re-derived, because the page is now the ONLY place a user can
+// read what state an extension is in. (A fifth bucket, "section", was added
+// 2026-07-27 for extensions whose real state the hub cannot verify -- see
+// groupOf.)
 const GROUPS = [
   { key: "connected", label: "Connected" },
+  // Section extensions (Docker, Neon, Render, ...) are not verified at this
+  // layer -- see the tier === "section" note on groupOf. Its own bucket, between
+  // Connected and Available, keeps it from being read as either "confirmed
+  // connected" or "confirmed available but not connected", neither of which the
+  // hub can back up.
+  { key: "section", label: "Has its own section" },
   { key: "available", label: "Available" },
   { key: "absent", label: "Not installed" },
   { key: "disabled", label: "Disabled" },
@@ -34,19 +42,32 @@ type GroupKey = (typeof GROUPS)[number]["key"];
 // `ready` is a Tier-1 CLI that is installed AND logged in -- it belongs with
 // Connected, not Available; `error` means the probe failed, which is closer to
 // Not installed than to ready-to-use.
+//
+// tier === "section" (Docker, Neon, Render, Snowflake, Azure, Vercel as
+// SECTION_EXTENSIONS descriptors) is checked BEFORE any of that: summary.ts
+// hands these rows a placeholder `status: "ready"` because it deliberately does
+// not know their real liveness (that lives in their own section). Filing them
+// under "Connected" on the strength of that placeholder is exactly the bug
+// this branch fixes -- a user who never installed Docker was shown "Connected".
 export function groupOf(e: ExtensionSummary, enabled = e.enabled): GroupKey {
   if (!enabled) return "disabled";
+  if (e.tier === "section") return "section";
   if (e.status === "ready" || e.status === "connected") return "connected";
   if (e.status === "unauthed") return "available";
   return "absent"; // absent / error / disabled-status
 }
 
-// The sidebar hub's mapping, unchanged, so a status reads the same colour
-// wherever it appears.
-function statusDot(status: ExtensionSummary["status"]): string {
-  if (status === "ready" || status === "connected") return "status-dot on";
-  if (status === "error") return "status-dot fail";
-  if (status === "unauthed") return "status-dot running"; // available, not connected
+// The sidebar hub's mapping, unchanged for tiers it can actually verify, so a
+// status reads the same colour wherever it appears. A tier === "section" row
+// is excluded from that promise on purpose: its placeholder "ready" status (see
+// summary.ts) is not something this layer can verify, so painting it green
+// would assert a connection state the hub cannot back up. Grey is the honest
+// answer -- the same "nothing claimed" grey absent/disabled already use.
+function statusDot(e: ExtensionSummary): string {
+  if (e.tier === "section") return "status-dot";
+  if (e.status === "ready" || e.status === "connected") return "status-dot on";
+  if (e.status === "error") return "status-dot fail";
+  if (e.status === "unauthed") return "status-dot running"; // available, not connected
   return "status-dot"; // absent / disabled -> grey
 }
 
@@ -58,6 +79,12 @@ export function statusLine(e: ExtensionSummary, enabled: boolean): string {
   const acct = e.account ? ` · ${e.account}` : "";
   if (!enabled || e.status === "disabled")
     return `${e.name} is disabled — it is hidden from Claude and from the sidebar.`;
+  // A section extension's placeholder "ready" status (see summary.ts) is not
+  // something this layer verified, so "Installed and signed in" -- the case
+  // below for a genuinely-detected Tier-1 CLI -- would be a claim the hub
+  // cannot back up. Point at the truth instead: its own section.
+  if (e.tier === "section")
+    return `${e.name} has its own section, where its real state is shown.`;
   switch (e.status) {
     case "absent":
       return `${e.name} is not installed.`;
@@ -82,6 +109,10 @@ export function statusLine(e: ExtensionSummary, enabled: boolean): string {
 export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
   if (!enabled || e.status === "disabled")
     return `Enable ${e.name} to see what it offers.`;
+  // Mirrors statusLine's tier check: "ready to use" below would be the same
+  // unverifiable claim for a section extension that statusLine already avoids.
+  if (e.tier === "section")
+    return `${e.name} has no actions here -- manage it from its own section.`;
   if (e.status === "error")
     return `Nothing to do until ${e.name} can be checked again.`;
   return `Nothing to configure — ${e.name} is ready to use.`;
@@ -221,7 +252,7 @@ export function ExtensionsTab() {
                   onClick={() => setSelected(e.id)}
                 >
                   <SectionGlyph icon={e.icon ?? "extensions"} />
-                  <span className={statusDot(e.status)} />
+                  <span className={statusDot(e)} />
                   {/* The account (Slack workspace / Azure subscription) rides
                     beside the name, as it did in the sidebar hub: with two
                     accounts of the same extension the name alone is ambiguous. */}
@@ -264,8 +295,7 @@ export function ExtensionsTab() {
               <>
                 <h2 className="ext-page-title">{sel.name}</h2>
                 <div className="section-note">
-                  <span className={statusDot(sel.status)} />{" "}
-                  {statusLine(sel, enabled)}
+                  <span className={statusDot(sel)} /> {statusLine(sel, enabled)}
                 </div>
                 <div className="ext-detail-actions">
                   {actions.length > 0 ? (

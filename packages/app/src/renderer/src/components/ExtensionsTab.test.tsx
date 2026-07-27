@@ -624,3 +624,68 @@ it("noActionsNote never claims a disabled or errored row is ready to use", () =>
     "checked again",
   );
 });
+
+// --- CRITICAL #2 (2026-07-27 fix wave): summary.ts's sectionExtensionSummaries
+// hands every SECTION_EXTENSIONS row (Docker, Neon, Render, Snowflake, Azure,
+// Vercel) a PLACEHOLDER status:"ready" because it deliberately cannot see their
+// real liveness -- that lives in their own section. Before this fix, groupOf/
+// statusDot/statusLine/noActionsNote switched on status alone, so a user who
+// had NEVER installed Docker saw it filed under "Connected" with a green dot
+// and "Installed and signed in" / "ready to use" -- actively false. Every
+// assertion below FAILS against that pre-fix code (which ignored `tier`
+// entirely) and passes once tier === "section" is branched on first.
+const DOCKER_SECTION: ExtensionSummary = {
+  id: "docker",
+  name: "Docker",
+  tier: "section",
+  status: "ready",
+  enabled: true,
+  pinned: false,
+  hasConfig: false,
+  authKind: "token",
+  category: "databases",
+  icon: "docker",
+  actions: [],
+};
+
+it("groupOf files a section extension under its own bucket, never Connected", () => {
+  expect(groupOf(DOCKER_SECTION)).toBe("section");
+  expect(groupOf(DOCKER_SECTION)).not.toBe("connected");
+});
+
+it("groupOf still buckets a disabled section extension as Disabled", () => {
+  expect(groupOf({ ...DOCKER_SECTION, enabled: false }, false)).toBe(
+    "disabled",
+  );
+});
+
+it("statusLine never tells a section extension it is installed and signed in", () => {
+  const line = statusLine(DOCKER_SECTION, true);
+  expect(line).not.toMatch(/installed and signed in/i);
+  expect(line).toContain("its own section");
+});
+
+it("noActionsNote never tells a section extension it is ready to use", () => {
+  expect(noActionsNote(DOCKER_SECTION, true)).not.toMatch(/ready to use/i);
+});
+
+it("buckets a section extension apart from Connected and never paints its dot green", async () => {
+  const { container } = mount([DOCKER_SECTION]);
+  const listEl = await waitForList(container);
+  // A user who never installed Docker must not see it filed as Connected.
+  expect(within(listEl).getByText("Has its own section")).toBeTruthy();
+  expect(within(listEl).queryByText("Connected")).toBeNull();
+  expect(listEl.querySelectorAll(".status-dot.on").length).toBe(0);
+});
+
+it("tells the truth about a section extension in the detail pane too", async () => {
+  const { container } = mount([DOCKER_SECTION]);
+  await waitForList(container);
+  expect(screen.queryByText(/installed and signed in/i)).toBeNull();
+  expect(screen.queryByText(/ready to use/i)).toBeNull();
+  // Both statusLine and noActionsNote point at "its own section" (by design --
+  // neither claims a connection state), so scope to statusLine's exact wording.
+  expect(
+    screen.getByText(/its own section, where its real state is shown/),
+  ).toBeTruthy();
+});
