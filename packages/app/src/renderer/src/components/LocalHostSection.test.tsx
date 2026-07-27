@@ -17,10 +17,13 @@ afterEach(cleanup);
 // down/up probe, and "nothing else here" (no detected/unverified/managed).
 // `services` seeds the Render provider row (the "from your extensions" block,
 // fetched independently of the dev-server probe above); defaults to none.
+// `azure` stubs integrations:resources("azure") the same way -- a
+// SteadyIntegration-shaped {status, resources}, or null (absent, the default).
 function stubHost(opts: {
   url: string | null;
   up: boolean;
   services?: unknown[];
+  azure?: unknown;
 }) {
   const devServerStart = vi.fn(() =>
     Promise.resolve({ ok: true as const, state: {} }),
@@ -36,6 +39,7 @@ function stubHost(opts: {
     devServerStart,
     hostOpenExternal,
     renderServices: vi.fn(() => Promise.resolve(opts.services ?? [])),
+    integrationsResources: vi.fn(() => Promise.resolve(opts.azure ?? null)),
   };
   return { devServerStart, hostOpenExternal };
 }
@@ -77,6 +81,7 @@ it("shows a Start button on an unverified server and wires it to start", async (
     devServerStart,
     hostOpenExternal: vi.fn(),
     renderServices: vi.fn(() => Promise.resolve([])),
+    integrationsResources: vi.fn(() => Promise.resolve(null)),
   };
   seedRoot();
   render(<LocalHostSection />);
@@ -111,8 +116,32 @@ it("lists Render and Azure as providers, with a reason each", async () => {
   expect(screen.getByText("Azure")).toBeTruthy();
   // Render has no services -- a true reason, not a blank row.
   expect(screen.getByText("not connected")).toBeTruthy();
-  // Azure is redirect-only; its live state lives in its own section.
-  expect(screen.getByText("open for web apps")).toBeTruthy();
+  // Azure is redirect-only (its live state lives in its own section), but its
+  // state text is real: the default stub resolves absent -> "CLI not found".
+  expect(await screen.findByText("CLI not found")).toBeTruthy();
+});
+
+// Finding #4 (2026-07-27 fix wave): Azure's provider-row state used to be the
+// fixed string "open for web apps", regardless of whether the CLI was even
+// installed. It must now be derived from the same real data ext:azure shows --
+// these assertions each FAIL against that old hardcoded string.
+it("derives Azure's state from its real detect status and resource count", async () => {
+  stubHost({
+    url: null,
+    up: false,
+    azure: { status: "ready", resources: [{}, {}] },
+  });
+  seedRoot();
+  render(<LocalHostSection />);
+  expect(await screen.findByText("2 web apps")).toBeTruthy();
+  expect(screen.queryByText("open for web apps")).toBeNull();
+});
+
+it("says Azure is not signed in rather than a fixed string", async () => {
+  stubHost({ url: null, up: false, azure: { status: "unauthed" } });
+  seedRoot();
+  render(<LocalHostSection />);
+  expect(await screen.findByText("not signed in")).toBeTruthy();
 });
 
 it("gives a Render instance an Open action to its service URL, not Connect", async () => {

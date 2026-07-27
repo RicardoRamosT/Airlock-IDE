@@ -4,6 +4,7 @@ import type {
   DevServerStartResult,
   DevServerState,
   RenderServiceStatus,
+  SteadyIntegration,
 } from "../../../shared/ipc";
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
@@ -14,6 +15,17 @@ import { type ProviderRow, ProviderRows } from "./ProviderRows";
 // probe is a sub-second localhost TCP connect, so 5s keeps the dot live (a
 // server started/stopped outside the app flips within ~5s) at negligible cost.
 const HOST_POLL_MS = 5000;
+
+// A rejected probe reads as this instead of leaving the row stuck on
+// "checking..." forever -- the same collapse-to-a-negative-real-state the
+// Render fetch below already does on its own catch.
+const AZURE_UNAVAILABLE: SteadyIntegration = {
+  id: "azure",
+  name: "Azure",
+  view: "host",
+  status: "absent",
+  resources: [],
+};
 
 // The local dev-server group of the Host section. Builds on DockerSection's
 // refresh-on-focus + busy guard (the server may be started/stopped outside the
@@ -65,6 +77,9 @@ export function LocalHostSection() {
   // Render provider row data (the "from your extensions" block below). Seeded
   // via a mount-only effect after the managed-state seed effect.
   const [services, setServices] = useState<RenderServiceStatus[] | null>(null);
+  // Azure provider row data, same block. Independent of Render's fetch so one
+  // failing never blocks the other.
+  const [azure, setAzure] = useState<SteadyIntegration | null>(null);
 
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
@@ -143,6 +158,10 @@ export function LocalHostSection() {
       .renderServices()
       .then(setServices)
       .catch(() => setServices([]));
+    void window.airlock
+      .integrationsResources("azure")
+      .then((s) => setAzure(s ?? AZURE_UNAVAILABLE))
+      .catch(() => setAzure(AZURE_UNAVAILABLE));
   }, []);
 
   const save = async () => {
@@ -257,8 +276,17 @@ export function LocalHostSection() {
       name: "Azure",
       icon: "azure",
       // Azure's live state belongs to its own section; the row exists so
-      // Host never hides that the provider is available.
-      state: "open for web apps",
+      // Host never hides that the provider is available. The state itself is
+      // real (not decoration): the same detect status + resource count the
+      // ext:azure section shows, never probed a second, richer way here.
+      state:
+        azure === null
+          ? "checking…"
+          : azure.status === "absent"
+            ? "CLI not found"
+            : azure.status === "unauthed"
+              ? "not signed in"
+              : `${azure.resources.length} web app${azure.resources.length === 1 ? "" : "s"}`,
       instances: [],
     },
   ];

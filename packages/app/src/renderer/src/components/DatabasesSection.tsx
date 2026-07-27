@@ -1,11 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DbContainer, DbEntry, DbTable } from "../../../shared/ipc";
+import type {
+  DbContainer,
+  DbEntry,
+  DbTable,
+  SteadyIntegration,
+} from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { type ProviderRow, ProviderRows } from "./ProviderRows";
 
 type PingState = "checking" | "ok" | "fail";
+
+// A rejected probe reads as this instead of leaving the row stuck on
+// "checking..." forever -- the same collapse-to-a-negative-real-state the
+// Docker/Neon fetches below already do on their own catches.
+const SNOWFLAKE_UNAVAILABLE: SteadyIntegration = {
+  id: "snowflake",
+  name: "Snowflake",
+  view: "databases",
+  status: "absent",
+  resources: [],
+};
 
 export function DatabasesSection() {
   const tabId = useProjectTab();
@@ -19,6 +35,7 @@ export function DatabasesSection() {
   const [busy, setBusy] = useState(false);
   const [dockerDbs, setDockerDbs] = useState<DbContainer[] | null>(null);
   const [neonConnected, setNeonConnected] = useState<boolean | null>(null);
+  const [snowflake, setSnowflake] = useState<SteadyIntegration | null>(null);
 
   // List the vaulted Postgres DBs, then ping each one. Pings run in parallel
   // and stream their results into `pings` as they resolve, so a slow/unreachable
@@ -70,6 +87,10 @@ export function DatabasesSection() {
       .neonStatus()
       .then((s) => setNeonConnected(s.connected))
       .catch(() => setNeonConnected(false));
+    void window.airlock
+      .integrationsResources("snowflake")
+      .then((s) => setSnowflake(s ?? SNOWFLAKE_UNAVAILABLE))
+      .catch(() => setSnowflake(SNOWFLAKE_UNAVAILABLE));
   }, []);
 
   if (!root) return <OpenFolderEmpty />;
@@ -180,8 +201,16 @@ export function DatabasesSection() {
       icon: "snowflake",
       // No Connect: AirLock's client is Postgres and cannot query Snowflake.
       // The arrow to its own section (rendered by ProviderRows itself) is the
-      // honest affordance.
-      state: "open for warehouses",
+      // honest affordance. The state itself is real (not decoration): the same
+      // detect status + resource count the ext:snowflake section shows.
+      state:
+        snowflake === null
+          ? "checking…"
+          : snowflake.status === "absent"
+            ? "CLI not found"
+            : snowflake.status === "unauthed"
+              ? "not signed in"
+              : `${snowflake.resources.length} warehouse${snowflake.resources.length === 1 ? "" : "s"}`,
       instances: [],
     },
   ];

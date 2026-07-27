@@ -16,12 +16,18 @@ function seedRoot() {
   });
 }
 
-function mount(dbContainers: unknown[] = [], dbs: unknown[] = []) {
+// `snowflake` stubs integrations:resources("snowflake") -- SteadyIntegration
+// shaped ({status, resources}), or null (absent/unavailable, the default).
+function mount(
+  dbContainers: unknown[] = [],
+  dbs: unknown[] = [],
+  snowflake: unknown = null,
+) {
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     dbList: vi.fn(async () => dbs),
     dockerDatabases: vi.fn(async () => dbContainers),
     neonStatus: vi.fn(async () => ({ connected: false })),
-    integrationsResources: vi.fn(async () => []),
+    integrationsResources: vi.fn(async () => snowflake),
   };
   seedRoot();
   return render(<DatabasesSection />);
@@ -62,4 +68,24 @@ it("offers no Connect for a container that publishes no port", async () => {
   ]);
   await screen.findByText("internal-db");
   expect(screen.queryByText("Connect")).toBeNull();
+});
+
+// Finding #4 (2026-07-27 fix wave): Snowflake's provider-row state used to be
+// the fixed string "open for warehouses", regardless of whether the CLI was
+// even installed. It must now be derived from the same real data ext:snowflake
+// shows -- these three assertions each FAIL against that old hardcoded string.
+it("derives Snowflake's state from its real detect status and resource count", async () => {
+  mount([], [], { status: "ready", resources: [{}, {}, {}] });
+  expect(await screen.findByText("3 warehouses")).toBeTruthy();
+  expect(screen.queryByText("open for warehouses")).toBeNull();
+});
+
+it("says Snowflake is not signed in rather than a fixed string", async () => {
+  mount([], [], { status: "unauthed", resources: [] });
+  expect(await screen.findByText("not signed in")).toBeTruthy();
+});
+
+it("says Snowflake's CLI is not found when absent, rather than a fixed string", async () => {
+  mount([], [], { status: "absent", resources: [] });
+  expect(await screen.findByText("CLI not found")).toBeTruthy();
 });
