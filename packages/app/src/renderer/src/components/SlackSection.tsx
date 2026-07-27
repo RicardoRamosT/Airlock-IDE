@@ -9,6 +9,7 @@ import {
   formatSlackTime,
   initialsFor,
 } from "../lib/slackFormat";
+import { CHANNEL_CAP, filterChannels, visibleChannels } from "../lib/slackList";
 import { useApp } from "../store";
 import { SlackWorkspaceCard } from "./SlackWorkspaceCard";
 
@@ -94,6 +95,8 @@ export function SlackSection() {
   const [workspace, setWorkspace] = useState<
     { id: string; name: string } | undefined
   >(undefined);
+  const [filter, setFilter] = useState("");
+  const [showAll, setShowAll] = useState(false);
   // Loaded once per project, on the first read that actually succeeds -- which
   // is also the first moment we know Slack is connected. Keyed on the root so
   // connecting (or switching workspaces) mid-session still picks pictures up.
@@ -123,6 +126,8 @@ export function SlackSection() {
     setState({});
     setAvatars({});
     setWorkspace(undefined);
+    setFilter("");
+    setShowAll(false);
     avatarsFor.current = null;
     void loadList();
   }, [loadList]);
@@ -238,6 +243,13 @@ export function SlackSection() {
   }
 
   const now = new Date();
+  const filtering = filter.trim() !== "";
+  const matches = filterChannels(channels, filter);
+  const { shown, hidden } = visibleChannels(matches, {
+    filtering,
+    showAll,
+    cap: CHANNEL_CAP,
+  });
   return (
     <div className="slack-view">
       <div className="section-toolbar">
@@ -271,10 +283,20 @@ export function SlackSection() {
         </button>
       </div>
       <SlackWorkspaceCard workspace={workspace} />
+      <input
+        className="sb-control"
+        type="text"
+        placeholder="Filter channels…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
       <div className="sb-section-head">
         Channels <span className="sb-badge">{channels.length} allowed</span>
       </div>
-      {channels.map((c) => {
+      {shown.length === 0 && filtering && (
+        <div className="section-note">No channels match “{filter.trim()}”.</div>
+      )}
+      {shown.map((c) => {
         const open = expanded.has(c.id);
         const st = state[c.id];
         const rows = st?.messages ? buildRows(st.messages, now) : [];
@@ -383,6 +405,15 @@ export function SlackSection() {
           </div>
         );
       })}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="section-empty"
+          onClick={() => setShowAll(true)}
+        >
+          … {hidden} more · show all
+        </button>
+      )}
       <div className="section-note slack-foot">
         Claude can read only these channels.
       </div>

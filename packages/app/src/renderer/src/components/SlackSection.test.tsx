@@ -515,3 +515,41 @@ it("collapses every open thread from the toolbar", async () => {
   fireEvent.click(screen.getByTitle("Collapse all"));
   expect(screen.queryByText("No messages yet")).toBeNull();
 });
+
+const manyChannels = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `C${i}`,
+    name: `chan-${i}`,
+    kind: "public",
+  }));
+
+it("caps a long channel list and reveals the rest on demand", async () => {
+  allowed.mockResolvedValue({ connected: true, channels: manyChannels(40) });
+  const { container } = render(<SlackSection />);
+  await screen.findByText("chan-0");
+  expect(container.querySelectorAll(".slack-channel")).toHaveLength(15);
+  fireEvent.click(screen.getByText(/25 more/));
+  expect(container.querySelectorAll(".slack-channel")).toHaveLength(40);
+});
+
+it("filters the list and does not cap the matches", async () => {
+  allowed.mockResolvedValue({ connected: true, channels: manyChannels(40) });
+  const { container } = render(<SlackSection />);
+  await screen.findByText("chan-0");
+  fireEvent.change(screen.getByPlaceholderText("Filter channels…"), {
+    target: { value: "chan-1" },
+  });
+  // chan-1 plus chan-10..chan-19 = 11 matches, all shown, no "more" row.
+  expect(container.querySelectorAll(".slack-channel")).toHaveLength(11);
+  expect(screen.queryByText(/more/)).toBeNull();
+});
+
+it("says so when a filter matches nothing", async () => {
+  allowed.mockResolvedValue({ connected: true, channels: manyChannels(3) });
+  render(<SlackSection />);
+  await screen.findByText("chan-0");
+  fireEvent.change(screen.getByPlaceholderText("Filter channels…"), {
+    target: { value: "zzz" },
+  });
+  expect(screen.getByText(/No channels match/i)).toBeTruthy();
+});
