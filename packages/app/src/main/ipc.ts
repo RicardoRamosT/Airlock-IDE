@@ -132,6 +132,7 @@ import {
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { eyeOnConnected } from "./extensions/resources";
 import { slackAllChannels, slackWorkspace } from "./extensions/slack";
+import { localSlackWorkspaces } from "./extensions/slackDesktop";
 import { slackDownloadFileTool } from "./extensions/slackFiles";
 import {
   slackAvatarsTool,
@@ -2088,6 +2089,11 @@ export function registerIpc(
   ipcMain.handle("extensions:slackChannels", (e, root: unknown) =>
     slackAllChannels(resolveRoot(e, root)),
   );
+
+  // slack:listLocalWorkspaces -> the workspaces the Slack desktop app knows
+  // about, so the connect modal can name them instead of asking for a T0… id.
+  // Machine-wide (not root-scoped): value-free, no token, no project data.
+  ipcMain.handle("slack:listLocalWorkspaces", () => localSlackWorkspaces());
 
   // extensions:oauthBegin -> start the OAuth login for a connected extension,
   // both secret-less "log in -> connected" flows. Returns a discriminated shape

@@ -726,6 +726,14 @@ export interface SlackAllowedChannel {
   name: string;
   kind: string;
 }
+// A workspace the local Slack desktop app knows about, for the connect modal's
+// picker. Names/ids/domains only -- the state file it comes from holds session
+// tokens, and parseSlackWorkspaces is what guarantees none of them get here.
+export interface SlackWorkspaceOption {
+  id: string;
+  name: string;
+  domain: string;
+}
 // `connected` disambiguates an empty list: "Slack not connected" and "connected
 // but nothing allow-listed" are different states with different actions.
 export interface SlackChannelList {
@@ -1070,6 +1078,11 @@ export interface AirlockApi {
   ): Promise<
     { id: string; name: string; kind: "public" | "private" | "im" | "mpim" }[]
   >;
+  // Workspaces the local Slack app knows about, for the connect modal's picker.
+  // [] when Slack isn't installed -- the modal then shows only the paste-URL
+  // fallback. Machine-wide, not per-project: which workspaces exist on this Mac
+  // has nothing to do with which project is open.
+  slackLocalWorkspaces(): Promise<SlackWorkspaceOption[]>;
   // Start a secret-less OAuth login (device or broker) for a connected
   // extension. The return tells the renderer what to show; the final result
   // arrives via onExtensionOAuthResult once the user approves.
