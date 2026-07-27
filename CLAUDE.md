@@ -295,3 +295,58 @@ removal) the panel imported it, gated on the same `expandable` condition.
 
 Spec: `docs/superpowers/specs/2026-07-27-extensions-reorganization-design.md` ·
 Plan: `docs/superpowers/plans/2026-07-27-extensions-hub-page.md`.
+
+## What counts as an extension
+
+**Core is what AirLock authored over your own machine; an extension is an
+adapter over a third-party product you separately PROVISION.** The operative
+word is provisioning, not authorship: Git is third-party software AirLock wraps,
+but there is no account and no connect step, so it is ambient and stays core.
+Docker is a product you installed, which may not be there. Applying that rule
+refiled six services — Neon, Docker, Render, Snowflake, Azure, Vercel — that had
+been sitting in built-in sections. (Render was missed on the first pass and
+caught by applying the rule mechanically; that is the argument for having one.)
+
+Three kinds of extension coexist, and the differences are real:
+
+- **section** (`integrations/sectionExtensions.ts`, `tier: "section"`) — owns a
+  rail area and brings its own code. This is the GENERAL shape.
+- **connected** (`CONNECTED_EXTENSIONS`, `tier: "connected"`) — OAuth with a
+  per-project vaulted token: Slack, GitHub.
+- **status** (`INTEGRATIONS` manifests, `tier: "status"`) — a declarative CLI
+  poll. The LIMITED case: it cannot express a connect flow, which is why
+  Snowflake and Azure will eventually graduate off it.
+
+**Rail policy: extension icons are always shown, enabled or not** — a user
+cannot enable what they cannot see. The rail scrolls, and right-click → Hide is
+the escape valve. This overrides manifest `relevance` gating for the ICON only.
+Order below the divider is hub → connected → section, each alphabetical by name,
+so an icon sits in the same place in every project (`composeSectionMeta`). Note
+this differs from `providersFor`'s registry order, which drives a different
+surface — they are deliberately not unified.
+
+**Databases and Host are ROUTERS, not inventories.** Both render the shared
+`ProviderRows`, and the two sections are one pattern rather than two special
+cases. Its three rules:
+
+1. **The provider row is ALWAYS present** and always states a reason — "not
+   installed", "no database containers", "3 services". Never a bare blank and
+   never `Nothing to show yet.`: a correct empty answer that does not say WHY is
+   the failure this replaced.
+2. **Two levels of connect, never conflated.** Connecting the EXTENSION (is
+   Docker running) is not connecting an INSTANCE (open a Postgres session).
+3. **Every row links onward** via `→`. Databases shows what you can query, Host
+   shows what is running; the full inventory lives in the extension's own area.
+
+The only difference between the two is the verb on an instance: Databases
+**Connect** (a Postgres session), Host **Open** (the service URL).
+
+Only Postgres is connectable — the client is `pg` via `withDb`/`readRows` — so a
+Docker instance needs `engine === "postgres"` AND a published `hostPort` (null
+means it is reachable only inside the docker network, and a Connect that cannot
+work is worse than none). Snowflake is not Postgres, so its row is redirect-only
+with no Connect button at all.
+
+Spec: `docs/superpowers/specs/2026-07-27-extensions-reorganization-design.md` ·
+Plans: `docs/superpowers/plans/2026-07-27-extensions-hub-page.md`,
+`docs/superpowers/plans/2026-07-27-extensions-reclassification.md`.
