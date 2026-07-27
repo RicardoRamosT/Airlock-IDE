@@ -85,7 +85,11 @@ export function effectiveView(
   vis: SectionVisibility,
   meta: SectionMeta[],
 ): Section | null {
+  // The hub renders as a PAGE, not a sidebar body, so it can never be the
+  // sidebar's view -- including when an older prefs file names it.
+  const eligible = (id: Section) =>
+    id !== EXTENSIONS_HUB_SECTION && isSectionVisible(vis, id);
   const known = meta.some((m) => m.id === active);
-  if (known && isSectionVisible(vis, active)) return active;
-  return meta.find((m) => isSectionVisible(vis, m.id))?.id ?? null;
+  if (known && eligible(active)) return active;
+  return meta.find((m) => eligible(m.id))?.id ?? null;
 }

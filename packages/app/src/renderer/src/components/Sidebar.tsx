@@ -9,7 +9,6 @@ import { DatabasesSection } from "./DatabasesSection";
 import { DockerSection } from "./DockerSection";
 import { EventsSection } from "./EventsSection";
 import { ExtensionResourcesSection } from "./ExtensionResourcesSection";
-import { ExtensionsSection } from "./ExtensionsSection";
 import { FileTree } from "./FileTree";
 import { GitSection } from "./GitSection";
 import { IntegrationsSteadySection } from "./IntegrationsSteadySection";
@@ -68,7 +67,6 @@ export function Sidebar() {
         <IntegrationsSteadySection view="host" />
       </>
     );
-  else if (view === "extensions") body = <ExtensionsSection />;
   else if (view === "audit") body = <AuditSection />;
   else if (view === "events") body = <EventsSection />;
   else {

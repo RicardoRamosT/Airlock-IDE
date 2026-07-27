@@ -148,4 +148,11 @@ describe("effectiveView", () => {
     const none = Object.fromEntries(meta.map((m) => [m.id, false]));
     expect(effectiveView("files", none, meta)).toBeNull();
   });
+
+  // The hub moved to a page, so this id has no sidebar body. A prefs file
+  // written by an older build can still name it as the active view; the
+  // sidebar must fall back to a real section rather than render nothing.
+  it("falls back when the persisted active view is the hub", () => {
+    expect(effectiveView("extensions", {}, BUILTIN_SECTION_META)).toBe("files");
+  });
 });
