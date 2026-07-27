@@ -158,7 +158,10 @@ export function SlackSection() {
       setFileError(res.error ?? "Could not open that file.");
       return;
     }
-    await openEditorFile(tabId, res.relPath);
+    // Check the result: main can refuse a path, and a swallowed refusal is
+    // exactly what made this chip look inert before.
+    const opened = await openEditorFile(tabId, res.relPath);
+    if (!opened) setFileError("Could not open that file.");
   };
 
   const toggle = (id: string) => {

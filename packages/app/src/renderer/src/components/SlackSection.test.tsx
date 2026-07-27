@@ -380,7 +380,7 @@ describe("SlackSection attachments", () => {
 
   it("opens the downloaded file in a tab when the chip is clicked", async () => {
     const slackDownloadFile = vi.fn(async () => ({
-      relPath: ".airlock/slack/image.png",
+      relPath: ".slack-cache/image.png",
     }));
     const readFile = vi.fn(async () => ({ content: "", binary: true }));
     withAttachment({ slackDownloadFile, readFile });
@@ -391,11 +391,23 @@ describe("SlackSection attachments", () => {
     );
     // The existing editor path is what actually opens the tab.
     await waitFor(() =>
-      expect(readFile).toHaveBeenCalledWith(
-        "/repo",
-        ".airlock/slack/image.png",
-      ),
+      expect(readFile).toHaveBeenCalledWith("/repo", ".slack-cache/image.png"),
     );
+  });
+
+  // The chip once rendered, downloaded, and then died silently because the open
+  // was refused and the error swallowed. A dead click must never be silent again.
+  it("reports it when the download succeeds but the open fails", async () => {
+    const slackDownloadFile = vi.fn(async () => ({
+      relPath: ".slack-cache/image.png",
+    }));
+    const readFile = vi.fn(async () => {
+      throw new Error("The .airlock folder is protected");
+    });
+    withAttachment({ slackDownloadFile, readFile });
+    fireEvent.click(await screen.findByText("general-airlock"));
+    fireEvent.click(await screen.findByText("image.png"));
+    expect(await screen.findByText(/Could not open that file/i)).toBeTruthy();
   });
 
   it("shows the refusal reason when the download is refused", async () => {

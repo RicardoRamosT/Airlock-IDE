@@ -5,10 +5,9 @@
 //
 // The vaulted token is used here and never leaves: the renderer receives a
 // project-relative path to a cached copy, never a URL that needs auth.
-import { mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  ensureAirlockDir,
   getSecretValue,
   type SlackHistory,
   slackChannelHistory,
@@ -71,20 +70,45 @@ async function realFetchBytes(
   return { bytes, name: typeof file.name === "string" ? file.name : fileId };
 }
 
-// Cache under .airlock/slack/, which already carries an ignore-all .gitignore,
-// so a downloaded attachment never shows up as a repo change.
+// Where a downloaded attachment lands. Deliberately NOT .airlock/: that
+// directory holds secrets.json and the audit chain, and targetsVault() blocks
+// every path containing an .airlock segment at 16 IPC call sites -- so a file
+// cached there can be written but never opened. That guard is the product's
+// core boundary and is not to be weakened.
+//
+// Kept project-relative so the existing editor tab can open it by relPath, and
+// hidden from git via .git/info/exclude -- a LOCAL ignore, so the user's own
+// .gitignore is never modified and the cache never shows up in git status.
+const CACHE_DIR = ".slack-cache";
+
+// Add the cache dir to the repo's local exclude file, once. Best-effort: a
+// non-git project simply has no .git/info to write to, which is fine.
+async function ensureLocallyIgnored(root: string): Promise<void> {
+  const exclude = path.join(root, ".git", "info", "exclude");
+  try {
+    const cur = await readFile(exclude, "utf8").catch(() => "");
+    if (cur.split(/\r?\n/).includes(`${CACHE_DIR}/`)) return;
+    await appendFile(
+      exclude,
+      `${cur.endsWith("\n") || cur === "" ? "" : "\n"}${CACHE_DIR}/\n`,
+    );
+  } catch {
+    // Not a git repo, or no permission: the cache still works, it is just visible.
+  }
+}
+
 async function realWriteCache(
   root: string,
   name: string,
   bytes: Buffer,
 ): Promise<string> {
-  await ensureAirlockDir(root);
-  const dir = path.join(root, ".airlock", "slack");
+  const dir = path.join(root, CACHE_DIR);
   await mkdir(dir, { recursive: true });
+  await ensureLocallyIgnored(root);
   // Flatten the name: a Slack filename is untrusted and must not escape the dir.
   const safe = name.replace(/[/\\]/g, "_");
   await writeFile(path.join(dir, safe), bytes);
-  return path.posix.join(".airlock", "slack", safe);
+  return path.posix.join(CACHE_DIR, safe);
 }
 
 export async function slackDownloadFileTool(

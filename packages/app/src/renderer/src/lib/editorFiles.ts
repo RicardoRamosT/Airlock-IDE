@@ -4,19 +4,26 @@ import { useApp } from "../store";
 // Shared by the file tree, the unified tab bar, and the File menu so they all
 // open files the same way (read the pane's project, then store.openFile).
 // Pass `line` to also emit a one-shot revealLine signal after opening.
+//
+// Returns whether the file actually opened. Most callers (a click in the file
+// tree) can ignore it -- the tree only lists readable files. Callers that open a
+// path the user cannot see beforehand MUST check it: main refuses some paths
+// (`targetsVault`), and a swallowed refusal reads as a dead click.
 export async function openEditorFile(
   tabId: string,
   relPath: string,
   line?: number,
-): Promise<void> {
+): Promise<boolean> {
   const root = useApp.getState().tabState[tabId]?.root;
-  if (!root) return;
+  if (!root) return false;
   try {
     const file = await window.airlock.readFile(root, relPath);
     useApp.getState().openFile(relPath, file, tabId);
     if (line !== undefined) useApp.getState().revealLine(tabId, relPath, line);
+    return true;
   } catch (err) {
     console.error("open file failed", err);
+    return false;
   }
 }
 
