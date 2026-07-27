@@ -229,3 +229,41 @@ push uses whatever `gh` account is **globally active**, so a wrong active accoun
 
 Spec: `docs/superpowers/specs/2026-07-18-github-account-per-project-design.md` ·
 Plan: `docs/superpowers/plans/2026-07-18-github-account-per-project.md`.
+
+## Slack workspace connect
+
+Connecting Slack asks WHICH workspace first, then proves it got that one.
+
+- **Pick by name.** The connect modal (`OAuthDeviceModal.tsx`) lists workspaces
+  read from the Slack desktop app's `root-state.json`
+  (`main/extensions/slackDesktop.ts` → `parseSlackWorkspaces` in
+  `agent-core/src/slack/workspaces.ts`). That file holds session tokens, so the
+  parser reads **only** id/name/domain/url and returns only the first three.
+  Missing app / bad JSON → `[]`, which is a normal state, not an error. Slack is
+  therefore the one provider that does **not** auto-open the browser on modal
+  mount — choosing has to precede the approval page.
+- **Paste fallback.** Browser-only workspaces never appear in the desktop app
+  (observed 2026-07-26), so a URL/domain/slug/`T0…` field is mandatory, parsed by
+  `parseWorkspaceInput` (which absorbed the old `normalizeTeamId`). Junk yields an
+  empty target — Slack's own picker then decides, and verification still catches a
+  wrong result.
+- **Subdomain, not just `team=`.** `team=` on `slack.com/oauth/v2/authorize` is
+  advisory: with the browser signed into another workspace, Slack authorizes
+  *that* one. `buildAuthorizeUrl` swaps the host to `<domain>.slack.com` when a
+  domain is known. The domain is a validated DNS label, so it can't smuggle
+  characters into the host.
+- **Verification is the only correctness guarantee**, and it can only run after
+  the token exists. `extensions:oauthBegin`'s `capture` runs `auth.test` (whose
+  parse now also yields the workspace `domain`), compares via `workspaceMismatch`,
+  and the verdict rides the **first** `extensions:oauthResult` — `afterVault` is
+  AWAITED for exactly that reason (bounded by the Slack client's 15s abort; a
+  throw degrades to a plain success, so a good token still connects). Mismatch →
+  the modal holds open with **Keep** (adopt the connected workspace as the pin) or
+  **Try again**.
+- **Storage:** `workspacePin` stays a plain string for back-compat; the optional
+  `workspacePinDomain` / `workspacePinName` ride alongside. Pin-only configs from
+  older builds keep the generic authorize host. `slackWorkspacePatch` still clears
+  `channels` when the workspace id changes — allow-list ids are workspace-scoped.
+
+Spec: `docs/superpowers/specs/2026-07-26-slack-workspace-connect-design.md` ·
+Plan: `docs/superpowers/plans/2026-07-26-slack-workspace-connect.md`.
