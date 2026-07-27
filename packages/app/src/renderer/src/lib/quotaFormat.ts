@@ -1,12 +1,18 @@
-// Format remaining seconds as a compact countdown: "2d 3h", "1h12m", "4m",
+// Format remaining seconds as a compact countdown: "2d 3h", "1h 12m", "4m",
 // "<1m", or "now" when not positive. Pure + deterministic for tests.
+//
+// Both two-unit forms separate their units with a space. They sit on opposite
+// titlebar wings at the same time, so "2h50m" beside "5d 12h" read as two
+// different notations -- and, because the reset box is a fixed 42px, the
+// shorter string also pushed a different amount of slack to its outer edge,
+// which showed up as the wings being unevenly spaced.
 export function formatCountdown(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "now";
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h${String(m).padStart(2, "0")}m`;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
   if (m > 0) return `${m}m`;
   return "<1m";
 }

@@ -51,7 +51,7 @@ it("shows the reset countdown on BOTH wings, not just in the tooltip", () => {
   const shown = [...container.querySelectorAll(".titlebar-wing-reset")].map(
     (n) => n.textContent,
   );
-  expect(shown).toEqual(["3h13m", "2d 4h"]);
+  expect(shown).toEqual(["3h 13m", "2d 4h"]);
 });
 
 it("reads idle on a window that has not started yet", () => {

@@ -22,8 +22,18 @@ it("formats countdowns compactly", () => {
   expect(formatCountdown(-10)).toBe("now");
   expect(formatCountdown(30)).toBe("<1m");
   expect(formatCountdown(90)).toBe("1m");
-  expect(formatCountdown(4350)).toBe("1h12m"); // 1h 12m 30s
+  expect(formatCountdown(4350)).toBe("1h 12m"); // 1h 12m 30s
   expect(formatCountdown(90000)).toBe("1d 1h"); // 25h
+});
+
+it("separates the units the same way in both two-unit forms", () => {
+  // The wings show these side by side; mixed notation ("2h50m" vs "5d 12h")
+  // read as the two countdowns being spaced differently.
+  const hours = formatCountdown(2 * 3600 + 50 * 60);
+  const days = formatCountdown(5 * 86400 + 12 * 3600);
+  expect(hours).toBe("2h 50m");
+  expect(days).toBe("5d 12h");
+  expect(hours.length).toBe(days.length);
 });
 
 it("treats a window as awaiting once its reset boundary has passed", () => {
@@ -91,7 +101,7 @@ describe("quotaFillColor", () => {
 describe("wingCountdown", () => {
   it("is the short countdown for a running window", () => {
     expect(wingCountdown({ resetsAt: 1000 + 3 * 3600 + 780 }, 1000)).toBe(
-      "3h13m",
+      "3h 13m",
     );
   });
   it("reads idle for a window that has not started", () => {

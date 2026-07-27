@@ -315,8 +315,11 @@ body,
   align-items: center;
   flex: none;
   /* Fixed box: the title card is centred between the wings, so a countdown
-     that changed width would nudge the title every time it ticked over. */
-  min-width: 42px;
+     that changed width would nudge the title every time it ticked over. Sized
+     for the LONGEST form -- "23h 59m", 7 monospace chars at 10px = 42px -- with
+     headroom, so the box never has to grow (at exactly 42px a fallback font
+     one hundredth of an em wider would push the title sideways). */
+  min-width: 46px;
   height: 100%;
   font-family: "SF Mono", Menlo, monospace;
   font-size: 10px;
