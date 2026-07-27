@@ -173,6 +173,11 @@ export {
 } from "./host/devserver";
 export { type PortProber, probePort } from "./host/probe";
 export {
+  type ExtensionAction,
+  type ExtensionActionKind,
+  extensionActions,
+} from "./integrations/actions";
+export {
   type AuthSpec,
   CONNECTED_EXTENSIONS,
   type ConfigField,

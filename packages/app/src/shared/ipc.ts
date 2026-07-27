@@ -19,6 +19,8 @@ import type {
   ExcelAlign,
   ExcelCell,
   ExcelSheet,
+  ExtensionAction,
+  ExtensionActionKind,
   ExtensionSummary,
   FileContent,
   FileVersions,
@@ -67,6 +69,8 @@ export interface DetectedDevServer {
 }
 
 export type {
+  ExtensionAction,
+  ExtensionActionKind,
   ExtensionSummary,
   IntegrationItem,
   ItemAction,
