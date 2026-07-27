@@ -1333,6 +1333,64 @@ body,
   letter-spacing: 0;
 }
 
+/* The "from your extensions" block in Databases and Host. One component, one
+   set of styles: the two sections are the same pattern, and a second stylesheet
+   is how they would drift apart. */
+.provider-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+  margin-top: var(--sb-block-gap);
+}
+.provider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+}
+.provider-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-h);
+  font-size: 12px;
+}
+.provider-name {
+  font-weight: 600;
+}
+/* The reason line. Dim, because the provider NAME is what you scan for -- but
+   always present, because a row with no reason is the empty state we are
+   fixing. */
+.provider-state {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.provider-connect {
+  width: 100%;
+}
+.provider-instance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Indented under its provider, past the brand glyph. */
+  padding-left: 22px;
+  min-height: var(--row-h);
+  font-size: 12px;
+}
+.provider-instance-detail {
+  color: var(--fg-dim);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.provider-instance .btn {
+  margin-left: auto;
+}
+
 /* Slack sidebar: collapsible channels over a chat transcript. Channel rows keep
    the shared --row-h grammar so the rail matches its neighbours; the transcript
    deliberately breaks out of the one-line row style -- messages are prose and
