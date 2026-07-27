@@ -1,9 +1,13 @@
 import { useApp } from "../store";
 
 // Which workspace the vaulted token belongs to, and the way to change it.
-// Switching opens the existing connect modal; the connect flow already resets
-// the allow-list when the workspace changes (slackWorkspacePatch), so nothing
-// here has to.
+//
+// Switching opens the OAuth browser flow in MANAGE mode -- the same modal the
+// Extensions hub's "Change workspace" uses. NOT the paste-a-token modal: asking
+// someone for a xoxb-/xoxp- token means sending them to api.slack.com to mint
+// one, which no ordinary user will do. The connect flow already resets the
+// allow-list when the workspace actually changes (slackWorkspacePatch), so
+// nothing here has to.
 export function SlackWorkspaceCard({
   workspace,
 }: {
@@ -26,7 +30,11 @@ export function SlackWorkspaceCard({
       <button
         type="button"
         className="btn"
-        onClick={() => useApp.getState().setModal("connect-slack")}
+        onClick={() =>
+          useApp.getState().setModal({
+            oauthDevice: { id: "slack", name: "Slack", manage: true },
+          })
+        }
       >
         Switch workspace
       </button>

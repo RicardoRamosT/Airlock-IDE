@@ -489,7 +489,11 @@ it("names the connected workspace and offers to switch", async () => {
   render(<SlackSection />);
   expect(await screen.findByText("Airlock")).toBeTruthy();
   fireEvent.click(screen.getByText("Switch workspace"));
-  expect(useApp.getState().modal).toBe("connect-slack");
+  // The OAuth browser flow, NOT the paste-a-token modal: a real user will never
+  // go to api.slack.com to mint a xoxb- token.
+  expect(useApp.getState().modal).toEqual({
+    oauthDevice: { id: "slack", name: "Slack", manage: true },
+  });
 });
 
 // Showing the wrong workspace confidently is the bug this identity exists to
