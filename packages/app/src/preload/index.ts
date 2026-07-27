@@ -10,6 +10,7 @@ import type {
   LspDiagnostic,
   MenuAction,
   MovingTab,
+  OAuthResultEvent,
   PtyDataEvent,
   PtyExitEvent,
   QuotaStatus,
@@ -190,10 +191,7 @@ const api: AirlockApi = {
   extensionsOAuthBegin: (root, id) =>
     ipcRenderer.invoke("extensions:oauthBegin", root, id),
   onExtensionOAuthResult: (cb) =>
-    subscribe<{ id: string; ok: boolean; error?: string }>(
-      "extensions:oauthResult",
-      cb,
-    ),
+    subscribe<OAuthResultEvent>("extensions:oauthResult", cb),
   onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostUnverifiedServers: (root) =>

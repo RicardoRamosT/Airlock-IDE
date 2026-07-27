@@ -70,6 +70,7 @@ import {
   redactedPreview,
   redactedTail,
   redactSecrets,
+  requestedWorkspaceName,
   resolveWithin,
   runGit,
   type SteadyCache,
@@ -85,7 +86,9 @@ import {
   undoLastCommit,
   unstageFiles,
   vaultedSecrets,
+  type WorkspaceTarget,
   withDb,
+  workspaceMismatch,
   writeFolderOrder,
   writeProjectConfig,
   writeWorkspaceFile,
@@ -2110,15 +2113,27 @@ export function registerIpc(
       const r = resolveRoot(e, root);
       const spec = CONNECTED_EXTENSIONS.find((x) => x.id === id)?.authSpec;
       // Vault the resulting token + notify the window. Shared by both flows.
+      // afterVault is AWAITED and its return is merged into the success event:
+      // Slack's workspace verdict has to ride the FIRST result the renderer
+      // sees, or the modal closes before the mismatch can be shown. Bounded by
+      // the Slack client's own 15s abort; a throw degrades to a plain success,
+      // preserving "a good token still connects".
       const finish = (
         p: Promise<string>,
-        afterVault?: (token: string) => Promise<void>,
+        afterVault?: (token: string) => Promise<Record<string, unknown>>,
       ) =>
         void p
           .then(async (token) => {
             await setSecret(r, oauthTokenName(id), token);
-            e.sender.send("extensions:oauthResult", { id, ok: true });
-            if (afterVault) void afterVault(token).catch(() => {});
+            let extra: Record<string, unknown> = {};
+            if (afterVault) {
+              try {
+                extra = await afterVault(token);
+              } catch {
+                /* best-effort: the token is good, report the connect */
+              }
+            }
+            e.sender.send("extensions:oauthResult", { id, ok: true, ...extra });
           })
           .catch((err) =>
             e.sender.send("extensions:oauthResult", {
@@ -2142,9 +2157,21 @@ export function registerIpc(
       }
       if (spec?.flow === "broker") {
         const cfg = (await readProjectConfig(r)).extensions?.[id] ?? {};
-        const target = parseWorkspaceInput(
-          typeof cfg.workspacePin === "string" ? cfg.workspacePin : "",
-        );
+        const cfgStr = (k: string) =>
+          typeof cfg[k] === "string" ? (cfg[k] as string) : "";
+        // workspacePin stays a plain string for back-compat (old configs hold a
+        // bare team id); workspacePinDomain/-Name ride alongside and are what the
+        // named picker writes. No domain -> generic authorize host, as before.
+        const parsed = parseWorkspaceInput(cfgStr("workspacePin"));
+        const target: WorkspaceTarget = {
+          teamId: parsed.teamId,
+          domain: cfgStr("workspacePinDomain") || parsed.domain,
+        };
+        const requested = {
+          teamId: target.teamId ?? "",
+          domain: target.domain ?? "",
+          name: requestedWorkspaceName(target, cfgStr("workspacePinName")),
+        };
         // Slack: gate the requested scopes on the per-project opt-in. Opted out
         // (default) requests public-only scopes, so the token literally cannot
         // read private/DM/group; opting in requests the full set. The REQUEST
@@ -2154,11 +2181,13 @@ export function registerIpc(
           id === "slack"
             ? { ...spec, scopes: slackScopes(cfg.includePrivate === true) }
             : spec;
+        // Verification, unconditional: `team=` is only a hint, so the ONLY place
+        // correctness can be established is here, after the token exists.
         const capture =
           id === "slack"
             ? async (token: string) => {
                 const a = await slackAuthTest(token);
-                if (!a.ok) return; // best-effort: a good token still connected
+                if (!a.ok) return {}; // best-effort: a good token still connected
                 const exts = (await readProjectConfig(r)).extensions ?? {};
                 const patch = slackWorkspacePatch(exts[id], a);
                 await writeProjectConfig(r, {
@@ -2167,6 +2196,18 @@ export function registerIpc(
                     [id]: { ...(exts[id] ?? {}), ...patch },
                   },
                 });
+                return {
+                  workspace: {
+                    id: a.teamId ?? "",
+                    name: a.team ?? "",
+                    domain: a.domain ?? "",
+                  },
+                  requested,
+                  mismatch: workspaceMismatch(target, {
+                    teamId: a.teamId,
+                    domain: a.domain,
+                  }),
+                };
               }
             : undefined;
         finish(runBrokerFlow(effective, target), capture);

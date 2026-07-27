@@ -709,6 +709,27 @@ export type OAuthBeginResult =
     }
   | { kind: "browser" };
 
+// What a finished OAuth login reports back. The Slack broker flow adds the
+// workspace verdict: `workspace` is what auth.test says we ACTUALLY got,
+// `requested` is what the user asked for, and `mismatch` is the single flag the
+// modal branches on. Absent for every other provider.
+export interface OAuthRequestedWorkspace {
+  teamId: string;
+  domain: string;
+  // Never empty when a workspace was requested: the picker's name, else the
+  // domain, else the raw team id (requestedWorkspaceName).
+  name: string;
+}
+
+export interface OAuthResultEvent {
+  id: string;
+  ok: boolean;
+  error?: string;
+  workspace?: SlackWorkspaceOption;
+  requested?: OAuthRequestedWorkspace;
+  mismatch?: boolean;
+}
+
 // A connected extension's granted resources, grouped for the sidebar section
 // its eye targets (`category`). Fed by the extensions:resources IPC.
 export interface ExtensionResources {
@@ -1087,9 +1108,7 @@ export interface AirlockApi {
   // extension. The return tells the renderer what to show; the final result
   // arrives via onExtensionOAuthResult once the user approves.
   extensionsOAuthBegin(root: string, id: string): Promise<OAuthBeginResult>;
-  onExtensionOAuthResult(
-    cb: (e: { id: string; ok: boolean; error?: string }) => void,
-  ): () => void;
+  onExtensionOAuthResult(cb: (e: OAuthResultEvent) => void): () => void;
   onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
