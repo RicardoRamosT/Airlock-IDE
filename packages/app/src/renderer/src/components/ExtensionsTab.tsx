@@ -90,12 +90,28 @@ export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
 export function ExtensionsTab() {
   const [all, setAll] = useState<ExtensionSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  // Which extension's resource list is expanded (at most one -- the page shows
-  // one row's detail at a time). Collapsed by DEFAULT and reset by switching
-  // rows, because mounting ExtensionResources starts a 5s poll: for GitHub that
-  // is a live api.github.com request plus a keychain read every 5 seconds.
-  // Nothing fetches until the user asks, same as the sidebar hub's chevron.
-  const [openResources, setOpenResources] = useState<string | null>(null);
+  // Whether the SELECTED row's resource list is expanded, and which row that
+  // answer is for. Collapsed by default, because mounting ExtensionResources
+  // starts a 5s poll: for GitHub that is a live api.github.com request plus a
+  // keychain read every 5 seconds. Nothing fetches until the user asks, same as
+  // the sidebar hub's chevron.
+  const [expanded, setExpanded] = useState(false);
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
+  // Collapse on ANY selection change -- a click, or a poll-driven re-pick.
+  // Storing the expanded row's ID instead was not enough: it only HID the list
+  // while another row was selected, so revisiting the row re-expanded it with
+  // no click and silently resumed the poll.
+  //
+  // Done during RENDER (React's documented "adjust state when something
+  // changes" pattern) rather than in an effect: an effect runs AFTER commit, so
+  // one commit would slip through carrying the stale `true` -- and that is a
+  // commit in which ExtensionResources mounts and fires its fetch, which is the
+  // very thing this is here to prevent. Converges after one extra render
+  // because expandedFor is set to the value it is compared against.
+  if (expandedFor !== selected) {
+    setExpandedFor(selected);
+    setExpanded(false);
+  }
 
   // The row data is polled, not pushed: connect/disconnect/install all happen
   // elsewhere (a browser tab, a terminal, another window), so a mounted page
@@ -241,7 +257,9 @@ export function ExtensionsTab() {
                 !!sel.category &&
                 sel.category !== "activity") ||
               (sel.tier === "connected" && sel.status === "connected");
-            const resourcesOpen = openResources === sel.id;
+            // `expanded` is already scoped to the selection by the reset above,
+            // so it needs no id comparison here.
+            const resourcesOpen = expanded;
             return (
               <>
                 <h2 className="ext-page-title">{sel.name}</h2>
@@ -310,9 +328,7 @@ export function ExtensionsTab() {
                       className="ext-detail-expand"
                       aria-expanded={resourcesOpen}
                       aria-label={`${resourcesOpen ? "Collapse" : "Expand"} ${sel.name} resources`}
-                      onClick={() =>
-                        setOpenResources(resourcesOpen ? null : sel.id)
-                      }
+                      onClick={() => setExpanded(!resourcesOpen)}
                     >
                       <i
                         className={`codicon codicon-chevron-${resourcesOpen ? "down" : "right"}`}

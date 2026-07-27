@@ -343,15 +343,27 @@ it("offers no expander on a row with no resources to show", async () => {
   expect(screen.queryByLabelText(/Snowflake resources/)).toBeNull();
 });
 
-it("collapses the resource list when another extension is selected", async () => {
+// Revisiting a row must not silently resume its 5s poll. The first version of
+// this test asserted `queryByText("#general")` was null right after the
+// round-trip -- which passes even when the list HAS remounted, because
+// ExtensionResources renders "Loading..." until its fetch resolves. It passed on
+// timing, not on correctness. Assert the toggle's ACCESSIBLE STATE (which cannot
+// be faked by an in-flight fetch) and that the fetch count did not move, with a
+// microtask flush in between so a resumed fetch would have landed.
+it("collapses the resource list -- and does not refetch -- when the selection round-trips", async () => {
   mount([SLACK, SNOWFLAKE], CHANNELS);
   await selectRow("Slack");
   await act(async () => {
     fireEvent.click(screen.getByLabelText("Expand Slack resources"));
   });
   expect(await screen.findByText("#general")).toBeTruthy();
+  expect(resourcesFor).toHaveBeenCalledTimes(1);
   await selectRow("Snowflake");
   await selectRow("Slack");
+  expect(screen.getByLabelText("Expand Slack resources")).toBeTruthy();
+  expect(screen.queryByLabelText("Collapse Slack resources")).toBeNull();
+  await act(async () => {});
+  expect(resourcesFor).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("#general")).toBeNull();
 });
 
