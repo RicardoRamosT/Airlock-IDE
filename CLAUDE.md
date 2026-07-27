@@ -267,3 +267,31 @@ Connecting Slack asks WHICH workspace first, then proves it got that one.
 
 Spec: `docs/superpowers/specs/2026-07-26-slack-workspace-connect-design.md` ·
 Plan: `docs/superpowers/plans/2026-07-26-slack-workspace-connect.md`.
+
+## Extensions hub
+
+The hub is a **page**, not a sidebar section. Its rail icon (below the divider)
+calls `openAppPage("extensions")` and **collapses the sidebar** — there is no
+sidebar body for `"extensions"` any more, and `effectiveView` treats the id as
+ineligible so an older prefs file naming it as `activeView` falls back to a real
+section instead of rendering blank. Clicking the icon again re-shows the page;
+closing is the page tab's own X (discarding a page is more destructive than
+hiding a panel). The id STAYS in `BUILTIN_SECTIONS` / `BUILTIN_SECTION_META` so
+the icon, right-click → Hide, and the View menu keep working.
+
+**Which buttons a row offers is DATA, not JSX.** `extensionActions(summary)`
+(`agent-core/src/integrations/actions.ts`, pure + unit-tested) returns the
+ordered `ExtensionAction[]`; `extensions:list` attaches it to every summary
+main-side — both the manifest-derived rows and the Tier-2 connected ones —
+because the renderer may not value-import agent-core. A surface renders the list
+and performs the action; it never re-derives which actions apply. This replaced
+~90 lines of nested ternaries in the deleted `ExtensionsSection`.
+
+**`ExtensionResources` lives in its own file** (`components/ExtensionResources.tsx`),
+extracted verbatim before the sidebar hub was deleted — it used to be defined
+*inside* `ExtensionsSection.tsx`, so deleting that file would have taken the only
+resource-list implementation with it. Both the page's detail pane and (until its
+removal) the panel imported it, gated on the same `expandable` condition.
+
+Spec: `docs/superpowers/specs/2026-07-27-extensions-reorganization-design.md` ·
+Plan: `docs/superpowers/plans/2026-07-27-extensions-hub-page.md`.
