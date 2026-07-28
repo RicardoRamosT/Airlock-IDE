@@ -100,6 +100,12 @@ export function connectedSummary(
     pinned: prefs[d.id]?.pinned === true,
     hasConfig: d.configSchema.fields.length > 0,
     authKind: d.authSpec ? "oauth2" : "token",
+    // A connected extension always owns a rail area: useSyncSectionMeta gives
+    // every enabled one an icon, and the sidebar renders either its registered
+    // view or the generic resources fallback. Carrying the flag is what lets
+    // withOpenSection offer "Open <name>" -- without it the hub pane was a dead
+    // end, with no way back to the extension's own area.
+    hasSection: true,
   };
 }
 

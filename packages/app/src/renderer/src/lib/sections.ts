@@ -68,11 +68,22 @@ export function composeSectionMeta(
     icon: e.icon ?? "extensions",
     group: "extensions" as const,
   });
+  // Deduped by id, keeping the FIRST occurrence. The caller selects the two
+  // lists with different filters (`tier === "connected"` and `hasSection`), and
+  // a connected extension now satisfies BOTH -- it owns a rail area, which is
+  // what lets the hub offer "Open <name>". Without this, Slack rendered twice.
+  // Keeping the first occurrence means the connected list wins the position, so
+  // a connected extension stays among the connected icons.
+  const seen = new Set<string>();
   return [
     ...BUILTIN_SECTION_META,
     ...[...connected].sort(byName).map(toMeta),
     ...[...sectionExts].sort(byName).map(toMeta),
-  ];
+  ].filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
 }
 
 // The view the sidebar actually shows: the chosen view while visible, else the

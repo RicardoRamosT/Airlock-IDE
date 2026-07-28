@@ -190,3 +190,28 @@ describe("composeSectionMeta with section extensions", () => {
     expect(composeSectionMeta([]).some((m) => m.id === "ext:neon")).toBe(false);
   });
 });
+
+// The two lists are selected by DIFFERENT filters in useSyncSectionMeta --
+// `tier === "connected"` and `hasSection === true` -- and since 2026-07-27 a
+// connected extension satisfies both (it owns a rail area, which is what lets
+// the hub offer "Open <name>"). Concatenating them blindly gave Slack two rail
+// icons with the same id. Deduped here rather than by re-narrowing the filters,
+// because two entries for one id are never wanted whoever produced them.
+it("lists an extension once even when it arrives in BOTH lists", () => {
+  const slack = { id: "slack", name: "Slack", icon: "slack" };
+  const meta = composeSectionMeta([slack], [slack]);
+  const slackRows = meta.filter((m) => m.id === "ext:slack");
+  expect(slackRows.length).toBe(1);
+});
+
+// The connected list wins the position, so a connected extension keeps sitting
+// among the connected icons rather than jumping down to the section group.
+it("keeps the FIRST occurrence, so rail order is unchanged", () => {
+  const a = { id: "slack", name: "Slack", icon: "slack" };
+  const b = { id: "docker", name: "Docker", icon: "docker" };
+  const meta = composeSectionMeta([a], [b, a]);
+  // Filtered by the `ext:` prefix, not by group: the extensions HUB itself is
+  // in the "extensions" group and is not one of these rows.
+  const ids = meta.map((m) => m.id).filter((id) => id.startsWith("ext:"));
+  expect(ids).toEqual(["ext:slack", "ext:docker"]);
+});

@@ -54,13 +54,23 @@ export interface ExtensionSummary {
   // decision with the data keeps one source of truth instead of a second
   // implementation in the UI.
   actions?: ExtensionAction[];
-  // True iff this id is registered in SECTION_EXTENSIONS -- i.e. it owns an
-  // ALWAYS-VISIBLE rail icon (and, for "databases"/"host", a provider row),
-  // regardless of which tier its STATUS comes from. Added 2026-07-27 so the
-  // renderer can select rail icons by this flag instead of by `tier ===
-  // "section"`: an id with BOTH a manifest and a SECTION_EXTENSIONS entry
-  // (Snowflake/Azure) surfaces as tier:"status" post-merge (see
-  // mergeSectionExtensions below), and would otherwise lose its rail icon.
+  // True iff this extension OWNS A RAIL AREA -- somewhere for "Open <name>" to
+  // go. Set for section extensions (via mergeSectionExtensions) and for every
+  // connected extension (via connectedSummary), which are the two kinds that
+  // get a rail icon; manifest "status" rows get it only when they also have a
+  // SECTION_EXTENSIONS entry.
+  //
+  // It first existed so the renderer could select rail icons by this flag
+  // rather than by `tier === "section"`: an id with BOTH a manifest and a
+  // SECTION_EXTENSIONS entry (Snowflake/Azure) surfaces as tier:"status"
+  // post-merge and would otherwise lose its icon. It was then also read by
+  // withOpenSection, as "owns an area" -- and the two readings diverged for
+  // exactly the connected extensions, which is how the hub's Slack pane ended
+  // up with no way to reach Slack's own sidebar area (fixed 2026-07-27).
+  //
+  // NOTE the rail composer takes connected and section extensions as SEPARATE
+  // lists, so a connected row now satisfies both of its filters --
+  // composeSectionMeta dedupes by id for that reason.
   hasSection?: boolean;
 }
 

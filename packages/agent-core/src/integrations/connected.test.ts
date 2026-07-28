@@ -81,3 +81,21 @@ describe("slackScopes covers file access", () => {
     expect(slackScopes(true)).toContain("files:read");
   });
 });
+
+// A connected extension owns a rail area (useSyncSectionMeta gives every
+// enabled connected extension an icon, and Sidebar renders either its
+// registered view or the generic resources fallback). It must therefore carry
+// hasSection, which is what withOpenSection reads to offer "Open <name>" --
+// without it the hub's Slack pane had no way back to Slack's own sidebar area,
+// breaking the every-row-links-onward rule.
+it("marks a connected extension as owning a rail area", () => {
+  expect(connectedSummary(SLACK_DESCRIPTOR, "connected", {}).hasSection).toBe(
+    true,
+  );
+});
+
+it("marks it even while unauthed -- the area exists either way", () => {
+  expect(connectedSummary(SLACK_DESCRIPTOR, "unauthed", {}).hasSection).toBe(
+    true,
+  );
+});

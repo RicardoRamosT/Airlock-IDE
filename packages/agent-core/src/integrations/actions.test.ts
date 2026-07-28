@@ -222,3 +222,55 @@ describe("openSection", () => {
     expect(acts.map((a) => a.kind)).toEqual(["connectOauth"]);
   });
 });
+
+// Reported 2026-07-27: the hub's Slack pane offered Change workspace,
+// Configure and Disconnect -- but no way to REACH Slack's own sidebar area,
+// which is where its channels and messages actually live. Every row links
+// onward is the rule; this row did not.
+//
+// The cause was `hasSection` meaning "registered in SECTION_EXTENSIONS", while
+// withOpenSection reads it as "owns a rail area". Those agree for every
+// section-tier extension and disagree for exactly the connected ones, which get
+// their rail icon from a different filter.
+describe("openSection for connected extensions", () => {
+  const slack = {
+    id: "slack",
+    name: "Slack",
+    tier: "connected" as const,
+    status: "connected" as const,
+    enabled: true,
+    pinned: false,
+    hasConfig: true,
+    authKind: "oauth2" as const,
+    hasSection: true,
+  };
+
+  it("offers Open <name> on a connected row that owns a rail area", () => {
+    const acts = extensionActions(slack);
+    expect(acts.map((a) => a.kind)).toContain("openSection");
+    expect(acts.find((a) => a.kind === "openSection")?.label).toBe(
+      "Open Slack",
+    );
+  });
+
+  // Appended LAST, so the real action stays the primary button: splitActions
+  // takes the first NON-danger action as primary, and navigation must not
+  // outrank changing the workspace.
+  it("does not become the primary action", () => {
+    const acts = extensionActions(slack).filter((a) => a.danger !== true);
+    expect(acts[0]?.kind).toBe("changeWorkspace");
+    expect(acts[acts.length - 1]?.kind).toBe("openSection");
+  });
+
+  it("still offers it alongside Connect while NOT connected", () => {
+    const acts = extensionActions({ ...slack, status: "unauthed" });
+    expect(acts.map((a) => a.kind)).toEqual(["connectOauth", "openSection"]);
+  });
+
+  // A hub-only extension with no rail area of its own must not get a button
+  // that navigates nowhere.
+  it("offers nothing when the extension owns no rail area", () => {
+    const acts = extensionActions({ ...slack, hasSection: false });
+    expect(acts.map((a) => a.kind)).not.toContain("openSection");
+  });
+});
