@@ -65,3 +65,23 @@ describe("primaryConnectAction", () => {
     expect(primaryConnectAction(row({ actions: undefined }))).toBeNull();
   });
 });
+
+it("binds a pooled account only when there is exactly ONE to choose", () => {
+  // Binding handles no credential, so it is inside extension_connect's
+  // existing invariant -- but picking WHICH identity a project uses is not a
+  // guess Claude should make on the user's behalf.
+  const one = row({
+    actions: [{ kind: "useAccount", label: "Use Airlock", accountId: "T1" }],
+  });
+  expect(primaryConnectAction(one)?.accountId).toBe("T1");
+
+  const many = row({
+    actions: [
+      { kind: "useAccount", label: "Use Airlock", accountId: "T1" },
+      { kind: "useAccount", label: "Use Acme", accountId: "T2" },
+      { kind: "connectOauth", label: "Connect Slack" },
+    ],
+  });
+  // Falls through to the flow that asks the USER, rather than picking one.
+  expect(primaryConnectAction(many)?.kind).toBe("connectOauth");
+});

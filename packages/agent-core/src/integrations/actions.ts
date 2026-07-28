@@ -17,6 +17,7 @@ export type ExtensionActionKind =
   | "connectCli"
   | "connectOauth"
   | "connectToken"
+  | "useAccount"
   | "changeWorkspace"
   | "configure"
   | "disconnect"
@@ -28,6 +29,10 @@ export interface ExtensionAction {
   // install / connectCli only: the shell command to run in a new terminal.
   // The user starts it; nothing here auto-runs.
   command?: string;
+  // useAccount only: WHICH account to bind. A separate field from `command`
+  // on purpose -- the install/connectCli branch RUNS `command` in a terminal,
+  // so a mis-routed action would execute an account id as a shell command.
+  accountId?: string;
   danger?: true;
 }
 

@@ -24,6 +24,7 @@ const CONNECTING: ExtensionAction["kind"][] = [
   "connectCli",
   "connectOauth",
   "connectToken",
+  "useAccount",
   "openSection",
 ];
 
@@ -34,6 +35,14 @@ export function primaryConnectAction(
 ): ExtensionAction | null {
   const acts = e.actions ?? [];
   for (const kind of CONNECTING) {
+    // Choosing WHICH identity a project uses is not a guess Claude should
+    // make. With one pooled account there is nothing to guess; with several,
+    // fall through so extension_connect reports the choices and stops.
+    if (kind === "useAccount") {
+      const uses = acts.filter((a) => a.kind === "useAccount");
+      if (uses.length === 1) return uses[0] ?? null;
+      continue;
+    }
     const hit = acts.find((a) => a.kind === kind);
     if (hit) return hit;
   }
@@ -102,6 +111,14 @@ export function runExtensionAction(
       if (e.id === "slack") {
         useApp.getState().setModal("slack-channels");
         return `Opened the ${e.name} channel allow-list.`;
+      }
+      return null;
+    case "useAccount":
+      // Binding handles NO credential: the token is already pooled in main,
+      // and this only records which workspace this project uses.
+      if (a.accountId && root) {
+        void window.airlock.slackBindWorkspace(root, a.accountId);
+        return `Connected to ${a.label.replace(/^Use /, "")}.`;
       }
       return null;
     case "disconnect":

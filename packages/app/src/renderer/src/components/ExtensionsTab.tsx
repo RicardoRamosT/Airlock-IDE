@@ -147,6 +147,17 @@ export function ExtensionsTab() {
   // keychain read every 5 seconds. Nothing fetches until the user asks, same as
   // the sidebar hub's chevron.
   const [expanded, setExpanded] = useState(false);
+  // The pooled Slack workspaces, for the one-click reuse buttons. Refs only --
+  // the tokens stay in main.
+  const [slackPool, setSlackPool] = useState<
+    { id: string; name: string; domain: string }[]
+  >([]);
+  useEffect(() => {
+    void window.airlock
+      .slackWorkspaces()
+      .then(setSlackPool)
+      .catch(() => setSlackPool([]));
+  }, []);
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   // Collapse on ANY selection change -- a click, or a poll-driven re-pick.
   // Storing the expanded row's ID instead was not enough: it only HID the list
@@ -272,7 +283,25 @@ export function ExtensionsTab() {
             const sel = current;
             const enabled = enabledOf(sel);
             const actions = sel.actions ?? [];
-            const { primary, secondary, danger } = splitActions(actions);
+            // A pooled workspace this project is not using yet is a ONE-CLICK
+            // connect: the token already exists in main, so no browser and no
+            // credential handling. Offered only while this project is NOT
+            // connected, and never applied automatically -- the click is what
+            // keeps projects isolated.
+            const reuse: ExtensionAction[] =
+              sel.id === "slack" && sel.status === "unauthed"
+                ? slackPool.map((w) => ({
+                    kind: "useAccount" as const,
+                    label: `Use ${w.name}`,
+                    accountId: w.id,
+                  }))
+                : [];
+            // reuse FIRST, so the first pooled workspace becomes the primary
+            // button and "Connect a different workspace" drops to secondary.
+            const { primary, secondary, danger } = splitActions([
+              ...reuse,
+              ...actions,
+            ]);
             // Whether the extension is in a state where resources could exist
             // at all -- drives the Resources slot's not-connected branch.
             const usable = sel.status === "ready" || sel.status === "connected";

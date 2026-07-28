@@ -31,6 +31,8 @@ const legacyList = vi.fn();
 
 beforeEach(() => {
   legacyList.mockReset();
+  slackWorkspaces = vi.fn(async () => [] as unknown[]);
+  slackBindWorkspace = vi.fn(async () => {});
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     extensionsList: legacyList,
     // SUMMARIES' Slack row is tier:"connected"/status:"connected", which is
@@ -39,6 +41,8 @@ beforeEach(() => {
     // resources -- stub both sources or the effect throws.
     extensionsResourcesFor: vi.fn(async () => []),
     integrationsResources: vi.fn(async () => []),
+    slackWorkspaces,
+    slackBindWorkspace,
   };
 });
 
@@ -125,6 +129,8 @@ let prefsSet: ReturnType<typeof vi.fn>;
 // unknown>`-typed window.airlock, which erases the check.
 let runInNewTerminal: ReturnType<typeof vi.fn<(command: string) => void>>;
 let resourcesFor: ReturnType<typeof vi.fn>;
+let slackWorkspaces: ReturnType<typeof vi.fn>;
+let slackBindWorkspace: ReturnType<typeof vi.fn>;
 
 const SLACK: ExtensionSummary = {
   id: "slack",
@@ -164,12 +170,22 @@ const SNOWFLAKE: ExtensionSummary = {
 
 // `resources` seeds extensionsResourcesFor's resolved value (default: none) --
 // only the one resource-list test below needs a non-empty return.
-function mount(rows: ExtensionSummary[], resources: IntegrationItem[] = []) {
+function mount(
+  rows: ExtensionSummary[],
+  resources: IntegrationItem[] = [],
+  // The pooled Slack workspaces. Passed IN rather than set on the mock by the
+  // caller: mount() reassigns the mock, so a mockResolvedValue set beforehand
+  // would be silently discarded.
+  pool: { id: string; name: string; domain: string }[] = [],
+) {
   list = vi.fn(async () => rows);
   disconnect = vi.fn(async () => ({ ok: true }));
   prefsSet = vi.fn(async () => ({}));
   runInNewTerminal = vi.fn<(command: string) => void>();
   resourcesFor = vi.fn(async () => resources);
+  // Empty pool by default: only the reuse tests seed it.
+  slackWorkspaces = vi.fn(async () => pool);
+  slackBindWorkspace = vi.fn(async () => {});
   // A root is required: Disconnect is root-scoped, and without one the button
   // silently does nothing and the assertion below would never fire.
   const t1 = useApp.getState().activeTabId;
@@ -189,6 +205,8 @@ function mount(rows: ExtensionSummary[], resources: IntegrationItem[] = []) {
     prefsSet,
     extensionsResourcesFor: resourcesFor,
     integrationsResources: vi.fn(async () => []),
+    slackWorkspaces,
+    slackBindWorkspace,
   };
   return render(<ExtensionsTab />);
 }
@@ -1008,4 +1026,57 @@ it("does NOT mount the resource list until the expander is clicked", async () =>
   expect(resourcesFor).not.toHaveBeenCalled();
   fireEvent.click(screen.getByText("Resources"));
   await waitFor(() => expect(resourcesFor).toHaveBeenCalled());
+});
+
+// Connect Slack in project A, and project B could only re-do the whole browser
+// authorization for a workspace you were already in. The pool makes that
+// credential reusable; these pin that the reuse is offered, applied, and never
+// applied on its own.
+it("offers a one-click reuse button for each pooled workspace", async () => {
+  mount(
+    [{ ...SLACK, status: "unauthed", actions: [] }],
+    [],
+    [{ id: "T1", name: "Airlock", domain: "airlock" }],
+  );
+  await selectRow("Slack");
+  expect(await screen.findByText("Use Airlock")).toBeTruthy();
+});
+
+it("binds the project when a reuse button is clicked", async () => {
+  mount(
+    [{ ...SLACK, status: "unauthed", actions: [] }],
+    [],
+    [{ id: "T1", name: "Airlock", domain: "airlock" }],
+  );
+  await selectRow("Slack");
+  await act(async () => {
+    fireEvent.click(await screen.findByText("Use Airlock"));
+  });
+  expect(slackBindWorkspace).toHaveBeenCalledWith("/proj", "T1");
+});
+
+it("offers NO reuse button once the project is already connected", async () => {
+  // Otherwise a connected project shows a button to connect to what it is
+  // already connected to.
+  mount([SLACK], [], [{ id: "T1", name: "Airlock", domain: "airlock" }]); // connected
+  await selectRow("Slack");
+  expect(screen.queryByText("Use Airlock")).toBeNull();
+});
+
+it("makes reuse the PRIMARY action, ahead of connecting a new workspace", async () => {
+  const { container } = mount(
+    [
+      {
+        ...SLACK,
+        status: "unauthed",
+        actions: [{ kind: "connectOauth", label: "Connect Slack" }],
+      },
+    ],
+    [],
+    [{ id: "T1", name: "Airlock", domain: "airlock" }],
+  );
+  await selectRow("Slack");
+  await screen.findByText("Use Airlock");
+  const row = container.querySelector(".ext-detail-buttons") as HTMLElement;
+  expect(row.querySelector(".btn.primary")?.textContent).toBe("Use Airlock");
 });
