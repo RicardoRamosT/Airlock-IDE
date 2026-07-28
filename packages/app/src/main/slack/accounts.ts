@@ -16,7 +16,9 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   deleteGlobalSecret,
+  deleteSecret,
   getGlobalSecret,
+  getSecretValue,
   readProjectConfig,
   resolveSlackWorkspaceId,
   type SlackWorkspaceRef,
@@ -122,11 +124,55 @@ export async function boundSlackWorkspaceId(
   return resolveSlackWorkspaceId(bound, await readRegistry());
 }
 
+// The per-root secret name Slack used before the pool existed.
+const LEGACY_TOKEN_NAME = "SLACK_OAUTH_TOKEN";
+
+// Fold a pre-pool project into the pool, ONCE, on first read.
+//
+// Lazy rather than a startup sweep: a sweep would have to enumerate every
+// project AirLock has ever opened and read a keychain entry for each, which is
+// exactly the prompt-storm this codebase already fought (see the
+// secret-vault-one-item note).
+//
+// ORDER IS LOAD-BEARING: write the pooled copy, read it back, and only then
+// delete the legacy entry. A crash in between must leave the old token intact,
+// because losing it means a browser re-authorization.
+async function foldLegacy(root: string): Promise<string | null> {
+  const legacy = await getSecretValue(root, LEGACY_TOKEN_NAME).catch(
+    () => null,
+  );
+  if (!legacy) return null;
+
+  const cfg = await readProjectConfig(root).catch(() => null);
+  const w = (
+    cfg?.extensions?.slack as
+      | { workspace?: Record<string, unknown> }
+      | undefined
+  )?.workspace;
+  const id = typeof w?.id === "string" && w.id ? w.id : null;
+  // No verified team id -> we cannot key the pool. Leave everything alone; the
+  // caller resolves the id with auth.test and connects again.
+  if (!id) return null;
+
+  await addSlackWorkspace(
+    {
+      id,
+      name: typeof w?.name === "string" && w.name ? w.name : id,
+      domain: typeof w?.domain === "string" ? w.domain : "",
+    },
+    legacy,
+  );
+  if ((await getGlobalSecret(keyName(id))) !== legacy) return legacy; // keep both
+  await deleteSecret(root, LEGACY_TOKEN_NAME).catch(() => {});
+  return legacy;
+}
+
 // The token a project's Slack calls should use, or null when it is not bound
 // to a pooled workspace. MAIN-ONLY -- never return this over IPC.
 export async function slackTokenFor(
   root: string | null,
 ): Promise<string | null> {
   const id = await boundSlackWorkspaceId(root);
-  return id ? getGlobalSecret(keyName(id)) : null;
+  if (id) return getGlobalSecret(keyName(id));
+  return root ? foldLegacy(root) : null;
 }

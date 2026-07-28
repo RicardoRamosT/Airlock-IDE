@@ -121,3 +121,57 @@ it("survives a missing or malformed registry file", async () => {
   await writeFile(path.join(dir, "slack-workspaces.json"), "{not json");
   expect(await listSlackWorkspaces()).toEqual([]);
 });
+
+// Every project connected before the pool existed has a token vaulted under
+// the per-root name. This change must not disconnect any of them.
+it("folds a legacy per-project token into the pool, keeping the project connected", async () => {
+  secrets.set("/a:SLACK_OAUTH_TOKEN", "xoxb-legacy");
+  configs.set("/a", {
+    extensions: {
+      slack: { workspace: { id: "T1", name: "Airlock", domain: "airlock" } },
+    },
+  });
+
+  expect(await slackTokenFor("/a")).toBe("xoxb-legacy");
+  // ...and it is now pooled, so a SECOND project can reuse it.
+  expect((await listSlackWorkspaces()).map((w) => w.id)).toEqual(["T1"]);
+});
+
+it("does not delete the legacy secret until the pooled copy reads back", async () => {
+  // A crash between "delete old" and "write new" would lose the token and
+  // force a re-authorization, so the order is load-bearing.
+  secrets.set("/a:SLACK_OAUTH_TOKEN", "xoxb-legacy");
+  configs.set("/a", {
+    extensions: { slack: { workspace: { id: "T1", name: "A", domain: "a" } } },
+  });
+  await slackTokenFor("/a");
+  expect(secrets.get("slack-workspace:T1")).toBe("xoxb-legacy");
+  expect(secrets.has("/a:SLACK_OAUTH_TOKEN")).toBe(false);
+});
+
+it("is idempotent -- folding twice does not duplicate or break", async () => {
+  secrets.set("/a:SLACK_OAUTH_TOKEN", "xoxb-legacy");
+  configs.set("/a", {
+    extensions: { slack: { workspace: { id: "T1", name: "A", domain: "a" } } },
+  });
+  await slackTokenFor("/a");
+  expect(await slackTokenFor("/a")).toBe("xoxb-legacy");
+  expect(await listSlackWorkspaces()).toHaveLength(1);
+});
+
+it("leaves a project with NO legacy token and no binding disconnected", async () => {
+  expect(await slackTokenFor("/fresh")).toBeNull();
+  expect(await listSlackWorkspaces()).toEqual([]);
+});
+
+it("does not fold when the config has no verified workspace id", async () => {
+  // A pre-verification config cannot name its team id. Main resolves that with
+  // one auth.test call at the CALLER (see slack.ts); this layer must not
+  // invent an id.
+  secrets.set("/a:SLACK_OAUTH_TOKEN", "xoxb-legacy");
+  configs.set("/a", { extensions: { slack: { workspacePin: "airlock" } } });
+  expect(await slackTokenFor("/a")).toBeNull();
+  expect(await listSlackWorkspaces()).toEqual([]);
+  // The legacy token is UNTOUCHED, so nothing is lost.
+  expect(secrets.get("/a:SLACK_OAUTH_TOKEN")).toBe("xoxb-legacy");
+});
