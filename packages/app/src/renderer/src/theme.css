@@ -6127,6 +6127,14 @@ button.docker-row .codicon-chevron-right {
 .ext-detail-expand:hover {
   color: var(--fg);
 }
+/* Slot 5: resources. The expander carries its own top margin, so zero it here
+   to avoid doubling the gap. */
+.ext-detail-resources {
+  margin-top: var(--sb-block-gap);
+}
+.ext-detail-resources .ext-detail-expand {
+  margin-top: 0;
+}
 /* Slot 6: destructive actions, fenced off below a rule. They used to sit
    inline with the ordinary buttons at the same size, separated only by colour
    -- so "Disconnect Slack" competed for attention with "Configure Slack". */

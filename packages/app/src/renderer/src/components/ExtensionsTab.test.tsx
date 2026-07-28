@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -919,4 +920,65 @@ it("keeps the toggles OUT of the button row", async () => {
   await selectRow("Snowflake");
   const row = container.querySelector(".ext-detail-buttons") as HTMLElement;
   expect(within(row).queryByText("Enabled")).toBeNull();
+});
+
+it("tells a CONNECTED section extension where its resources live", async () => {
+  // Docker/Neon/Render resources come from bespoke per-extension IPCs that
+  // ExtensionResources cannot reach, so before this the slot rendered NOTHING
+  // and the pane just ended after the toggles.
+  const { container } = mount([
+    {
+      ...SNOWFLAKE,
+      id: "docker",
+      name: "Docker",
+      tier: "section",
+      status: "connected",
+      hasSection: true,
+      actions: [{ kind: "openSection", label: "Open Docker" }],
+    },
+  ]);
+  await selectRow("Docker");
+  expect(
+    screen.getByText("Docker's resources are shown in its own section."),
+  ).toBeTruthy();
+  // No expander: there is no inline list to expand.
+  expect(container.querySelector(".ext-detail-expand")).toBeNull();
+});
+
+it("tells a NOT-connected extension that resources come later, not to go looking", async () => {
+  // Neon is BOTH hasSection AND not connected -- the one place two conditions
+  // overlap. Not-connected must win: pointing at a section that currently
+  // lists nothing is technically true and useless.
+  mount([
+    {
+      ...SNOWFLAKE,
+      id: "neon",
+      name: "Neon",
+      tier: "section",
+      status: "unauthed",
+      hasSection: true,
+      actions: [{ kind: "openSection", label: "Open Neon" }],
+    },
+  ]);
+  await selectRow("Neon");
+  expect(
+    screen.getByText("Resources appear once Neon is connected."),
+  ).toBeTruthy();
+  expect(screen.queryByText(/shown in its own section/)).toBeNull();
+});
+
+it("still offers the expander for an extension with a real inline list", async () => {
+  const { container } = mount([SLACK]); // connected tier-2 -> expandable
+  await selectRow("Slack");
+  expect(container.querySelector(".ext-detail-expand")).not.toBeNull();
+});
+
+it("does NOT mount the resource list until the expander is clicked", async () => {
+  // ExtensionResources polls while mounted (GitHub: an API call plus a
+  // keychain read every 5s), so merely selecting a row must not start it.
+  mount([SLACK], [{ id: "r1", title: "general", subtitle: "", state: "idle" }]);
+  await selectRow("Slack");
+  expect(resourcesFor).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText("Resources"));
+  await waitFor(() => expect(resourcesFor).toHaveBeenCalled());
 });

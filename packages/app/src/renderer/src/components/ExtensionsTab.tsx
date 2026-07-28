@@ -273,6 +273,9 @@ export function ExtensionsTab() {
             const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
             const actions = sel.actions ?? [];
             const { primary, secondary, danger } = splitActions(actions);
+            // Whether the extension is in a state where resources could exist
+            // at all -- drives the Resources slot's not-connected branch.
+            const usable = sel.status === "ready" || sel.status === "connected";
             // Same condition ExtensionsSection.tsx used to decide a row's
             // resources are worth fetching: a Tier-1 steady row that is
             // actually ready and targets a non-activity section, or any
@@ -364,36 +367,54 @@ export function ExtensionsTab() {
                     </label>
                   )}
                 </div>
-                {/* Same resource list the sidebar's expandable row showed --
-                  lifted to ExtensionResources.tsx so deleting the sidebar
-                  doesn't delete the only place that fetched it. Behind a
-                  collapsed-by-default toggle: ExtensionResources polls while
-                  MOUNTED, so mounting it unasked would turn merely opening this
-                  page into a 5s API + keychain loop. */}
-                {expandable && (
-                  <>
-                    <button
-                      type="button"
-                      className="ext-detail-expand"
-                      aria-expanded={resourcesOpen}
-                      aria-label={`${resourcesOpen ? "Collapse" : "Expand"} ${sel.name} resources`}
-                      onClick={() => setExpanded(!resourcesOpen)}
-                    >
-                      <i
-                        className={`codicon codicon-chevron-${resourcesOpen ? "down" : "right"}`}
-                      />
-                      <span>Resources</span>
-                    </button>
-                    {resourcesOpen && (
-                      <ExtensionResources
-                        id={sel.id}
-                        name={sel.name}
-                        category={sel.category ?? ""}
-                        connected={sel.tier === "connected"}
-                      />
-                    )}
-                  </>
-                )}
+                {/* Slot 5. ALWAYS rendered, in four mutually exclusive states.
+                  THE ORDER MATTERS, because two of them overlap: Neon is both
+                  hasSection AND not connected, and must get the not-connected
+                  answer -- pointing a user at a section that currently lists
+                  nothing is technically true and useless.
+
+                  The inline list is the same one the sidebar's expandable row
+                  showed, lifted to ExtensionResources.tsx so deleting the
+                  sidebar didn't delete the only place that fetched it. It stays
+                  behind a collapsed-by-default toggle: ExtensionResources polls
+                  while MOUNTED, so mounting it unasked would turn merely
+                  selecting a row into a 5s API + keychain loop. */}
+                <div className="ext-detail-resources">
+                  {expandable ? (
+                    <>
+                      <button
+                        type="button"
+                        className="ext-detail-expand"
+                        aria-expanded={resourcesOpen}
+                        aria-label={`${resourcesOpen ? "Collapse" : "Expand"} ${sel.name} resources`}
+                        onClick={() => setExpanded(!resourcesOpen)}
+                      >
+                        <i
+                          className={`codicon codicon-chevron-${resourcesOpen ? "down" : "right"}`}
+                        />
+                        <span>Resources</span>
+                      </button>
+                      {resourcesOpen && (
+                        <ExtensionResources
+                          id={sel.id}
+                          name={sel.name}
+                          category={sel.category ?? ""}
+                          connected={sel.tier === "connected"}
+                        />
+                      )}
+                    </>
+                  ) : !usable ? (
+                    <div className="section-note">
+                      Resources appear once {sel.name} is connected.
+                    </div>
+                  ) : sel.hasSection ? (
+                    <div className="section-note">
+                      {sel.name}'s resources are shown in its own section.
+                    </div>
+                  ) : (
+                    <div className="section-note">No resources.</div>
+                  )}
+                </div>
                 {/* Slot 6. Destructive work, fenced off below a rule -- it used
                     to sit inline with the ordinary buttons at the same size,
                     separated only by colour. */}
