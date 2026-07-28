@@ -16,9 +16,19 @@ ad-hoc signed — recipients use the Gatekeeper "Open Anyway" bypass).
 two titles had drifted to `AirLock 0.5.0`/`AirLock 0.3.0` and were renamed
 2026-07-25. Keep the `v` in BOTH. The in-app updater reads `tag_name` (stripping a
 leading `v`) and never the title, so the tag format is the functional one — but
-bump `package.json` **and** `packages/app/package.json` together, since the DMG
-name and the update version compare come from them. Publishing needs
+bump **all three** `package.json` files together — root, `packages/app` and
+`packages/agent-core`. The DMG name and the update version compare come from the
+first two; agent-core was silently left at 0.6.0 through the 0.6.1 prep and is a
+trap for whoever reads it next. `npm install --package-lock-only` then syncs the
+lockfile, which also carries all three. Publishing needs
 `gh auth switch -u RicardoRamosT`.
+
+**Release checklist** (0.6.1 onward): changelog entry → bump the three
+package.json + lockfile → `npm run dist:mac` → `shasum -a 256` the DMG and put
+the digest **in the release notes** (added 0.6.1; its absence was glaring for a
+product whose pitch is trust) → tag + release → `git push origin main` and the
+tag. Notarization is NOT yet configured (`identity: "-"` is ad-hoc), so the notes
+must keep telling users about the Gatekeeper "Open Anyway" step until it is.
 
 **Testing convention:** unit-test pure modules; keep electron/chokidar wiring
 thin and untested (e.g. `fsWatch.ts` only tests its pure helper).
@@ -33,6 +43,56 @@ fine (erased at build). For renderer-facing *runtime* data, put it in
 `TERMINAL_DISPLAY_NAMES` mirrors agent-core's registry there. **`npm test` and
 `npm run typecheck` do NOT catch this — only `npm run package` does**, so
 repackage after any change that adds a renderer import.
+
+## Loading states: one primitive, three states
+
+`components/Loading.tsx` is the app's ONE loading state (added 0.6.1, replacing
+nine spellings of "loading…" across 24 sites). Two rules matter more than the
+component:
+
+- **Three states, not two.** A fetching surface's initial state is `null` = NOT
+  ASKED YET, distinct from `[]` = asked, and the answer is none. Conflating them
+  is what made several panels paint a finished-looking EMPTY page for seconds
+  while an 8s CLI probe ran — reported as the app being "frozen", though nothing
+  ever blocked.
+- **First load only, and all-or-nothing.** These surfaces poll (5s typically);
+  a refresh must never return state to `null` or the spinner flashes forever. And
+  a surface with several first-paint fetches waits for ALL of them, then renders
+  once. Only fetches the first paint needs participate — lazily-expanded data
+  never gates.
+
+`Loading` delays ~150ms before appearing (a spinner that flashes for 80ms reads
+as a glitch) and keeps its element under `prefers-reduced-motion`, stopping only
+the animation. Empty states were deliberately NOT changed: they were correct, just
+shown at the wrong time.
+
+## Extension relevance, and the per-project opt-in
+
+An account-wide CLI (`az webapp list`, `snow SHOW WAREHOUSES`) returns the whole
+subscription, so a manifest may declare `relevance` (a vaulted `AZURE_*` secret,
+or an `azure.yaml` in root) to limit itself to projects that use it.
+
+- **The gate is opt-in PER CALL SITE**, not on the handler:
+  `integrations:resources(id, scoped?)`. The three project-scoped callers pass
+  `true` (the rail section + the Host/Databases provider rows); the Extension Hub
+  omits it and stays account-wide on purpose. The gate used to live only in
+  `integrations:steady`, which lost its renderer callers when Databases/Host moved
+  to ProviderRows — so nothing enforced it and ElArqui listed LendLogic's web apps.
+- **`relevant = the user said so, OR a signal matches.`** The signal is a
+  heuristic, so `ProjectConfig.extensions.<id>.useHere` overrides it (the "Use it
+  here" button + the hub's per-project switch). Checked FIRST in `isRelevant`.
+  There is deliberately no opt-OUT.
+- `SteadyIntegration.status` gains `"irrelevant"` as `DetectStatus | "irrelevant"`,
+  NOT inside DetectStatus — no CLI ran to produce it, and keeping it out makes it
+  structurally impossible for the account-wide Hub union to receive it.
+- **`patchProjectExtension`** (agent-core) is the ONLY safe way to write one
+  extension's per-project config: `writeProjectConfig` shallow-merges, so writing
+  the `extensions` map by hand replaces it wholesale. It does the read-modify-write
+  INSIDE the per-root write chain. Both former hand-rolled callers are moved onto
+  it; do not add a third.
+
+Audit: `verifyAuditChain` now has a user-facing entry point — **Audit ▸ Verify
+chain** (`audit:verify`). An audit claim nobody can check is decoration.
 
 ## Claude usage quota meter
 
@@ -380,8 +440,10 @@ Plan: `docs/superpowers/plans/2026-07-27-extensions-hub-page.md`.
 
 ## MCP tool surface
 
-**37 tools** (`main/mcp/tools.ts`, locked by an allowlist test that also asserts
-the count and parity with `resources/mcp-docs/tools.md` — update all three
+**36 tools** (`main/mcp/tools.ts`, locked by an allowlist test that also asserts
+the count and parity with BOTH `resources/mcp-docs/tools.md` and the **README**
+(added 0.6.1: the README had drifted to 39 for a 36-tool surface, and an outside
+reviewer assessed the project on that stale figure) — update all three
 together). Two rules learned from trimming it:
 
 - **Count is not the diagnostic; ambiguity is.** Tools hurt when the model must
