@@ -97,13 +97,32 @@ export function ActivityBar() {
     // same race the layout buttons guard against).
     s.setLayoutHydrated(true);
     // The hub is a PAGE, not a panel: its content wants the full workspace
-    // width. Open the page and collapse the sidebar, which would otherwise sit
-    // there empty. Clicking again re-shows the page rather than closing it --
-    // discarding a page tab is more destructive than hiding a panel, so that
-    // stays the tab's own X.
+    // width, so opening it collapses the sidebar that would otherwise sit
+    // there empty.
+    //
+    // The icon TOGGLES, like every other icon in this rail. It used to re-open
+    // the already-open page on a second click -- on the theory that discarding
+    // a page tab is more destructive than hiding a panel -- which meant a
+    // second click did nothing visible except take the sidebar away, leaving
+    // the user with neither a panel nor a way back. The hub holds no state
+    // worth protecting (a list and a selection), so consistency wins.
+    //
+    // Closing gives the sidebar BACK, but only if the hub is what took it:
+    // someone who had already collapsed the sidebar before opening the hub
+    // should not have it forced open on the way out.
     if (id === EXTENSIONS_HUB_SECTION) {
+      if (s.appPage === "extensions") {
+        s.closeAppPage("extensions");
+        if (s.hubHidSidebar) {
+          s.setHubHidSidebar(false);
+          s.setSidebarVisible(true);
+          void window.airlock.prefsSet({ sidebarVisible: true });
+        }
+        return;
+      }
       s.openAppPage("extensions");
       if (s.sidebarVisible) {
+        s.setHubHidSidebar(true);
         s.setSidebarVisible(false);
         void window.airlock.prefsSet({ sidebarVisible: false });
       }

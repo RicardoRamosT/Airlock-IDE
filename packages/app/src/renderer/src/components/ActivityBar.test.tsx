@@ -174,6 +174,68 @@ it("hub icon opens the Extensions page and collapses the sidebar", async () => {
   );
 });
 
+// Reported from the UI: clicking the icon a second time "does not close it and
+// closes the sidebar". The handler ran the same open-and-collapse branch every
+// time, so the second click did nothing visible EXCEPT take the sidebar away --
+// leaving neither a panel nor an obvious way back. The icon toggles now, like
+// every other icon in this rail.
+it("hub icon CLOSES the page on a second click", async () => {
+  useApp.setState({ sidebarVisible: true, appPage: null, activeView: "files" });
+  render(<ActivityBar />);
+  const icon = screen.getByTitle("Extensions");
+  fireEvent.click(icon);
+  expect(useApp.getState().appPage).toBe("extensions");
+
+  fireEvent.click(icon);
+  expect(useApp.getState().appPage).toBeNull();
+  // ...and the tab is discarded, not merely hidden.
+  expect(useApp.getState().extensionsTabOpen).toBe(false);
+});
+
+it("gives the sidebar BACK when the hub is closed, since the hub took it", async () => {
+  useApp.setState({ sidebarVisible: true, appPage: null, activeView: "files" });
+  render(<ActivityBar />);
+  const icon = screen.getByTitle("Extensions");
+  fireEvent.click(icon);
+  expect(useApp.getState().sidebarVisible).toBe(false);
+
+  fireEvent.click(icon);
+  expect(useApp.getState().sidebarVisible).toBe(true);
+  // Persisted, or the next prefs hydrate re-collapses it.
+  expect(prefsSet).toHaveBeenCalledWith({ sidebarVisible: true });
+});
+
+it("does NOT force the sidebar open if it was already collapsed before the hub", async () => {
+  // Someone who deliberately works with no sidebar must not have one shoved
+  // back at them for having visited the hub.
+  useApp.setState({
+    sidebarVisible: false,
+    appPage: null,
+    activeView: "files",
+  });
+  render(<ActivityBar />);
+  const icon = screen.getByTitle("Extensions");
+  fireEvent.click(icon);
+  fireEvent.click(icon);
+  expect(useApp.getState().appPage).toBeNull();
+  expect(useApp.getState().sidebarVisible).toBe(false);
+  expect(prefsSet).not.toHaveBeenCalledWith({ sidebarVisible: true });
+});
+
+it("re-opens the hub when its page was hidden by selecting a project tab", async () => {
+  // appPage null with the tab still open: the page is hidden, not closed, so
+  // the icon must OPEN rather than toggle-close.
+  useApp.setState({
+    sidebarVisible: true,
+    appPage: null,
+    extensionsTabOpen: true,
+    activeView: "files",
+  });
+  render(<ActivityBar />);
+  fireEvent.click(screen.getByTitle("Extensions"));
+  expect(useApp.getState().appPage).toBe("extensions");
+});
+
 it("hub icon reads active while its page is showing", () => {
   useApp.setState({ appPage: "extensions", sidebarVisible: false });
   render(<ActivityBar />);

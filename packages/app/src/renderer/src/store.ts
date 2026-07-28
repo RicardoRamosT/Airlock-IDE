@@ -585,6 +585,12 @@ export interface AppState {
   openAppPage: (p: "settings" | "usage" | "extensions") => void; // open the tab + show it
   showAppPage: (p: "settings" | "usage" | "extensions") => void; // click an already-open Settings/Usage tab
   closeAppPage: (p: "settings" | "usage" | "extensions") => void; // a page tab's X
+  // True while the Extensions hub is the reason the sidebar is collapsed. The
+  // hub is a full-width PAGE, so opening it hides the sidebar -- and closing it
+  // must give that sidebar back, or the rail's toggle leaves you with neither.
+  // Transient (never persisted): it describes a collapse this session performed.
+  hubHidSidebar: boolean;
+  setHubHidSidebar: (v: boolean) => void;
   showOverview: (root: string) => void; // show the focused project's Overview
   closeOverview: () => void; // leave the Overview page (back to the project's work)
   setSearchResults: (query: string, results: SearchResults) => void;
@@ -1921,6 +1927,8 @@ export const useApp = create<AppState>((set) => ({
       extensionsTabOpen: p === "extensions" ? true : s.extensionsTabOpen,
     })),
   showAppPage: (p) => set({ appPage: p }),
+  hubHidSidebar: false,
+  setHubHidSidebar: (hubHidSidebar) => set({ hubHidSidebar }),
   showOverview: (root) => set({ appPage: "overview", overviewRoot: root }),
   closeOverview: () => set({ appPage: null, overviewRoot: null }),
   closeAppPage: (p) =>

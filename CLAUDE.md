@@ -274,9 +274,14 @@ The hub is a **page**, not a sidebar section. Its rail icon (below the divider)
 calls `openAppPage("extensions")` and **collapses the sidebar** — there is no
 sidebar body for `"extensions"` any more, and `effectiveView` treats the id as
 ineligible so an older prefs file naming it as `activeView` falls back to a real
-section instead of rendering blank. Clicking the icon again re-shows the page;
-closing is the page tab's own X (discarding a page is more destructive than
-hiding a panel). The id STAYS in `BUILTIN_SECTIONS` / `BUILTIN_SECTION_META` so
+section instead of rendering blank. **The icon TOGGLES**, like every other icon
+in the rail: a second click closes the page and gives the sidebar back — but
+only if the hub is what collapsed it (`hubHidSidebar`), so someone already
+working without a sidebar does not get one forced on them. It used to re-open
+the already-open page instead, on the theory that discarding a page tab is more
+destructive than hiding a panel; in practice that made the second click do
+nothing visible EXCEPT take the sidebar away, leaving neither a panel nor an
+obvious way back. The id STAYS in `BUILTIN_SECTIONS` / `BUILTIN_SECTION_META` so
 the icon, right-click → Hide, and the View menu keep working.
 
 **Which buttons a row offers is DATA, not JSX.** `extensionActions(summary)`
