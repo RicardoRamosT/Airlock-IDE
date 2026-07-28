@@ -58,12 +58,11 @@ reaches the agent — enforced by a
 [source-level test](packages/app/src/main/mcp/tools.test.ts) that fails the build
 if the MCP tool file even references a value-returning function. Commits are
 scanned for leaked secret values before they land. Every broker operation is
-hash-chain audited. **Where the line is:** this defends against a *confused*
-agent and prompt injection, not a deliberately hostile one — redaction matches
-values, so encoding defeats it, and a secret the agent may *use* is a secret it
-may act with. The [threat model](docs/threat-model.md#what-airlock-does-not-protect-against)
-is explicit about all of it. By design there are **no
-third-party extensions**; the attack surface stays closed.
+hash-chain audited. This is a defence against a *confused* agent and prompt
+injection, not a hostile one — the
+[threat model](docs/threat-model.md#what-airlock-does-not-protect-against) is
+precise about where that line falls. By design there are **no third-party
+extensions**; the attack surface stays closed.
 
 ## How it compares
 
@@ -74,7 +73,7 @@ aimed at running an AI agent across many projects without handing it your keys:
 | ------------------------------------------------- | :---------------: | :---------------------: | :--------------------: |
 | Terminal-first AI agent                           |         ✓         | terminal + editor agent |           ✓            |
 | Every project in one window, each its own agent   |         —         | one workspace at a time |    ✓ (tabs + splits)   |
-| Many agents running at once                       |    ✓ (by hand)    |            —            |  ✓ (one per terminal)  |
+| Many agents running at once                       |    ✓ (by hand)    | ✓ (multi-chat, 1.128)   | ✓ (one per terminal; one IDE-driven at a time) |
 | Agent can **use** a secret but **can't read** it  |         —         |            —            | ✓ (broker + redaction) [^1] |
 | Agent can drive the IDE (tabs, splits, status)    |         —         |     via extensions      |   ✓ (built-in MCP)     |
 | No third-party extensions (closed attack surface) |        n/a        | extension marketplace   |     ✓ (by design)      |
@@ -297,7 +296,8 @@ Secrets live in the Keychain; values are injected into a command's environment
 main-process-side and redacted from every output the agent can read (terminal
 tails, command output). The MCP tool set is an allowlist with a test that fails
 the build if any tool could return a secret value. Claude *uses* secrets but
-can't *read* them — the [threat model](docs/threat-model.md) spells out exactly
+can't *read* them — the [threat model](docs/threat-model.md#what-airlock-does-not-protect-against)
+spells out exactly
 where that line is (and isn't).
 
 **Is the download notarized?** Not yet — the release is ad-hoc signed (no paid
