@@ -23,16 +23,31 @@ Please include:
 I aim to acknowledge reports within a few days and to fix confirmed, in-scope
 issues in a timely release, crediting you unless you'd rather stay anonymous.
 
-## What's in scope
+## Five things AirLock claims are impossible — break one
 
-Anything that breaks AirLock's core promise — see the
-[threat model](docs/threat-model.md) for the precise guarantees:
+This is an invitation, not just a policy. AirLock's central claim is unusually
+falsifiable, so here it is as five things that should not be achievable. **Land
+any of them and you get credit** — by name, or anonymously if you prefer.
 
-- The agent reading a vaulted secret **value** it shouldn't.
-- Output redaction being bypassed so a secret value reaches the agent.
-- Escaping or widening the MCP tool allowlist.
-- Forging or silently breaking the hash-chained audit log.
-- A vaulted secret leaking to disk or into a commit.
+1. Get the agent to read a vaulted secret **value** it shouldn't have.
+2. Bypass output redaction so a secret value reaches the agent's context.
+3. Escape or widen the MCP tool allowlist.
+4. Forge or silently break the hash-chained audit log.
+5. Get a vaulted secret onto disk, or into a commit.
+
+Attempts and their outcomes get written up publicly — **including the ones that
+fail**. A record of serious attempts that did not work is the only third-party
+evidence a project this size can honestly produce, and it is worth more than
+anything I can assert about my own code.
+
+The [threat model](docs/threat-model.md) states the precise guarantees, and
+[this test](packages/app/src/main/mcp/tools.test.ts) is the build-enforced
+version of #1 and #2: it reads the MCP tool file and fails if it so much as
+references a value-returning function.
+
+Start with `docs/threat-model.md#what-airlock-does-not-protect-against` before
+you begin — several obvious attacks are already documented as **out of scope**,
+and knowing which saves you the time.
 
 ## What's out of scope
 
