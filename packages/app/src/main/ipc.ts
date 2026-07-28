@@ -95,6 +95,7 @@ import {
   undoLastCommit,
   unstageFiles,
   vaultedSecrets,
+  verifyAuditChain,
   type WorkspaceTarget,
   withActions,
   withDb,
@@ -1187,6 +1188,26 @@ export function registerIpc(
         : 50,
     ),
   );
+
+  // audit:verify -> re-walk the whole hash chain and report whether it holds.
+  //
+  // The README claims hash-chain auditing; until this existed nothing could
+  // CHECK that claim, which makes it decoration. Deliberately reuses
+  // verifyAuditChain -- the same function six unit tests already pin -- rather
+  // than a second implementation of the walk: two copies of a security check is
+  // how the check and the claim drift apart.
+  //
+  // Reports the entry count alongside the verdict, because "valid" over an empty
+  // or truncated log is technically true and useless -- a reader needs to see
+  // that it verified something.
+  ipcMain.handle("audit:verify", async (e, root: unknown) => {
+    const r = resolveRoot(e, root);
+    const [ok, entries] = await Promise.all([
+      verifyAuditChain(r),
+      readAudit(r).then((rows) => rows.length),
+    ]);
+    return { ok, entries };
+  });
 
   ipcMain.handle("events:query", (_e, filter: unknown) =>
     queryEvents(sanitizeEventFilter(filter)),

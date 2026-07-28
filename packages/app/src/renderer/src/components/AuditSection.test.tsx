@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useApp } from "../store";
 import { AuditSection } from "./AuditSection";
 
@@ -91,4 +98,61 @@ it("returns to loading when the pane switches to another project", async () => {
   seedRoot("/repo-b");
   rerender(<AuditSection />);
   expect(await screen.findByRole("status")).toBeTruthy();
+});
+
+// The README claims hash-chain auditing. Until this button existed there was no
+// way for the person who owns the log to CHECK that claim -- verifyAuditChain
+// was a library function with no entry point, which makes the claim decoration.
+describe("verify chain", () => {
+  function stubVerify(result: { ok: boolean; entries: number }) {
+    const auditVerify = vi.fn(async () => result);
+    (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+      auditRead: vi.fn(async () => [ENTRY]),
+      auditVerify,
+    };
+    return auditVerify;
+  }
+
+  it("reports an intact chain, naming how many entries it checked", async () => {
+    const verify = stubVerify({ ok: true, entries: 42 });
+    seedRoot("/repo");
+    render(<AuditSection />);
+    fireEvent.click(await screen.findByRole("button", { name: /verify/i }));
+    await waitFor(() => expect(verify).toHaveBeenCalledWith("/repo"));
+    // The COUNT matters: "valid" over nothing is true and worthless.
+    expect(await screen.findByText(/42 entries/)).toBeTruthy();
+    expect(screen.getByText(/intact/i)).toBeTruthy();
+  });
+
+  it("says plainly when the chain does NOT hold", async () => {
+    stubVerify({ ok: false, entries: 7 });
+    seedRoot("/repo");
+    render(<AuditSection />);
+    fireEvent.click(await screen.findByRole("button", { name: /verify/i }));
+    expect(await screen.findByText(/tampered|broken|failed/i)).toBeTruthy();
+  });
+
+  // An empty log verifies trivially. Saying "intact" there would be technically
+  // true and misleading, so it must not read as evidence.
+  it("does not present an empty log as proof of anything", async () => {
+    stubVerify({ ok: true, entries: 0 });
+    seedRoot("/repo");
+    render(<AuditSection />);
+    fireEvent.click(await screen.findByRole("button", { name: /verify/i }));
+    expect(await screen.findByText(/nothing to verify/i)).toBeTruthy();
+  });
+});
+
+// The toolbar sits ABOVE the empty-log branch on purpose: a fresh project is
+// exactly when someone wants to confirm the mechanism works at all, and hiding
+// the button there also made the "nothing to verify" wording unreachable.
+it("offers the check even when the log is empty", async () => {
+  (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+    auditRead: vi.fn(async () => []),
+    auditVerify: vi.fn(async () => ({ ok: true, entries: 0 })),
+  };
+  seedRoot("/repo");
+  render(<AuditSection />);
+  expect(await screen.findByRole("button", { name: /verify/i })).toBeTruthy();
+  expect(screen.getByText("no operations yet")).toBeTruthy();
 });

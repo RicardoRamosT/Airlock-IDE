@@ -22,6 +22,12 @@ export function AuditSection() {
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   // null = not asked yet, distinct from [] ("asked, and there are none").
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
+  // The result of the last chain check, or null when it has not been run. Not
+  // run on mount: re-walking the whole log is work, and an unasked-for verdict
+  // is not what makes the claim checkable -- being able to ask is.
+  const [chain, setChain] = useState<{ ok: boolean; entries: number } | null>(
+    null,
+  );
 
   const load = useCallback(() => {
     if (!root) {
@@ -52,11 +58,41 @@ export function AuditSection() {
 
   if (!root) return <OpenFolderEmpty />;
   if (entries === null) return <Loading label="Loading audit log" />;
-  if (entries.length === 0)
-    return <div className="section-note">no operations yet</div>;
+
+  const verify = async () => {
+    try {
+      setChain(await window.airlock.auditVerify(root));
+    } catch (err) {
+      console.error("auditVerify failed", err);
+      // A failed CHECK is not a failed chain -- saying "tampered" here would
+      // accuse the log of something the app merely could not determine.
+      setChain(null);
+    }
+  };
 
   return (
     <div className="audit">
+      {/* Every broker operation is hash-chained; this is how you check that,
+          rather than taking the README's word for it. */}
+      <div className="section-toolbar">
+        <button type="button" className="btn" onClick={() => void verify()}>
+          Verify chain
+        </button>
+      </div>
+      {chain && (
+        <div className="section-note">
+          {chain.entries === 0
+            ? // True but not evidence: an empty log verifies trivially, so it
+              // must not read as a pass.
+              "Nothing to verify yet — the log is empty."
+            : chain.ok
+              ? `Chain intact — ${chain.entries} entries verified.`
+              : `Chain BROKEN — ${chain.entries} entries read. The log has been edited or truncated.`}
+        </div>
+      )}
+      {entries.length === 0 && (
+        <div className="section-note">no operations yet</div>
+      )}
       {entries.map((e) => {
         const { label, icon } = auditLabel(e.op);
         const summary = auditSummary(e.detail);

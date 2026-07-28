@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/RicardoRamosT/Airlock-IDE?color=orange&label=release)](../../releases)
 [![CI](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml/badge.svg)](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-2043-brightgreen)](#building-from-source)
+[![Tests](https://img.shields.io/badge/tests-2047-brightgreen)](#building-from-source)
 
 <img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage gauges flanking the window title" width="800"/>
 
@@ -206,7 +206,9 @@ happens at terminal spawn; loader-hijack names (`PATH`, `DYLD_*`,
 `NODE_OPTIONS` and friends) are stripped and audited. You (the human) can
 reveal or copy a value from the sidebar; the clipboard auto-clears. Every
 broker operation lands in a hash-chained audit log
-(`.airlock/audit/log.jsonl`).
+(`.airlock/audit/log.jsonl`) — and **Audit ▸ Verify chain** re-walks it and tells
+you whether it still holds, with the number of entries checked. An audit claim
+you cannot check is decoration, so the check ships with it.
 
 ### Everything else in the sidebar
 
@@ -234,6 +236,13 @@ broker operation lands in a hash-chained audit log
   auto-switch on focus. A dot on the Accounts button tells you at a glance whether
   the account in play is the right one for the repo you're in.
 
+- **Extensions:** a full-width page (not a sidebar panel) listing every
+  integration grouped by real connection state — Connected / Not connected / Not
+  installed / Disabled — with the actions that actually apply to each row and a
+  detail pane per extension. Slack, GitHub, Neon, Render, Docker, Snowflake and
+  Azure. There is deliberately no marketplace: these are first-party adapters,
+  and the list is the whole of it.
+
 Each section shows only when you want it (right-click → Hide, or
 **View ▸ Sidebar**), and Claude can curate this for you. An activity-bar rail
 switches sections and shows a per-section health dot at a glance. Dark and light
@@ -258,7 +267,7 @@ macOS only, by design.
 
 Early and moving fast: v0.6.1, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
-invariants are the part that's tested hardest — 2,043 unit tests, including the
+invariants are the part that's tested hardest — 2,047 unit tests, including the
 [source-level guard](packages/app/src/main/mcp/tools.test.ts) that fails the
 build if the MCP tool file so much as references a value-returning function.
 

@@ -103,6 +103,7 @@ const api: AirlockApi = {
   configGet: (root) => ipcRenderer.invoke("config:get", root),
   configSet: (root, patch) => ipcRenderer.invoke("config:set", root, patch),
   auditRead: (root, limit) => ipcRenderer.invoke("audit:read", root, limit),
+  auditVerify: (root) => ipcRenderer.invoke("audit:verify", root),
   eventsQuery: (filter) => ipcRenderer.invoke("events:query", filter),
   gitIsRepo: (root) => ipcRenderer.invoke("git:isRepo", root),
   gitStatus: (root) => ipcRenderer.invoke("git:status", root),

@@ -954,6 +954,10 @@ export interface AirlockApi {
     patch: Partial<ProjectConfig>,
   ): Promise<ProjectConfig>;
   auditRead(root: string, limit: number): Promise<AuditEntry[]>;
+  // Re-walk the audit hash chain and report whether it holds, with the number of
+  // entries checked. `entries: 0` with `ok: true` means there was nothing to
+  // verify -- true, but not evidence of anything.
+  auditVerify(root: string): Promise<{ ok: boolean; entries: number }>;
   eventsQuery(filter: EventFilter): Promise<LogEvent[]>;
   gitIsRepo(root: string): Promise<boolean>;
   gitStatus(root: string): Promise<GitStatus>;
