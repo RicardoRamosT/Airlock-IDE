@@ -39,7 +39,7 @@ matched and replaced with `***`** — its literal form *and* its common single-s
 encodings (base64, base64url, hex, base32, percent/URL-encoding), plus a defense-in-depth
 pattern pass for secret-shaped strings — in both stdout and stderr. So even a command
 that deliberately `echo`s the secret (or base64/hex/base32-encodes it once) comes back
-redacted — **you use the secret, you never see it.** (Honest limit: this is not a wall
+redacted — **you use the secret without ever being handed it.** (Honest limit: this is not a wall
 against a determined process. Something that *holds* the value can still disguise it
 with an arbitrary transform the filter can't anticipate — reversing it, splitting it
 across lines, gzip, char-by-char printing, encryption, or nested/double-encoding (e.g.

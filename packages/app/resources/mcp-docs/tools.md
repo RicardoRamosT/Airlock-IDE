@@ -1,9 +1,9 @@
 # MCP tools
 
 airlock exposes 36 tools over this MCP server. Nine are **read-only status** tools
-(including `plan_usage`, your own Claude plan usage); two curate the UI
-(`set_sidebar_section_visibility` drives the sidebar, which hides
-an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
+(including `plan_usage`, your own Claude plan usage); one curates the UI
+(`set_sidebar_section_visibility` shows or hides a sidebar section); one
+(`run_command`) runs a shell command with named vaulted secrets
 injected and the output returned with those values **redacted**; one (`git_commit`) commits
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
 asks the user to vault a secret you need (you get back only whether it was vaulted, never
@@ -25,8 +25,11 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
 
 ## Sidebar control
 
-- **`list_sidebar_sections`** — list every sidebar section (`files`, `secrets`, `git`,
-  `databases`, `docker`, `host`, `audit`, `activity`) with its label and current visibility.
+- **`list_sidebar_sections`** — list every sidebar section. The built-ins are
+  `files`, `secrets`, `git`, `databases`, `host`, `audit`, `events` and
+  `extensions`; each connected or section extension also has one, addressed as
+  `ext:<id>` (e.g. `ext:docker`, `ext:slack`). Returns each with its label and
+  current visibility.
   Call this first when you want to curate the sidebar, so you know the current state.
 - **`set_sidebar_section_visibility`** — show or hide one section (args: `section`,
   `visible`); returns the new visibility map. Use it to tailor the sidebar to the project:
@@ -141,7 +144,7 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   and an optional `cwd` (defaults to the workspace root). Use it for commands that need a
   credential to work: a `psql`/migration against `DATABASE_URL`, a `curl` that needs an API
   key, a script that reads a token from its env. You name the secret; **airlock injects the
-  value main-side, you never see it**, and if the command echoes it — literally, or in a
+  value main-side and never hands it to you**, and if the command echoes it — literally, or in a
   common single-shot encoding (base64/base64url/hex/base32/percent-encoding) — the output comes
   back redacted (`***`). (Not a wall against a determined process: an arbitrary transform
   it applies once it holds the value — reverse, split, gzip, char-by-char, or nested/
@@ -295,7 +298,7 @@ never returned to you.
 
 GitHub is a **connected extension** you link by **logging in** (OAuth device flow —
 no API key). Once connected for a project, the token is vaulted and used
-main-side; you never see it.
+main-side; no tool returns it.
 
 - **`github_read_issue`** — read a GitHub issue (title, body, state, url) to pull
   context on a problem discussed there. Args: `owner`, `repo`, `issue` (number).
