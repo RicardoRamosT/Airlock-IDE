@@ -341,6 +341,12 @@ export {
   servicesForRepo,
 } from "./render/parse";
 export {
+  resolveSlackWorkspaceId,
+  type SlackWorkspaceRef,
+  sortWorkspaces,
+  upsertWorkspace,
+} from "./slack/accounts";
+export {
   authTest as slackAuthTest,
   channelHistory as slackChannelHistory,
   listChannels as slackListChannels,
