@@ -147,6 +147,41 @@ it("says Azure is not signed in rather than a fixed string", async () => {
   expect(await screen.findByText("not signed in")).toBeTruthy();
 });
 
+// `az webapp list` is account-wide, so in a project that does not use Azure
+// the count is ANOTHER project's web apps. The row stays (rule 1: a provider
+// row is always present and always states a reason) but the reason changes.
+// "0 web apps" would be the failure this replaced: a correct-looking empty
+// answer that does not say WHY -- and it is what the ternary chain renders if
+// the irrelevant arm is missing, which TypeScript cannot catch.
+it("says Azure is not used in this project rather than counting another project's web apps", async () => {
+  stubHost({
+    url: null,
+    up: false,
+    azure: { status: "irrelevant", resources: [] },
+  });
+  seedRoot();
+  render(<LocalHostSection />);
+  expect(await screen.findByText("not used in this project")).toBeTruthy();
+  expect(screen.queryByText("0 web apps")).toBeNull();
+  expect(screen.getByText("Azure")).toBeTruthy(); // the row itself never disappears
+});
+
+// The Host row belongs to one project, so it must opt into the project scope.
+// Without this the gate in the handler never runs and the leak stays.
+it("asks integrations:resources for the PROJECT scope, not the account-wide list", async () => {
+  stubHost({ url: null, up: false });
+  seedRoot();
+  render(<LocalHostSection />);
+  const api = (
+    window as unknown as {
+      airlock: { integrationsResources: ReturnType<typeof vi.fn> };
+    }
+  ).airlock;
+  await waitFor(() =>
+    expect(api.integrationsResources).toHaveBeenCalledWith("azure", true),
+  );
+});
+
 it("gives a Render instance an Open action to its service URL, not Connect", async () => {
   const { hostOpenExternal } = stubHost({
     url: null,

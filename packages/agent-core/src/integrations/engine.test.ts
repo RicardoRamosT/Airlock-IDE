@@ -12,6 +12,7 @@ import {
   pollSteady,
   runManifest,
   type SteadyCache,
+  type SteadyIntegration,
   steadyIntegrationFor,
   steadyView,
 } from "./engine";
@@ -475,6 +476,64 @@ describe("detectWithOutput", () => {
       status: "unauthed",
       stdout: "",
     });
+  });
+});
+
+// A project-scoped caller (a manifest's own rail section, and the Host/
+// Databases provider rows) turns an account-wide list into "irrelevant" for a
+// project that does not use the tool. The GATE itself lives in the IPC handler
+// -- it needs the project's vaulted secret names and root listing, which the
+// engine deliberately does not do I/O for. What the engine owes that caller is
+// (a) a status field wide enough to carry the verdict and (b) the manifest's
+// `relevance` spec, so the renderer can say WHAT would make the project
+// relevant instead of a generic shrug.
+describe("SteadyIntegration.status: irrelevant", () => {
+  const azureish: IntegrationManifest = {
+    id: "azureish",
+    name: "Azureish",
+    surface: { view: "host" },
+    relevance: { envPrefix: "AZURE_", files: ["azure.yaml"] },
+    detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
+    poll: { everyMs: 30000, cli: { cmd: "az", args: ["webapp", "list"] } },
+    map: {
+      items: "$",
+      key: "$.name",
+      title: "$.name",
+      state: { from: "$.state", default: "idle" },
+    },
+  };
+
+  it("is assignable as a status, with no resources", () => {
+    const value: SteadyIntegration = {
+      id: "azureish",
+      name: "Azureish",
+      view: "host",
+      status: "irrelevant",
+      resources: [],
+    };
+    expect(value.status).toBe("irrelevant");
+    expect(value.resources).toEqual([]);
+  });
+
+  it("passes a manifest's relevance spec through, so the reason can name it", async () => {
+    const run: CliRunner = async (_c, args) =>
+      args[0] === "account" ? "" : JSON.stringify([]);
+    const value = await steadyIntegrationFor(azureish, null, 1000, {}, run);
+    expect(value.relevance).toEqual({
+      envPrefix: "AZURE_",
+      files: ["azure.yaml"],
+    });
+  });
+
+  it("omits relevance for an account-global manifest, which has no spec", async () => {
+    const value = await steadyIntegrationFor(
+      DEPLOY,
+      "/repo",
+      1000,
+      {},
+      okRunner,
+    );
+    expect(value.relevance).toBeUndefined();
   });
 });
 

@@ -78,6 +78,7 @@ import {
   runGit,
   SECTION_EXTENSIONS,
   type SteadyCache,
+  type SteadyIntegration,
   searchProject,
   sectionExtensionSummaries,
   setGlobalSecret,
@@ -86,6 +87,7 @@ import {
   slackScopes,
   stageFiles,
   steadyIntegrationFor,
+  steadyView,
   switchBranch,
   switchGhAccount,
   targetsVault,
@@ -180,6 +182,7 @@ import {
   resolveDevUrl,
   sectionExtensionStatuses,
 } from "./ide-state";
+import { relevanceContextFor } from "./integrations/relevance";
 import {
   lspCompletion,
   lspDefinition,
@@ -258,6 +261,18 @@ const sessions = new Map<string, PtySession>();
 // Per-manifest steady-state poll cache, persisted across IPC calls so each
 // manifest's everyMs cadence holds regardless of how often the sidebar polls.
 const steadyCache: SteadyCache = {};
+
+// The real readers behind relevanceContextFor (pure + unit-tested in
+// integrations/relevance.ts). listSecrets reads NAMES only, so no keychain
+// prompt. Both integrations:steady and the project-scoped branch of
+// integrations:resources go through this, so the two cannot answer "does this
+// project use Azure?" differently.
+const projectRelevance = (root: string) =>
+  relevanceContextFor(
+    root,
+    async (r) => (await listSecrets(r)).map((m) => m.name),
+    readdir,
+  );
 
 // Per-manifest detect-status cache for the Extension Hub list (extensions:list),
 // throttled to each manifest's poll.everyMs so opening the Hub view doesn't
@@ -1939,38 +1954,65 @@ export function registerIpc(
     );
     const all = await pollSteady(manifests, root, Date.now(), steadyCache);
     if (!root) return all; // no focused project -> nothing to disambiguate
-    const secretNames = (await listSecrets(root)).map((m) => m.name);
-    let rootFiles: string[] = [];
-    try {
-      rootFiles = await readdir(root);
-    } catch {
-      // unreadable root (deleted/permissions): fall back to no file signal
-    }
+    const ctx = await projectRelevance(root);
     const byId = new Map(manifests.map((m) => [m.id, m]));
     return all.filter((s) => {
       const m = byId.get(s.id);
-      return m ? isRelevant(m, { secretNames, rootFiles }) : true;
+      return m ? isRelevant(m, ctx) : true;
     });
   });
 
-  // integrations:resources -> the resources for ONE integration, account-wide,
-  // with NO pin/relevance filter (unlike integrations:steady). Powers the
-  // Extension Hub's expand-in-place, and (2026-07-27) a manifest's own
-  // extension section (ManifestExtensionSection, for Snowflake/Azure) --
-  // see & control a connection's resources from any project. Reuses the shared
-  // steadyCache (everyMs-throttled) so it never double-spawns a CLI the Host
-  // view already polled. Uses steadyIntegrationFor rather than pollSteady
+  // integrations:resources -> the resources for ONE integration. Powers the
+  // Extension Hub's expand-in-place, a manifest's own extension section
+  // (ManifestExtensionSection, for Snowflake/Azure), and the Azure/Snowflake
+  // provider rows in Host/Databases. Reuses the shared steadyCache
+  // (everyMs-throttled) so it never double-spawns a CLI another surface
+  // already polled. Uses steadyIntegrationFor rather than pollSteady
   // SPECIFICALLY so this also works for an Activity-surfaced manifest that
   // contributes no Databases/Host provider row -- pollSteady excludes those,
   // which made this return null and left such an icon a permanent dead end.
   // (No shipped manifest is Activity-surfaced today; engine.test.ts covers the
   // branch with a local fixture.) Returns null only for an unknown id.
-  ipcMain.handle("integrations:resources", async (e, id: string) => {
-    const root = rootForEvent(e);
-    const m = INTEGRATIONS.find((x) => x.id === id);
-    if (!m) return null;
-    return steadyIntegrationFor(m, root, Date.now(), steadyCache);
-  });
+  //
+  // `scoped` is the PROJECT-SCOPED opt-in, and the fix for the leak where
+  // ElArqui's AZURE section and HOST row listed another project's LendLogic web
+  // apps: `az webapp list` / `snow SHOW WAREHOUSES` are account-wide, so a
+  // surface that belongs to ONE project must not show them in a project that
+  // does not use the tool. The relevance gate used to live only in
+  // integrations:steady, which lost its renderer callers when Databases/Host
+  // moved to ProviderRows -- so in practice nothing enforced it any more.
+  // The Extension Hub calls this WITHOUT `scoped` and stays account-wide ON
+  // PURPOSE: it is the global "see this connection's resources from any
+  // project" view. Hence opt-in per call site, not a gate on the handler.
+  //
+  // Returning before steadyIntegrationFor also means `az` / `snow` never spawn
+  // in a project that does not use them. The early return deliberately does not
+  // touch steadyCache, so an irrelevant project cannot poison the value the Hub
+  // reads back.
+  ipcMain.handle(
+    "integrations:resources",
+    async (e, id: string, scoped?: boolean) => {
+      const root = rootForEvent(e);
+      const m = INTEGRATIONS.find((x) => x.id === id);
+      if (!m) return null;
+      if (scoped && root && !isRelevant(m, await projectRelevance(root))) {
+        const irrelevant: SteadyIntegration = {
+          id: m.id,
+          name: m.name,
+          // Match steadyValue's fallback: "" is not a view id, and a surface
+          // that routes by view would silently get nowhere.
+          view: steadyView(m) ?? "activity",
+          status: "irrelevant",
+          resources: [],
+          // Only a manifest WITH a spec can be irrelevant, so this is always
+          // present here -- kept conditional to mirror steadyValue's shape.
+          ...(m.relevance ? { relevance: m.relevance } : {}),
+        };
+        return irrelevant;
+      }
+      return steadyIntegrationFor(m, root, Date.now(), steadyCache);
+    },
+  );
 
   // extensions:list -> ExtensionSummary[] for the Extension Hub view. Detects
   // EVERY manifest (regardless of surface) so the Hub is the one place that lists

@@ -158,8 +158,11 @@ export function LocalHostSection() {
       .renderServices()
       .then(setServices)
       .catch(() => setServices([]));
+    // `true` = the PROJECT scope. This row belongs to one project, and
+    // `az webapp list` is account-wide, so without it a project that does not
+    // use Azure showed a count of ANOTHER project's web apps.
     void window.airlock
-      .integrationsResources("azure")
+      .integrationsResources("azure", true)
       .then((s) => setAzure(s ?? AZURE_UNAVAILABLE))
       .catch(() => setAzure(AZURE_UNAVAILABLE));
   }, []);
@@ -279,14 +282,20 @@ export function LocalHostSection() {
       // Host never hides that the provider is available. The state itself is
       // real (not decoration): the same detect status + resource count the
       // ext:azure section shows, never probed a second, richer way here.
+      // The "irrelevant" arm is load-bearing, not decoration: without it this
+      // chain falls through to the count and renders "0 web apps" -- a correct
+      // empty answer that does not say WHY, which is exactly what rule 1
+      // forbids. TypeScript cannot catch a missing arm in a ternary chain.
       state:
         azure === null
           ? "checking…"
-          : azure.status === "absent"
-            ? "CLI not found"
-            : azure.status === "unauthed"
-              ? "not signed in"
-              : `${azure.resources.length} web app${azure.resources.length === 1 ? "" : "s"}`,
+          : azure.status === "irrelevant"
+            ? "not used in this project"
+            : azure.status === "absent"
+              ? "CLI not found"
+              : azure.status === "unauthed"
+                ? "not signed in"
+                : `${azure.resources.length} web app${azure.resources.length === 1 ? "" : "s"}`,
       instances: [],
     },
   ];

@@ -2,7 +2,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { evalExpr } from "./expr";
-import type { IntegrationItem, IntegrationManifest } from "./manifest";
+import type {
+  IntegrationItem,
+  IntegrationManifest,
+  RelevanceSpec,
+} from "./manifest";
 import { mapToItems } from "./map";
 
 const exec = promisify(execFile);
@@ -192,13 +196,25 @@ export interface SteadyIntegration {
   id: string;
   name: string;
   view: string; // target sidebar view, e.g. "databases"
-  status: DetectStatus; // absent | unauthed | ready
+  // absent | unauthed | ready | irrelevant. "irrelevant" is NOT a DetectStatus
+  // and is deliberately not added to that union: no CLI ran to produce it. It
+  // is a property of a PROJECT-SCOPED view -- this manifest declares a
+  // `relevance` spec the focused project does not satisfy -- decided by the
+  // integrations:resources handler, never by detect. Keeping it out of
+  // DetectStatus also keeps it structurally out of ExtensionSummary["status"],
+  // which is correct: the Extension Hub is account-wide and can never see it.
+  status: DetectStatus | "irrelevant";
   resources: IntegrationItem[]; // [] unless ready
   // Passed through from the manifest so the renderer can offer an Install button
   // on the absent row / a Connect button on the unauthed row (each runs its
   // command in a new terminal).
   install?: { command: string; docsUrl?: string };
   connect?: { command: string; docsUrl?: string };
+  // Passed through for the same reason: an "irrelevant" surface must say WHAT
+  // would make the project relevant ("vault an AZURE_* secret or add an
+  // azure.yaml"), and only the manifest knows. Absent for an account-global
+  // manifest, which declares no spec and is therefore never irrelevant.
+  relevance?: RelevanceSpec;
 }
 
 // Steady analogue of PollCache: caches the whole SteadyIntegration per id.
@@ -248,6 +264,7 @@ async function steadyValue(
     resources,
     ...(m.install ? { install: m.install } : {}),
     ...(m.connect ? { connect: m.connect } : {}),
+    ...(m.relevance ? { relevance: m.relevance } : {}),
   };
   cache[m.id] = { at: now, value };
   return value;

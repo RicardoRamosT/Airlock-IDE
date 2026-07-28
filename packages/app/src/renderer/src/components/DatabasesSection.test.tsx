@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useApp } from "../store";
 import { DatabasesSection } from "./DatabasesSection";
@@ -88,4 +88,27 @@ it("says Snowflake is not signed in rather than a fixed string", async () => {
 it("says Snowflake's CLI is not found when absent, rather than a fixed string", async () => {
   mount([], [], { status: "absent", resources: [] });
   expect(await screen.findByText("CLI not found")).toBeTruthy();
+});
+
+// `snow SHOW WAREHOUSES` is account-wide, so in a project that does not use
+// Snowflake the count belongs to some other project. The row stays (rule 1)
+// and states the real reason; "0 warehouses" -- what the ternary chain renders
+// without an irrelevant arm -- is the correct-but-useless answer this avoids.
+it("says Snowflake is not used in this project rather than counting another project's warehouses", async () => {
+  mount([], [], { status: "irrelevant", resources: [] });
+  expect(await screen.findByText("not used in this project")).toBeTruthy();
+  expect(screen.queryByText("0 warehouses")).toBeNull();
+  expect(screen.getByText("Snowflake")).toBeTruthy(); // the row never disappears
+});
+
+it("asks integrations:resources for the PROJECT scope, not the account-wide list", async () => {
+  mount();
+  const api = (
+    window as unknown as {
+      airlock: { integrationsResources: ReturnType<typeof vi.fn> };
+    }
+  ).airlock;
+  await waitFor(() =>
+    expect(api.integrationsResources).toHaveBeenCalledWith("snowflake", true),
+  );
 });

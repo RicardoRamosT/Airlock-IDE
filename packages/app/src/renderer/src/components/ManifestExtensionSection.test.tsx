@@ -17,12 +17,15 @@ import {
 
 afterEach(cleanup);
 
-function mockResources(fn: (id: string) => Promise<SteadyIntegration | null>) {
+function mockResources(
+  fn: (id: string, scoped?: boolean) => Promise<SteadyIntegration | null>,
+) {
   (
     window as unknown as {
       airlock: {
         integrationsResources: (
           id: string,
+          scoped?: boolean,
         ) => Promise<SteadyIntegration | null>;
       };
     }
@@ -110,11 +113,15 @@ it("says there are no resources rather than rendering a blank panel", async () =
   expect(screen.queryByText("Nothing to show yet.")).toBeNull();
 });
 
-it("fetches by the manifest id it was given, not a fixed one", async () => {
+// `true` is the project-scoped opt-in on integrations:resources. This section
+// belongs to ONE project, so it must never be handed the account-wide list --
+// the leak this asserts against showed ElArqui every LendLogic web app in the
+// subscription. The Extension Hub calls the same IPC WITHOUT it, on purpose.
+it("fetches by the manifest id it was given, not a fixed one, and asks for the PROJECT scope", async () => {
   const fn = vi.fn(async () => null);
   mockResources(fn);
   render(<ManifestExtensionSection id="azure" />);
-  await waitFor(() => expect(fn).toHaveBeenCalledWith("azure"));
+  await waitFor(() => expect(fn).toHaveBeenCalledWith("azure", true));
 });
 
 it("registers a distinct wrapper per extension, each fetching its own id", async () => {
@@ -122,10 +129,82 @@ it("registers a distinct wrapper per extension, each fetching its own id", async
   mockResources(fn);
 
   render(<SnowflakeSection />);
-  await waitFor(() => expect(fn).toHaveBeenCalledWith("snowflake"));
+  await waitFor(() => expect(fn).toHaveBeenCalledWith("snowflake", true));
   cleanup();
   fn.mockClear();
 
   render(<AzureSection />);
-  await waitFor(() => expect(fn).toHaveBeenCalledWith("azure"));
+  await waitFor(() => expect(fn).toHaveBeenCalledWith("azure", true));
+});
+
+// An account-wide CLI in a project that does not use it. The old behaviour was
+// to list the whole subscription -- in practice ANOTHER project's resources.
+// The reason must be specific enough to act on, so it is derived from the
+// manifest's own `relevance` spec rather than hardcoded per extension.
+it("says the extension isn't used in this project, and names what would change that", async () => {
+  mockResources(async () => ({
+    id: "azure",
+    name: "Azure",
+    view: "host",
+    status: "irrelevant",
+    resources: [],
+    relevance: {
+      envPrefix: "AZURE_",
+      files: ["azure.yaml", "azure.yml", ".azure"],
+    },
+  }));
+  render(<ManifestExtensionSection id="azure" />);
+  expect(
+    await screen.findByText("Azure isn't used in this project."),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      "Add azure.yaml to the project root, or vault a secret starting with AZURE_.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText("Nothing to show yet.")).toBeNull();
+});
+
+it("names the prefix alone for a manifest that declares no files, so Snowflake reads correctly", async () => {
+  mockResources(async () => ({
+    id: "snowflake",
+    name: "Snowflake",
+    view: "databases",
+    status: "irrelevant",
+    resources: [],
+    relevance: { envPrefix: "SNOWFLAKE_" },
+  }));
+  render(<ManifestExtensionSection id="snowflake" />);
+  expect(
+    await screen.findByText("Snowflake isn't used in this project."),
+  ).toBeTruthy();
+  expect(
+    screen.getByText("Vault a secret starting with SNOWFLAKE_."),
+  ).toBeTruthy();
+  // No file signal exists for Snowflake, so inventing one would be a lie.
+  expect(screen.queryByText(/project root/)).toBeNull();
+});
+
+it("renders no resource rows when irrelevant, even if the payload carried some", async () => {
+  mockResources(async () => ({
+    id: "azure",
+    name: "Azure",
+    view: "host",
+    status: "irrelevant",
+    // The handler returns [] here; this asserts the RENDERER does not fall
+    // through to the ready branch, so a future regression on either side
+    // cannot leak another project's rows.
+    resources: [
+      {
+        id: "int:azure:leak",
+        title: "lendlogic-los-app-bnk-qa-eus2",
+        subtitle: "rg-lendlogic",
+        state: "running",
+      },
+    ],
+    relevance: { envPrefix: "AZURE_" },
+  }));
+  render(<ManifestExtensionSection id="azure" />);
+  await screen.findByText("Azure isn't used in this project.");
+  expect(screen.queryByText("lendlogic-los-app-bnk-qa-eus2")).toBeNull();
 });

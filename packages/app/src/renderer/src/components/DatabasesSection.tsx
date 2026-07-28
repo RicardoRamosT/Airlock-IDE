@@ -87,8 +87,11 @@ export function DatabasesSection() {
       .neonStatus()
       .then((s) => setNeonConnected(s.connected))
       .catch(() => setNeonConnected(false));
+    // `true` = the PROJECT scope. This row belongs to one project, and
+    // `snow SHOW WAREHOUSES` is account-wide, so without it a project that does
+    // not use Snowflake showed a count belonging to some other project.
     void window.airlock
-      .integrationsResources("snowflake")
+      .integrationsResources("snowflake", true)
       .then((s) => setSnowflake(s ?? SNOWFLAKE_UNAVAILABLE))
       .catch(() => setSnowflake(SNOWFLAKE_UNAVAILABLE));
   }, []);
@@ -203,14 +206,20 @@ export function DatabasesSection() {
       // The arrow to its own section (rendered by ProviderRows itself) is the
       // honest affordance. The state itself is real (not decoration): the same
       // detect status + resource count the ext:snowflake section shows.
+      // The "irrelevant" arm is load-bearing, not decoration: without it this
+      // chain falls through to the count and renders "0 warehouses" -- a
+      // correct empty answer that does not say WHY, which is exactly what
+      // rule 1 forbids. TypeScript cannot catch a missing arm in a ternary.
       state:
         snowflake === null
           ? "checking…"
-          : snowflake.status === "absent"
-            ? "CLI not found"
-            : snowflake.status === "unauthed"
-              ? "not signed in"
-              : `${snowflake.resources.length} warehouse${snowflake.resources.length === 1 ? "" : "s"}`,
+          : snowflake.status === "irrelevant"
+            ? "not used in this project"
+            : snowflake.status === "absent"
+              ? "CLI not found"
+              : snowflake.status === "unauthed"
+                ? "not signed in"
+                : `${snowflake.resources.length} warehouse${snowflake.resources.length === 1 ? "" : "s"}`,
       instances: [],
     },
   ];

@@ -1092,7 +1092,14 @@ export interface AirlockApi {
   activityStatus(root: string | null): Promise<ActivityItem[]>;
   activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
-  integrationsResources(id: string): Promise<SteadyIntegration | null>;
+  // `scoped: true` = this caller belongs to ONE project, so an account-wide CLI
+  // list must come back as status "irrelevant" in a project that does not use
+  // the tool (see the handler). The Extension Hub omits it and stays
+  // account-wide on purpose.
+  integrationsResources(
+    id: string,
+    scoped?: boolean,
+  ): Promise<SteadyIntegration | null>;
   extensionsResourcesFor(id: string): Promise<IntegrationItem[]>;
   extensionsList(): Promise<ExtensionSummary[]>;
   // Eye-on connected extensions' granted resources, grouped by target section.
