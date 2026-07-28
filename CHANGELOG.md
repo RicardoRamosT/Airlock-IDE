@@ -2,6 +2,24 @@
 
 All notable user-facing changes to AirLock. Dates are when the version was cut.
 
+## 0.6.2
+
+### Fixed
+- **A phantom "Release to open … in a new window"** label used to follow your
+  cursor whenever it left AirLock, with no drag behind it. Reordering a project
+  tab once was enough: the drop cleared the strip's drag state before `dragend`
+  ran, so the drag never ended as far as the window-tracking was concerned, and
+  its cursor poll kept running for the rest of the session.
+- **AirLock's dock icon lost its status badge and the running-app dot** the first
+  time that label appeared — permanently, until you relaunched. Showing a window
+  on every macOS workspace hides the app's whole dock tile, and nothing put it
+  back. It is restored now, badge and all.
+- **Claude Code's input box no longer hides under the bottom bar** after a
+  display change. Moving the window to a differently-scaled screen, switching
+  resolution, or waking with a monitor attached changes how tall a terminal row
+  actually renders without resizing anything — so the terminal kept one row too
+  many, and the row that fell off the bottom was the one you type in.
+
 ## 0.6.1
 
 ### Added
