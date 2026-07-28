@@ -4,6 +4,7 @@ import { runExtensionAction } from "../lib/extensionActions";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ExtensionResources } from "./ExtensionResources";
+import { GithubAccountRows } from "./GithubAccountRows";
 import { SectionGlyph } from "./SectionGlyph";
 import { Switch } from "./Switch";
 
@@ -372,6 +373,10 @@ export function ExtensionsTab() {
                     checked={enabled}
                     onChange={(v) => applyPref(sel.id, { enabled: v })}
                   />
+                  {/* GitHub's accounts live in `gh`, not in AirLock -- this
+                      surfaces the switch the accounts popover already has, so
+                      the hub stops being the one place that cannot reach it. */}
+                  {sel.id === "github" && <GithubAccountRows root={root} />}
                   {/* There is deliberately no "Show in {category}" switch.
                       Databases and Host are ROUTERS: every provider row is
                       ALWAYS present and always states a reason, so nothing can

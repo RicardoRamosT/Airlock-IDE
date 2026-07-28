@@ -43,6 +43,11 @@ beforeEach(() => {
     integrationsResources: vi.fn(async () => []),
     slackWorkspaces,
     slackBindWorkspace,
+    // The GitHub pane renders its gh account list; without these the effect
+    // throws for any fixture with id "github".
+    githubInfo: vi.fn(async () => ({ gh: { installed: true, accounts: [] } })),
+    resolveGithubAccount: vi.fn(async () => null),
+    setProjectGithubAccount: vi.fn(async () => {}),
   };
 });
 
@@ -207,6 +212,11 @@ function mount(
     integrationsResources: vi.fn(async () => []),
     slackWorkspaces,
     slackBindWorkspace,
+    // The GitHub pane renders its gh account list; without these the effect
+    // throws for any fixture with id "github".
+    githubInfo: vi.fn(async () => ({ gh: { installed: true, accounts: [] } })),
+    resolveGithubAccount: vi.fn(async () => null),
+    setProjectGithubAccount: vi.fn(async () => {}),
   };
   return render(<ExtensionsTab />);
 }

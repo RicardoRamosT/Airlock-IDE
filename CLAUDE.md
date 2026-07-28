@@ -325,6 +325,25 @@ always states a reason — a switch that hid one would contradict the design.
 `extensions:resources`, `useExtensionResources`, `eyeOnConnected`,
 `pinnedEnabledManifests`, and the `pinned` field itself.
 
+**Identity is reusable; infrastructure is not.** A Slack workspace and a GitHub
+account are WHO YOU ARE — reused across projects, so re-authorizing per project
+is pure friction. A database or a hosting service is WHAT THIS PROJECT RUNS ON
+— rarely shared, and a one-click "reuse" there invites binding project B to
+project A's production database. So Slack has a workspace POOL
+(`main/slack/accounts.ts`, mirroring the Neon key pool: non-secret enumerable
+registry + one keychain entry per workspace + a per-project binding in
+`ProjectConfig.extensions.slack.workspace.id`, the VERIFIED team id — never
+`workspacePin`, which is only what the user *requested*) and GitHub surfaces
+`gh`'s accounts; Neon, Render, Snowflake, Azure and Docker deliberately do NOT.
+**Nothing ever auto-binds** — unlike Neon's sole-account default, an unbound
+project is not connected however many workspaces are pooled, because the click
+is what keeps projects isolated. Slack's `disconnect` clears the BINDING only;
+removing a workspace from the pool is a separate, louder action that
+disconnects every project using it. Legacy per-project tokens fold into the
+pool lazily on first read (a startup sweep would read a keychain entry per
+known project), writing the pooled copy and reading it back BEFORE deleting the
+old one.
+
 **The detail pane is SIX FIXED SLOTS** — header, status, actions, settings,
 resources, danger — and a slot is never omitted, only filled differently. The
 button rule is `splitActions` (pure, exported, unit-tested): the destructive
