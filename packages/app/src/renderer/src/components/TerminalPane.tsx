@@ -4,6 +4,7 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { openEditorFile } from "../lib/editorFiles";
 import { isExternalFileDrag } from "../lib/externalDrop";
+import { onPixelRatioChange } from "../lib/pixelRatio";
 import { useProjectTab } from "../lib/projectPane";
 import { terminalDropText } from "../lib/terminalDrop";
 import { terminalKeyBytes } from "../lib/terminalKeys";
@@ -478,24 +479,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // lands under the status bar's seam, which is exactly where Claude Code draws
     // its composer. Longer delay than a resize: xterm re-measures on the same
     // event and the order between us is not guaranteed.
-    let dprQuery: MediaQueryList | null = null;
-    const armDpr = () => {
-      dprQuery?.removeEventListener("change", onDprChange);
-      // Matches only the CURRENT ratio, so it must be re-armed after each
-      // change -- otherwise it sits unmatched and misses every ratio after the
-      // next one.
-      // Optional call: jsdom has no matchMedia, and the unit tests lose nothing
-      // by skipping a display-change listener.
-      dprQuery =
-        window.matchMedia?.(`(resolution: ${window.devicePixelRatio}dppx)`) ??
-        null;
-      dprQuery?.addEventListener("change", onDprChange);
-    };
-    const onDprChange = () => {
-      armDpr();
-      scheduleRefit(150);
-    };
-    armDpr();
+    const stopDpr = onPixelRatioChange(() => scheduleRefit(150));
     // Layout heights + font metrics can settle a frame after mount, so re-fit
     // after the next paint and once fonts are ready (fit() is idempotent).
     requestAnimationFrame(refit);
@@ -504,7 +488,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     return () => {
       disposed = true;
       if (resizeTimer) clearTimeout(resizeTimer);
-      dprQuery?.removeEventListener("change", onDprChange);
+      stopDpr();
       ro.disconnect();
       input.dispose();
       title.dispose();
