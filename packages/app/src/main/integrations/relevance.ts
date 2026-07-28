@@ -17,6 +17,7 @@ export async function relevanceContextFor(
   root: string,
   readSecretNames: (root: string) => Promise<string[]>,
   readRootFiles: (root: string) => Promise<string[]>,
+  readOptedIn: (root: string) => Promise<string[]>,
 ): Promise<RelevanceContext> {
   const secretNames = await readSecretNames(root);
   let rootFiles: string[] = [];
@@ -25,5 +26,17 @@ export async function relevanceContextFor(
   } catch {
     // unreadable root (deleted/permissions): fall back to no file signal
   }
-  return { secretNames, rootFiles };
+  return { secretNames, rootFiles, optedIn: await readOptedIn(root) };
+}
+
+// The extension ids this project explicitly opted into
+// (`extensions.<id>.useHere === true` in .airlock/config.json). Strictly
+// `=== true`: a JSON file a user can hand-edit will eventually contain
+// "true", 1, or null, and only the real boolean should turn a section on.
+export function optedInExtensions(
+  extensions: Record<string, Record<string, unknown>> | undefined,
+): string[] {
+  return Object.entries(extensions ?? {})
+    .filter(([, cfg]) => cfg?.useHere === true)
+    .map(([id]) => id);
 }

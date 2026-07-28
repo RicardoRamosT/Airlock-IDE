@@ -6162,6 +6162,13 @@ button.docker-row .codicon-chevron-right {
 .switch-label {
   color: var(--fg);
 }
+/* A switch that is SETTLED by something else -- the state is real and worth
+   reading, but the user cannot change it here. Dimmed rather than hidden so
+   the state stays legible, and the caller says WHY in the note beside it. */
+.switch.disabled {
+  cursor: default;
+  opacity: 0.55;
+}
 @media (prefers-reduced-motion: reduce) {
   .switch-track,
   .switch-thumb {

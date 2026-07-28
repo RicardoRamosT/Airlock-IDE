@@ -77,9 +77,17 @@ const nextTmpId = () => `${Date.now().toString(36)}${(tmpSeq++).toString(36)}`;
 // main/quota/wire.ts.
 const writeChains = new Map<string, Promise<unknown>>();
 
+// `patch` may be a function of the CURRENT config, evaluated once the chain
+// below has the root to itself. That is the only way to do a read-modify-write
+// safely: computing the patch at the call site reads a "before" state that a
+// queued predecessor is about to invalidate. See patchProjectExtension.
+export type ConfigPatch =
+  | Partial<ProjectConfig>
+  | ((cfg: ProjectConfig) => Partial<ProjectConfig>);
+
 export function writeProjectConfig(
   root: string,
-  patch: Partial<ProjectConfig>,
+  patch: ConfigPatch,
 ): Promise<ProjectConfig> {
   const tail = writeChains.get(root) ?? Promise.resolve();
   // Both arms run the write: a predecessor that REJECTED must not cancel the
@@ -100,7 +108,7 @@ export function writeProjectConfig(
 
 async function writeConfigNow(
   root: string,
-  patch: Partial<ProjectConfig>,
+  patch: ConfigPatch,
 ): Promise<ProjectConfig> {
   const { cfg, corruptText } = await loadProjectConfig(root);
   if (corruptText !== undefined) {
@@ -114,7 +122,13 @@ async function writeConfigNow(
       mode: 0o600,
     }).catch(() => {});
   }
-  const next = { ...cfg, ...patch };
+  // Evaluated HERE, not at the call site: `cfg` is the state after every
+  // queued predecessor has landed, so a function patch cannot be computed from
+  // a snapshot that is already stale.
+  const next = {
+    ...cfg,
+    ...(typeof patch === "function" ? patch(cfg) : patch),
+  };
   await ensureAirlockDir(root); // create .airlock + drop the ignore-all .gitignore
   // ATOMIC: write a temp file, then rename over the target. A plain writeFile
   // truncates first, so any concurrent reader -- the sidebar re-reading the
@@ -134,4 +148,40 @@ async function writeConfigNow(
   });
   await rename(tmp, configFile(root));
   return next;
+}
+
+// Merge `patch` into ONE extension's per-project sub-object, leaving every
+// other extension and every top-level key untouched.
+//
+// The naive form -- read the config, spread `extensions` by hand, hand the
+// whole map to writeProjectConfig -- is what the callers used to do, and it is
+// unsafe: `extensions` is merged SHALLOWLY like any other top-level key, so the
+// map you pass replaces the stored one wholesale. Get the read slightly wrong
+// (or race a concurrent caller, whose write lands between your read and your
+// write) and you silently drop another extension's config -- in practice
+// Slack's workspace binding and channel allow-list.
+//
+// Passing a FUNCTION patch moves the read inside the per-root write chain, so
+// it sees every predecessor's result. Concurrent patches to different
+// extensions -- or to different keys of the same extension -- all survive.
+//
+// `patch` itself may be a function of THIS extension's current sub-object, for
+// a patch whose content depends on what is already stored (Slack's connect
+// capture resets `channels` only when the workspace changed). Same reason:
+// that decision must be made against post-predecessor state, not a snapshot
+// the caller took before queueing.
+export function patchProjectExtension(
+  root: string,
+  id: string,
+  patch:
+    | Record<string, unknown>
+    | ((
+        current: Record<string, unknown> | undefined,
+      ) => Record<string, unknown>),
+): Promise<ProjectConfig> {
+  return writeProjectConfig(root, (cfg) => {
+    const exts = cfg.extensions ?? {};
+    const next = typeof patch === "function" ? patch(exts[id]) : patch;
+    return { extensions: { ...exts, [id]: { ...(exts[id] ?? {}), ...next } } };
+  });
 }

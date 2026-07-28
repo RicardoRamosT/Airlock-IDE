@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ProjectConfig } from "./config";
-import { readProjectConfig, writeProjectConfig } from "./config";
+import {
+  patchProjectExtension,
+  readProjectConfig,
+  writeProjectConfig,
+} from "./config";
 
 describe("project config", () => {
   it("defaults injectSecretsIntoTerminal to false", async () => {
@@ -153,4 +157,104 @@ it("preserves an unparseable config instead of overwriting it with defaults", as
 
   const kept = await readFile(`${file}.corrupt`, "utf8");
   expect(JSON.parse(`${kept.trimEnd()}}`).devCommand).toBe("npm run dev");
+});
+
+// patchProjectExtension exists because the ONLY safe way to touch one
+// extension's sub-object is a read-modify-write, and doing that at the call
+// site puts the READ outside the per-root write chain: two concurrent callers
+// both read the same "before" map and the later write silently discards the
+// earlier one's extension. That is the same data loss the chain already
+// prevents for top-level keys, merely narrowed to `extensions`.
+describe("patchProjectExtension", () => {
+  it("merges into one extension without disturbing its siblings", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await writeProjectConfig(root, {
+      extensions: {
+        slack: { workspace: { id: "T1" }, channels: ["C1"] },
+      },
+    } as Partial<ProjectConfig>);
+
+    await patchProjectExtension(root, "snowflake", { useHere: true });
+
+    const cfg = await readProjectConfig(root);
+    expect(cfg.extensions).toEqual({
+      slack: { workspace: { id: "T1" }, channels: ["C1"] },
+      snowflake: { useHere: true },
+    });
+  });
+
+  it("merges into an extension that already has other keys, keeping them", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await writeProjectConfig(root, {
+      extensions: { slack: { workspace: { id: "T1" }, channels: ["C1"] } },
+    } as Partial<ProjectConfig>);
+
+    await patchProjectExtension(root, "slack", { channels: ["C2"] });
+
+    const slack = (await readProjectConfig(root)).extensions?.slack;
+    expect(slack).toEqual({ workspace: { id: "T1" }, channels: ["C2"] });
+  });
+
+  it("leaves top-level config keys alone", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await writeProjectConfig(root, { devCommand: "npm run dev" });
+    await patchProjectExtension(root, "azure", { useHere: true });
+    expect((await readProjectConfig(root)).devCommand).toBe("npm run dev");
+  });
+
+  it("creates the extensions map when the project has none", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await patchProjectExtension(root, "azure", { useHere: true });
+    expect((await readProjectConfig(root)).extensions).toEqual({
+      azure: { useHere: true },
+    });
+  });
+
+  // THE point of the helper. Fired concurrently, both must survive -- a
+  // read-modify-write at the call site loses one of them.
+  it("does not lose a concurrent patch to a different extension", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await Promise.all([
+      patchProjectExtension(root, "azure", { useHere: true }),
+      patchProjectExtension(root, "snowflake", { useHere: true }),
+    ]);
+    expect((await readProjectConfig(root)).extensions).toEqual({
+      azure: { useHere: true },
+      snowflake: { useHere: true },
+    });
+  });
+
+  it("does not lose a concurrent patch to the SAME extension's other key", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+    await Promise.all([
+      patchProjectExtension(root, "slack", { channels: ["C1"] }),
+      patchProjectExtension(root, "slack", { workspace: { id: "T1" } }),
+    ]);
+    expect((await readProjectConfig(root)).extensions?.slack).toEqual({
+      channels: ["C1"],
+      workspace: { id: "T1" },
+    });
+  });
+});
+
+// Slack's connect capture needs the CURRENT slack config to decide whether to
+// reset `channels` (the ids are workspace-scoped, so a workspace change makes
+// the old list meaningless). Deciding that at the call site reads a snapshot a
+// queued write may already have invalidated.
+it("evaluates a function patch against the extension's post-predecessor state", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+  const seen: (Record<string, unknown> | undefined)[] = [];
+  await Promise.all([
+    patchProjectExtension(root, "slack", { workspace: { id: "T1" } }),
+    patchProjectExtension(root, "slack", (cur) => {
+      seen.push(cur);
+      return { channels: ["C1"] };
+    }),
+  ]);
+  // The second call saw the FIRST call's result, not the empty "before".
+  expect(seen).toEqual([{ workspace: { id: "T1" } }]);
+  expect((await readProjectConfig(root)).extensions?.slack).toEqual({
+    workspace: { id: "T1" },
+    channels: ["C1"],
+  });
 });

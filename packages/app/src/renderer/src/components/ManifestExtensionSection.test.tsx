@@ -185,6 +185,71 @@ it("names the prefix alone for a manifest that declares no files, so Snowflake r
   expect(screen.queryByText(/project root/)).toBeNull();
 });
 
+// The state that started this: "isn't used in this project" was TRUE and a
+// dead end -- no button, and the two moves a user would guess are both wrong
+// (connecting in the hub is account-wide and leaves the project irrelevant;
+// vaulting a secret you don't need is forging evidence). The opt-in is the way
+// forward, and it must REFETCH rather than wait out the 5s poll, or the click
+// looks like it did nothing.
+it("offers a way to use the extension here, writes the opt-in, and re-reads at once", async () => {
+  const setProjectUse = vi.fn(async () => {});
+  let calls = 0;
+  mockResources(async () => {
+    calls += 1;
+    return calls === 1
+      ? {
+          id: "snowflake",
+          name: "Snowflake",
+          view: "databases",
+          status: "irrelevant",
+          resources: [],
+          relevance: { envPrefix: "SNOWFLAKE_" },
+        }
+      : {
+          id: "snowflake",
+          name: "Snowflake",
+          view: "databases",
+          status: "absent",
+          resources: [],
+          install: { command: "brew install snowflake-cli" },
+        };
+  });
+  const api = (window as unknown as { airlock: Record<string, unknown> })
+    .airlock;
+  api.extensionsSetProjectUse = setProjectUse;
+  useApp.setState({
+    activeTabId: "t1",
+    tabState: { t1: { root: "/fake/root" } } as never,
+  });
+
+  render(<SnowflakeSection />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Use Snowflake here" }),
+  );
+  await waitFor(() =>
+    expect(setProjectUse).toHaveBeenCalledWith("/fake/root", "snowflake", true),
+  );
+  // The very next state is the existing guided one -- not a 5s blank.
+  expect(await screen.findByText("Snowflake is not installed.")).toBeTruthy();
+});
+
+// Without a project there is nothing to write the opt-in to, and the handler
+// would reject. Offering a button that cannot work is the dead end again.
+it("offers no opt-in button when no project is focused", async () => {
+  mockResources(async () => ({
+    id: "azure",
+    name: "Azure",
+    view: "host",
+    status: "irrelevant",
+    resources: [],
+    relevance: { envPrefix: "AZURE_" },
+  }));
+  useApp.setState({ activeTabId: "t1", tabState: { t1: {} } as never });
+  render(<AzureSection />);
+  await screen.findByText("Azure isn't used in this project.");
+  expect(screen.queryByRole("button", { name: "Use Azure here" })).toBeNull();
+});
+
 it("renders no resource rows when irrelevant, even if the payload carried some", async () => {
   mockResources(async () => ({
     id: "azure",

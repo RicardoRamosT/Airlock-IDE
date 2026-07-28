@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { RelevanceContext } from "./engine";
 import { AZURE, SNOWFLAKE } from "./registry";
 import type { ExtensionSummary } from "./summary";
 import {
@@ -43,6 +44,84 @@ describe("buildExtensionSummaries", () => {
     // snowflake carries its own pair, distinct from azure's
     expect(v.install?.command).toContain("snow");
     expect(v.connect?.command).toContain("snow");
+  });
+
+  // projectUse answers "why is (or isn't) this extension live in THIS project?"
+  // -- the field the Hub's per-project toggle needs to tell the truth. Without
+  // it the toggle would read unchecked in a project whose signal already makes
+  // the extension relevant, contradicting the section the user can see.
+  describe("projectUse", () => {
+    const ctx = (over: Partial<RelevanceContext> = {}): RelevanceContext => ({
+      secretNames: [],
+      rootFiles: [],
+      optedIn: [],
+      ...over,
+    });
+
+    it("is 'signal' when the project declares the manifest's own signal", () => {
+      const [a] = buildExtensionSummaries(
+        [AZURE],
+        {},
+        {},
+        {},
+        ctx({ rootFiles: ["azure.yaml"] }),
+      );
+      expect(a?.projectUse).toBe("signal");
+    });
+
+    it("is 'optedIn' when only the explicit per-project override applies", () => {
+      const [a] = buildExtensionSummaries(
+        [AZURE],
+        {},
+        {},
+        {},
+        ctx({ optedIn: ["azure"] }),
+      );
+      expect(a?.projectUse).toBe("optedIn");
+    });
+
+    // Signal wins the LABEL even when both apply, because that is what the
+    // toggle has to act on: with a signal present, turning the override off
+    // would hide nothing, so the switch must present as settled, not as a
+    // choice the user still owns.
+    it("prefers 'signal' when the project both declares the signal and opted in", () => {
+      const [a] = buildExtensionSummaries(
+        [AZURE],
+        {},
+        {},
+        {},
+        ctx({ rootFiles: ["azure.yaml"], optedIn: ["azure"] }),
+      );
+      expect(a?.projectUse).toBe("signal");
+    });
+
+    it("is 'none' when neither applies", () => {
+      const [a] = buildExtensionSummaries([AZURE], {}, {}, {}, ctx());
+      expect(a?.projectUse).toBe("none");
+    });
+
+    it("is undefined with no focused project, where the question has no answer", () => {
+      const [a] = buildExtensionSummaries([AZURE], {}, {}, {});
+      expect(a?.projectUse).toBeUndefined();
+    });
+
+    it("is undefined for a manifest that declares no relevance spec, which can never be irrelevant", () => {
+      const global = { ...AZURE, id: "global", relevance: undefined };
+      const [g] = buildExtensionSummaries([global], {}, {}, {}, ctx());
+      expect(g?.projectUse).toBeUndefined();
+    });
+
+    it("reads the opt-in by manifest id, not positionally", () => {
+      const out = buildExtensionSummaries(
+        [SNOWFLAKE, AZURE],
+        {},
+        {},
+        {},
+        ctx({ optedIn: ["azure"] }),
+      );
+      expect(out.find((e) => e.id === "snowflake")?.projectUse).toBe("none");
+      expect(out.find((e) => e.id === "azure")?.projectUse).toBe("optedIn");
+    });
   });
 
   it("defaults a missing status to absent and missing prefs to enabled/unpinned", () => {

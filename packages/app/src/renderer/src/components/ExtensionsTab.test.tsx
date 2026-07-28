@@ -125,6 +125,7 @@ it("prompts to choose when there are no extensions at all", async () => {
 // --- Task 3 parity gate: the detail pane renders and wires every action ---
 let list: ReturnType<typeof vi.fn>;
 let disconnect: ReturnType<typeof vi.fn>;
+let setProjectUse: ReturnType<typeof vi.fn>;
 let prefsSet: ReturnType<typeof vi.fn>;
 // Pinned to the store's own signature: bare `ReturnType<typeof vi.fn>` (as for
 // the mocks above) infers a Procedure|Constructable UNION whose construct-only
@@ -191,6 +192,7 @@ function mount(
   // Empty pool by default: only the reuse tests seed it.
   slackWorkspaces = vi.fn(async () => pool);
   slackBindWorkspace = vi.fn(async () => {});
+  setProjectUse = vi.fn(async () => {});
   // A root is required: Disconnect is root-scoped, and without one the button
   // silently does nothing and the assertion below would never fire.
   const t1 = useApp.getState().activeTabId;
@@ -212,6 +214,7 @@ function mount(
     integrationsResources: vi.fn(async () => []),
     slackWorkspaces,
     slackBindWorkspace,
+    extensionsSetProjectUse: setProjectUse,
     // The GitHub pane renders its gh account list; without these the effect
     // throws for any fixture with id "github".
     githubInfo: vi.fn(async () => ({ gh: { installed: true, accounts: [] } })),
@@ -1089,4 +1092,70 @@ it("makes reuse the PRIMARY action, ahead of connecting a new workspace", async 
   await screen.findByText("Use Airlock");
   const row = container.querySelector(".ext-detail-buttons") as HTMLElement;
   expect(row.querySelector(".btn.primary")?.textContent).toBe("Use Airlock");
+});
+
+// The per-project opt-in's home. Its counterpart -- the "Use <name> here"
+// button on an irrelevant section -- is one-way, so without this the user
+// could turn an extension on for a project and never find the way back.
+// It sits in the SETTINGS slot beside the app-wide Enabled switch, and the two
+// write to different stores (project config vs app prefs), which is why the
+// labels have to distinguish them.
+describe("per-project use switch", () => {
+  it("is off with an explaining note when the project shows no signal", async () => {
+    mount([{ ...SNOWFLAKE, projectUse: "none" }]);
+    await selectRow("Snowflake");
+    const sw = screen.getByLabelText(
+      "Use Snowflake in this project",
+    ) as HTMLInputElement;
+    expect(sw.checked).toBe(false);
+    expect(screen.getByText("Not detected in this project.")).toBeTruthy();
+  });
+
+  it("writes the opt-in for the focused project when turned on", async () => {
+    mount([{ ...SNOWFLAKE, projectUse: "none" }]);
+    await selectRow("Snowflake");
+    fireEvent.click(screen.getByLabelText("Use Snowflake in this project"));
+    await waitFor(() =>
+      expect(setProjectUse).toHaveBeenCalledWith("/proj", "snowflake", true),
+    );
+  });
+
+  it("is on and reversible when only the explicit opt-in applies", async () => {
+    mount([{ ...SNOWFLAKE, projectUse: "optedIn" }]);
+    await selectRow("Snowflake");
+    const sw = screen.getByLabelText(
+      "Use Snowflake in this project",
+    ) as HTMLInputElement;
+    expect(sw.checked).toBe(true);
+    expect(
+      screen.getByText("Shown here because you turned it on."),
+    ).toBeTruthy();
+    fireEvent.click(sw);
+    await waitFor(() =>
+      expect(setProjectUse).toHaveBeenCalledWith("/proj", "snowflake", false),
+    );
+  });
+
+  // A signal already makes the project relevant, so turning the override off
+  // would hide NOTHING. An interactive switch there is the "Show in {category}"
+  // mistake again: a control that visibly does nothing.
+  it("is on and NOT interactive when the project's own signal applies", async () => {
+    mount([{ ...SNOWFLAKE, projectUse: "signal" }]);
+    await selectRow("Snowflake");
+    const sw = screen.getByLabelText(
+      "Use Snowflake in this project",
+    ) as HTMLInputElement;
+    expect(sw.checked).toBe(true);
+    expect(sw.disabled).toBe(true);
+    fireEvent.click(sw);
+    expect(setProjectUse).not.toHaveBeenCalled();
+  });
+
+  // Slack, GitHub, Docker, Neon, Render: no relevance spec, so they are never
+  // irrelevant and the question does not apply to them.
+  it("is absent for an extension that cannot be irrelevant", async () => {
+    mount([SLACK]);
+    await selectRow("Slack");
+    expect(screen.queryByLabelText(/in this project/)).toBeNull();
+  });
 });

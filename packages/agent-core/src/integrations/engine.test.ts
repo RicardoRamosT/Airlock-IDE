@@ -416,7 +416,9 @@ describe("isRelevant", () => {
   };
 
   it("is always relevant when no relevance spec is declared", () => {
-    expect(isRelevant(base, { secretNames: [], rootFiles: [] })).toBe(true);
+    expect(
+      isRelevant(base, { secretNames: [], rootFiles: [], optedIn: [] }),
+    ).toBe(true);
   });
 
   it("is relevant when a vaulted secret name matches the env prefix", () => {
@@ -425,6 +427,7 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: ["DATABASE_URL", "AZURE_STORAGE_KEY"],
         rootFiles: [],
+        optedIn: [],
       }),
     ).toBe(true);
   });
@@ -432,7 +435,11 @@ describe("isRelevant", () => {
   it("is relevant when the project root contains a declared file", () => {
     const m = { ...base, relevance: { files: ["azure.yaml", ".azure"] } };
     expect(
-      isRelevant(m, { secretNames: [], rootFiles: ["src", "azure.yaml"] }),
+      isRelevant(m, {
+        secretNames: [],
+        rootFiles: ["src", "azure.yaml"],
+        optedIn: [],
+      }),
     ).toBe(true);
   });
 
@@ -445,8 +452,51 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: ["DATABASE_URL"],
         rootFiles: ["src", "package.json"],
+        optedIn: [],
       }),
     ).toBe(false);
+  });
+
+  // The signal is a HEURISTIC -- "does this project look like it uses Azure?"
+  // -- and a heuristic with no override turns a wrong guess into a dead end
+  // (the section says "isn't used here" and offers nothing). An explicit
+  // per-project opt-in is ground truth and beats the guess.
+  it("is relevant when the project explicitly opted in, with no signal at all", () => {
+    const m = {
+      ...base,
+      relevance: { envPrefix: "AZURE_", files: ["azure.yaml"] },
+    };
+    expect(
+      isRelevant(m, {
+        secretNames: ["DATABASE_URL"],
+        rootFiles: ["src", "package.json"],
+        optedIn: ["az"],
+      }),
+    ).toBe(true);
+  });
+
+  it("matches the opt-in by manifest id, so one extension's opt-in does not carry another", () => {
+    const m = { ...base, relevance: { envPrefix: "AZURE_" } };
+    expect(
+      isRelevant(m, {
+        secretNames: [],
+        rootFiles: [],
+        optedIn: ["snowflake"],
+      }),
+    ).toBe(false);
+  });
+
+  // There is deliberately no opt-OUT: an opted-in list that does not name the
+  // manifest leaves the signal in charge, it does not veto it.
+  it("still answers from the signal for a manifest not named in the opt-in list", () => {
+    const m = { ...base, relevance: { envPrefix: "AZURE_" } };
+    expect(
+      isRelevant(m, {
+        secretNames: ["AZURE_STORAGE_KEY"],
+        rootFiles: [],
+        optedIn: ["snowflake"],
+      }),
+    ).toBe(true);
   });
 });
 

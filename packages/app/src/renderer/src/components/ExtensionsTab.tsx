@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ExtensionAction, ExtensionSummary } from "../../../shared/ipc";
 import { runExtensionAction } from "../lib/extensionActions";
 import { useProjectTab } from "../lib/projectPane";
@@ -139,6 +139,21 @@ export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
   return `Nothing to configure — ${e.name} is ready to use.`;
 }
 
+// The one-line explanation under the per-project use switch. Each state names
+// the reason it is in, so the switch is never a bare checkbox the user has to
+// reverse-engineer -- and the "signal" copy exists specifically to explain why
+// the switch beside it is not clickable.
+function projectUseNote(e: ExtensionSummary): string {
+  // Deliberately does not name the signal. Which one matched lives in the
+  // manifest, and the section already spells it out on the state where it
+  // matters (irrelevant). Here the useful fact is only that SOMETHING matched,
+  // which is why the switch cannot be turned off.
+  if (e.projectUse === "signal")
+    return "Detected in this project, so it shows here either way.";
+  if (e.projectUse === "optedIn") return "Shown here because you turned it on.";
+  return "Not detected in this project.";
+}
+
 export function ExtensionsTab() {
   const [all, setAll] = useState<ExtensionSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -180,13 +195,14 @@ export function ExtensionsTab() {
   // elsewhere (a browser tab, a terminal, another window), so a mounted page
   // has to re-ask. 5s, matching the sidebar hub this replaced -- without it,
   // Disconnect left the row reading "Connected" until you navigated away.
-  useEffect(() => {
-    let cancelled = false;
-    const load = () =>
-      void window.airlock
+  // Hoisted out of the effect so a setting that changes a row (the per-project
+  // use switch) can re-read at once rather than showing its old value until the
+  // next tick -- a 5s lag on a switch reads as the switch not working.
+  const reload = useCallback(
+    () =>
+      window.airlock
         .extensionsList()
         .then((rows) => {
-          if (cancelled) return;
           setAll(rows);
           // Auto-select only when there is NOTHING selected (or the selected
           // row vanished): a poll must never yank the user's selection. Opens
@@ -199,14 +215,22 @@ export function ExtensionsTab() {
             );
           });
         })
-        .catch(() => {});
+        .catch(() => {}),
+    [],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      if (!cancelled) void reload();
+    };
     load();
     const t = setInterval(load, 5000);
     return () => {
       cancelled = true;
       clearInterval(t);
     };
-  }, []);
+  }, [reload]);
 
   const current = all.find((e) => e.id === selected) ?? null;
 
@@ -373,6 +397,52 @@ export function ExtensionsTab() {
                     checked={enabled}
                     onChange={(v) => applyPref(sel.id, { enabled: v })}
                   />
+                  {/* The per-project opt-in, for any extension that CAN be
+                      irrelevant (main sets projectUse only for a manifest that
+                      declares a `relevance` spec). Its counterpart is the
+                      "Use <name> here" button on an irrelevant section, which
+                      is one-way -- this is where it comes back off.
+
+                      Note the two switches in this slot write to DIFFERENT
+                      stores: Enabled is an app pref (everywhere), this is
+                      project config (here). The labels have to carry that,
+                      since nothing else in the layout does. */}
+                  {sel.projectUse && (
+                    <>
+                      <Switch
+                        label="Use in this project"
+                        ariaLabel={`Use ${sel.name} in this project`}
+                        checked={sel.projectUse !== "none"}
+                        // A declared signal already makes the project relevant,
+                        // so turning the override off would hide nothing. An
+                        // interactive switch there is the deleted "Show in
+                        // {category}" mistake: a control that visibly does
+                        // nothing.
+                        disabled={sel.projectUse === "signal"}
+                        onChange={(v) => {
+                          // Not just belt-and-braces: `disabled` is a DOM
+                          // affordance, and React drives a checkbox's onChange
+                          // off the click event without consulting it -- so a
+                          // programmatic click still lands here. The invariant
+                          // is "a settled switch writes nothing", so it is
+                          // enforced where the write happens.
+                          if (sel.projectUse === "signal") return;
+                          if (!root) return;
+                          void window.airlock
+                            .extensionsSetProjectUse(root, sel.id, v)
+                            .then(() => reload())
+                            .catch((err) =>
+                              console.error(
+                                "extensionsSetProjectUse failed",
+                                sel.id,
+                                err,
+                              ),
+                            );
+                        }}
+                      />
+                      <div className="section-note">{projectUseNote(sel)}</div>
+                    </>
+                  )}
                   {/* GitHub's accounts live in `gh`, not in AirLock -- this
                       surfaces the switch the accounts popover already has, so
                       the hub stops being the one place that cannot reach it. */}

@@ -5,8 +5,8 @@
 // DetectStatus map (engine.detectStatus) and reads prefs, then calls this.
 
 import type { ExtensionAction } from "./actions";
-import type { DetectStatus } from "./engine";
-import { steadyView } from "./engine";
+import type { DetectStatus, RelevanceContext } from "./engine";
+import { isRelevant, steadyView } from "./engine";
 import type { IntegrationManifest } from "./manifest";
 import type { SectionExtensionDescriptor } from "./sectionExtensions";
 
@@ -35,6 +35,15 @@ export interface ExtensionSummary {
   // For a connected Tier-2 row: a short account/workspace label shown next to the
   // name (e.g. the Slack workspace). Populated main-side from per-project config.
   account?: string;
+  // Why this extension is (or is not) live in the FOCUSED project:
+  //   "signal"  - the project declares the manifest's own relevance signal
+  //   "optedIn" - only the explicit per-project override applies
+  //   "none"    - neither; its section shows the "isn't used here" state
+  // Undefined when the question has no answer: no focused project, or a
+  // manifest that declares no relevance spec (it can never be irrelevant).
+  // The Hub's per-project toggle needs this to be HONEST -- checked/disabled
+  // for "signal", where turning the override off would hide nothing.
+  projectUse?: "signal" | "optedIn" | "none";
   // Passed through from the manifest so the Hub can offer an actionable button:
   // "Install <name>" on an absent row, "Connect <name>" on an unauthed row
   // (each runs its command in a new terminal -- user-initiated).
@@ -70,10 +79,15 @@ export function buildExtensionSummaries(
   statuses: Record<string, DetectStatus>,
   prefs: ExtPrefs,
   accounts: Record<string, string | undefined> = {},
+  // The focused project's relevance context, or null when no project is
+  // focused. Only used to derive `projectUse`; everything else here is
+  // account-wide.
+  relevance: RelevanceContext | null = null,
 ): ExtensionSummary[] {
   return manifests.map((m) => {
     const enabled = isEnabled(prefs, m.id);
     const view = steadyView(m);
+    const use = projectUseOf(m, relevance);
     // Activity-surface manifests have no steady view; treat "activity" as their
     // category so the eye toggle can surface them into the Activity feed.
     const category =
@@ -92,8 +106,27 @@ export function buildExtensionSummaries(
       ...(m.install ? { install: m.install } : {}),
       ...(m.connect ? { connect: m.connect } : {}),
       ...(accounts[m.id] ? { account: accounts[m.id] } : {}),
+      ...(use ? { projectUse: use } : {}),
     };
   });
+}
+
+// Why an extension is (or is not) live in this project. Null for the two cases
+// with no answer: no focused project, and a manifest with no relevance spec.
+//
+// SIGNAL IS CHECKED BEFORE THE OPT-IN, even though isRelevant checks them the
+// other way round. isRelevant answers "is it on?", where the override
+// short-circuits; this answers "what is keeping it on?", and with a signal
+// present the override is not what is keeping it on -- removing it would
+// change nothing. Reporting "optedIn" there would put a live switch in front
+// of a decision the user cannot actually make.
+function projectUseOf(
+  m: IntegrationManifest,
+  relevance: RelevanceContext | null,
+): ExtensionSummary["projectUse"] | null {
+  if (!m.relevance || !relevance) return null;
+  if (isRelevant(m, { ...relevance, optedIn: [] })) return "signal";
+  return relevance.optedIn.includes(m.id) ? "optedIn" : "none";
 }
 
 // Manifests the user has NOT disabled. Used to gate steady/activity polling so a

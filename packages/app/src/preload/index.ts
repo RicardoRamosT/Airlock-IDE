@@ -189,6 +189,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("extensions:connect", root, id, secret),
   extensionsDisconnect: (root, id) =>
     ipcRenderer.invoke("extensions:disconnect", root, id),
+  extensionsSetProjectUse: (root, id, on) =>
+    ipcRenderer.invoke("extensions:setProjectUse", root, id, on),
   extensionsSlackChannels: (root) =>
     ipcRenderer.invoke("extensions:slackChannels", root),
   slackLocalWorkspaces: () => ipcRenderer.invoke("slack:listLocalWorkspaces"),

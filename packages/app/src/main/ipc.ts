@@ -55,6 +55,7 @@ import {
   parseAccount,
   parseConnString,
   parseWorkspaceInput,
+  patchProjectExtension,
   pingDb,
   pinnedEnabledManifests,
   pollSteady,
@@ -182,7 +183,10 @@ import {
   resolveDevUrl,
   sectionExtensionStatuses,
 } from "./ide-state";
-import { relevanceContextFor } from "./integrations/relevance";
+import {
+  optedInExtensions,
+  relevanceContextFor,
+} from "./integrations/relevance";
 import {
   lspCompletion,
   lspDefinition,
@@ -272,6 +276,7 @@ const projectRelevance = (root: string) =>
     root,
     async (r) => (await listSecrets(r)).map((m) => m.name),
     readdir,
+    async (r) => optedInExtensions((await readProjectConfig(r)).extensions),
   );
 
 // Per-manifest detect-status cache for the Extension Hub list (extensions:list),
@@ -2069,11 +2074,20 @@ export function registerIpc(
         }
       }),
     );
+    // The relevance context feeds `projectUse` -- why each manifest is (or is
+    // not) live in the FOCUSED project -- which the hub's per-project toggle
+    // needs. Everything else in a summary is account-wide. Best-effort: a
+    // keychain read that fails must not empty the whole hub, so it degrades to
+    // "no project answer" (undefined projectUse) rather than rejecting.
+    const relevance = root
+      ? await projectRelevance(root).catch(() => null)
+      : null;
     const tier1 = buildExtensionSummaries(
       INTEGRATIONS,
       statuses,
       ext,
       accounts,
+      relevance,
     );
     // Tier-2 connected extensions (e.g. Slack): status is per-project (a token
     // vaulted for the focused root). No root -> unauthed (can't check).
@@ -2137,6 +2151,33 @@ export function registerIpc(
   // well before any per-request MCP server is built, so the holder is always
   // populated by the time a tool can call it.
   listExtensionsImpl = listExtensions;
+
+  // extensions:setProjectUse -> the explicit per-project opt-in that overrides
+  // a manifest's `relevance` heuristic. Written by the "Use <name> here" button
+  // on an irrelevant section and by the hub's per-project switch.
+  //
+  // The root comes from the ARGUMENT (via resolveRoot, so it must be a root
+  // this sender actually has open) rather than rootForEvent alone: the hub is a
+  // page-tab whose switch acts on the project the user is looking at, and the
+  // caller already holds that root.
+  //
+  // `false` is STORED, not deleted: patchProjectExtension merges, so there is
+  // no delete, and optedInExtensions requires `=== true` -- so a stored false
+  // reads exactly like absent. There is no opt-OUT in the model; false is only
+  // ever the undo of a true.
+  //
+  // Broadcasts extensions:changed so the hub row and the provider rows re-read
+  // at once instead of each waiting out its own poll.
+  ipcMain.handle(
+    "extensions:setProjectUse",
+    async (e, root: unknown, id: unknown, on: unknown) => {
+      if (typeof id !== "string" || !id) return;
+      const r = resolveRoot(e, root);
+      await patchProjectExtension(r, id, { useHere: on === true });
+      auditUser(r, "extensions.projectUse", { id, on: on === true });
+      broadcastExtensionsChanged(r);
+    },
+  );
 
   // extensions:resources -> for each ENABLED + eye-on (pinned) connected
   // extension, its granted resources tagged with the section its eye targets
@@ -2398,14 +2439,16 @@ export function registerIpc(
             ? async (token: string) => {
                 const a = await slackAuthTest(token);
                 if (!a.ok) return {}; // best-effort: a good token still connected
-                const exts = (await readProjectConfig(r)).extensions ?? {};
-                const patch = slackWorkspacePatch(exts[id], a);
-                await writeProjectConfig(r, {
-                  extensions: {
-                    ...exts,
-                    [id]: { ...(exts[id] ?? {}), ...patch },
-                  },
-                });
+                // The patch is a FUNCTION of the stored slack config because
+                // slackWorkspacePatch decides whether to reset `channels` from
+                // it. patchProjectExtension evaluates that inside the per-root
+                // write chain, so the decision cannot be made against a
+                // snapshot a queued write is about to invalidate -- and it
+                // cannot clobber another extension's config the way the
+                // hand-rolled two-level spread here could.
+                await patchProjectExtension(r, id, (cur) =>
+                  slackWorkspacePatch(cur, a),
+                );
                 // Pool it and bind this project -- the same two calls the
                 // paste path makes, so the OAuth and paste flows cannot end in
                 // different states.

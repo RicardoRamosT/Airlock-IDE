@@ -295,7 +295,9 @@ export {
 export { randomState } from "./oauth/state";
 export { ensureAirlockDir } from "./project/airlockDir";
 export {
+  type ConfigPatch,
   type ProjectConfig,
+  patchProjectExtension,
   readProjectConfig,
   writeProjectConfig,
 } from "./project/config";

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { SteadyIntegration } from "../../../shared/ipc";
+import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ResourceRow } from "./ResourceRow";
 
@@ -29,6 +30,7 @@ import { ResourceRow } from "./ResourceRow";
 // this project (irrelevant) / CLI not found (absent) / installed but not
 // signed in (unauthed) / its resources, however many that is (ready) -- never
 // a bare empty state.
+
 // What would make this project relevant, in the manifest's own terms. Derived
 // from the `relevance` spec rather than hardcoded per extension, so Snowflake
 // (which declares an env prefix and NO files) does not get told to add a file
@@ -51,26 +53,51 @@ export function ManifestExtensionSection({ id }: { id: string }) {
   const [data, setData] = useState<SteadyIntegration | null | undefined>(
     undefined,
   );
+  const tabId = useProjectTab();
+  const root = useApp((s) => s.tabState[tabId]?.root ?? null);
+
+  // Kept out of the effect so the opt-in click can re-read IMMEDIATELY. Waiting
+  // out the 5s poll would make the click look like it did nothing, which is the
+  // same dead end in a slower costume.
+  const load = useCallback(
+    () =>
+      window.airlock
+        .integrationsResources(id, true)
+        .then((r) => r)
+        .catch(() => null),
+    [id],
+  );
 
   useEffect(() => {
     let cancelled = false;
     setData(undefined);
-    const load = () =>
-      void window.airlock
-        .integrationsResources(id, true)
-        .then((r) => {
-          if (!cancelled) setData(r);
-        })
-        .catch(() => {
-          if (!cancelled) setData(null);
-        });
-    load();
-    const t = setInterval(load, 5000);
+    const tick = () =>
+      void load().then((r) => {
+        if (!cancelled) setData(r);
+      });
+    tick();
+    const t = setInterval(tick, 5000);
     return () => {
       cancelled = true;
       clearInterval(t);
     };
-  }, [id]);
+  }, [load]);
+
+  // NOT named `useHere`: biome's rules-of-hooks lint reads any `use*` call as a
+  // hook and rejects it inside the click handler. The CONFIG key is still
+  // `useHere`; only this local reads differently.
+  const optIn = async () => {
+    if (!root) return;
+    try {
+      await window.airlock.extensionsSetProjectUse(root, id, true);
+    } catch (err) {
+      // Leave the card as it is: claiming the project opted in when the config
+      // write failed is worse than a click that visibly did nothing.
+      console.error("extensionsSetProjectUse failed", id, err);
+      return;
+    }
+    setData(await load());
+  };
 
   // Still waiting on the first response -- a reason, not a blank panel.
   if (data === undefined) {
@@ -95,6 +122,22 @@ export function ManifestExtensionSection({ id }: { id: string }) {
           {data.name} isn't used in this project.
         </span>
         <span className="section-note">{relevanceHint(data.relevance)}</span>
+        {/* The way OUT of this state. The relevance spec is a heuristic, so it
+            can be wrong; without this the card is true and unusable, and the
+            move a user would guess -- connect it in the hub -- is account-wide
+            and leaves the project just as irrelevant. Opting in falls straight
+            through to the absent/unauthed cards, which already carry Install
+            and Connect, so one click restores the whole guided chain.
+            Hidden with no project: there would be nowhere to write it. */}
+        {root && (
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => void optIn()}
+          >
+            Use {data.name} here
+          </button>
+        )}
       </div>
     );
   }

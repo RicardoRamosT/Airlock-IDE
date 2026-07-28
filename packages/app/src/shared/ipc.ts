@@ -1102,6 +1102,10 @@ export interface AirlockApi {
   ): Promise<SteadyIntegration | null>;
   extensionsResourcesFor(id: string): Promise<IntegrationItem[]>;
   extensionsList(): Promise<ExtensionSummary[]>;
+  // The explicit per-project opt-in that overrides a manifest's `relevance`
+  // heuristic, so an extension can be used in a project that shows none of its
+  // declared signals. Writes ProjectConfig.extensions.<id>.useHere.
+  extensionsSetProjectUse(root: string, id: string, on: boolean): Promise<void>;
   // Eye-on connected extensions' granted resources, grouped by target section.
   extensionsResources(): Promise<ExtensionResources[]>;
   // Slack sidebar. Both delegate to the SAME gated functions the MCP tools use,

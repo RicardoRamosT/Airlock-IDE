@@ -19,6 +19,7 @@ export function Switch({
   onChange,
   label,
   ariaLabel,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
@@ -27,13 +28,19 @@ export function Switch({
   // Overrides the accessible name when the visible label is too terse on its
   // own ("Enabled" -> "Enable Slack").
   ariaLabel?: string;
+  // For a setting that is currently SETTLED by something else, so toggling it
+  // would change nothing -- e.g. a per-project use switch in a project whose
+  // own signal already makes the extension relevant. Shown rather than hidden
+  // so the state stays legible; the caller is expected to say WHY nearby.
+  disabled?: boolean;
 }) {
   return (
-    <label className="switch">
+    <label className={`switch${disabled ? " disabled" : ""}`}>
       <input
         type="checkbox"
         className="switch-input"
         checked={checked}
+        disabled={disabled}
         aria-label={ariaLabel}
         onChange={(e) => onChange(e.target.checked)}
       />

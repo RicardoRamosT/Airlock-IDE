@@ -94,24 +94,41 @@ export function steadyView(m: IntegrationManifest): string | null {
 }
 
 // What a project offers for a relevance check: its vaulted secret NAMES (meta
-// only -- no keychain values, so no prompt) and the names in its root dir.
+// only -- no keychain values, so no prompt), the names in its root dir, and the
+// extension ids the user explicitly opted this project into
+// (ProjectConfig.extensions.<id>.useHere).
 export interface RelevanceContext {
   secretNames: string[];
   rootFiles: string[];
+  // Required, not optional: the only producer is relevanceContextFor, and a
+  // context that silently omitted this would answer "irrelevant" for a project
+  // the user has explicitly opted in -- i.e. re-create the dead end the opt-in
+  // exists to remove.
+  optedIn: string[];
 }
 
 // Does this steady integration apply to the project described by ctx? A
-// manifest with no `relevance` is always relevant (account-global). Otherwise
-// it's relevant iff a vaulted secret name starts with `envPrefix`, OR the root
-// contains one of `files`. Pure -- the app layer gathers ctx and filters the
-// account-wide pollSteady result so e.g. Azure only shows in projects that use
-// Azure.
+// manifest with no `relevance` is always relevant (account-global). Otherwise:
+//
+//   relevant = the user said so, OR a declared signal matches.
+//
+// The signal (a vaulted secret starting with `envPrefix`, or one of `files` in
+// the root) is a HEURISTIC -- "does this project look like it uses Azure?" --
+// and it is right often enough that most projects never need the override. But
+// a heuristic with no override turns a wrong guess into a dead end, so an
+// explicit per-project opt-in is checked FIRST and wins. There is deliberately
+// no opt-OUT: a list that does not name the manifest leaves the signal in
+// charge, it does not veto it.
+//
+// Pure -- the app layer gathers ctx and filters the account-wide pollSteady
+// result so e.g. Azure only shows in projects that use Azure.
 export function isRelevant(
   m: IntegrationManifest,
   ctx: RelevanceContext,
 ): boolean {
   const r = m.relevance;
   if (!r) return true;
+  if (ctx.optedIn.includes(m.id)) return true;
   const prefix = r.envPrefix;
   if (prefix && ctx.secretNames.some((n) => n.startsWith(prefix))) return true;
   if (r.files?.some((f) => ctx.rootFiles.includes(f))) return true;
