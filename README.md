@@ -70,18 +70,45 @@ third-party extensions**; the attack surface stays closed.
 AirLock isn't trying to out-autocomplete your editor — it's a different shape,
 aimed at running an AI agent across many projects without handing it your keys:
 
-|                                                   | Claude Code (CLI) | VS Code / Cursor       | **AirLock**            |
-| ------------------------------------------------- | :---------------: | :--------------------: | :--------------------: |
+|                                                   | Claude Code (CLI) | VS Code / Cursor        | **AirLock**            |
+| ------------------------------------------------- | :---------------: | :---------------------: | :--------------------: |
 | Terminal-first AI agent                           |         ✓         | terminal + editor agent |           ✓            |
 | Every project in one window, each its own agent   |         —         | one workspace at a time |    ✓ (tabs + splits)   |
-| Agent can **use** a secret but **can't read** it  |         —         |           —            | ✓ (broker + redaction) [^1] |
-| Agent can drive the IDE (tabs, splits, status)    |         —         |     via extensions     |   ✓ (built-in MCP)     |
-| No third-party extensions (closed attack surface) |        n/a        |   extension marketplace |     ✓ (by design)      |
+| Many agents running at once                       |    ✓ (by hand)    |            —            |  ✓ (one per terminal)  |
+| Agent can **use** a secret but **can't read** it  |         —         |            —            | ✓ (broker + redaction) [^1] |
+| Agent can drive the IDE (tabs, splits, status)    |         —         |     via extensions      |   ✓ (built-in MCP)     |
+| No third-party extensions (closed attack surface) |        n/a        | extension marketplace   |     ✓ (by design)      |
+| Works on Linux / Windows                          |         ✓         |            ✓            | **— macOS, Apple Silicon** |
+| Notarized, installs without a warning             |         ✓         |            ✓            | **— ad-hoc signed** [^2] |
+| Works with agents other than Claude               |         —         |    ✓ (many, via ext.)   |  **— Claude-first**    |
 
 [^1]: Reading is what's blocked, not misuse. Redaction matches known secret
     *values*, so an agent that deliberately encodes one can defeat it, and a
     credential the agent may *use* is one it may act with. See the
     [threat model](docs/threat-model.md#what-airlock-does-not-protect-against).
+
+[^2]: No paid Apple Developer account yet, so first launch needs the one-time
+    "Open Anyway" step. For a tool that asks you to trust it with credentials
+    this is a real gap, not a footnote — it's the next thing on the list.
+
+**Two categories this table does not cover, where AirLock is behind.**
+
+*Agent orchestrators* isolate each agent in its own git worktree or container —
+[Claude Squad](https://github.com/smtg-ai/claude-squad) does exactly this, with a
+worktree and a tmux session per agent, across Claude Code, Codex, Gemini and
+Aider. AirLock isolates by **project**, not by agent, so two agents on one repo
+share a working tree. Worktree isolation is a *stronger* containment mechanism
+than value redaction, and AirLock does not have it yet — which is worth saying
+plainly on a tool that leads with security.
+
+*Team secret platforms* (HashiCorp Vault and similar) do sharing, rotation,
+environment separation and CI. The macOS Keychain is one machine and one human,
+so a company cannot standardise on AirLock's vault today.
+
+Last verified 2026-07-28. Only products checked against a primary source are
+named here; others in both categories are known and being verified rather than
+dismissed. This table decays — if a row is wrong, open an issue and it gets
+fixed.
 
 It pairs *with* Claude Code rather than replacing it: AirLock hosts the same
 `claude`, and adds the multi-project shell, the secret broker, and the MCP
