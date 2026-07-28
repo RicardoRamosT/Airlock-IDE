@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/RicardoRamosT/Airlock-IDE?color=orange&label=release)](../../releases)
 [![CI](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml/badge.svg)](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-2048-brightgreen)](#building-from-source)
+[![Tests](https://img.shields.io/badge/tests-2050-brightgreen)](#building-from-source)
 
 <img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage gauges flanking the window title" width="800"/>
 
@@ -85,7 +85,7 @@ aimed at running an AI agent across many projects without handing it your keys:
 [^1]: Reading is what's blocked, not misuse. Redaction matches known secret
     *values*, so an agent that deliberately encodes one can defeat it, and a
     credential the agent may *use* is one it may act with. See the
-    [threat model](docs/threat-model.md#what-airlock-does-not-protect-against).
+    [threat model](https://github.com/RicardoRamosT/Airlock-IDE/blob/main/docs/threat-model.md#what-airlock-does-not-protect-against).
 
 [^2]: No paid Apple Developer account yet, so first launch needs the one-time
     "Open Anyway" step. For a tool that asks you to trust it with credentials
@@ -267,7 +267,7 @@ macOS only, by design.
 
 Early and moving fast: v0.6.1, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
-invariants are the part that's tested hardest — 2,048 unit tests, including the
+invariants are the part that's tested hardest — 2,050 unit tests, including the
 [source-level guard](packages/app/src/main/mcp/tools.test.ts) that fails the
 build if the MCP tool file so much as references a value-returning function.
 
