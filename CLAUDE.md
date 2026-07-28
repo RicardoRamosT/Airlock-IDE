@@ -308,6 +308,19 @@ command, so `extensionActions` gave them nothing — an accurate "Not connected.
 and no way to act on it. Any row with `hasSection` now gets an `openSection`
 action, appended LAST so a real connect action stays the primary button.
 
+**The detail pane is SIX FIXED SLOTS** — header, status, actions, settings,
+resources, danger — and a slot is never omitted, only filled differently. The
+button rule is `splitActions` (pure, exported, unit-tested): the destructive
+action goes to a ruled footer, the first remaining action is `.btn.primary`,
+the rest are secondary. It selects by the `danger` FLAG, not the `disconnect`
+kind, so a future destructive action is fenced off without editing the rule.
+Resources is the slot whose conditions overlap — evaluate **in order**: inline
+list → not connected → owns a section → none. Neon is both `hasSection` and
+not connected and must get the not-connected answer, since pointing at a
+section that currently lists nothing is true and useless. Before this, every
+action was `.btn.primary` (so `Open Azure` shouted as loudly as
+`Connect Snowflake`) and Docker/Neon/Render rendered no Resources slot at all.
+
 **`ExtensionResources` lives in its own file** (`components/ExtensionResources.tsx`),
 extracted verbatim before the sidebar hub was deleted — it used to be defined
 *inside* `ExtensionsSection.tsx`, so deleting that file would have taken the only
