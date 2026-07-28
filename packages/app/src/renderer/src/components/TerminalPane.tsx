@@ -465,11 +465,37 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     // Trailing debounce so a window drag does not fire dozens of fit() +
     // ptyResize IPC calls; refit's 0x0 hidden-pane guard skips a hidden tab.
     let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-    const ro = new ResizeObserver(() => {
+    const scheduleRefit = (delay = 50) => {
       if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(refit, 50);
-    });
+      resizeTimer = setTimeout(refit, delay);
+    };
+    const ro = new ResizeObserver(() => scheduleRefit());
     ro.observe(host);
+    // A DISPLAY change -- window dragged to a differently-scaled screen, a
+    // resolution switch, a monitor attached on wake -- changes the RENDERED cell
+    // height while the host's box stays identical, so the observer above never
+    // fires and `rows` stays one too many for the new metrics. The extra row then
+    // lands under the status bar's seam, which is exactly where Claude Code draws
+    // its composer. Longer delay than a resize: xterm re-measures on the same
+    // event and the order between us is not guaranteed.
+    let dprQuery: MediaQueryList | null = null;
+    const armDpr = () => {
+      dprQuery?.removeEventListener("change", onDprChange);
+      // Matches only the CURRENT ratio, so it must be re-armed after each
+      // change -- otherwise it sits unmatched and misses every ratio after the
+      // next one.
+      // Optional call: jsdom has no matchMedia, and the unit tests lose nothing
+      // by skipping a display-change listener.
+      dprQuery =
+        window.matchMedia?.(`(resolution: ${window.devicePixelRatio}dppx)`) ??
+        null;
+      dprQuery?.addEventListener("change", onDprChange);
+    };
+    const onDprChange = () => {
+      armDpr();
+      scheduleRefit(150);
+    };
+    armDpr();
     // Layout heights + font metrics can settle a frame after mount, so re-fit
     // after the next paint and once fonts are ready (fit() is idempotent).
     requestAnimationFrame(refit);
@@ -478,6 +504,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     return () => {
       disposed = true;
       if (resizeTimer) clearTimeout(resizeTimer);
+      dprQuery?.removeEventListener("change", onDprChange);
       ro.disconnect();
       input.dispose();
       title.dispose();
