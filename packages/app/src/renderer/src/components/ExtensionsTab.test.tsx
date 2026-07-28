@@ -7,13 +7,18 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ExtensionSummary, IntegrationItem } from "../../../shared/ipc";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  ExtensionAction,
+  ExtensionSummary,
+  IntegrationItem,
+} from "../../../shared/ipc";
 import { useApp } from "../store";
 import {
   ExtensionsTab,
   groupOf,
   noActionsNote,
+  splitActions,
   statusLine,
 } from "./ExtensionsTab";
 
@@ -766,4 +771,118 @@ it("states the real reason in the detail pane too", async () => {
   expect(screen.queryByText(/installed and signed in/i)).toBeNull();
   expect(screen.queryByText(/ready to use/i)).toBeNull();
   expect(screen.getByText("Docker is not installed.")).toBeTruthy();
+});
+
+// The whole button rule, as data. It lives outside JSX because the nested
+// ternaries this replaced are exactly what made the old sidebar hub
+// unmaintainable -- and because a rule in JSX cannot be tested without
+// mounting the page.
+describe("splitActions", () => {
+  const a = (kind: ExtensionAction["kind"], danger?: true): ExtensionAction =>
+    ({ kind, label: kind, ...(danger ? { danger } : {}) }) as ExtensionAction;
+
+  it("pulls the destructive action out, wherever it sits in the list", () => {
+    const { primary, secondary, danger } = splitActions([
+      a("changeWorkspace"),
+      a("disconnect", true),
+      a("configure"),
+    ]);
+    expect(primary?.kind).toBe("changeWorkspace");
+    expect(secondary.map((x) => x.kind)).toEqual(["configure"]);
+    expect(danger.map((x) => x.kind)).toEqual(["disconnect"]);
+  });
+
+  it("makes the first remaining action primary and the rest secondary", () => {
+    const { primary, secondary } = splitActions([
+      a("connectCli"),
+      a("openSection"),
+    ]);
+    expect(primary?.kind).toBe("connectCli");
+    expect(secondary.map((x) => x.kind)).toEqual(["openSection"]);
+  });
+
+  it("yields no primary when the ONLY action is destructive", () => {
+    // Connected GitHub. The pane must fall back to the no-actions note rather
+    // than promoting Disconnect to the primary slot.
+    const { primary, secondary, danger } = splitActions([
+      a("disconnect", true),
+    ]);
+    expect(primary).toBeNull();
+    expect(secondary).toEqual([]);
+    expect(danger).toHaveLength(1);
+  });
+
+  it("yields three empties for an empty list", () => {
+    expect(splitActions([])).toEqual({
+      primary: null,
+      secondary: [],
+      danger: [],
+    });
+  });
+
+  it("selects by the danger FLAG, not by the disconnect kind", () => {
+    // Data-driven, so a future destructive action lands in the footer without
+    // anyone editing this function.
+    const { primary, danger } = splitActions([a("configure", true)]);
+    expect(primary).toBeNull();
+    expect(danger.map((x) => x.kind)).toEqual(["configure"]);
+  });
+});
+
+it("renders exactly ONE primary button, not a row of equally loud ones", async () => {
+  // Fails against the pre-change pane, which painted EVERY action
+  // `.btn.primary` -- so Slack showed three saturated blues and a red, and
+  // nothing indicated which one you actually wanted.
+  const { container } = mount([SLACK]);
+  await selectRow("Slack");
+  const row = container.querySelector(".ext-detail-buttons") as HTMLElement;
+  expect(row.querySelectorAll(".btn.primary")).toHaveLength(1);
+  expect(within(row).getByText("Change Slack workspace")).toBeTruthy();
+  // The secondary action is present but NOT primary.
+  const configure = within(row).getByText("Configure Slack");
+  expect(configure.className).not.toContain("primary");
+});
+
+it("moves the destructive action out of the button row into its own footer", async () => {
+  const { container } = mount([SLACK]);
+  await selectRow("Slack");
+  const row = container.querySelector(".ext-detail-buttons") as HTMLElement;
+  expect(within(row).queryByText("Disconnect Slack")).toBeNull();
+  const footer = container.querySelector(".ext-detail-danger") as HTMLElement;
+  expect(within(footer).getByText("Disconnect Slack")).toBeTruthy();
+});
+
+it("still disconnects when the footer button is clicked", async () => {
+  // The move must not break the wiring: same run() dispatcher, new location.
+  mount([SLACK]);
+  await selectRow("Slack");
+  fireEvent.click(screen.getByText("Disconnect Slack"));
+  expect(disconnect).toHaveBeenCalledWith("/proj", "slack");
+});
+
+it("shows the no-actions note AND the footer when disconnect is all there is", async () => {
+  // Connected GitHub: nothing to advance, but the pane must not look empty
+  // and must still offer the way out.
+  const { container } = mount([
+    {
+      ...SLACK,
+      id: "github",
+      name: "GitHub",
+      hasConfig: false,
+      actions: [
+        { kind: "disconnect", label: "Disconnect GitHub", danger: true },
+      ],
+    },
+  ]);
+  await selectRow("GitHub");
+  expect(container.querySelector(".ext-detail-buttons")).toBeNull();
+  expect(screen.getByText(/ready to use/i)).toBeTruthy();
+  const footer = container.querySelector(".ext-detail-danger") as HTMLElement;
+  expect(within(footer).getByText("Disconnect GitHub")).toBeTruthy();
+});
+
+it("omits the danger footer entirely when nothing is destructive", async () => {
+  const { container } = mount([SNOWFLAKE]);
+  await selectRow("Snowflake");
+  expect(container.querySelector(".ext-detail-danger")).toBeNull();
 });

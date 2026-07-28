@@ -6109,6 +6109,17 @@ button.docker-row .codicon-chevron-right {
 .ext-detail-expand:hover {
   color: var(--fg);
 }
+/* Slot 6: destructive actions, fenced off below a rule. They used to sit
+   inline with the ordinary buttons at the same size, separated only by colour
+   -- so "Disconnect Slack" competed for attention with "Configure Slack". */
+.ext-detail-danger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-gap);
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
 
 /* A Slack attachment: a compact reference, never a large inline image -- the
    sidebar column is ~260px. Clicking opens the file in a workspace tab. */

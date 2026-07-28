@@ -71,6 +71,25 @@ function statusDot(e: ExtensionSummary): string {
   return "status-dot"; // absent / disabled -> grey
 }
 
+// How the pane ARRANGES the actions agent-core decided on. Three groups so the
+// pane has a visual hierarchy: one call to action, quieter alternatives, and
+// destructive work fenced off in its own footer. Before this, every action
+// rendered .btn.primary -- so a navigation button (Open Azure) shouted exactly
+// as loudly as a real CTA (Connect Snowflake).
+//
+// Selection is by the `danger` FLAG rather than the "disconnect" kind, so a
+// future destructive action is fenced off automatically instead of by
+// remembering to edit this rule.
+export function splitActions(actions: ExtensionAction[]): {
+  primary: ExtensionAction | null;
+  secondary: ExtensionAction[];
+  danger: ExtensionAction[];
+} {
+  const danger = actions.filter((a) => a.danger === true);
+  const rest = actions.filter((a) => a.danger !== true);
+  return { primary: rest[0] ?? null, secondary: rest.slice(1), danger };
+}
+
 // The detail pane's one-line state readout. All SIX statuses get their own
 // sentence: this line is the only place the state is spelled out in words, so
 // "Installed, not connected." on a `ready`/`error`/`disabled` row was a claim
@@ -253,6 +272,7 @@ export function ExtensionsTab() {
             const enabled = enabledOf(sel);
             const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
             const actions = sel.actions ?? [];
+            const { primary, secondary, danger } = splitActions(actions);
             // Same condition ExtensionsSection.tsx used to decide a row's
             // resources are worth fetching: a Tier-1 steady row that is
             // actually ready and targets a non-activity section, or any
@@ -278,13 +298,23 @@ export function ExtensionsTab() {
                   <span>{statusLine(sel, enabled)}</span>
                 </div>
                 <div className="ext-detail-actions">
-                  {actions.length > 0 ? (
+                  {primary || secondary.length > 0 ? (
                     <div className="ext-detail-buttons">
-                      {actions.map((a) => (
+                      {primary && (
+                        <button
+                          key={primary.kind}
+                          type="button"
+                          className="btn primary"
+                          onClick={() => run(sel, primary)}
+                        >
+                          {primary.label}
+                        </button>
+                      )}
+                      {secondary.map((a) => (
                         <button
                           key={a.kind}
                           type="button"
-                          className={`btn${a.danger ? " danger" : " primary"}`}
+                          className="btn"
                           onClick={() => run(sel, a)}
                         >
                           {a.label}
@@ -354,6 +384,23 @@ export function ExtensionsTab() {
                       />
                     )}
                   </>
+                )}
+                {/* Slot 6. Destructive work, fenced off below a rule -- it used
+                    to sit inline with the ordinary buttons at the same size,
+                    separated only by colour. */}
+                {danger.length > 0 && (
+                  <div className="ext-detail-danger">
+                    {danger.map((a) => (
+                      <button
+                        key={a.kind}
+                        type="button"
+                        className="btn danger"
+                        onClick={() => run(sel, a)}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </>
             );
