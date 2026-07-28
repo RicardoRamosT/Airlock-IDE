@@ -81,10 +81,17 @@ export {
   type DockerStatus,
   databaseContainers,
   dockerContainers,
+  dockerEnv,
   dockerStart,
   dockerStop,
   parseDockerPs,
 } from "./docker/docker";
+export {
+  dockerPostgresUrl,
+  LIST_DATABASES_SQL,
+  parseEnvPairs,
+  withDatabase,
+} from "./docker/pgUrl";
 export { createFileSink, type FileSinkOpts } from "./events/fileSink";
 export {
   type EventFilter,

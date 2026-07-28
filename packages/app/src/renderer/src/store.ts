@@ -36,6 +36,16 @@ export type DbView =
       role: string;
       schema: string;
       table: string;
+    }
+  // A Postgres server running in a Docker container. Addressed by CONTAINER
+  // ID, never by connection URL: the URL is built from the container's own env
+  // in main and never crosses IPC.
+  | {
+      kind: "docker";
+      containerId: string;
+      database: string;
+      schema: string;
+      table: string;
     };
 
 let termCounter = 0;
@@ -121,21 +131,31 @@ export const samePaneItem = (a: PaneItem, b: PaneItem): boolean =>
     ? b.kind === "terminal" && a.id === b.id
     : b.kind === "file" && a.path === b.path;
 
-// Structural equality for DbView (same vaulted secret + table, or same Neon
-// project/branch/database/role + table). Used to dedupe and match open db tabs.
-export const sameDbView = (a: DbView, b: DbView): boolean =>
-  a.kind === "secret"
-    ? b.kind === "secret" &&
-      a.id === b.id &&
-      a.schema === b.schema &&
-      a.table === b.table
-    : b.kind === "neon" &&
-      a.projectId === b.projectId &&
-      a.branchId === b.branchId &&
-      a.database === b.database &&
-      a.role === b.role &&
-      a.schema === b.schema &&
-      a.table === b.table;
+// Structural equality for DbView: same source AND same table. Used to dedupe
+// and match open db tabs.
+//
+// Written as one branch per kind rather than a two-way ternary: with three
+// kinds, an `a.kind === "secret" ? ... : ...` shape silently treats every
+// non-secret view as Neon, so two DIFFERENT docker tables would have compared
+// on fields neither of them has.
+export const sameDbView = (a: DbView, b: DbView): boolean => {
+  if (a.kind !== b.kind) return false;
+  if (a.schema !== b.schema || a.table !== b.table) return false;
+  if (a.kind === "secret") return b.kind === "secret" && a.id === b.id;
+  if (a.kind === "docker")
+    return (
+      b.kind === "docker" &&
+      a.containerId === b.containerId &&
+      a.database === b.database
+    );
+  return (
+    b.kind === "neon" &&
+    a.projectId === b.projectId &&
+    a.branchId === b.branchId &&
+    a.database === b.database &&
+    a.role === b.role
+  );
+};
 
 // The scene shown for `current`: the split pair containing it ([left,right]),
 // else `current` alone (right = null). The single source the UI renders from.

@@ -143,3 +143,28 @@ export function databaseContainers(cs: Container[]): DbContainer[] {
   }
   return out;
 }
+
+/**
+ * A container's environment, from `docker inspect`. Used to discover Postgres
+ * credentials so the Docker section can list databases and tables (see
+ * ./pgUrl). Returns [] for an unknown container or unparseable output rather
+ * than throwing -- the caller degrades to "no credentials", which is a state
+ * the UI already renders honestly.
+ *
+ * The values include a PASSWORD, so this must only ever be called in main and
+ * its result must never cross IPC.
+ */
+export async function dockerEnv(
+  id: string,
+  run: DockerRunner = realDocker,
+): Promise<string[]> {
+  try {
+    const out = await run(["inspect", "--format", "{{json .Config.Env}}", id]);
+    const parsed: unknown = JSON.parse(out.trim() || "null");
+    return Array.isArray(parsed)
+      ? parsed.filter((x) => typeof x === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}

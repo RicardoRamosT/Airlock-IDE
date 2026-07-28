@@ -1204,6 +1204,20 @@ export interface AirlockApi {
   // mongo/redis), for the Databases provider row. Value-free: name, image,
   // engine and published host port only -- never a credential.
   dockerDatabases(): Promise<DbContainer[]>;
+  // Docker Postgres explorer -- container-id addressed, because the connection
+  // URL is built from the container's env in MAIN and never crosses IPC.
+  // `ready` is a value-free boolean so the section can distinguish "no
+  // credentials" from "connected, no databases".
+  dockerPgReady(id: string): Promise<boolean>;
+  dockerPgDatabases(id: string): Promise<string[]>;
+  dockerPgTables(id: string, database: string): Promise<DbTable[]>;
+  dockerPgRows(
+    id: string,
+    database: string,
+    schema: string,
+    table: string,
+    limit: number,
+  ): Promise<QueryResult>;
   // Traffic-light status per service section for the activity-rail dots. One
   // aggregate read (main fans out to docker/db/host/git/activity).
   sectionStatuses(root: string | null): Promise<SectionStatuses>;

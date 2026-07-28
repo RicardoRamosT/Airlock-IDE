@@ -59,13 +59,21 @@ export function DataGrid() {
             view.table,
             100,
           )
-        : window.airlock.dbRows(
-            root as string,
-            view.id,
-            view.schema,
-            view.table,
-            100,
-          );
+        : view.kind === "docker"
+          ? window.airlock.dockerPgRows(
+              view.containerId,
+              view.database,
+              view.schema,
+              view.table,
+              100,
+            )
+          : window.airlock.dbRows(
+              root as string,
+              view.id,
+              view.schema,
+              view.table,
+              100,
+            );
     rows
       .then((r) => {
         if (!cancelled) setResult(r);

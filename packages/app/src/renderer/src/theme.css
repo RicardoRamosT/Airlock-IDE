@@ -4724,6 +4724,28 @@ button.docker-row .codicon-chevron-right {
   background: var(--hover);
 }
 
+/* The container row's expand chevron, and the spacer that keeps names aligned
+   on rows that cannot expand (not Postgres, stopped, or nothing published). */
+.docker-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.docker-expand:hover {
+  color: var(--fg);
+}
+.docker-expand-spacer {
+  flex: none;
+  width: 14px;
+}
+
 .docker-name {
   font-size: 12px;
   font-family: "SF Mono", Menlo, monospace;

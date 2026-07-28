@@ -17,16 +17,22 @@
 
 import type { ExtensionSummary } from "@airlock/agent-core";
 import {
+  type DbTable,
   type DockerStatus,
+  databaseContainers,
   diffEnvVars,
   dockerContainers,
+  dockerEnv,
+  dockerPostgresUrl,
   type EnvDiffEntry,
   type GitStatus,
   getGlobalSecret,
   getSecretValue,
   gitStatus,
   headSha,
+  LIST_DATABASES_SQL,
   listSecrets,
+  listTables,
   type NeonBranch,
   type NeonDatabase,
   type NeonOrg,
@@ -39,15 +45,18 @@ import {
   parseConnString,
   pingDb,
   probePort,
+  type QueryResult,
   type RenderDeploy,
   type RenderEnvVar,
   readProjectConfig,
+  readRows,
   renderLatestDeploy,
   renderListDeploys,
   renderListEnvVars,
   renderListServices,
   renderTriggerDeploy,
   servicesForRepo,
+  withDatabase,
   withDb,
 } from "@airlock/agent-core";
 import type { RenderServiceStatus, Section } from "../shared/ipc";
@@ -417,4 +426,66 @@ export async function listSecretNames(
     provider: m.provider,
     valid: m.valid,
   }));
+}
+
+// --- Docker Postgres explorer -------------------------------------------
+//
+// The Docker section shows a container's DATABASES AND TABLES, the same depth
+// Neon's section gives, rather than just a name and a stop button.
+//
+// THE CONNECTION URL NEVER LEAVES MAIN. It is built here from the container's
+// own env (dockerPostgresUrl) and passed straight into withDb; the renderer
+// receives only database names, table names and row values. This is the same
+// rule the Neon API key and vaulted connection strings follow, and it is why
+// the renderer addresses a database by CONTAINER ID rather than by URL.
+
+// Resolve a container's Postgres URL, or null when one cannot be built (not a
+// Postgres image, nothing published to the host, or no discoverable password).
+async function containerPgUrl(id: string): Promise<string | null> {
+  const all = await dockerContainers();
+  const db = databaseContainers(all.containers).find((c) => c.id === id);
+  if (db?.engine !== "postgres") return null;
+  return dockerPostgresUrl(await dockerEnv(id), db.hostPort);
+}
+
+// The databases on a container's Postgres server. An empty array means "we
+// could not connect"; the caller distinguishes that from "connected, none"
+// using dockerPgReady below, so the UI can say WHICH.
+export async function dockerPgDatabases(id: string): Promise<string[]> {
+  const url = await containerPgUrl(id);
+  if (!url) return [];
+  return withDb(url, async (run) => {
+    const res = await run.query(LIST_DATABASES_SQL);
+    return res.rows.map((r) => String(r[0]));
+  });
+}
+
+// Whether we have credentials for this container at all -- a value-free
+// boolean, so the section can say "no credentials found" instead of rendering
+// an empty list that looks like a working server with no databases.
+export async function dockerPgReady(id: string): Promise<boolean> {
+  return (await containerPgUrl(id)) !== null;
+}
+
+export async function dockerPgTables(
+  id: string,
+  database: string,
+): Promise<DbTable[]> {
+  const url = await containerPgUrl(id);
+  if (!url) return [];
+  return withDb(withDatabase(url, database), (run) => listTables(run));
+}
+
+export async function dockerPgRows(
+  id: string,
+  database: string,
+  schema: string,
+  table: string,
+  limit: number,
+): Promise<QueryResult> {
+  const url = await containerPgUrl(id);
+  if (!url) throw new Error("No credentials found for this container");
+  return withDb(withDatabase(url, database), (run) =>
+    readRows(run, schema, table, limit),
+  );
 }

@@ -160,6 +160,10 @@ import {
   tokenFor,
 } from "./github/account";
 import {
+  dockerPgDatabases,
+  dockerPgReady,
+  dockerPgRows,
+  dockerPgTables,
   dockerStatus,
   gitStatusFor,
   neonBranches,
@@ -1437,6 +1441,72 @@ export function registerIpc(
       };
     }
   });
+
+  // Docker Postgres explorer. Addressed by CONTAINER ID: the connection URL is
+  // built main-side from the container's env and never crosses IPC, so the
+  // renderer has no way to name a database except through the container that
+  // owns it. Errors are message-only and redacted, matching db:tables below --
+  // a raw pg error can carry the connection string.
+  ipcMain.handle("dockerPg:ready", async (_e, id: unknown) => {
+    if (typeof id !== "string") throw new Error("Invalid payload");
+    return await dockerPgReady(id);
+  });
+  ipcMain.handle("dockerPg:databases", async (_e, id: unknown) => {
+    if (typeof id !== "string") throw new Error("Invalid payload");
+    try {
+      return await dockerPgDatabases(id);
+    } catch (err) {
+      throw new Error(
+        redactConnStrings(err instanceof Error ? err.message : String(err)),
+      );
+    }
+  });
+  ipcMain.handle(
+    "dockerPg:tables",
+    async (_e, id: unknown, database: unknown) => {
+      if (typeof id !== "string" || typeof database !== "string")
+        throw new Error("Invalid payload");
+      try {
+        return await dockerPgTables(id, database);
+      } catch (err) {
+        throw new Error(
+          redactConnStrings(err instanceof Error ? err.message : String(err)),
+        );
+      }
+    },
+  );
+  ipcMain.handle(
+    "dockerPg:rows",
+    async (
+      _e,
+      id: unknown,
+      database: unknown,
+      schema: unknown,
+      table: unknown,
+      limit: unknown,
+    ) => {
+      if (
+        typeof id !== "string" ||
+        typeof database !== "string" ||
+        typeof schema !== "string" ||
+        typeof table !== "string"
+      )
+        throw new Error("Invalid payload");
+      try {
+        return await dockerPgRows(
+          id,
+          database,
+          schema,
+          table,
+          typeof limit === "number" ? limit : 100,
+        );
+      } catch (err) {
+        throw new Error(
+          redactConnStrings(err instanceof Error ? err.message : String(err)),
+        );
+      }
+    },
+  );
 
   ipcMain.handle("db:tables", async (e, root: unknown, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");

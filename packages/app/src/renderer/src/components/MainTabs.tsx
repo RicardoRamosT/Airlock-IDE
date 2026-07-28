@@ -18,10 +18,12 @@ const EMPTY_DBTABS: DbView[] = [];
 const fileName = (relPath: string): string =>
   relPath.split("/").pop() ?? relPath;
 // Stable React key / identity string for an open db-table tab.
-const dbKey = (v: DbView): string =>
-  v.kind === "secret"
-    ? `s:${v.id}:${v.schema}.${v.table}`
-    : `n:${v.projectId}/${v.branchId}/${v.database}/${v.role}/${v.schema}.${v.table}`;
+const dbKey = (v: DbView): string => {
+  if (v.kind === "secret") return `s:${v.id}:${v.schema}.${v.table}`;
+  if (v.kind === "docker")
+    return `d:${v.containerId}/${v.database}/${v.schema}.${v.table}`;
+  return `n:${v.projectId}/${v.branchId}/${v.database}/${v.role}/${v.schema}.${v.table}`;
+};
 
 // The unified main-area tab bar: every terminal AND every open file as tabs in
 // one row. Clicking a tab makes it the PRIMARY (single pane). Right-click ->

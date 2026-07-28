@@ -227,6 +227,20 @@ const api: AirlockApi = {
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   dockerDatabases: () => ipcRenderer.invoke("docker:databases"),
+  // Docker Postgres explorer. Container-id addressed: the connection URL is
+  // built and used in main and never crosses this boundary.
+  dockerPgReady: (id: string) => ipcRenderer.invoke("dockerPg:ready", id),
+  dockerPgDatabases: (id: string) =>
+    ipcRenderer.invoke("dockerPg:databases", id),
+  dockerPgTables: (id: string, database: string) =>
+    ipcRenderer.invoke("dockerPg:tables", id, database),
+  dockerPgRows: (
+    id: string,
+    database: string,
+    schema: string,
+    table: string,
+    limit: number,
+  ) => ipcRenderer.invoke("dockerPg:rows", id, database, schema, table, limit),
   prefsGet: () => ipcRenderer.invoke("prefs:get"),
   prefsSet: (patch) => ipcRenderer.invoke("prefs:set", patch),
   listExternalTerminals: () => ipcRenderer.invoke("terminal:listExternal"),
