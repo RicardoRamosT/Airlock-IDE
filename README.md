@@ -92,22 +92,19 @@ aimed at running an AI agent across many projects without handing it your keys:
 
 **Two categories this table does not cover, where AirLock is behind.**
 
-*Agent orchestrators* isolate each agent in its own git worktree or container —
-[Claude Squad](https://github.com/smtg-ai/claude-squad) does exactly this, with a
-worktree and a tmux session per agent, across Claude Code, Codex, Gemini and
-Aider. AirLock isolates by **project**, not by agent, so two agents on one repo
-share a working tree. Worktree isolation is a *stronger* containment mechanism
-than value redaction, and AirLock does not have it yet — which is worth saying
-plainly on a tool that leads with security.
+*Agent orchestrators* give each agent its own git worktree or container, so two
+agents never share a working tree. AirLock isolates by **project**, not by agent
+— open the same repo twice and both agents write to the same files. Worktree
+isolation is a *stronger* containment mechanism than value redaction, and
+AirLock does not have it. On a tool that leads with security that is worth
+stating plainly rather than leaving for someone to discover.
 
-*Team secret platforms* (HashiCorp Vault and similar) do sharing, rotation,
-environment separation and CI. The macOS Keychain is one machine and one human,
-so a company cannot standardise on AirLock's vault today.
+*Team secret platforms* do sharing, rotation, environment separation and CI
+delivery. The macOS Keychain is one machine and one human, so a company cannot
+standardise on AirLock's vault today.
 
-Last verified 2026-07-28. Only products checked against a primary source are
-named here; others in both categories are known and being verified rather than
-dismissed. This table decays — if a row is wrong, open an issue and it gets
-fixed.
+Last verified 2026-07-28. This table decays — if a row is wrong, open an issue
+and it gets fixed.
 
 It pairs *with* Claude Code rather than replacing it: AirLock hosts the same
 `claude`, and adds the multi-project shell, the secret broker, and the MCP
