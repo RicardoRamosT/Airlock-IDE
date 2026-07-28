@@ -11,6 +11,7 @@
 //
 // ASCII-only comments (CJS-bundled into Electron main).
 import { BrowserWindow, screen } from "electron";
+import { restoreDockTile } from "../dockstatus/watch";
 
 // Generous fixed size: the window is transparent, so only the chip inside is
 // visible and the text never needs measuring in main.
@@ -122,6 +123,11 @@ export function showCursorHint(
   // Above other applications too -- the user is dragging over the desktop.
   hint.setAlwaysOnTop(true, "screen-saver");
   hint.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // ...which is the call that makes macOS drop AirLock's dock tile (badge and
+  // running-app dot both), so put it straight back. Verified not to disturb the
+  // in-flight drag: the label keeps all-workspaces + always-on-top and stays
+  // unfocused across dock.show().
+  restoreDockTile();
   void hint.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(hintHtml(text))}`,
   );
