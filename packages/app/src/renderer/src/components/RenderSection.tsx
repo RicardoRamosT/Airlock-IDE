@@ -3,6 +3,7 @@ import type { RenderDeploy, RenderServiceStatus } from "../../../shared/ipc";
 import { relativeTime } from "../lib/overviewFreshness";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 
 // Maps a Render deploy status string to one of the three shared status-dot
 // classes. "live" is the only definitively-good state (green); anything that
@@ -135,7 +136,7 @@ function ServiceRow({
           ))}
 
           {deploys === null ? (
-            <div className="section-note">loading deploys…</div>
+            <Loading label="Loading deploys" />
           ) : deploys.length > 0 ? (
             <div className="render-deploys">
               {deploys.map((d, i) => (
@@ -291,7 +292,7 @@ export function RenderSection() {
     void loadServices();
   }, [connected, loadServices, hostRefreshNonce, root]);
 
-  if (connected === null) return <div className="section-note">checking…</div>;
+  if (connected === null) return <Loading label="Loading Render" />;
 
   if (connected === false) {
     return (

@@ -7,6 +7,7 @@ import type {
 import { openFileInRoot } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 
 const NEW_BRANCH = "__new__";
@@ -145,7 +146,7 @@ export function GitSection() {
 
   if (!root) return <OpenFolderEmpty />;
   if (!isRepo) return <div className="section-note">not a git repository</div>;
-  if (!status) return <div className="section-note">loading…</div>;
+  if (!status) return <Loading label="Loading git status" />;
 
   const run = async (op: () => Promise<unknown>) => {
     try {

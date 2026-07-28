@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loading } from "./Loading";
 
 type State =
   | { kind: "loading" }
@@ -41,7 +42,7 @@ export function ImagePreview({
   }, [root, relPath]);
 
   if (state.kind === "loading")
-    return <div className="viewer-host empty">loading…</div>;
+    return <Loading label="Loading image" size="page" />;
   if (state.kind === "ok")
     return (
       <div className="image-preview-host">

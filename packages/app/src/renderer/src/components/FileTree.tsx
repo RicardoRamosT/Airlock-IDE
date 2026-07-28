@@ -13,6 +13,7 @@ import { applyOrder, dropZone, reorderNames } from "../lib/fileOrder";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { FileIcon } from "./FileIcon";
+import { Loading } from "./Loading";
 
 function join(parent: string, name: string): string {
   return parent === "." ? name : `${parent}/${name}`;
@@ -595,7 +596,7 @@ export function FileTree() {
   };
 
   if (!root) return null;
-  if (!entries) return <div className="tree-empty">loading…</div>;
+  if (!entries) return <Loading label="Loading files" />;
 
   const rootOrdered = applyOrder(entries, rootOrder?.["."]); // custom order for the root level
   const rootNames = rootOrdered.map((e) => e.name);

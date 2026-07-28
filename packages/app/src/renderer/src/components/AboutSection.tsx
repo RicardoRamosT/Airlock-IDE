@@ -5,6 +5,7 @@ import type {
   UpdateStatus,
 } from "../../../shared/ipc";
 
+import { Loading } from "./Loading";
 // Settings → About. Version + MCP-server info (loopback port only — never the
 // bearer token) and the update status, reusing the existing update IPC. Pure
 // renderer: all data via window.airlock; no agent-core value import.
@@ -59,7 +60,7 @@ export function AboutSection() {
 
       <div className="settings-sublabel">Updates</div>
       {update === null ? (
-        <div className="settings-note">Checking for updates…</div>
+        <Loading label="Checking for updates" />
       ) : update.available ? (
         <>
           <div className="settings-row">

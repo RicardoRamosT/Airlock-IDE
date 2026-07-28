@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { Loading } from "./Loading";
+
 type State =
   | { kind: "loading" }
   | { kind: "ok"; dataUrl: string }
@@ -41,7 +43,7 @@ export function PdfViewer({
   }, [root, relPath]);
 
   if (state.kind === "loading")
-    return <div className="viewer-host empty">loading…</div>;
+    return <Loading label="Loading PDF" size="page" />;
   if (state.kind === "ok")
     return (
       <div className="pdf-preview-host">

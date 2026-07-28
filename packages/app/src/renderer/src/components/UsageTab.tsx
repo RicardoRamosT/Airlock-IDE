@@ -26,6 +26,8 @@ import {
 } from "../lib/usageFormat";
 import { useApp } from "../store";
 
+import { Loading } from "./Loading";
+
 const basename = (p: string | null): string =>
   p ? (p.split("/").pop() ?? p) : "—";
 
@@ -35,7 +37,10 @@ const basename = (p: string | null): string =>
 export function UsageTab() {
   const closeAppPage = useApp((s) => s.closeAppPage);
   const quota = useApp((s) => s.quota);
-  const [sessions, setSessions] = useState<SessionUsage[]>([]);
+  // null = not asked yet, distinct from [] ("asked, and there are no sessions
+  // on this machine"). The page used to paint its empty tables while both
+  // fetches were still out.
+  const [sessions, setSessions] = useState<SessionUsage[] | null>(null);
   const [memory, setMemory] = useState<MemorySample | null>(null);
   const [memSort, setMemSort] = useState<{ col: SortCol; dir: "asc" | "desc" }>(
     { col: "footprint", dir: "desc" },
@@ -78,7 +83,10 @@ export function UsageTab() {
   // Only sessions that did real work (API time / cost / edits). Drops the
   // all-zero pre-first-response blanks AND context-only ghosts -- e.g. a
   // background/forked session that loaded context but never completed a turn.
-  const visible = visibleSessions(sessions);
+  // `?? []` rather than moving these below the loading gate: they are cheap
+  // pure derivations, and hoisting the gate above them would put an early
+  // return between the hooks and the render body.
+  const visible = visibleSessions(sessions ?? []);
   const models = aggregateByModel(visible);
   const totalCost = visible.reduce((a, s) => a + s.costUsd, 0);
   const totalApiMs = visible.reduce((a, s) => a + s.apiMs, 0);
@@ -110,6 +118,17 @@ export function UsageTab() {
       </div>
     );
   };
+
+  // Both first-paint fetches, or neither: the ledger and the process sample
+  // feed different tables on the same page, so landing them separately is the
+  // popping this replaces. Never reset by the 2s poll.
+  if (sessions === null || memory === null) {
+    return (
+      <div className="usage-page">
+        <Loading label="Loading usage" size="page" />
+      </div>
+    );
+  }
 
   return (
     <div className="usage-page">

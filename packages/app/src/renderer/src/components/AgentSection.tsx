@@ -5,6 +5,8 @@ import type {
   RiskCategory,
 } from "../../../shared/ipc";
 
+import { Loading } from "./Loading";
+
 const ROWS: { key: RiskCategory; label: string }[] = [
   { key: "network", label: "Reach the network" },
   { key: "outsideWorkspace", label: "Touch files outside the project" },
@@ -24,7 +26,7 @@ export function AgentSection() {
     refresh().catch(console.error);
   }, [refresh]);
 
-  if (!policy) return <div className="settings-note">loading...</div>;
+  if (!policy) return <Loading label="Loading agent policy" />;
 
   const set = (key: RiskCategory, action: RiskAction) => {
     const next = { ...policy, [key]: action };

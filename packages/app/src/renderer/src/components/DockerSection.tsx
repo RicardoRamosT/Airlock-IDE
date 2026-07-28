@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { Container, DbContainer, DbTable } from "../../../shared/ipc";
 import { useApp } from "../store";
 
+import { Loading } from "./Loading";
+
 interface DockerState {
   installed: boolean;
   running: boolean;
@@ -153,7 +155,7 @@ export function DockerSection() {
   // blank -- the rule the Databases/Host rows already follow.
   const pgBody = (c: Container) => {
     const st = pg[c.id];
-    if (!st) return <div className="section-note">Loading databases…</div>;
+    if (!st) return <Loading label="Loading Docker databases" />;
     if (st.error) return <div className="section-note">{st.error}</div>;
     if (!st.ready)
       return (
@@ -182,7 +184,7 @@ export function DockerSection() {
           </button>
           {open &&
             (ts === undefined ? (
-              <div className="section-note">Loading tables…</div>
+              <Loading label="Loading tables" />
             ) : ts.length === 0 ? (
               <div className="section-note">No tables.</div>
             ) : (

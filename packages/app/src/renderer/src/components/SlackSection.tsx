@@ -14,9 +14,9 @@ import {
   visibleChannels,
 } from "../lib/slackList";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { type ChannelState, SlackChannelRow } from "./SlackChannelRow";
 import { SlackWorkspaceCard } from "./SlackWorkspaceCard";
-
 export function SlackSection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
@@ -210,7 +210,7 @@ export function SlackSection() {
     });
   };
 
-  if (!loadedList) return <div className="section-note">Loading…</div>;
+  if (!loadedList) return <Loading label="Loading Slack channels" />;
 
   // Not connected: point at the Hub, which owns connecting.
   if (!connected) {

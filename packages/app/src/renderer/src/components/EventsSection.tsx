@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { LogEvent } from "../../../shared/ipc";
 import { startFocusPolling } from "../lib/focusPolling";
 
+import { Loading } from "./Loading";
+
 const POLL_MS = 3000;
 const LIMIT = 100;
 const LEVELS = ["debug", "info", "warn", "error"] as const;
@@ -11,7 +13,8 @@ function shortTime(iso: string): string {
 }
 
 export function EventsSection() {
-  const [events, setEvents] = useState<LogEvent[]>([]);
+  // null = not asked yet, distinct from [] ("asked, and there are none").
+  const [events, setEvents] = useState<LogEvent[] | null>(null);
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("debug");
   const [category, setCategory] = useState<string>("");
 
@@ -33,7 +36,8 @@ export function EventsSection() {
     });
   }, [load]);
 
-  const categories = Array.from(new Set(events.map((e) => e.category))).sort();
+  const rows = events ?? [];
+  const categories = Array.from(new Set(rows.map((e) => e.category))).sort();
 
   return (
     <div className="events">
@@ -62,10 +66,12 @@ export function EventsSection() {
           ))}
         </select>
       </div>
-      {events.length === 0 ? (
+      {events === null ? (
+        <Loading label="Loading events" />
+      ) : rows.length === 0 ? (
         <div className="section-note">no events yet</div>
       ) : (
-        events.map((e) => (
+        rows.map((e) => (
           <div
             key={e.seq}
             className={`events-row events-row--${e.level}`}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { GhAccount } from "../../../shared/ipc";
 
+import { Loading } from "./Loading";
 // The gh accounts, and a one-click pin, inside the GitHub extension pane.
 //
 // NO new storage and NO new pinning logic: `gh` owns the accounts, and
@@ -49,8 +50,7 @@ export function GithubAccountRows({ root }: { root: string | null }) {
     return (
       <div className="section-note">Open a project to pin an account.</div>
     );
-  if (accounts === null)
-    return <div className="section-note">Loading accounts…</div>;
+  if (accounts === null) return <Loading label="Loading GitHub accounts" />;
   if (accounts.length === 0)
     return (
       <div className="section-note">

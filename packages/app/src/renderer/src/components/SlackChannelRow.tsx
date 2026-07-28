@@ -7,6 +7,7 @@ import {
   initialsFor,
 } from "../lib/slackFormat";
 
+import { Loading } from "./Loading";
 export // Glyph per conversation kind, mirroring convGlyph in main so the sidebar and
 // the tool echo read the same.
 function glyph(kind: string): string {
@@ -133,9 +134,7 @@ export function SlackChannelRow({
       </div>
       {open && (
         <div className="slack-thread">
-          {st?.loading && !st.messages && (
-            <div className="section-note">Loading…</div>
-          )}
+          {st?.loading && !st.messages && <Loading label="Loading messages" />}
           {st?.error && (
             <div className="slack-refusal">
               <i className="codicon codicon-warning" />

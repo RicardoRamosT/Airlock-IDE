@@ -4,6 +4,8 @@ import { useProjectTab } from "../lib/projectPane";
 import { mergeAllowList, unlistedCount } from "../lib/slackAllowList";
 import { useApp } from "../store";
 
+import { Loading } from "./Loading";
+
 type Channel = {
   id: string;
   name: string;
@@ -115,7 +117,7 @@ export function SlackChannelsModal() {
         )}
         <div className="slack-channel-list">
           {channels === null ? (
-            <div className="section-note">Loading channels…</div>
+            <Loading label="Loading channels" />
           ) : channels.length === 0 ? (
             <div className="section-note">
               No channels found (is Slack connected?).

@@ -10,6 +10,8 @@ import type {
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
+import { Loading } from "./Loading";
+
 type PingState = "checking" | "ok" | "fail";
 
 // Turn a failed orgs/projects fetch into actionable guidance. Personal and
@@ -254,7 +256,7 @@ export function NeonSection() {
     });
   };
 
-  if (!resolved) return <div className="section-note">checking…</div>;
+  if (!resolved) return <Loading label="Loading Neon account" />;
 
   // No account resolves for this project (none bound, or unbound with several).
   // Open the picker: choose an existing account or add a new key for it.

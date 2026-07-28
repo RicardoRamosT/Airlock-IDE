@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JournalEntry } from "../../../shared/ipc";
 import { relativeTime } from "../lib/overviewFreshness";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { OverviewMarkdown } from "./OverviewMarkdown";
 
 // Single-line prompt (no newline -> pasted into Claude's input, NOT submitted,
@@ -93,7 +94,7 @@ export function ChangelogView({ root }: { root: string }) {
   );
 
   if (entries === null)
-    return <div className="overview empty">Loading&hellip;</div>;
+    return <Loading label="Loading changelog" size="page" />;
   if (entries.length === 0) {
     return (
       <div className="overview empty">

@@ -13,6 +13,7 @@ import { DocxViewer } from "./DocxViewer";
 import { EditorPane } from "./EditorPane";
 import { ExcelViewer } from "./ExcelViewer";
 import { ImagePreview } from "./ImagePreview";
+import { Loading } from "./Loading";
 import { MainTabs } from "./MainTabs";
 import { PdfViewer } from "./PdfViewer";
 import { Viewer } from "./Viewer";
@@ -147,7 +148,7 @@ export function ProjectPane({
           />
         )
       ) : (
-        <div className="empty">loading…</div>
+        <Loading label="Loading project" size="page" />
       )}
     </div>
   );

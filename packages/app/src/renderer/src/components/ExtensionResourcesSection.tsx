@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IntegrationItem } from "../../../shared/ipc";
+import { Loading } from "./Loading";
 import { ResourceRow } from "./ResourceRow";
-
 // The DEFAULT sidebar view for an extension: its granted resources as rows.
 // Any extension gets a usable section from this without custom code; only an
 // extension whose data is not a plain resource list (Slack's chat) registers a
@@ -27,7 +27,7 @@ export function ExtensionResourcesSection({ extId }: { extId: string }) {
     };
   }, [extId]);
 
-  if (rows === null) return <div className="section-note">Loading…</div>;
+  if (rows === null) return <Loading label="Loading resources" />;
   if (rows.length === 0)
     return <div className="section-note">Nothing to show yet.</div>;
   return (

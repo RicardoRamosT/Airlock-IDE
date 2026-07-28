@@ -3,6 +3,8 @@ import type { ActivityItem, ActivityStep } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 
+import { Loading } from "./Loading";
+
 function dotClass(state: ActivityItem["state"]): string {
   if (state === "done") return "status-dot on";
   if (state === "failed") return "status-dot fail";
@@ -149,7 +151,7 @@ export function ActivitySection() {
           </button>
         )}
       </div>
-      {!loaded && <div className="section-note">Loading…</div>}
+      {!loaded && <Loading label="Loading activity" />}
       {loaded && items.length === 0 && (
         <div className="section-note">Nothing active</div>
       )}

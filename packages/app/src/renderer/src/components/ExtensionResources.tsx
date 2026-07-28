@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { IntegrationItem } from "../../../shared/ipc";
+import { Loading } from "./Loading";
 import { ResourceRow } from "./ResourceRow";
 
 // The expanded body under an expandable extension: fetches that integration's
@@ -54,7 +55,7 @@ export function ExtensionResources({
   return (
     <div className="neon-children ext-resources">
       {items === null ? (
-        <div className="section-note">Loading…</div>
+        <Loading label="Loading resources" />
       ) : items.length === 0 ? (
         <div className="section-note">No resources</div>
       ) : (

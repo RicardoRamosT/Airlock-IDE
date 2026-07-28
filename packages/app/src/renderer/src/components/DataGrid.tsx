@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { QueryResult } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 
 const MAX_CELL = 200; // chars before a string cell is truncated (full text in title)
 
@@ -118,7 +119,7 @@ export function DataGrid() {
         </button>
       </div>
       <div className="data-grid-body">
-        {loading && <div className="section-note">loading…</div>}
+        {loading && <Loading label="Running query" />}
         {error && <div className="modal-error">{error}</div>}
         {!loading && !error && result && (
           <table>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { WorkbookData } from "../../../shared/ipc"; // import type only
 
+import { Loading } from "./Loading";
+
 type State =
   | { kind: "loading" }
   | { kind: "ok"; data: WorkbookData }
@@ -36,7 +38,7 @@ export function ExcelViewer({
   }, [root, relPath]);
 
   if (state.kind === "loading")
-    return <div className="viewer-host empty">loading…</div>;
+    return <Loading label="Loading spreadsheet" size="page" />;
   if (state.kind === "ok") {
     const { sheets } = state.data;
     if (sheets.length === 0)

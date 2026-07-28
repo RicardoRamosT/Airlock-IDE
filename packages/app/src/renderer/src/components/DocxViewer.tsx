@@ -7,6 +7,8 @@ import type {
   DocxTable,
 } from "../../../shared/ipc"; // import type only
 
+import { Loading } from "./Loading";
+
 // Draw a Word document as a PAGE: the real colours, alignment, font sizes and
 // margins the file specifies, on paper, at the page width Word would use.
 //
@@ -179,7 +181,7 @@ export function DocxViewer({
   }, [root, relPath]);
 
   if (state.kind === "loading")
-    return <div className="viewer-host empty">loading…</div>;
+    return <Loading label="Loading document" size="page" />;
   if (state.kind === "too-large")
     return (
       <div className="viewer-host empty">

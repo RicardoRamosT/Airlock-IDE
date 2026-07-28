@@ -12,6 +12,7 @@ import { logoUrl } from "../lib/overviewLogos";
 import { buildOverviewPrompt } from "../lib/overviewPrompt";
 import { planOverviewRun } from "../lib/overviewRun";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { OverviewMarkdown } from "./OverviewMarkdown";
 
 const CATEGORY_LABEL: Partial<Record<TechCategory, string>> = {
@@ -300,7 +301,7 @@ export function OverviewView({ root }: { root: string }) {
     return (
       <div className="overview empty">Couldn't read project info: {error}</div>
     );
-  if (!data) return <div className="overview empty">Loading…</div>;
+  if (!data) return <Loading label="Loading project overview" size="page" />;
 
   const { profile, summary, stats, readme } = data;
   const generatedAgo =

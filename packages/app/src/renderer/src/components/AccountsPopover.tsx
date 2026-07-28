@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GithubInfo, ResolvedGithubAccount } from "../../../shared/ipc";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 
 // onClose is owned by the footer (it renders a click-away backdrop that calls
 // it). Kept in the props so the popover API is uniform with SettingsMenu.
@@ -92,7 +93,7 @@ export function AccountsPopover(_props: { onClose: () => void }) {
   return (
     <div className="popover accounts-popover">
       <div className="popover-title">GitHub accounts</div>
-      {!info && <div className="popover-note">loading...</div>}
+      {!info && <Loading label="Loading GitHub accounts" />}
       {info && !info.gh.installed && (
         <div className="popover-note">
           GitHub CLI (gh) not found. Install it to manage accounts.

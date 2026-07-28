@@ -4,6 +4,7 @@ import { auditLabel, auditSummary } from "../lib/auditLabels";
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 
 // Re-read cadence. Most actions (git, files, integrations) have no store signal
@@ -19,7 +20,8 @@ function shortTime(iso: string): string {
 export function AuditSection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  // null = not asked yet, distinct from [] ("asked, and there are none").
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
 
   const load = useCallback(() => {
     if (!root) {
@@ -33,6 +35,11 @@ export function AuditSection() {
   }, [root]);
 
   useEffect(() => {
+    // Back to "not asked yet" for a NEW PROJECT only: `load` is keyed on root,
+    // so this effect re-runs on a project change but NOT on a poll (the poll
+    // calls `load` directly). Resetting on every poll would flash the spinner
+    // every few seconds forever.
+    setEntries(null);
     load();
     return startFocusPolling(load, POLL_MS, {
       hasFocus: () => document.hasFocus(),
@@ -44,6 +51,7 @@ export function AuditSection() {
   }, [load]);
 
   if (!root) return <OpenFolderEmpty />;
+  if (entries === null) return <Loading label="Loading audit log" />;
   if (entries.length === 0)
     return <div className="section-note">no operations yet</div>;
 
