@@ -214,3 +214,26 @@ it("keeps the FIRST occurrence, so rail order is unchanged", () => {
   const ids = meta.map((m) => m.id).filter((id) => id.startsWith("ext:"));
   expect(ids).toEqual(["ext:slack", "ext:docker"]);
 });
+
+// UPGRADE PATH. "activity" was a real built-in section until 0.6.1 deleted it,
+// so anyone upgrading has a prefs file naming a section that no longer exists.
+// If effectiveView returned it anyway, Sidebar would route to a view with no
+// body and render blank -- a broken sidebar on first launch after an update,
+// which is the worst possible moment for it.
+it("falls back when the persisted activeView names a section that no longer exists", () => {
+  const meta = composeSectionMeta([], []);
+  // Sanity: the section really is gone, so this test exercises the fallback
+  // rather than passing for the wrong reason. Compared as a STRING because
+  // "activity" is no longer in the Section union at all -- TypeScript rejects
+  // the direct comparison, which is its own proof that the id is retired.
+  expect(meta.some((m) => String(m.id) === "activity")).toBe(false);
+
+  // Cast for the same reason: a persisted prefs file can still hold this value
+  // even though the type no longer admits it. That gap is exactly the bug.
+  const stale = "activity" as Parameters<typeof effectiveView>[0];
+  const view = effectiveView(stale, {}, meta);
+  expect(view).not.toBeNull();
+  expect(String(view)).not.toBe("activity");
+  // And it lands on a REAL section, not merely something non-null.
+  expect(meta.some((m) => m.id === view)).toBe(true);
+});

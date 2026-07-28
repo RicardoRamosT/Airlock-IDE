@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/RicardoRamosT/Airlock-IDE?color=orange&label=release)](../../releases)
 [![CI](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml/badge.svg)](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-2047-brightgreen)](#building-from-source)
+[![Tests](https://img.shields.io/badge/tests-2048-brightgreen)](#building-from-source)
 
 <img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage gauges flanking the window title" width="800"/>
 
@@ -267,7 +267,7 @@ macOS only, by design.
 
 Early and moving fast: v0.6.1, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
-invariants are the part that's tested hardest — 2,047 unit tests, including the
+invariants are the part that's tested hardest — 2,048 unit tests, including the
 [source-level guard](packages/app/src/main/mcp/tools.test.ts) that fails the
 build if the MCP tool file so much as references a value-returning function.
 
