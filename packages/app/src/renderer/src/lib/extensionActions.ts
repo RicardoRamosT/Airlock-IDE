@@ -40,15 +40,19 @@ export function primaryConnectAction(
   return null;
 }
 
-// Reveal an extension's own rail area, restoring the sidebar (the hub collapses
-// it on open). The page tab stays open: discarding it is the tab's own X, not a
-// side effect of navigating.
-export function openExtensionSection(id: string): void {
+// Reveal a sidebar section, restoring the sidebar if something collapsed it
+// (the hub page does, on open). The page tab stays open: discarding it is the
+// tab's own X, not a side effect of navigating.
+export function openSidebarSection(view: Section): void {
   const s = useApp.getState();
-  const view = `ext:${id}` as Section;
   s.setActiveView(view);
   s.setSidebarVisible(true);
   void window.airlock.prefsSet({ activeView: view, sidebarVisible: true });
+}
+
+// The same, for an extension's own rail area.
+export function openExtensionSection(id: string): void {
+  openSidebarSection(`ext:${id}` as Section);
 }
 
 // Perform one action. Returns a short description of what the USER now has to
