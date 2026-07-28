@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { SteadyIntegration } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { ResourceRow } from "./ResourceRow";
 
 // The section for a manifest-driven extension that owns a rail icon but has no
@@ -99,9 +100,10 @@ export function ManifestExtensionSection({ id }: { id: string }) {
     setData(await load());
   };
 
-  // Still waiting on the first response -- a reason, not a blank panel.
+  // Still waiting on the first response. Was the string "Checking…" -- one of
+  // five spellings of a loading state scattered across the app, none animated.
   if (data === undefined) {
-    return <div className="section-note">Checking…</div>;
+    return <Loading label="Checking extension status" />;
   }
   // integrations:resources only returns null for an id it does not recognize
   // as a manifest at all; every id this component is registered for IS one, so

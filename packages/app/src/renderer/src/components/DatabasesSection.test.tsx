@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useApp } from "../store";
 import { DatabasesSection } from "./DatabasesSection";
 
@@ -111,4 +111,38 @@ it("asks integrations:resources for the PROJECT scope, not the account-wide list
   await waitFor(() =>
     expect(api.integrationsResources).toHaveBeenCalledWith("snowflake", true),
   );
+});
+
+// The section used to paint its provider rows while dbList/Docker/Neon/
+// Snowflake were still in flight -- Snowflake's probe alone is an 8s-timeout
+// CLI spawn -- so a finished-looking answer sat there and then changed under
+// the user. One spinner until they have ALL settled, then one render.
+describe("loading state", () => {
+  function stall() {
+    return new Promise<never>(() => {});
+  }
+
+  it("shows a loading indicator while any first-paint fetch is outstanding", async () => {
+    (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+      dbList: vi.fn(async () => []),
+      dockerDatabases: vi.fn(async () => []),
+      neonStatus: vi.fn(async () => ({ connected: false })),
+      // The slow one, exactly as in life.
+      integrationsResources: vi.fn(stall),
+    };
+    seedRoot();
+    render(<DatabasesSection />);
+    expect(await screen.findByRole("status")).toBeTruthy();
+    // Not a single provider row has been committed to yet.
+    expect(screen.queryByText("Snowflake")).toBeNull();
+    expect(screen.queryByText("Docker")).toBeNull();
+  });
+
+  it("renders every provider row at once when they have all settled", async () => {
+    mount([], [], { status: "ready", resources: [] });
+    expect(await screen.findByText("Snowflake")).toBeTruthy();
+    expect(screen.getByText("Docker")).toBeTruthy();
+    expect(screen.getByText("Neon")).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
 });

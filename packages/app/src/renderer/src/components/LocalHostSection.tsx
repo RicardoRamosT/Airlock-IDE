@@ -9,6 +9,7 @@ import type {
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { type ProviderRow, ProviderRows } from "./ProviderRows";
 
 // Re-probe cadence for the dev-server status while the window is focused. A
@@ -80,6 +81,11 @@ export function LocalHostSection() {
   // Azure provider row data, same block. Independent of Render's fetch so one
   // failing never blocks the other.
   const [azure, setAzure] = useState<SteadyIntegration | null>(null);
+  // Whether the dev-server probe has completed ONCE. An explicit flag because
+  // url/up/detected are all legitimately null AFTER a successful probe, so no
+  // combination of them distinguishes "nothing here" from "not asked yet".
+  // Never reset by a later poll: the spinner is a first-load-only state.
+  const [probed, setProbed] = useState(false);
 
   // Guards every async setState against an unmount-in-flight (like NeonSection).
   const mounted = useRef(true);
@@ -96,6 +102,7 @@ export function LocalHostSection() {
       setUp(null);
       setDetected(null);
       setUnverified([]);
+      setProbed(true);
       return;
     }
     try {
@@ -114,6 +121,11 @@ export function LocalHostSection() {
       if (mounted.current) setUnverified(uv);
     } catch (err) {
       console.error("host refresh failed", err);
+    } finally {
+      // In `finally`, so a failed probe still releases the spinner -- the panel
+      // below states its own error/idle case, and a permanent spinner would be
+      // a worse lie than the empty answer this replaced.
+      if (mounted.current) setProbed(true);
     }
   }, [root]);
 
@@ -647,6 +659,13 @@ export function LocalHostSection() {
       </div>
     );
   };
+
+  // Everything the first paint needs, or nothing: the dev-server tier, Render,
+  // and Azure. Rendering the panel while the two provider probes are still out
+  // is the popping this replaces -- and Azure is an 8s-timeout CLI spawn.
+  if (!probed || services === null || azure === null) {
+    return <Loading label="Loading host" />;
+  }
 
   return (
     <>

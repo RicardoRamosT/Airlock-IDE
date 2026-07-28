@@ -5,6 +5,7 @@ import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ExtensionResources } from "./ExtensionResources";
 import { GithubAccountRows } from "./GithubAccountRows";
+import { Loading } from "./Loading";
 import { SectionGlyph } from "./SectionGlyph";
 import { Switch } from "./Switch";
 
@@ -155,7 +156,10 @@ function projectUseNote(e: ExtensionSummary): string {
 }
 
 export function ExtensionsTab() {
-  const [all, setAll] = useState<ExtensionSummary[]>([]);
+  // null = NOT ASKED YET, which is a different answer from [] ("asked, and
+  // there are none"). Conflating them is what painted a finished-looking empty
+  // page for up to 8s while extensions:list probed the CLIs.
+  const [all, setAll] = useState<ExtensionSummary[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // Whether the SELECTED row's resource list is expanded, and which row that
   // answer is for. Collapsed by default, because mounting ExtensionResources
@@ -166,8 +170,8 @@ export function ExtensionsTab() {
   // The pooled Slack workspaces, for the one-click reuse buttons. Refs only --
   // the tokens stay in main.
   const [slackPool, setSlackPool] = useState<
-    { id: string; name: string; domain: string }[]
-  >([]);
+    { id: string; name: string; domain: string }[] | null
+  >(null);
   useEffect(() => {
     void window.airlock
       .slackWorkspaces()
@@ -203,6 +207,8 @@ export function ExtensionsTab() {
       window.airlock
         .extensionsList()
         .then((rows) => {
+          // Always a value, never back to null: a poll must not send the page
+          // to loading, or the spinner would flash every 5s forever.
           setAll(rows);
           // Auto-select only when there is NOTHING selected (or the selected
           // row vanished): a poll must never yank the user's selection. Opens
@@ -232,7 +238,13 @@ export function ExtensionsTab() {
     };
   }, [reload]);
 
-  const current = all.find((e) => e.id === selected) ?? null;
+  // Both first-paint fetches gate the spinner: showing the list while the
+  // Slack pool is still arriving would pop the reuse buttons in a beat later,
+  // which is the same popping this is meant to remove.
+  const loading = all === null || slackPool === null;
+  const rows = all ?? [];
+  const pool = slackPool ?? [];
+  const current = rows.find((e) => e.id === selected) ?? null;
 
   const setExtensionPref = useApp((s) => s.setExtensionPref);
   const prefs = useApp((s) => s.extensionsPrefs);
@@ -263,19 +275,31 @@ export function ExtensionsTab() {
   // Drives BOTH the bucket and the checkbox, so they can never disagree.
   const enabledOf = (e: ExtensionSummary) => prefs[e.id]?.enabled ?? e.enabled;
 
+  // Everything the first paint needs, or nothing. Rendering the page
+  // half-populated is the popping this replaces.
+  if (loading) {
+    return (
+      <div className="ext-page">
+        <Loading label="Loading extensions" size="page" />
+      </div>
+    );
+  }
+
   return (
     <div className="ext-page">
       <div className="ext-page-list">
         {GROUPS.map((g) => {
-          const rows = all.filter((e) => groupOf(e, enabledOf(e)) === g.key);
-          if (rows.length === 0) return null;
+          const inGroup = rows.filter(
+            (e) => groupOf(e, enabledOf(e)) === g.key,
+          );
+          if (inGroup.length === 0) return null;
           return (
             <div key={g.key}>
               <div className="ext-page-group">
                 {g.label}
-                <span className="ext-page-count">{rows.length}</span>
+                <span className="ext-page-count">{inGroup.length}</span>
               </div>
-              {rows.map((e) => (
+              {inGroup.map((e) => (
                 <button
                   key={e.id}
                   type="button"
@@ -315,7 +339,7 @@ export function ExtensionsTab() {
             // keeps projects isolated.
             const reuse: ExtensionAction[] =
               sel.id === "slack" && sel.status === "unauthed"
-                ? slackPool.map((w) => ({
+                ? pool.map((w) => ({
                     kind: "useAccount" as const,
                     label: `Use ${w.name}`,
                     accountId: w.id,

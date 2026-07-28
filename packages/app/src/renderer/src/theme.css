@@ -4921,11 +4921,44 @@ button.docker-row .codicon-chevron-right {
   }
 }
 
+/* The app's one loading state (components/Loading.tsx). The min-height is
+   load-bearing, not padding: without it a pane collapses to spinner-height and
+   then jerks open when content lands. It BOUNDS that jump rather than removing
+   it -- removing it needs skeletons, which were considered and declined. */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  width: 100%;
+}
+.loading.page {
+  min-height: 240px;
+}
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  /* A ring with one lit quadrant: the gap is what makes the rotation legible. */
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: activity-spin 700ms linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .progress-bar.indeterminate .fill,
   .status-dot.running,
   .step-spin {
     animation: none;
+  }
+  /* The element STAYS -- only the motion stops. A user with motion reduced
+     still has to be able to tell that something is loading, and this is the
+     only thing on screen while it shows. The lit quadrant would read as an
+     arbitrary notch once frozen, so even out the ring and dim it instead. */
+  .loading-spinner {
+    animation: none;
+    border-top-color: var(--border);
+    opacity: 0.6;
   }
   .progress-bar.indeterminate .fill {
     transform: none;

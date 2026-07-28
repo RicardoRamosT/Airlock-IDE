@@ -79,10 +79,10 @@ const SUMMARIES = [
 
 it("groups extensions and shows FULL names (no truncation)", async () => {
   legacyList.mockResolvedValue(SUMMARIES);
-  const { container } = render(<ExtensionsTab />);
+  render(<ExtensionsTab />);
   // Scope to the list: the selected extension's name also appears as the
   // detail-pane title, so an unscoped query is ambiguous by design.
-  const listEl = container.querySelector(".ext-page-list") as HTMLElement;
+  const listEl = await listPane();
   // Name and account are SEPARATE spans, not one concatenated string. As one
   // string a long account ("Azure · Azure Subscription (CSP)") wrapped past the
   // row's fixed height and overlapped the row below; split, the name holds its
@@ -98,20 +98,20 @@ it("groups extensions and shows FULL names (no truncation)", async () => {
 
 it("opens on the first CONNECTED extension", async () => {
   legacyList.mockResolvedValue(SUMMARIES);
-  const { container } = render(<ExtensionsTab />);
+  render(<ExtensionsTab />);
   expect((await screen.findByRole("heading", { level: 2 })).textContent).toBe(
     "Slack",
   );
   // The detail state line names the bound account. Scoped to the detail pane:
   // the list row shows it too, so an unscoped /Airlock/ matches twice.
-  const detail = container.querySelector(".ext-page-detail") as HTMLElement;
+  const detail = await detailPane();
   expect(within(detail).getByText(/Connected · Airlock/)).toBeTruthy();
 });
 
 it("switches the detail pane when another extension is picked", async () => {
   legacyList.mockResolvedValue(SUMMARIES);
   render(<ExtensionsTab />);
-  const listEl2 = document.querySelector(".ext-page-list") as HTMLElement;
+  const listEl2 = await listPane();
   fireEvent.click(await within(listEl2).findByText("Vercel"));
   expect(screen.getByText(/is not installed/i)).toBeTruthy();
 });
@@ -233,8 +233,31 @@ function mount(
 // "Scope to the list" comment above) and scope to `.ext-page-list` for
 // exactly this reason; do the same here to select the row rather than to
 // assert on it.
+// The page renders a spinner until every first-paint fetch has settled, so the
+// list pane is NOT in the DOM synchronously after render() any more. Waiting
+// for it is the honest equivalent of the old synchronous querySelector -- the
+// pane's absence at t=0 is the fix, not a flake.
+async function listPane(): Promise<HTMLElement> {
+  // Sync path first. Several tests below drive the poll with FAKE timers, and
+  // waitFor polls on a real interval -- so calling it there hangs until the
+  // suite timeout even though the element is already in the DOM.
+  const now = document.querySelector(".ext-page-list");
+  if (now) return now as HTMLElement;
+  await waitFor(() =>
+    expect(document.querySelector(".ext-page-list")).not.toBeNull(),
+  );
+  return document.querySelector(".ext-page-list") as HTMLElement;
+}
+
+async function detailPane(): Promise<HTMLElement> {
+  await waitFor(() =>
+    expect(document.querySelector(".ext-page-detail")).not.toBeNull(),
+  );
+  return document.querySelector(".ext-page-detail") as HTMLElement;
+}
+
 async function selectRow(name: string) {
-  const listEl = document.querySelector(".ext-page-list") as HTMLElement;
+  const listEl = await listPane();
   fireEvent.click(await within(listEl).findByText(name));
 }
 
@@ -503,7 +526,7 @@ it("a poll never yanks the selection off the row the user picked", async () => {
   const title = () =>
     (document.querySelector(".ext-page-title") as HTMLElement).textContent;
   expect(title()).toBe("Slack");
-  const listEl = document.querySelector(".ext-page-list") as HTMLElement;
+  const listEl = await listPane();
   await act(async () => {
     fireEvent.click(within(listEl).getByText("Snowflake"));
   });
@@ -551,29 +574,27 @@ it("stops polling on unmount", async () => {
 // The list renders only after the first fetch resolves. A row is auto-selected
 // in the same commit, so the detail pane's <h2> is the unambiguous thing to
 // wait on (group headings and row names are not).
-async function waitForList(container: HTMLElement): Promise<HTMLElement> {
+async function waitForList(): Promise<HTMLElement> {
   await screen.findByRole("heading", { level: 2 });
-  return container.querySelector(".ext-page-list") as HTMLElement;
+  return await listPane();
 }
 
 it("buckets a ready Tier-1 CLI as Connected, not Available", async () => {
-  const { container } = mount([{ ...SNOWFLAKE, status: "ready", actions: [] }]);
-  const listEl = await waitForList(container);
+  mount([{ ...SNOWFLAKE, status: "ready", actions: [] }]);
+  const listEl = await waitForList();
   expect(within(listEl).getByText("Connected")).toBeTruthy();
   expect(within(listEl).queryByText("Available")).toBeNull();
 });
 
 it("buckets an errored row as Not installed", async () => {
-  const { container } = mount([{ ...SNOWFLAKE, status: "error", actions: [] }]);
-  const listEl = await waitForList(container);
+  mount([{ ...SNOWFLAKE, status: "error", actions: [] }]);
+  const listEl = await waitForList();
   expect(within(listEl).getByText("Not installed")).toBeTruthy();
 });
 
 it("gives a disabled extension its own bucket", async () => {
-  const { container } = mount([
-    { ...SNOWFLAKE, status: "disabled", enabled: false, actions: [] },
-  ]);
-  const listEl = await waitForList(container);
+  mount([{ ...SNOWFLAKE, status: "disabled", enabled: false, actions: [] }]);
+  const listEl = await waitForList();
   expect(within(listEl).getByText("Disabled")).toBeTruthy();
   expect(within(listEl).queryByText("Not installed")).toBeNull();
 });
@@ -581,24 +602,24 @@ it("gives a disabled extension its own bucket", async () => {
 it("moves a row into Disabled the moment Enabled is unchecked", async () => {
   // The bucket reads the EFFECTIVE enabled state (optimistic pref over the
   // polled row), so it cannot disagree with the checkbox next to it.
-  const { container } = mount([SLACK]);
+  mount([SLACK]);
   await selectRow("Slack");
   await act(async () => {
     fireEvent.click(screen.getByLabelText("Enable Slack"));
   });
-  const listEl = container.querySelector(".ext-page-list") as HTMLElement;
+  const listEl = await listPane();
   expect(within(listEl).getByText("Disabled")).toBeTruthy();
   expect(within(listEl).queryByText("Connected")).toBeNull();
 });
 
 it("renders a status dot per row so the states are distinguishable", async () => {
-  const { container } = mount([
+  mount([
     SLACK, // connected -> on
     { ...SNOWFLAKE, id: "a", name: "A", status: "unauthed" }, // -> warn
     { ...SNOWFLAKE, id: "b", name: "B", status: "error" }, // -> fail
     SNOWFLAKE, // absent -> grey
   ]);
-  const listEl = await waitForList(container);
+  const listEl = await waitForList();
   expect(listEl.querySelectorAll(".status-dot").length).toBe(4);
   expect(listEl.querySelectorAll(".status-dot.on").length).toBe(1);
   expect(listEl.querySelectorAll(".status-dot.warn").length).toBe(1);
@@ -612,11 +633,11 @@ it("does NOT paint not-connected the same colour as connected", async () => {
   // progress" (its meaning everywhere else) rather than "not connected". With
   // Neon and Snowflake now correctly reporting unauthed, that put
   // indistinguishable dots on both sides of the Connected / Not connected line.
-  const { container } = mount([
+  mount([
     SLACK, // connected
     { ...SNOWFLAKE, id: "a", name: "A", status: "unauthed" },
   ]);
-  const listEl = await waitForList(container);
+  const listEl = await waitForList();
   const classes = [...listEl.querySelectorAll(".status-dot")].map(
     (d) => d.className,
   );
@@ -805,8 +826,8 @@ it("noActionsNote never tells an uninstalled section extension it is ready to us
 });
 
 it("buckets an uninstalled section extension under Not installed with a grey dot", async () => {
-  const { container } = mount([DOCKER_SECTION]);
-  const listEl = await waitForList(container);
+  mount([DOCKER_SECTION]);
+  const listEl = await waitForList();
   // A user who never installed Docker must not see it filed as Connected...
   expect(within(listEl).getByText("Not installed")).toBeTruthy();
   expect(within(listEl).queryByText("Connected")).toBeNull();
@@ -816,15 +837,15 @@ it("buckets an uninstalled section extension under Not installed with a grey dot
 });
 
 it("paints a connected section extension green, under Connected", async () => {
-  const { container } = mount([{ ...DOCKER_SECTION, status: "connected" }]);
-  const listEl = await waitForList(container);
+  mount([{ ...DOCKER_SECTION, status: "connected" }]);
+  const listEl = await waitForList();
   expect(within(listEl).getByText("Connected")).toBeTruthy();
   expect(listEl.querySelectorAll(".status-dot.on").length).toBe(1);
 });
 
 it("states the real reason in the detail pane too", async () => {
-  const { container } = mount([DOCKER_SECTION]);
-  await waitForList(container);
+  mount([DOCKER_SECTION]);
+  await waitForList();
   expect(screen.queryByText(/installed and signed in/i)).toBeNull();
   expect(screen.queryByText(/ready to use/i)).toBeNull();
   expect(screen.getByText("Docker is not installed.")).toBeTruthy();
@@ -1157,5 +1178,54 @@ describe("per-project use switch", () => {
     mount([SLACK]);
     await selectRow("Slack");
     expect(screen.queryByLabelText(/in this project/)).toBeNull();
+  });
+});
+
+// The page used to initialise `all` to [] and paint "Choose an extension from
+// the list." with empty buckets -- a confident, WRONG answer -- while
+// extensions:list spawned `az account show` and `snow connection test`, each
+// with an 8s timeout on a cold cache. Nothing on screen said otherwise, which
+// is what read as the app being frozen.
+describe("loading state", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  it("shows a loading indicator instead of an empty-looking page, then the content", async () => {
+    const d = deferred<ExtensionSummary[]>();
+    mount([]);
+    list.mockReturnValue(d.promise);
+    cleanup();
+    render(<ExtensionsTab />);
+
+    // The bug: this is the finished-looking answer that used to show here.
+    expect(screen.queryByText(/Choose an extension/i)).toBeNull();
+    expect(await screen.findByRole("status")).toBeTruthy();
+
+    d.resolve([SNOWFLAKE]);
+    const listEl = await listPane();
+    expect(await within(listEl).findByText("Snowflake")).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  // THE regression guard. The page polls every 5s; if a refresh reset state to
+  // "not asked yet", the spinner would flash every five seconds forever. A
+  // refresh must swap content silently.
+  it("does not return to loading when a later poll is in flight", async () => {
+    mount([SNOWFLAKE]);
+    const listEl = await listPane();
+    await within(listEl).findByText("Snowflake");
+
+    // A second fetch that never settles stands in for "a poll is in flight".
+    list.mockReturnValue(deferred<ExtensionSummary[]>().promise);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(within(listEl).getByText("Snowflake")).toBeTruthy();
   });
 });

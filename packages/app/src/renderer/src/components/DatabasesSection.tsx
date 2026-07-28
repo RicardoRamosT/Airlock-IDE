@@ -7,6 +7,7 @@ import type {
 } from "../../../shared/ipc";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
+import { Loading } from "./Loading";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { type ProviderRow, ProviderRows } from "./ProviderRows";
 
@@ -28,7 +29,11 @@ export function DatabasesSection() {
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const setModal = useApp((s) => s.setModal);
   const dbRefreshNonce = useApp((s) => s.dbRefreshNonce);
-  const [dbs, setDbs] = useState<DbEntry[]>([]);
+  // null = NOT ASKED YET, distinct from [] ("asked, and there are none"). The
+  // three provider probes below already used null for this; the vaulted-DB list
+  // did not, which is half of why the section painted a finished-looking answer
+  // while Snowflake's 8s CLI probe was still out.
+  const [dbs, setDbs] = useState<DbEntry[] | null>(null);
   const [pings, setPings] = useState<Record<string, PingState>>({});
   const [tables, setTables] = useState<Record<string, DbTable[]>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -97,6 +102,22 @@ export function DatabasesSection() {
   }, []);
 
   if (!root) return <OpenFolderEmpty />;
+
+  // Everything the first paint needs, or nothing -- rendering the rows as each
+  // probe lands is the popping this replaces. Deliberately NOT gated on the
+  // per-DB pings or the lazily-fetched table lists: those are secondary, and
+  // waiting on them would block the section on data nobody asked for.
+  //
+  // A later refresh never returns any of these to null, so the spinner is a
+  // first-load-only state -- a poll must not flash it every 5s.
+  if (
+    dbs === null ||
+    dockerDbs === null ||
+    neonConnected === null ||
+    snowflake === null
+  ) {
+    return <Loading label="Loading databases" />;
+  }
 
   const toggle = async (id: string) => {
     const next = !expanded[id];

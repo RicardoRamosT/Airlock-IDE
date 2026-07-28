@@ -6,7 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useApp } from "../store";
 import { LocalHostSection } from "./LocalHostSection";
 
@@ -205,4 +205,38 @@ it("gives a Render instance an Open action to its service URL, not Connect", asy
   const open = screen.getByRole("button", { name: "Open" });
   fireEvent.click(open);
   expect(hostOpenExternal).toHaveBeenCalledWith("https://my-api.onrender.com");
+});
+
+// Same fix as Databases: the Host pane used to paint its dev-server tier and
+// provider rows while the Render call and the 8s Azure probe were still out.
+describe("loading state", () => {
+  it("shows a loading indicator until every first-paint fetch has settled", async () => {
+    (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+      hostLocalUrl: vi.fn(() => Promise.resolve(null)),
+      hostProbe: vi.fn(() => Promise.resolve({ up: false })),
+      devServerDetectUnmanaged: vi.fn(() => Promise.resolve(null)),
+      hostUnverifiedServers: vi.fn(() => Promise.resolve([])),
+      devServerStatus: vi.fn(() => Promise.resolve(null)),
+      onDevServerChanged: vi.fn(() => () => {}),
+      devServerStart: vi.fn(),
+      hostOpenExternal: vi.fn(),
+      renderServices: vi.fn(() => Promise.resolve([])),
+      // Azure never answers -- the pane must not commit to a picture without it.
+      integrationsResources: vi.fn(() => new Promise<never>(() => {})),
+    };
+    seedRoot();
+    render(<LocalHostSection />);
+    expect(await screen.findByRole("status")).toBeTruthy();
+    expect(screen.queryByText("Azure")).toBeNull();
+    expect(screen.queryByText("Render")).toBeNull();
+  });
+
+  it("renders the pane once everything has settled", async () => {
+    stubHost({ url: null, up: false, azure: { status: "absent" } });
+    seedRoot();
+    render(<LocalHostSection />);
+    expect(await screen.findByText("Azure")).toBeTruthy();
+    expect(screen.getByText("Render")).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
 });
