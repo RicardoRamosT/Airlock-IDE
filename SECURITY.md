@@ -9,9 +9,10 @@ security reports are triaged ahead of everything else.
 
 Report it privately through GitHub's
 [private vulnerability reporting](https://github.com/RicardoRamosT/Airlock-IDE/security/advisories/new)
-(repo **Security ▸ Report a vulnerability**). If that's unavailable, contact the
-author through [@RicardoRamosT](https://github.com/RicardoRamosT) and ask for a
-private channel before sharing details.
+(repo **Security ▸ Report a vulnerability**) — it is private, structured, and the
+route that gets read first. If that's unavailable to you, email
+<ricardoramostrevino@hotmail.com> directly. Don't ask for a private channel and
+wait for a reply; if you have something urgent, the address above IS the channel.
 
 Please include:
 

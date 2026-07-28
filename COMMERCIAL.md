@@ -38,17 +38,24 @@ guarantees, which is the one outcome worth preventing at any price.
 
 ## How to get one
 
-Email <!-- TODO: publish a real address before this ships --> with:
+Email **<ricardoramostrevino@hotmail.com>** with:
 
 - your company name,
 - how many developers need it,
 - anything unusual about your setup (air-gapped, managed devices, procurement
   requirements).
 
-You will get the agreement and an invoice back. No sales call, no procurement
-theatre.
+You will get the agreement and an invoice back. No procurement theatre.
 
-**Pricing:** <!-- TODO: decide before this ships. Per developer, per year. -->
+## Pricing
+
+Per developer, per year, agreed directly — tell me the team size and I will send
+a quote. It is not a published number because the right one differs for a
+two-person startup and a fifty-engineer company, and I would rather quote you
+honestly than have you self-select out of a list price that was never aimed at
+you.
+
+Ask, and you get a figure in the reply. There is no discovery call.
 
 ## Security review before purchase
 
