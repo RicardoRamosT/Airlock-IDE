@@ -1,9 +1,21 @@
 # AirLock threat model
 
-AirLock makes one core promise: **the AI agent can build, run, and deploy your
-app without being *able* to read your credentials.** This document states what
-that does and does not mean, so you can rely on the right things — and so the
-"can't leak your secrets" claim is auditable rather than marketing.
+AirLock makes one core promise: **you never hand the agent a credential.** It can
+build, run and deploy your app using secrets it was never given.
+
+Stated precisely, because the difference matters:
+
+- **Structural** — no `.env` on disk, and no MCP tool that can return a secret
+  value (enforced by a test that fails the build). These are properties of the
+  design; no amount of cleverness by the agent changes them.
+- **Best-effort** — output redaction. A command the agent runs *with* a
+  credential has that credential in its environment, and AirLock matches known
+  values in the output rather than stopping the process from reading them. String
+  matching loses to encoding.
+
+So the guarantee is about the interface, not about information flow. This
+document exists so you can rely on the right half, and it says so in the
+non-goals below rather than leaving you to find out.
 
 ## Actors
 

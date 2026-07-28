@@ -2,7 +2,7 @@
 
 # AirLock
 
-### The multi-project, Claude-first IDE that can't leak your secrets.
+### The multi-project, Claude-first IDE that never hands your credentials to the agent.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-black)](#install)
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
@@ -14,16 +14,28 @@
 
 </div>
 
-AirLock is a terminal-first IDE built around one idea: **your AI agent should
-be able to build, run, debug, and deploy your app without ever being *able* to
-read your credentials.** Claude Code is a first-class citizen of the IDE, every
-project you're juggling lives in one window, and your secrets live in the macOS
-Keychain behind a broker that injects them where they're needed and redacts
-them everywhere else. Not "the agent promises not to look": **the tools to
-look do not exist.** That is a claim about *reading the credential*, not a
-sandbox — the [threat model](docs/threat-model.md#what-airlock-does-not-protect-against)
-states plainly what it does and does not stop (redaction is value-based, so an
-agent that deliberately encodes a secret can defeat it).
+AirLock is a terminal-first IDE built around one idea: **your AI agent should be
+able to build, run, debug, and deploy your app without you ever handing it a
+credential.** Claude Code is a first-class citizen of the IDE, every project
+you're juggling lives in one window, and your secrets live in the macOS Keychain
+behind a broker that puts them where they're needed and keeps them out of
+everything the agent reads.
+
+**Be precise about what that buys you.** Two things are structural: no `.env`
+sits on disk, and **no MCP tool can return a secret value** — enforced by a
+[test that fails the build](packages/app/src/main/mcp/tools.test.ts) if the tool
+file so much as references a value-returning function. One thing is not: when the
+agent runs a command *with* a credential, that credential is in the command's
+environment, and AirLock redacts known values from the output rather than
+preventing the process from seeing them. Redaction is string matching, so a
+command that deliberately encodes a secret defeats it.
+
+So the honest claim is that AirLock never hands the agent a credential, and
+removes every routine way one leaks — not that a determined agent could not
+extract one. The
+[threat model](docs/threat-model.md#what-airlock-does-not-protect-against) is
+explicit, and closing that gap properly (a broker in the data path rather than
+values in the environment) is the main thing on the roadmap.
 
 **Who this is for:** a developer or small team running coding agents against
 real infrastructure, on macOS, who can't put production credentials in a `.env`

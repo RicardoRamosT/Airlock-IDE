@@ -713,7 +713,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "run_command",
     {
       description:
-        'Run a shell command with the named vaulted secrets injected into its environment; the output is returned with secret values redacted. If the command hits a risky category under the user\'s agent policy it is BLOCKED (action="ask" -> re-call with confirm:true to proceed; action="block" -> not allowed, the user must change the policy). You never see the secret value.',
+        'Run a shell command with the named vaulted secrets injected into its environment; the output is returned with secret values redacted. If the command hits a risky category under the user\'s agent policy it is BLOCKED (action="ask" -> re-call with confirm:true to proceed; action="block" -> not allowed, the user must change the policy). The value is redacted from the output, but it IS present in the command\'s environment: this is a convenience so you need not handle credentials, NOT a barrier that stops a command from observing one. Do not attempt to read, encode or transmit an injected value.',
       inputSchema: {
         command: z.string(),
         injectSecrets: z.array(z.string()).optional(),
