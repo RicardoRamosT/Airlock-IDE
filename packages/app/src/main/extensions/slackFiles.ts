@@ -5,6 +5,7 @@
 //
 // The vaulted token is used here and never leaves: the renderer receives a
 // project-relative path to a cached copy, never a URL that needs auth.
+
 import {
   appendFile,
   mkdir,
@@ -13,16 +14,9 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import {
-  getSecretValue,
-  type SlackHistory,
-  slackChannelHistory,
-} from "@airlock/agent-core";
-import {
-  type AllowedChannel,
-  allowedChannels,
-  SLACK_TOKEN_NAME,
-} from "./slack";
+import { type SlackHistory, slackChannelHistory } from "@airlock/agent-core";
+import { slackTokenFor } from "../slack/accounts";
+import { type AllowedChannel, allowedChannels } from "./slack";
 import { recentHistory } from "./slackHistoryCache";
 import { resolveAllowedChannel } from "./slackTools";
 
@@ -162,9 +156,7 @@ export async function slackDownloadFileTool(
 ): Promise<{ relPath?: string; error?: string }> {
   if (!root) return { error: "No project is focused." };
   const getAllowed = deps.allowed ?? allowedChannels;
-  const getToken =
-    deps.token ??
-    ((r: string) => getSecretValue(r, SLACK_TOKEN_NAME).catch(() => null));
+  const getToken = deps.token ?? ((r: string) => slackTokenFor(r));
   const getHistory = deps.history ?? slackChannelHistory;
   const fetchBytes = deps.fetchBytes ?? realFetchBytes;
   const writeCache = deps.writeCache ?? realWriteCache;

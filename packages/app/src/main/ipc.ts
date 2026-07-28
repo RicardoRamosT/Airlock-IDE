@@ -227,6 +227,11 @@ import { sectionStatuses } from "./sectionStatus";
 import { reconcileSelfVerify } from "./selfverify/wire";
 import { mergeSnapshots } from "./session/merge";
 import { readSession, writeSession } from "./session-store";
+import {
+  addSlackWorkspace,
+  bindSlackWorkspace,
+  listSlackWorkspaces,
+} from "./slack/accounts";
 import { MovingSessions } from "./tabdrag/moving";
 import {
   consumeSuppressRestore,
@@ -2070,6 +2075,21 @@ export function registerIpc(
     return withActions(rows);
   };
 
+  // The workspace pool, for the "reuse an account" buttons. Refs ONLY -- the
+  // tokens stay in main, exactly like the Neon key pool.
+  ipcMain.handle("slack:workspaces", () => listSlackWorkspaces());
+  ipcMain.handle(
+    "slack:bindWorkspace",
+    async (e, root: unknown, id: unknown) => {
+      if (id !== null && typeof id !== "string")
+        throw new Error("Invalid payload");
+      const r = resolveRoot(e, root);
+      if (!r) throw new Error("No workspace open");
+      await bindSlackWorkspace(r, id);
+      broadcastExtensionsChanged(r);
+    },
+  );
+
   ipcMain.handle("extensions:list", (e) => listExtensions(rootForEvent(e)));
   // Hand the same inventory to the MCP layer. registerIpc runs once at startup,
   // well before any per-request MCP server is built, so the holder is always
@@ -2268,7 +2288,11 @@ export function registerIpc(
       ) =>
         void p
           .then(async (token) => {
-            await setSecret(r, oauthTokenName(id), token);
+            // Slack pools its token per WORKSPACE so other projects can reuse
+            // it; every other provider stays per-project. The pooling itself
+            // happens in `capture` below, which is the one place that knows
+            // the VERIFIED team id -- here we only skip the per-root vault.
+            if (id !== "slack") await setSecret(r, oauthTokenName(id), token);
             let extra: Record<string, unknown> = {};
             if (afterVault) {
               try {
@@ -2340,6 +2364,20 @@ export function registerIpc(
                     [id]: { ...(exts[id] ?? {}), ...patch },
                   },
                 });
+                // Pool it and bind this project -- the same two calls the
+                // paste path makes, so the OAuth and paste flows cannot end in
+                // different states.
+                if (a.teamId) {
+                  await addSlackWorkspace(
+                    {
+                      id: a.teamId,
+                      name: a.team ?? a.teamId,
+                      domain: a.domain ?? "",
+                    },
+                    token,
+                  );
+                  await bindSlackWorkspace(r, a.teamId);
+                }
                 // The sidebar renders this workspace; without a nudge it kept
                 // showing "unknown" until the user hit Refresh.
                 broadcastExtensionsChanged(r);

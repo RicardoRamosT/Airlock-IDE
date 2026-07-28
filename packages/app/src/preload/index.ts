@@ -227,6 +227,11 @@ const api: AirlockApi = {
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
   dockerDatabases: () => ipcRenderer.invoke("docker:databases"),
+  // The pooled Slack workspaces (refs only) + the per-project binding. The
+  // tokens stay in main, exactly like the Neon key pool.
+  slackWorkspaces: () => ipcRenderer.invoke("slack:workspaces"),
+  slackBindWorkspace: (root: string | null, id: string | null) =>
+    ipcRenderer.invoke("slack:bindWorkspace", root, id),
   // Docker Postgres explorer. Container-id addressed: the connection URL is
   // built and used in main and never crosses this boundary.
   dockerPgReady: (id: string) => ipcRenderer.invoke("dockerPg:ready", id),

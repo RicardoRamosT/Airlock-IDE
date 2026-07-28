@@ -7,18 +7,20 @@
 import {
   type ConnectedStatus,
   type ConvKind,
-  deleteSecret,
-  getSecretValue,
   type IntegrationItem,
   labelConversations,
-  listSecrets,
   readProjectConfig,
   type SlackChannel,
-  setSecret,
   slackAuthTest,
   slackListChannels,
   slackListUsers,
 } from "@airlock/agent-core";
+import {
+  addSlackWorkspace,
+  bindSlackWorkspace,
+  boundSlackWorkspaceId,
+  slackTokenFor,
+} from "../slack/accounts";
 import type { ConnectedProvider, ConnectResult } from "./provider";
 
 // The vault secret name that holds a project's Slack token. MUST equal
@@ -103,7 +105,7 @@ export async function slackIncludePrivate(root: string): Promise<boolean> {
 // present (to resolve names). Returns labels/ids/kinds only -- no messages, no
 // token. [] when not connected.
 export async function slackAllChannels(root: string): Promise<SlackChannel[]> {
-  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  const token = await slackTokenFor(root);
   if (!token) return [];
   const includePrivate = await slackIncludePrivate(root);
   const raw = await slackListChannels(token, includePrivate).catch(() => []);
@@ -120,27 +122,41 @@ export const slackProvider: ConnectedProvider = {
     let ok = false;
     let team: string | undefined;
     let error: string | undefined;
+    let teamId: string | undefined;
+    let domain: string | undefined;
     try {
       const auth = await slackAuthTest(secret);
       ok = auth.ok;
       team = auth.team;
+      teamId = auth.teamId;
+      domain = auth.domain;
       error = auth.error;
     } catch {
       return { ok: false, error: "network_error" };
     }
     if (!ok) return { ok: false, error: error ?? "auth_failed" };
-    await setSecret(root, SLACK_TOKEN_NAME, secret); // vault it (main-only)
+    // Pool the workspace and bind THIS project to it, so the next project can
+    // reuse it with one click instead of a second browser authorization.
+    if (teamId) {
+      await addSlackWorkspace(
+        { id: teamId, name: team ?? teamId, domain: domain ?? "" },
+        secret,
+      );
+      await bindSlackWorkspace(root, teamId);
+    }
     return { ok: true, detail: team };
   },
 
   async disconnect(root) {
-    await deleteSecret(root, SLACK_TOKEN_NAME).catch(() => {});
+    // Clears this project's BINDING only. The workspace stays in the pool and
+    // other projects bound to it keep working -- removing it for everyone is a
+    // separate, louder action.
+    await bindSlackWorkspace(root, null);
   },
 
   async status(root): Promise<ConnectedStatus> {
-    // Network-free: presence of the vaulted token (names only -> no prompt).
-    const names = (await listSecrets(root).catch(() => [])).map((m) => m.name);
-    return names.includes(SLACK_TOKEN_NAME) ? "connected" : "unauthed";
+    // Network-free: is this project bound to a pooled workspace?
+    return (await boundSlackWorkspaceId(root)) ? "connected" : "unauthed";
   },
 
   async listResources(root): Promise<IntegrationItem[]> {

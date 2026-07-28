@@ -5,21 +5,17 @@
 // (wired in mcp/server.ts). THE PERMISSION WALL lives here: a channel is
 // readable only if it is in the project's allow-list; the token is used to call
 // Slack and never returned; only channel names + message text leave main.
+
 import {
   type ConvKind,
-  getSecretValue,
   nameMessages,
   type SlackHistory,
   type SlackNamedMessage,
   type SlackUser,
   slackChannelHistory,
 } from "@airlock/agent-core";
-import {
-  type AllowedChannel,
-  allowedChannels,
-  convGlyph,
-  SLACK_TOKEN_NAME,
-} from "./slack";
+import { slackTokenFor } from "../slack/accounts";
+import { type AllowedChannel, allowedChannels, convGlyph } from "./slack";
 import { slackAvatarsFor } from "./slackAvatars";
 import { rememberHistory } from "./slackHistoryCache";
 import { slackUsersFor } from "./slackUsers";
@@ -50,7 +46,7 @@ export interface SlackReadResult {
 // from "connected but nothing allow-listed", which need different actions.
 export async function slackConnected(root: string | null): Promise<boolean> {
   if (!root) return false;
-  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  const token = await slackTokenFor(root);
   return !!token;
 }
 
@@ -73,7 +69,7 @@ export async function slackAvatarsTool(
   root: string | null,
 ): Promise<Record<string, string>> {
   if (!root) return {};
-  const token = await getSecretValue(root, SLACK_TOKEN_NAME).catch(() => null);
+  const token = await slackTokenFor(root);
   if (!token) return {};
   const users = await slackUsersFor(root, token);
   return slackAvatarsFor(users);
@@ -105,9 +101,7 @@ export async function slackReadChannelTool(
 ): Promise<SlackReadResult> {
   if (!root) return { error: "No project is focused." };
   const getAllowed = deps.allowed ?? allowedChannels;
-  const getToken =
-    deps.token ??
-    ((r: string) => getSecretValue(r, SLACK_TOKEN_NAME).catch(() => null));
+  const getToken = deps.token ?? ((r: string) => slackTokenFor(r));
   const getHistory = deps.history ?? slackChannelHistory;
   const getUsers = deps.users ?? slackUsersFor;
   const remember = deps.remember ?? rememberHistory;

@@ -1204,6 +1204,9 @@ export interface AirlockApi {
   // mongo/redis), for the Databases provider row. Value-free: name, image,
   // engine and published host port only -- never a credential.
   dockerDatabases(): Promise<DbContainer[]>;
+  // The pooled Slack workspaces, as refs. NEVER a token -- those stay in main.
+  slackWorkspaces(): Promise<{ id: string; name: string; domain: string }[]>;
+  slackBindWorkspace(root: string | null, id: string | null): Promise<void>;
   // Docker Postgres explorer -- container-id addressed, because the connection
   // URL is built from the container's env in MAIN and never crosses IPC.
   // `ready` is a value-free boolean so the section can distinguish "no
