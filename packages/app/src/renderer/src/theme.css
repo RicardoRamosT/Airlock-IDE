@@ -6089,6 +6089,24 @@ button.docker-row .codicon-chevron-right {
   flex: none;
   margin: 0;
 }
+/* Slot 4: settings. Its own block so the pane keeps its shape whether it
+   carries one toggle or two. */
+.ext-detail-settings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sb-row-gap);
+  margin-top: var(--sb-block-gap);
+}
+/* The sub-header shared by the pane's labelled blocks. */
+.ext-detail-label {
+  margin-bottom: 4px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 /* Resource-list expander, the page's version of the sidebar hub's chevron.
    Collapsed by default ON PURPOSE: mounting the list starts a 5s poll (for
    GitHub, a live API request plus a keychain read every 5s), so it must take a

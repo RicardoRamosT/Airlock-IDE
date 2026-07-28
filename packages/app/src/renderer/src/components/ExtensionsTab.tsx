@@ -327,6 +327,13 @@ export function ExtensionsTab() {
                       {noActionsNote(sel, enabled)}
                     </div>
                   )}
+                </div>
+                {/* Slot 4. ALWAYS rendered, so a pane carrying one toggle has
+                    the same shape as a pane carrying two. The distinction this
+                    layout draws throughout: the SLOT is fixed, the controls
+                    inside it follow the data. */}
+                <div className="ext-detail-settings">
+                  <div className="ext-detail-label">Settings</div>
                   <label className="ext-detail-toggle">
                     <input
                       type="checkbox"
@@ -338,7 +345,9 @@ export function ExtensionsTab() {
                     />
                     Enabled
                   </label>
-                  {/* No category means the eye has nowhere to surface it. */}
+                  {/* No category means the eye has nowhere to surface it, so
+                      the checkbox is omitted rather than shown pointing at
+                      nothing. */}
                   {sel.category && (
                     <label className="ext-detail-toggle">
                       <input

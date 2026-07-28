@@ -886,3 +886,37 @@ it("omits the danger footer entirely when nothing is destructive", async () => {
   await selectRow("Snowflake");
   expect(container.querySelector(".ext-detail-danger")).toBeNull();
 });
+
+it("renders the Settings block even when it carries a single toggle", async () => {
+  // The SLACK fixture has category "activity"; the REAL Slack has none, which
+  // is what made its pane look different from Azure's. Drop it here to
+  // reproduce production.
+  const { container } = mount([{ ...SLACK, category: undefined }]);
+  await selectRow("Slack");
+  const settings = container.querySelector(
+    ".ext-detail-settings",
+  ) as HTMLElement;
+  expect(settings).not.toBeNull();
+  expect(within(settings).getByText("Settings")).toBeTruthy();
+  expect(within(settings).getByLabelText("Enable Slack")).toBeTruthy();
+  // No category -> no "Show in" checkbox. A checkbox pointing at no target is
+  // dead UI, so it is omitted -- but the BLOCK still stands, so the pane keeps
+  // its shape.
+  expect(within(settings).queryByText(/^Show in/)).toBeNull();
+});
+
+it("renders the Show-in toggle inside Settings when there IS a category", async () => {
+  const { container } = mount([SNOWFLAKE]); // category: "databases"
+  await selectRow("Snowflake");
+  const settings = container.querySelector(
+    ".ext-detail-settings",
+  ) as HTMLElement;
+  expect(within(settings).getByText("Show in databases")).toBeTruthy();
+});
+
+it("keeps the toggles OUT of the button row", async () => {
+  const { container } = mount([SNOWFLAKE]);
+  await selectRow("Snowflake");
+  const row = container.querySelector(".ext-detail-buttons") as HTMLElement;
+  expect(within(row).queryByText("Enabled")).toBeNull();
+});
