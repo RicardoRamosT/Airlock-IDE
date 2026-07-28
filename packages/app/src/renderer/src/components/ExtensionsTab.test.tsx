@@ -253,6 +253,21 @@ it("runs an install command in a new terminal rather than auto-running it", asyn
   expect(runInNewTerminal).toHaveBeenCalledWith("brew install snowflake-cli");
 });
 
+it("SHOWS the terminal it just started, instead of leaving it behind the page", async () => {
+  // Reported from the UI: clicking Connect appeared to do nothing. The command
+  // WAS running -- `snow connection add` was sitting at its first prompt -- but
+  // the hub is a full-width page rendered in the workspace slot, so the new
+  // terminal was created behind it. Surfacing the panes is what makes the
+  // button's effect visible at all.
+  useApp.setState({ appPage: "extensions" });
+  mount([SNOWFLAKE]);
+  await selectRow("Snowflake");
+  await act(async () => {
+    fireEvent.click(screen.getByText("Install Snowflake"));
+  });
+  expect(useApp.getState().appPage).toBeNull();
+});
+
 it("opens the browser login for an unauthed oauth2 extension", async () => {
   mount([
     {

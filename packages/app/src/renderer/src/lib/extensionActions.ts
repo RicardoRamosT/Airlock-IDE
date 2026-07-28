@@ -66,6 +66,16 @@ export function runExtensionAction(
       // User-initiated: the command is put in a terminal, never auto-run.
       if (a.command) {
         useApp.getState().runInNewTerminal(a.command);
+        // ...and then SHOW that terminal. The Extensions hub is a full-width
+        // page rendered in the workspace slot, so a terminal created while it
+        // is open lands BEHIND it: the command was running and prompting the
+        // whole time, invisibly, and the button read as broken. Re-selecting
+        // the active tab is the store's existing way to surface the panes from
+        // under an IDE page (see switchTab), so this reuses that rather than
+        // reaching into appPage directly. Read the id AFTER the terminal is
+        // added, so it is the tab that actually received it.
+        const s = useApp.getState();
+        s.switchTab(s.activeTabId);
         return `Running \`${a.command}\` in a new terminal -- follow its prompts.`;
       }
       return null;
