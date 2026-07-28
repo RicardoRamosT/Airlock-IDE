@@ -116,9 +116,19 @@ export function runExtensionAction(
     case "useAccount":
       // Binding handles NO credential: the token is already pooled in main,
       // and this only records which workspace this project uses.
+      //
+      // It then opens the channel allow-list, because binding alone leaves the
+      // project connected with NOTHING allowed -- and until this, the button
+      // asked nothing at all: no channel picker, no private opt-in. The bind is
+      // already durable when the modal opens, so closing it leaves a connected
+      // project with an empty allow-list, which the Slack section words
+      // correctly and the hub's Configure action re-opens.
       if (a.accountId && root) {
-        void window.airlock.slackBindWorkspace(root, a.accountId);
-        return `Connected to ${a.label.replace(/^Use /, "")}.`;
+        void window.airlock
+          .slackBindWorkspace(root, a.accountId)
+          .then(() => useApp.getState().setModal("slack-channels"))
+          .catch((err) => console.error("slackBindWorkspace failed", err));
+        return `Connected to ${a.label.replace(/^Use /, "")} — now choose which channels Claude may read.`;
       }
       return null;
     case "disconnect":

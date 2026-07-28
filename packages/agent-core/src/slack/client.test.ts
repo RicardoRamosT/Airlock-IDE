@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SlackTransport } from "./client";
-import { authTest, channelHistory, listChannels, listUsers } from "./client";
+import {
+  authTest,
+  canReadPrivate,
+  channelHistory,
+  listChannels,
+  listUsers,
+} from "./client";
 
 describe("slack client (fake transport)", () => {
   it("authTest calls auth.test and parses the result", async () => {
@@ -108,5 +114,36 @@ describe("channelHistory result shape", () => {
       ok: false,
       error: "not_in_channel",
     });
+  });
+});
+
+// The scopes a token holds are fixed at authorize time and recorded nowhere, so
+// a project reusing a POOLED token has no way to know from config whether
+// private channels are readable. Asking Slack is the only honest answer.
+describe("canReadPrivate", () => {
+  it("is true when Slack accepts a private_channel listing", async () => {
+    const tx = vi.fn(async () => ({ ok: true, channels: [] }));
+    expect(await canReadPrivate("xoxp-1", tx)).toBe(true);
+    // Narrow on purpose: a yes/no question about scopes, not a data fetch.
+    expect(tx).toHaveBeenCalledWith("conversations.list", "xoxp-1", {
+      types: "private_channel",
+      exclude_archived: "true",
+      limit: "1",
+    });
+  });
+
+  it("is false when the token lacks the scope", async () => {
+    const tx = vi.fn(async () => ({ ok: false, error: "missing_scope" }));
+    expect(await canReadPrivate("xoxp-1", tx)).toBe(false);
+  });
+
+  // A network error is not evidence of a scope. False is the safe direction:
+  // the caller then shows the upgrade path instead of promising private access
+  // it may not be able to deliver.
+  it("is false, not a throw, when the call fails outright", async () => {
+    const tx = vi.fn(async () => {
+      throw new Error("ECONNRESET");
+    });
+    expect(await canReadPrivate("xoxp-1", tx)).toBe(false);
   });
 });

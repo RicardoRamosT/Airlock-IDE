@@ -12,6 +12,7 @@ import {
   readProjectConfig,
   type SlackChannel,
   slackAuthTest,
+  slackCanReadPrivate,
   slackListChannels,
   slackListUsers,
 } from "@airlock/agent-core";
@@ -113,6 +114,18 @@ export async function slackAllChannels(root: string): Promise<SlackChannel[]> {
     includePrivate && raw.some((c) => c.kind === "im" || c.kind === "mpim");
   const users = needUsers ? await slackListUsers(token).catch(() => []) : [];
   return labelConversations(raw, users);
+}
+
+// Whether the connected token can read private conversations, or null when
+// this project has no token at all. Powers the honest branch in the channel
+// picker: a project that reused a POOLED token may be holding a public-only
+// one, and no config flag can tell us -- see canReadPrivate.
+export async function slackPrivateAccess(
+  root: string,
+): Promise<boolean | null> {
+  const token = await slackTokenFor(root);
+  if (!token) return null;
+  return slackCanReadPrivate(token);
 }
 
 export const slackProvider: ConnectedProvider = {

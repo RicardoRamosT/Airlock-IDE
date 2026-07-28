@@ -19,15 +19,16 @@ import {
   deleteSecret,
   getGlobalSecret,
   getSecretValue,
+  patchProjectExtension,
   readProjectConfig,
   resolveSlackWorkspaceId,
   type SlackWorkspaceRef,
   setGlobalSecret,
   sortWorkspaces,
   upsertWorkspace,
-  writeProjectConfig,
 } from "@airlock/agent-core";
 import { app } from "electron";
+import { slackBindPatch } from "../extensions/slackWorkspace";
 
 // Test seam: point the registry and audit log at a temp dir, so the unit test
 // runs without Electron's userData path.
@@ -97,19 +98,21 @@ export async function bindSlackWorkspace(
   root: string,
   id: string | null,
 ): Promise<void> {
-  const cfg = await readProjectConfig(root);
-  const ext = { ...(cfg.extensions ?? {}) };
-  const slack = { ...((ext.slack as Record<string, unknown>) ?? {}) };
-  if (id === null) {
-    delete slack.workspace;
-  } else {
-    const ref = (await readRegistry()).find((w) => w.id === id);
-    slack.workspace = ref
-      ? { id: ref.id, name: ref.name, domain: ref.domain }
-      : { id };
-  }
-  ext.slack = slack;
-  await writeProjectConfig(root, { extensions: ext });
+  const ref =
+    id === null ? null : (await readRegistry()).find((w) => w.id === id);
+  // Two changes from the hand-rolled version this replaces, both bugs:
+  //
+  // 1. slackBindPatch applies the workspace-change ALLOW-LIST RESET that the
+  //    connect path has always had. Writing only `workspace` and spreading the
+  //    rest through left a previous workspace's channel ids in place, and the
+  //    Slack section listed them as this workspace's.
+  // 2. patchProjectExtension does the read-modify-write INSIDE the per-root
+  //    write chain. The old form read the whole extensions map, spread it by
+  //    hand and wrote it back, so a concurrent write to another extension was
+  //    silently discarded.
+  await patchProjectExtension(root, "slack", (cur) =>
+    slackBindPatch(cur, ref ?? (id === null ? null : { id })),
+  );
 }
 
 export async function boundSlackWorkspaceId(

@@ -27,6 +27,15 @@ export function SlackChannelsModal() {
   const [current, setCurrent] = useState<SlackAllowedChannel[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether the token can read PRIVATE conversations. undefined = still asking,
+  // null = no token. A live probe, not config: `includePrivate` decides which
+  // scopes are REQUESTED at authorize time, and nothing records which were
+  // granted -- so a project that reused a pooled token may hold a public-only
+  // one while its config says includePrivate:true. Without asking Slack, this
+  // picker would simply show no private channels and never say why.
+  const [privateOk, setPrivateOk] = useState<boolean | null | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     if (!root) return;
@@ -67,6 +76,23 @@ export function SlackChannelsModal() {
     };
   }, [root]);
 
+  // Probed SEPARATELY from the channel load above, and never awaited with it:
+  // it only decides whether to offer an upgrade path, so a probe that fails --
+  // or an older preload that does not expose it at all -- must not take the
+  // picker down with it. Left undefined in that case, which renders nothing.
+  useEffect(() => {
+    if (!root) return;
+    let cancelled = false;
+    void Promise.resolve(window.airlock.extensionsSlackPrivateAccess?.(root))
+      .then((ok) => {
+        if (!cancelled && typeof ok !== "undefined") setPrivateOk(ok);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [root]);
+
   const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -74,6 +100,27 @@ export function SlackChannelsModal() {
       else next.add(id);
       return next;
     });
+
+  // Ask for private access properly: record the opt-in FIRST (slackScopes reads
+  // it to build the authorize URL, so the order is load-bearing -- writing it
+  // after would request the public-only set again), then hand over to the same
+  // sign-in dialog the Connect button uses. The picker closes because the token
+  // it listed is about to be replaced; re-open it from the hub afterwards to
+  // pick the private channels that now appear.
+  const upgradeToPrivate = async () => {
+    if (busy || !root) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await window.airlock.extensionsSetConfig(root, "slack", {
+        includePrivate: true,
+      });
+      setModal({ oauthDevice: { id: "slack", name: "Slack" } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
 
   const save = async () => {
     if (busy || !root || !channels) return;
@@ -113,6 +160,34 @@ export function SlackChannelsModal() {
             {unlistedCount(channels, current) === 1 ? "" : "s"} (DMs or private
             channels) are not listed here and will be kept. Remove them from the
             Slack sidebar.
+          </div>
+        )}
+        {/* The token cannot see private conversations, and no amount of
+            checking boxes here will change that -- the scopes were fixed when
+            this workspace was authorized. Saying only "public-only" would be a
+            shrug, so this offers the one thing that actually fixes it:
+            re-authorizing the workspace with the private scope set. */}
+        {privateOk === false && (
+          <div className="sb-card">
+            <span className="section-note">
+              This workspace&rsquo;s saved sign-in can only read{" "}
+              <strong>public</strong> channels, so private channels and DMs are
+              not listed below.
+            </span>
+            <span className="section-note">
+              Slack grants those permissions at sign-in, so they cannot be
+              turned on from here. Re-authorizing replaces the saved sign-in for
+              this workspace, so every project using it gains private access
+              too.
+            </span>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy}
+              onClick={() => void upgradeToPrivate()}
+            >
+              Re-authorize with private access
+            </button>
           </div>
         )}
         <div className="slack-channel-list">

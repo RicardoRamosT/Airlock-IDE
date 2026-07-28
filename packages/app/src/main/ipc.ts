@@ -144,7 +144,11 @@ import {
 } from "./extensions/oauth/device";
 import { CONNECTED_PROVIDERS } from "./extensions/provider";
 import { eyeOnConnected } from "./extensions/resources";
-import { slackAllChannels, slackWorkspace } from "./extensions/slack";
+import {
+  slackAllChannels,
+  slackPrivateAccess,
+  slackWorkspace,
+} from "./extensions/slack";
 import { localSlackWorkspaces } from "./extensions/slackDesktop";
 import { slackDownloadFileTool } from "./extensions/slackFiles";
 import {
@@ -2338,6 +2342,15 @@ export function registerIpc(
   // source" hook can generalize it later).
   ipcMain.handle("extensions:slackChannels", (e, root: unknown) =>
     slackAllChannels(resolveRoot(e, root)),
+  );
+
+  // extensions:slackPrivateAccess -> can this project's token actually READ
+  // private conversations? One narrow Slack call (see canReadPrivate), because
+  // the granted scopes are fixed at authorize time and recorded nowhere -- a
+  // project that reused a POOLED token may hold a public-only one, and no
+  // config flag can tell us. null = no token for this project at all.
+  ipcMain.handle("extensions:slackPrivateAccess", (e, root: unknown) =>
+    slackPrivateAccess(resolveRoot(e, root)),
   );
 
   // slack:listLocalWorkspaces -> the workspaces the Slack desktop app knows

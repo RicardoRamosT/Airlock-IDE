@@ -350,6 +350,7 @@ export {
 } from "./slack/accounts";
 export {
   authTest as slackAuthTest,
+  canReadPrivate as slackCanReadPrivate,
   channelHistory as slackChannelHistory,
   listChannels as slackListChannels,
   listUsers as slackListUsers,

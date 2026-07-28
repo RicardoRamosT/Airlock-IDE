@@ -1152,6 +1152,11 @@ export interface AirlockApi {
   ): Promise<
     { id: string; name: string; kind: "public" | "private" | "im" | "mpim" }[]
   >;
+  // Whether this project's Slack token can read private conversations, or null
+  // with no token. A live probe, not config: the granted scopes are fixed at
+  // authorize time and stored nowhere, so a reused pooled token's capability is
+  // only knowable by asking Slack.
+  extensionsSlackPrivateAccess(root: string): Promise<boolean | null>;
   // Workspaces the local Slack app knows about, for the connect modal's picker.
   // [] when Slack isn't installed -- the modal then shows only the paste-URL
   // fallback. Machine-wide, not per-project: which workspaces exist on this Mac

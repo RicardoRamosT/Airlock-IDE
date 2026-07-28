@@ -22,6 +22,27 @@ vi.mock("@airlock/agent-core", async (orig) => ({
     configs.set(root, { ...(configs.get(root) ?? {}), ...patch });
     return configs.get(root);
   },
+  // Mocked too, not just writeProjectConfig: the REAL patchProjectExtension
+  // calls the real writeProjectConfig internally (a module-local call, which no
+  // export mock can intercept), so it would touch the filesystem with these
+  // fake roots. Mirrors the real merge -- one extension's sub-object, other
+  // extensions untouched -- so these tests still exercise accounts.ts's
+  // behaviour. config.test.ts owns the merge/serialisation guarantees.
+  patchProjectExtension: async (
+    root: string,
+    id: string,
+    patch:
+      | Record<string, unknown>
+      | ((cur: Record<string, unknown> | undefined) => Record<string, unknown>),
+  ) => {
+    const cfg = (configs.get(root) ?? {}) as Record<string, unknown>;
+    const exts = { ...((cfg.extensions as Record<string, unknown>) ?? {}) };
+    const cur = exts[id] as Record<string, unknown> | undefined;
+    const next = typeof patch === "function" ? patch(cur) : patch;
+    exts[id] = { ...(cur ?? {}), ...next };
+    configs.set(root, { ...cfg, extensions: exts });
+    return configs.get(root);
+  },
   getSecretValue: async (root: string, name: string) =>
     secrets.get(`${root}:${name}`) ?? null,
   setSecret: async (root: string, name: string, v: string) => {

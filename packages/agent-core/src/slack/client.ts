@@ -90,6 +90,43 @@ export async function listChannels(
   return perType.flatMap(parseChannels);
 }
 
+// Can this token actually READ private conversations?
+//
+// The scopes a token was granted are decided at AUTHORIZE time
+// (extensions.slack.includePrivate -> slackScopes), and nothing records them
+// afterwards -- the workspace pool stores only {id,name,domain}. So a project
+// REUSING a pooled token cannot know from config whether private access is
+// available: flipping includePrivate on a public-only token makes listChannels
+// request every type, Slack hard-fails with missing_scope, and the per-type
+// fallback quietly unions only the public result. The user ticks a box and
+// nothing changes, with no explanation.
+//
+// Asking Slack is the only honest answer. One narrow call: if
+// types=private_channel comes back ok, the token holds the private scopes.
+//
+// Returns false (never throws) on any failure -- a network error is not
+// evidence of a scope, and the caller uses this to decide what to OFFER, where
+// "assume not available" is the safe direction: it shows the upgrade path
+// rather than a promise it cannot keep.
+export async function canReadPrivate(
+  token: string,
+  tx: SlackTransport = fetchTransport,
+): Promise<boolean> {
+  try {
+    return slackOk(
+      await tx("conversations.list", token, {
+        types: "private_channel",
+        exclude_archived: "true",
+        // 1, not 1000: this asks a yes/no question about scopes and has no use
+        // for the payload.
+        limit: "1",
+      }),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function listUsers(
   token: string,
   tx: SlackTransport = fetchTransport,
