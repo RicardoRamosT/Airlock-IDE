@@ -29,11 +29,16 @@ toy data, you don't need this.
 **And what it does not buy you.** Two things are structural: no `.env` sits on
 disk, and **no MCP tool can return a secret value** — enforced by a
 [test that fails the build](packages/app/src/main/mcp/tools.test.ts) if the tool
-file so much as references a value-returning function. Output redaction is not:
-a command the agent runs *with* a credential has that credential in its
-environment, and AirLock matches known values in the output rather than stopping
-the process from reading them — so a command that deliberately encodes one wins.
-No routine path leaks a secret; it is not an information-flow guarantee. The
+file so much as references a value-returning function.
+
+Output redaction is not structural, but it is stronger than plain string
+matching: it catches the literal value *and* its single-shot encodings — base64,
+base64url, hex, base32, percent- and JSON-escaping — so `echo $DATABASE_URL |
+base64` comes back `***`. What it cannot catch is an arbitrary transform applied
+by a process that already holds the value: reversing it, splitting it across
+lines, gzip, char-by-char printing, encryption, or double-encoding. A command the
+agent runs *with* a credential does hold it. So: no routine or casual path leaks
+a secret, and it is still not an information-flow guarantee. The
 [threat model](docs/threat-model.md#what-airlock-does-not-protect-against) draws
 the line exactly, and closing it properly — a broker in the data path instead of
 values in the environment — is the main thing on the roadmap.
@@ -329,7 +334,7 @@ Copyright © 2026 Ricardo Ramos Treviño.
   Modification and redistribution are not permitted under either grant.
 - **Commercial use** — including a developer at a company running AirLock on
   that company's code — needs a separate licence. See
-  [COMMERCIAL.md](COMMERCIAL.md).
+  [COMMERCIAL.md](COMMERCIAL.md), or email <ricardoramostrevino@hotmail.com>.
 
 Same source either way; only the grant differs.
 

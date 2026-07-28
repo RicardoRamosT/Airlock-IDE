@@ -21,5 +21,6 @@ kept as one canonical, audited build.
 
 The source is public so you can **read and verify** it — the security claims are
 only meaningful if you can audit them — and use AirLock for noncommercial
-purposes. For commercial or other licensing, contact the author
-([@RicardoRamosT](https://github.com/RicardoRamosT)).
+purposes. **Commercial use needs a separate licence** over the same source — see
+[COMMERCIAL.md](COMMERCIAL.md), or email
+<ricardoramostrevino@hotmail.com> directly.

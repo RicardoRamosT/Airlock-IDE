@@ -11,9 +11,10 @@ dashboard for the human, tidy up when done.
 > metadata** - each tab's id, name (the folder basename, or "New Tab"), root, whether it
 > is focused or in the split, and its terminals as `{ id, title }`, plus the split pair
 > and the page-tab state. They return **no** secret value, no environment value, and no
-> terminal output. `open_terminal` spawns a shell with the project's secrets injected
-> (the same as a terminal the human opens), but you never see those values - no tool here
-> returns them, and reading a terminal's output still goes through `get_terminal_tail`,
+> terminal output. `open_terminal` spawns a shell with the project's secrets
+> injected *only if that project opted in* (`injectSecretsIntoTerminal`, off by
+> default; the same as a terminal the human opens). No tool returns those values,
+> and reading a terminal's output still goes through `get_terminal_tail`,
 > which redacts. So these tools do not widen the no-secrets surface at all (see
 > `security-model.md`).
 

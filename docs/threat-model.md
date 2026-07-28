@@ -9,9 +9,12 @@ Stated precisely, because the difference matters:
   value (enforced by a test that fails the build). These are properties of the
   design; no amount of cleverness by the agent changes them.
 - **Best-effort** — output redaction. A command the agent runs *with* a
-  credential has that credential in its environment, and AirLock matches known
-  values in the output rather than stopping the process from reading them. String
-  matching loses to encoding.
+  credential has that credential in its environment; AirLock filters the output
+  rather than stopping the process from reading it. The filter covers the literal
+  value and its single-shot encodings (base64/base64url/hex/base32/percent/JSON),
+  so the obvious `echo | base64` is caught. An arbitrary transform by a process
+  that holds the value — reverse, split, gzip, char-by-char, encrypt,
+  double-encode — is not.
 
 So the guarantee is about the interface, not about information flow. This
 document exists so you can rely on the right half, and it says so in the
