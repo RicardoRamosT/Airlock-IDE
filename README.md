@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-source--available-blue)](LICENSE.md)
 [![Release](https://img.shields.io/github/v/release/RicardoRamosT/Airlock-IDE?color=orange&label=release)](../../releases)
 [![CI](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml/badge.svg)](https://github.com/RicardoRamosT/Airlock-IDE/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1550%2B-brightgreen)](#building-from-source)
+[![Tests](https://img.shields.io/badge/tests-2043-brightgreen)](#building-from-source)
 
 <img src="docs/assets/hero.png" alt="AirLock: a split workspace with Claude Code running in each pane and the plan-usage gauges flanking the window title" width="800"/>
 
@@ -20,7 +20,15 @@ read your credentials.** Claude Code is a first-class citizen of the IDE, every
 project you're juggling lives in one window, and your secrets live in the macOS
 Keychain behind a broker that injects them where they're needed and redacts
 them everywhere else. Not "the agent promises not to look": **the tools to
-look do not exist.**
+look do not exist.** That is a claim about *reading the credential*, not a
+sandbox — the [threat model](docs/threat-model.md#what-airlock-does-not-protect-against)
+states plainly what it does and does not stop (redaction is value-based, so an
+agent that deliberately encodes a secret can defeat it).
+
+**Who this is for:** a developer or small team running coding agents against
+real infrastructure, on macOS, who can't put production credentials in a `.env`
+and can't watch every command the agent runs. If your agent only ever touches
+toy data, you don't need this.
 
 ## Why AirLock
 
@@ -40,14 +48,21 @@ and glows when Claude finishes in a tab you aren't watching. Two usage gauges
 flank the window title (your 5-hour and 7-day windows, colour-shifting as they
 fill) and click through to a full per-session usage dashboard. And through a
 local MCP bridge, the Claude in your terminal can **see and drive the IDE
-itself**: 39 tools and a built-in manual (see below).
+itself**: 36 tools and a built-in manual (see below).
 
 **Your secrets stay yours.** Credentials are vaulted in the macOS Keychain and
 injected into terminals at spawn, so no `.env` ever sits on disk. The agent can
 *use* a secret (run a migration against your `DATABASE_URL`) but never *see*
 it: values are injected main-process-side and redacted out of every output that
-reaches the agent. Commits are scanned for leaked secret values before they
-land. Every broker operation is hash-chain audited. By design there are **no
+reaches the agent — enforced by a
+[source-level test](packages/app/src/main/mcp/tools.test.ts) that fails the build
+if the MCP tool file even references a value-returning function. Commits are
+scanned for leaked secret values before they land. Every broker operation is
+hash-chain audited. **Where the line is:** this defends against a *confused*
+agent and prompt injection, not a deliberately hostile one — redaction matches
+values, so encoding defeats it, and a secret the agent may *use* is a secret it
+may act with. The [threat model](docs/threat-model.md#what-airlock-does-not-protect-against)
+is explicit about all of it. By design there are **no
 third-party extensions**; the attack surface stays closed.
 
 ## How it compares
@@ -59,9 +74,14 @@ aimed at running an AI agent across many projects without handing it your keys:
 | ------------------------------------------------- | :---------------: | :--------------------: | :--------------------: |
 | Terminal-first AI agent                           |         ✓         | terminal + editor agent |           ✓            |
 | Every project in one window, each its own agent   |         —         | one workspace at a time |    ✓ (tabs + splits)   |
-| Agent can **use** a secret but **can't read** it  |         —         |           —            |  ✓ (broker + redaction) |
+| Agent can **use** a secret but **can't read** it  |         —         |           —            | ✓ (broker + redaction) [^1] |
 | Agent can drive the IDE (tabs, splits, status)    |         —         |     via extensions     |   ✓ (built-in MCP)     |
 | No third-party extensions (closed attack surface) |        n/a        |   extension marketplace |     ✓ (by design)      |
+
+[^1]: Reading is what's blocked, not misuse. Redaction matches known secret
+    *values*, so an agent that deliberately encodes one can defeat it, and a
+    credential the agent may *use* is one it may act with. See the
+    [threat model](docs/threat-model.md#what-airlock-does-not-protect-against).
 
 It pairs *with* Claude Code rather than replacing it: AirLock hosts the same
 `claude`, and adds the multi-project shell, the secret broker, and the MCP
@@ -123,19 +143,18 @@ can write to as it works.
 
 AirLock runs a local MCP server (loopback-only, bearer-token-guarded) that the
 Claude Code in its terminal connects to automatically. No extra setup, no
-second API key. **39 tools**, and a built-in manual so the agent understands
+second API key. **36 tools**, and a built-in manual so the agent understands
 the IDE without you explaining it:
 
 - **See every status:** git, databases (reachability, never passwords), Neon,
-  Docker, Render deploys, local dev-server health, the live Activity feed, your
+  Docker, Render deploys, local dev-server health, CI for the current branch, your
   secret *names*, a project profile (`project_info`), the app's own event log
   (`read_events`), and its own **plan usage** (`plan_usage`).
 - **Drive the layout:** open/close/switch project tabs, split views, spawn or
   kill terminals, type into a terminal (with your approval), and open the
   Settings/Usage pages. Ask "set up my workspace for this repo" and watch it
   happen.
-- **Curate the sidebar:** show or hide sections to fit the project; dismiss
-  finished Activity entries.
+- **Curate the sidebar:** show or hide sections to fit the project.
 - **Keep a project journal:** record what changed in the project's **Changelog**
   as it works — one entry at a time, or a whole backfilled history in a single
   batched call — and revise its own notes later.
@@ -166,7 +185,10 @@ broker operation lands in a hash-chained audit log
 
 - **Git:** branch switcher, one-click stage/unstage, commit box, click-through
   unified diffs, right-click a change to stage/discard/open/copy, and undo the
-  last commit. Push/pull/merge: the terminal is right there.
+  last commit. Push/pull/merge: the terminal is right there. **CI for the
+  current branch** sits beside the branch switcher — the GitHub Actions run with
+  its real step count, via `gh`. Honest progress only; nothing fakes a
+  percentage.
 - **Databases:** every `postgres-url` secret becomes a live connection (status
   dot via `SELECT 1`), expandable to tables, browsable in a read-only grid.
   Passwords never cross into the UI. A **Neon** group browses
@@ -179,9 +201,6 @@ broker operation lands in a hash-chained audit log
   Render deploy status and history with one-click redeploy (including whether
   your latest commit is the one that's live), and Azure Web App start/stop and
   Open in Portal.
-- **Activity:** a live feed of in-progress work: GitHub Actions runs (with a
-  real step checklist, via `gh`), Render deploys mid-build, containers
-  starting. Honest progress only; nothing fakes a percentage.
 - **GitHub accounts:** switch between every account `gh` knows, and **pin** one to
   a project so every push from that repo uses it — terminal, agent, or GUI —
   regardless of which account is globally active. Non-pinned projects can
@@ -210,10 +229,11 @@ macOS only, by design.
 
 ## Status
 
-Early and moving fast: v0.5, built and dogfooded daily (AirLock is developed
+Early and moving fast: v0.6.1, built and dogfooded daily (AirLock is developed
 inside AirLock, by the Claude it hosts). Expect rough edges; the security
-invariants are the part that's tested hardest (1,550+ unit tests, including
-source-level guards on the no-secret-value rule).
+invariants are the part that's tested hardest — 2,043 unit tests, including the
+[source-level guard](packages/app/src/main/mcp/tools.test.ts) that fails the
+build if the MCP tool file so much as references a value-returning function.
 
 ## FAQ
 

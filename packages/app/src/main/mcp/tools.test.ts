@@ -248,6 +248,30 @@ describe("mcp-docs / allowlist parity", () => {
   it("states the exact allowlist size as its tool count", () => {
     expect(toolsDoc).toContain(`${TOOL_NAMES.length} tools`);
   });
+
+  // The README makes the same claim to a HUMAN audience, and drifted: it
+  // advertised 39 tools for a 36-tool surface, 1,550+ tests against 2,042, and
+  // v0.5 at 0.6.1. An outside reviewer then assessed the project on those
+  // numbers and under-counted it by a third.
+  //
+  // A number nobody checks is a number that rots, and on a project whose pitch
+  // is rigor the stale figure is the part people notice. So the README is held
+  // to the allowlist exactly like the agent-facing manual is -- the build fails
+  // rather than a reader finding it.
+  it("states the same tool count in the README", () => {
+    const readme = readFileSync(
+      path.join(here, "../../../../../README.md"),
+      "utf8",
+    );
+    expect(readme).toContain(`${TOOL_NAMES.length} tools`);
+    // And does not still carry a DIFFERENT count somewhere else in the file:
+    // it names the number twice, and only one of them was updated last time.
+    const others = readme.match(/\*\*(\d+) tools\*\*|\b(\d+) tools\b/g) ?? [];
+    for (const hit of others) {
+      const n = hit.match(/\d+/)?.[0];
+      expect(n).toBe(String(TOOL_NAMES.length));
+    }
+  });
 });
 
 describe("tools.ts secret-value source guard", () => {
