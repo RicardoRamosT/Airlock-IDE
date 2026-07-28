@@ -35,6 +35,12 @@ beforeEach(() => {
   slackBindWorkspace = vi.fn(async () => {});
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     extensionsList: legacyList,
+    // switchTab -> workspaceSetActive / workspaceClose. Tests seed tabState, not
+    // the WINDOW root, so switchTab takes the close branch; without these the
+    // call throws as an UNHANDLED error. Vitest then exits non-zero even though
+    // every test passes, which is exactly how this reached CI unnoticed.
+    workspaceClose: vi.fn(async () => {}),
+    workspaceSetActive: vi.fn(async () => {}),
     // SUMMARIES' Slack row is tier:"connected"/status:"connected", which is
     // now expandable (Task 3 fix round 1 wires up ExtensionResources), so it
     // fetches on select/auto-select even though these tests don't assert on
@@ -208,6 +214,12 @@ function mount(
   });
   (window as unknown as { airlock: Record<string, unknown> }).airlock = {
     extensionsList: list,
+    // switchTab -> workspaceSetActive / workspaceClose. Tests seed tabState, not
+    // the WINDOW root, so switchTab takes the close branch; without these the
+    // call throws as an UNHANDLED error. Vitest then exits non-zero even though
+    // every test passes, which is exactly how this reached CI unnoticed.
+    workspaceClose: vi.fn(async () => {}),
+    workspaceSetActive: vi.fn(async () => {}),
     extensionsDisconnect: disconnect,
     prefsSet,
     extensionsResourcesFor: resourcesFor,
