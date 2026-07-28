@@ -5,6 +5,7 @@ import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { ExtensionResources } from "./ExtensionResources";
 import { SectionGlyph } from "./SectionGlyph";
+import { Switch } from "./Switch";
 
 // The Extensions page: the grouped list plus a detail pane, at full workspace
 // width so names are not truncated and actions can be labelled buttons rather
@@ -337,34 +338,24 @@ export function ExtensionsTab() {
                     inside it follow the data. */}
                 <div className="ext-detail-settings">
                   <div className="ext-detail-label">Settings</div>
-                  <label className="ext-detail-toggle">
-                    <input
-                      type="checkbox"
-                      aria-label={`Enable ${sel.name}`}
-                      checked={enabled}
-                      onChange={(ev) =>
-                        applyPref(sel.id, { enabled: ev.target.checked })
-                      }
-                    />
-                    Enabled
-                  </label>
+                  <Switch
+                    label="Enabled"
+                    ariaLabel={`Enable ${sel.name}`}
+                    checked={enabled}
+                    onChange={(v) => applyPref(sel.id, { enabled: v })}
+                  />
                   {/* No category means the eye has nowhere to surface it, so
-                      the checkbox is omitted rather than shown pointing at
+                      the switch is omitted rather than shown pointing at
                       nothing. */}
                   {sel.category && (
-                    <label className="ext-detail-toggle">
-                      <input
-                        type="checkbox"
-                        aria-label={`${pinned ? "Hide" : "Show"} ${sel.name} ${
-                          pinned ? "from" : "in"
-                        } ${sel.category}`}
-                        checked={pinned}
-                        onChange={(ev) =>
-                          applyPref(sel.id, { pinned: ev.target.checked })
-                        }
-                      />
-                      Show in {sel.category}
-                    </label>
+                    <Switch
+                      label={`Show in ${sel.category}`}
+                      ariaLabel={`${pinned ? "Hide" : "Show"} ${sel.name} ${
+                        pinned ? "from" : "in"
+                      } ${sel.category}`}
+                      checked={pinned}
+                      onChange={(v) => applyPref(sel.id, { pinned: v })}
+                    />
                   )}
                 </div>
                 {/* Slot 5. ALWAYS rendered, in four mutually exclusive states.

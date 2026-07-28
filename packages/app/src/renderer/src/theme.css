@@ -6100,17 +6100,75 @@ button.docker-row .codicon-chevron-right {
   flex-wrap: wrap;
   gap: var(--sb-gap);
 }
-.ext-detail-toggle {
-  display: flex;
+/* An on/off switch (components/Switch.tsx). Used for settings that apply
+   immediately, where a checkbox would wrongly read as "select, then submit". */
+.switch {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
   cursor: pointer;
+  font-size: 12px;
+  user-select: none;
 }
-.ext-detail-toggle input {
+/* Hidden by CLIP, not display/visibility: those remove it from the focus order
+   and make the switch unreachable by keyboard. */
+.switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.switch-track {
+  position: relative;
   flex: none;
-  margin: 0;
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 120ms ease;
 }
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--fg);
+  opacity: 0.75;
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease;
+}
+.switch-input:checked + .switch-track {
+  background: var(--accent);
+}
+.switch-input:checked + .switch-track .switch-thumb {
+  transform: translateX(11px);
+  background: #fff;
+  opacity: 1;
+}
+/* The focus ring rides the TRACK, since the input itself is clipped away. */
+.switch-input:focus-visible + .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.switch-label {
+  color: var(--fg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-thumb {
+    transition: none;
+  }
+}
+
 /* Slot 4: settings. Its own block so the pane keeps its shape whether it
    carries one toggle or two. */
 .ext-detail-settings {
