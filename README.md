@@ -279,10 +279,16 @@ packaging. A cross-platform port is possible but isn't the focus while the
 security model is being hardened.
 
 **Why source-available, not open source?** You can read every line — the
-security claims are only credible if you can verify them — but the license
-forbids redistribution, modification, and commercial use. It's a deliberate
-choice to keep one canonical, audited build of a security-sensitive tool, not
-an OSI open-source license. See [License](#license).
+security claims are only credible if you can verify them — but redistribution
+and modification aren't permitted, so there is one canonical, auditable build of
+a tool people trust with credentials. A forked AirLock with an altered secret
+broker would carry the name without the guarantees. It is deliberately not an
+OSI license, and that has a real cost: the programmes that fund free security
+audits for open-source projects are closed to AirLock.
+
+**Can I use it at work?** Not under the default license — that one is
+noncommercial. Commercial use needs a separate grant over the same source; see
+[COMMERCIAL.md](COMMERCIAL.md).
 
 **Does Claude ever see my secret values?** No — that's the core invariant.
 Secrets live in the Keychain; values are injected into a command's environment
@@ -306,12 +312,18 @@ Icons: [@vscode/codicons](https://github.com/microsoft/vscode-codicons) (CC-BY-4
 
 ## License
 
-AirLock is **source-available, not open source**. Copyright © 2026 Ricardo
-Ramos Treviño. Licensed under the
-[PolyForm Strict License 1.0.0](LICENSE.md): you may read the source and use
-the software for noncommercial purposes, but **modification, redistribution,
-and commercial use are not permitted**. For a commercial or other license,
-contact the author ([@RicardoRamosT](https://github.com/RicardoRamosT)).
+AirLock is **source-available, not open source**, and **dual-licensed**.
+Copyright © 2026 Ricardo Ramos Treviño.
+
+- **Default:** [PolyForm Strict License 1.0.0](LICENSE.md). Read every line, and
+  use it for any noncommercial purpose — personal study, hobby projects,
+  research, and use by charities, schools, public research bodies and government.
+  Modification and redistribution are not permitted under either grant.
+- **Commercial use** — including a developer at a company running AirLock on
+  that company's code — needs a separate licence. See
+  [COMMERCIAL.md](COMMERCIAL.md).
+
+Same source either way; only the grant differs.
 
 Third-party dependencies are used under their own permissive licenses
 (MIT/BSD/ISC/Apache and similar); their notices ship with the packaged app.
