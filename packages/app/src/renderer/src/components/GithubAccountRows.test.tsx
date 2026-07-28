@@ -88,3 +88,124 @@ it("does nothing without a project root", async () => {
   render(<GithubAccountRows root={null} />);
   expect(await screen.findByText(/Open a project/)).toBeTruthy();
 });
+
+// The reported bug: the row only ever PINNED, so clicking the account it was
+// already pinned to just re-pinned it, and the hub had no way back out. The pin
+// also installs a per-repo git credential helper, so being stuck pinned is a
+// real state, not a cosmetic one -- the popover has always had an Unpin button
+// and this surface was the one that could not reach it.
+it("unpins on a second click of the account it is already pinned to", async () => {
+  // A STATEFUL stub, unlike the shared one: the component deliberately settles
+  // on what main actually stored rather than on its own optimistic guess, so a
+  // stub that always answers "still pinned" would restore the badge and hide
+  // the fix. Behaving like main is the point of the assertion.
+  let current: string | null = "RicardoRamosT";
+  const setProjectGithubAccount = vi.fn(
+    async (_root: string, account: { username: string } | null) => {
+      current = account === null ? null : account.username;
+    },
+  );
+  (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+    githubInfo: vi.fn(async () => ({
+      gh: {
+        installed: true,
+        accounts: [
+          { host: "github.com", username: "RicardoRamosT", active: true },
+        ],
+      },
+    })),
+    resolveGithubAccount: vi.fn(async () =>
+      current
+        ? {
+            source: "override",
+            account: { host: "github.com", username: current },
+          }
+        : { source: "detected", account: null },
+    ),
+    setProjectGithubAccount,
+  };
+  render(<GithubAccountRows root="/proj" />);
+  await screen.findByText("pinned");
+
+  fireEvent.click(screen.getByText("RicardoRamosT"));
+  await waitFor(() =>
+    // null is the CLEAR signal -- it removes the override AND the credential
+    // helper, main-side.
+    expect(setProjectGithubAccount).toHaveBeenCalledWith("/proj", null),
+  );
+  await waitFor(() => expect(screen.queryByText("pinned")).toBeNull());
+});
+
+// Clicking the OTHER account moves the pin. Switching which account a project
+// uses must not require unpinning first.
+it("moves the pin when a DIFFERENT account is clicked", async () => {
+  const { setProjectGithubAccount } = stub(
+    [
+      { host: "github.com", username: "RicardoRamosT", active: true },
+      { host: "github.com", username: "vnricardotrevino", active: false },
+    ],
+    {
+      source: "override",
+      account: { host: "github.com", username: "RicardoRamosT" },
+    },
+  );
+  render(<GithubAccountRows root="/proj" />);
+  await screen.findByText("pinned");
+
+  fireEvent.click(screen.getByText("vnricardotrevino"));
+  await waitFor(() =>
+    expect(setProjectGithubAccount).toHaveBeenCalledWith("/proj", {
+      host: "github.com",
+      username: "vnricardotrevino",
+    }),
+  );
+});
+
+// A toggle has to SAY which way it goes. The badge alone does not tell you a
+// second click undoes it -- which is how the missing unpin went unnoticed.
+it("names the action each row will perform, in both directions", async () => {
+  stub(
+    [
+      { host: "github.com", username: "RicardoRamosT", active: true },
+      { host: "github.com", username: "vnricardotrevino", active: false },
+    ],
+    {
+      source: "override",
+      account: { host: "github.com", username: "RicardoRamosT" },
+    },
+  );
+  render(<GithubAccountRows root="/proj" />);
+  await screen.findByText("pinned");
+  const pinnedRow = screen.getByText("RicardoRamosT").closest("button");
+  const otherRow = screen.getByText("vnricardotrevino").closest("button");
+  expect(pinnedRow?.getAttribute("title")).toMatch(/^Unpin/);
+  expect(pinnedRow?.getAttribute("aria-pressed")).toBe("true");
+  expect(otherRow?.getAttribute("title")).toMatch(/^Pin/);
+  expect(otherRow?.getAttribute("aria-pressed")).toBe("false");
+});
+
+// A failed write must not leave the badge claiming a pin that did not happen:
+// the credential helper is installed main-side, so a lying badge means the user
+// believes their pushes use an account they do not.
+it("re-reads the real pin when the write fails, instead of keeping the guess", async () => {
+  (window as unknown as { airlock: Record<string, unknown> }).airlock = {
+    githubInfo: vi.fn(async () => ({
+      gh: {
+        installed: true,
+        accounts: [
+          { host: "github.com", username: "RicardoRamosT", active: true },
+        ],
+      },
+    })),
+    resolveGithubAccount: vi.fn(async () => ({
+      source: "detected",
+      account: null,
+    })),
+    setProjectGithubAccount: vi.fn(async () => {
+      throw new Error("gh config write failed");
+    }),
+  };
+  render(<GithubAccountRows root="/proj" />);
+  fireEvent.click(await screen.findByText("RicardoRamosT"));
+  await waitFor(() => expect(screen.queryByText("pinned")).toBeNull());
+});

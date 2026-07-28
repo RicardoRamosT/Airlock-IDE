@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { GhAccount } from "../../../shared/ipc";
 
 import { Loading } from "./Loading";
@@ -25,8 +25,11 @@ export function GithubAccountRows({ root }: { root: string | null }) {
       .catch(() => setAccounts([]));
   }, []);
 
-  // Reflect the CURRENT pin, so the badge is not merely optimistic.
-  useEffect(() => {
+  // Reflect the CURRENT pin, so the badge is not merely optimistic. Also the
+  // recovery path after a failed write: the pin installs a per-repo credential
+  // helper main-side, so a badge that kept an optimistic guess would tell the
+  // user their pushes use an account they do not.
+  const readPin = useCallback(() => {
     if (!root) return;
     void window.airlock
       .resolveGithubAccount(root)
@@ -38,12 +41,28 @@ export function GithubAccountRows({ root }: { root: string | null }) {
       .catch(() => setPinned(null));
   }, [root]);
 
-  const pin = (host: string, username: string) => {
+  useEffect(readPin, [readPin]);
+
+  // A TOGGLE, not a setter. Clicking the row that is already pinned unpins it;
+  // clicking a different one moves the pin (switching accounts must not require
+  // unpinning first). Without the unpin arm this surface could only ever pin --
+  // a second click silently re-pinned the same account, and the only way out
+  // was the accounts popover, which the hub exists to save you from hunting for.
+  const togglePin = (host: string, username: string) => {
     if (!root) return;
-    setPinned(username);
-    // Two arguments, and the second is an OBJECT. Passing a bare username, or
-    // null, would CLEAR the pin instead of setting it.
-    void window.airlock.setProjectGithubAccount(root, { host, username });
+    // null is the CLEAR signal: it removes the override AND the credential
+    // helper. Note a bare username would ALSO clear it -- the set form must be
+    // the { host, username } object.
+    const next = pinned === username ? null : { host, username };
+    setPinned(next === null ? null : username);
+    void window.airlock
+      .setProjectGithubAccount(root, next)
+      .catch((err) => {
+        console.error("setProjectGithubAccount failed", err);
+      })
+      // Settle on what MAIN actually stored, either way -- the credential
+      // helper is the real state, and the badge must not outrank it.
+      .finally(readPin);
   };
 
   if (!root)
@@ -60,18 +79,28 @@ export function GithubAccountRows({ root }: { root: string | null }) {
 
   return (
     <div className="gh-account-rows">
-      {accounts.map((a) => (
-        <button
-          key={`${a.host}/${a.username}`}
-          type="button"
-          className="db-row"
-          onClick={() => pin(a.host, a.username)}
-          title={`Pin this project to ${a.username}`}
-        >
-          <span className="db-name">{a.username}</span>
-          {pinned === a.username && <span className="sb-badge">pinned</span>}
-        </button>
-      ))}
+      {accounts.map((a) => {
+        const isPinned = pinned === a.username;
+        return (
+          <button
+            key={`${a.host}/${a.username}`}
+            type="button"
+            className="db-row"
+            onClick={() => togglePin(a.host, a.username)}
+            // A toggle has to say which way it goes: the badge alone does not
+            // tell you a second click undoes it.
+            aria-pressed={isPinned}
+            title={
+              isPinned
+                ? `Unpin this project from ${a.username}`
+                : `Pin this project to ${a.username}`
+            }
+          >
+            <span className="db-name">{a.username}</span>
+            {isPinned && <span className="sb-badge">pinned</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
