@@ -95,6 +95,20 @@ base64; the encoding passes are single-layer, not recursive). The structural
 guarantee is what holds: no tool returns a raw value, and inject-into-terminal defaults
 OFF. Treat the tail as helper context, not a hardened channel.)
 
+## If inject-into-terminal is ON, you are holding the credentials
+This is per-project and **off by default**, but when the human turns it on the model
+above changes for you specifically. Every vaulted value goes into the shell's
+environment at spawn, and you were started inside that shell — so they are in YOUR
+process environment and in every command you run. Redaction is not in that path: it
+filters `run_command` output and `get_terminal_tail`, which are the paths where
+airlock hands you bytes. Reading your own environment involves no airlock at all.
+
+Behave accordingly. Do not print, encode, transmit, or write those values anywhere,
+and do not use them for anything the human did not ask for — the safeguards that
+would normally catch a mistake are absent here. If you need to know which posture a
+project is in, ask the human; there is deliberately no tool that reports it as a
+license to relax.
+
 ## The owner can reveal/copy their own secrets — and you still can't
 The human **owner** can reveal a secret's value (the per-row eye toggle) and copy it (the
 copy button) in the Secrets sidebar. This is the owner acting on their own surface — it is

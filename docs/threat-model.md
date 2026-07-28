@@ -20,6 +20,34 @@ So the guarantee is about the interface, not about information flow. This
 document exists so you can rely on the right half, and it says so in the
 non-goals below rather than leaving you to find out.
 
+## Two postures, one setting
+
+AirLock ships in two security postures, and a single per-project setting decides
+which one you are in. This is the most important thing in this document.
+
+**Default — `injectSecretsIntoTerminal: false`.** No vaulted secret is in any
+terminal's environment. The auto-started `claude` inherits nothing. The only way a
+secret reaches a process is `run_command`, where the broker resolves the value
+main-side into one child process and filters the output on the way back. The
+guarantee above holds: the agent is never handed a credential.
+
+**Injection mode — `injectSecretsIntoTerminal: true`.** Every vaulted value is put
+into the shell's environment at spawn. `claude` is started inside that shell, so
+its own process environment holds them, and every command it runs inherits them.
+**Redaction does not apply on this path at all** — it filters `run_command` output
+and `get_terminal_tail`, both cases where AirLock hands bytes to the agent. When
+the agent *is* the process in the terminal, it reads its own environment with
+nothing in between. `echo $DATABASE_URL` returns the value in plain text; no
+encoding, nothing to defeat.
+
+So injection mode is not the default guarantee with a caveat. It is a different
+trade: you gain long-lived credentials for processes that need them for their
+whole lifetime (a dev server), and you give up the read barrier for the agent
+sharing that terminal. The toggle says so at the point of decision; this document
+says it here so it is still true three weeks later.
+
+Everything below describes the DEFAULT posture unless it says otherwise.
+
 ## Actors
 
 - **You** — the human at the keyboard. Trusted.

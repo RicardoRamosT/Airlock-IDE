@@ -63,8 +63,11 @@ fill) and click through to a full per-session usage dashboard. And through a
 local MCP bridge, the Claude in your terminal can **see and drive the IDE
 itself**: 36 tools and a built-in manual (see below).
 
-**Your secrets stay yours.** Credentials are vaulted in the macOS Keychain and
-injected into terminals at spawn, so no `.env` ever sits on disk. The agent can
+**Your secrets stay yours.** Credentials are vaulted in the macOS Keychain, so no
+`.env` ever sits on disk. A project can opt into putting them in its terminals'
+environment for long-lived processes — that is **off by default**, and it trades
+the read barrier away for the agent sharing that terminal
+([both postures, spelled out](docs/threat-model.md#two-postures-one-setting)). The agent can
 *use* a secret (run a migration against your `DATABASE_URL`) without ever being
 *handed* it: values are injected main-process-side and redacted out of every
 output that reaches the agent — enforced by a
