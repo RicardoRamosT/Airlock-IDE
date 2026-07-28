@@ -114,8 +114,11 @@ it("lists Render and Azure as providers, with a reason each", async () => {
   render(<LocalHostSection />);
   expect(await screen.findByText("Render")).toBeTruthy();
   expect(screen.getByText("Azure")).toBeTruthy();
-  // Render has no services -- a true reason, not a blank row.
-  expect(screen.getByText("not connected")).toBeTruthy();
+  // Render has no services -- a true reason, not a blank row. `find`, not
+  // `get`: the row's NAME and its STATE text resolve from independent
+  // promises, so awaiting the name above does not guarantee the state has
+  // landed. As a sync get this flaked under full-suite parallel load.
+  expect(await screen.findByText("not connected")).toBeTruthy();
   // Azure is redirect-only (its live state lives in its own section), but its
   // state text is real: the default stub resolves absent -> "CLI not found".
   expect(await screen.findByText("CLI not found")).toBeTruthy();
