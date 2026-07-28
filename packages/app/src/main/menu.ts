@@ -18,7 +18,6 @@ export const SECTION_LABELS: Record<BuiltinSection, string> = {
   files: "Files",
   secrets: "Secrets",
   git: "Git",
-  activity: "Activity",
   databases: "Databases",
   host: "Host",
   extensions: "Extensions",

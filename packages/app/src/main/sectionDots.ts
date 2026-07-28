@@ -1,9 +1,9 @@
-// Pure level mappers for the activity-rail status dots. Kept electron-free (and
+// Pure level mappers for the rail status dots. Kept electron-free (and
 // out of ide-state) so they unit-test without spinning up main. Each takes
 // already-fetched status and returns a DotLevel; ide-state's sectionStatuses()
 // does the (impure) fetching and calls these.
 import type { Container, DockerStatus, GitStatus } from "@airlock/agent-core";
-import type { ActivityItem, DotLevel } from "../shared/ipc";
+import type { DotLevel } from "../shared/ipc";
 
 // Docker: grey = not installed; green = daemon up with a running container;
 // yellow = installed but the daemon is off or nothing is running.
@@ -45,13 +45,4 @@ export function gitDot(g: GitStatus | null): DotLevel {
   const dirty = g.staged.length + g.unstaged.length + g.untracked.length > 0;
   const outOfSync = g.branch.ahead > 0 || g.branch.behind > 0;
   return dirty || outOfSync ? "yellow" : "green";
-}
-
-// Activity: grey = idle (no in-progress work); red = a failure present; yellow =
-// something running; green = items present and all finished cleanly.
-export function activityDot(items: ActivityItem[]): DotLevel {
-  if (items.length === 0) return "grey";
-  if (items.some((i) => i.state === "failed")) return "red";
-  if (items.some((i) => i.state === "running")) return "yellow";
-  return "green";
 }

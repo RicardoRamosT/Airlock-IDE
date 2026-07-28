@@ -22,7 +22,6 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
-        activity: true,
         databases: true,
         host: true,
         extensions: true,
@@ -98,7 +97,6 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
-        activity: true,
         databases: true,
         host: true,
         extensions: true,
@@ -228,7 +226,6 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
-        activity: true,
         databases: true,
         host: true,
         extensions: true,
@@ -272,7 +269,6 @@ describe("app prefs", () => {
         files: true,
         secrets: true,
         git: true,
-        activity: true,
         databases: true,
         host: true,
         extensions: true,
@@ -335,7 +331,7 @@ describe("app prefs", () => {
     expect(prefs.sectionVisibility.bogus).toBeUndefined();
   });
 
-  it("defaults sectionVisibility to all nine built-in sections visible", async () => {
+  it("defaults sectionVisibility to all eight built-in sections visible", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
     expect(
       (await loadPrefs(path.join(dir, "prefs.json"))).sectionVisibility,
@@ -343,7 +339,6 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
-      activity: true,
       databases: true,
       host: true,
       extensions: true,
@@ -363,7 +358,6 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
-      activity: true,
       databases: true,
       host: false,
       extensions: true,
@@ -374,7 +368,6 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
-      activity: true,
       databases: true,
       host: false,
       extensions: true,
@@ -391,7 +384,6 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
-      activity: true,
       databases: true,
       host: true,
       extensions: true,
@@ -411,7 +403,6 @@ describe("app prefs", () => {
       files: true,
       secrets: true,
       git: true,
-      activity: true,
       databases: true,
       host: true,
       extensions: true,

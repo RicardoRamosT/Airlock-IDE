@@ -113,6 +113,7 @@ const api: AirlockApi = {
     ipcRenderer.invoke("git:discard", root, paths, untracked),
   gitUncommit: (root) => ipcRenderer.invoke("git:uncommit", root),
   gitBranches: (root) => ipcRenderer.invoke("git:branches", root),
+  gitCiRun: (root) => ipcRenderer.invoke("git:ciRun", root),
   gitFetch: (root) => ipcRenderer.invoke("git:fetch", root),
   gitPull: (root) => ipcRenderer.invoke("git:pull", root),
   gitPush: (root) => ipcRenderer.invoke("git:push", root),
@@ -161,8 +162,6 @@ const api: AirlockApi = {
   renderEnvReveal: (serviceId, key) =>
     ipcRenderer.invoke("render:envReveal", serviceId, key),
   renderEnvCompare: (a, b) => ipcRenderer.invoke("render:envCompare", a, b),
-  activityStatus: (root) => ipcRenderer.invoke("activity:status", root),
-  activityDismiss: (id) => ipcRenderer.invoke("activity:dismiss", id),
   integrationsSteady: () => ipcRenderer.invoke("integrations:steady"),
   integrationsResources: (id: string, scoped?: boolean) =>
     ipcRenderer.invoke("integrations:resources", id, scoped),
@@ -202,7 +201,6 @@ const api: AirlockApi = {
     subscribe<OAuthResultEvent>("extensions:oauthResult", cb),
   onExtensionsChanged: (cb) =>
     subscribe<{ root: string }>("extensions:changed", cb),
-  onActivityChanged: (cb) => subscribe<void>("activity:changed", cb),
   hostLocalUrl: (root) => ipcRenderer.invoke("host:localUrl", root),
   hostUnverifiedServers: (root) =>
     ipcRenderer.invoke("host:unverifiedServers", root),

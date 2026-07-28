@@ -11,12 +11,11 @@ const allVisible = Object.fromEntries(
   BUILTIN_SECTION_META.map((m) => [m.id, true]),
 ) as SectionVisibility;
 
-it("lists all nine built-in sections in canonical sidebar order", () => {
+it("lists all eight built-in sections in canonical sidebar order", () => {
   expect(BUILTIN_SECTION_META.map((m) => m.id)).toEqual([
     "files",
     "secrets",
     "git",
-    "activity",
     "databases",
     "host",
     "audit",

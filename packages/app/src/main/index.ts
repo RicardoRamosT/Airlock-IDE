@@ -8,10 +8,10 @@ import {
   unregisterMcpServer,
 } from "@airlock/agent-core";
 import { app, BrowserWindow, ipcMain, nativeImage } from "electron";
+import { ciRunFor } from "./github/ciStatus";
 
 const execFileAsync = promisify(execFile);
 
-import { activityStatus, addDismissedActivity } from "./activity";
 import { registerAgentCommandIpc, runAgentCommand } from "./agent-commands";
 import {
   gatedTerminalInput,
@@ -36,7 +36,6 @@ import {
 import { emitEvent, flushEventLog, startEventLog } from "./eventlog/wire";
 import { registerAirlockProtocol } from "./extensions/oauth/deeplink";
 import {
-  broadcastActivityChanged,
   flushSession,
   getTerminalTail,
   killAllSessions,
@@ -239,15 +238,11 @@ function bootstrap(): void {
           write: writeTerminalInput,
           label: terminalLabel,
         }),
-      // activityStatus self-filters dismissed ids, so the read tool reflects
-      // dismissals automatically (same list the sidebar shows).
-      getActivity: (root) => activityStatus(root),
+      // CI for the focused project's current branch -- what activity_status
+      // narrowed to when the Activity panel was deleted. Mirrors the git:ciRun
+      // IPC so the agent and the Git section answer from one implementation.
+      getCiRun: (root) => ciRunFor(root),
       // Reuse B1's dismiss path: add the id + broadcast so an agent dismiss
-      // updates every window's Activity panel live, exactly like activity:dismiss.
-      dismissActivity: (entryId) => {
-        addDismissedActivity(entryId);
-        broadcastActivityChanged();
-      },
       // plan_usage reads the account's Claude plan usage off the quota watcher:
       // the cached QuotaStatus + the per-session ledger. Usage metadata only --
       // no secret values.

@@ -3,7 +3,6 @@ import { sidebarViewFor } from "../lib/extensionViews";
 import { useProjectTab } from "../lib/projectPane";
 import { effectiveView, parseExtSection } from "../lib/sections";
 import { useApp } from "../store";
-import { ActivitySection } from "./ActivitySection";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
 import { EventsSection } from "./EventsSection";
@@ -45,7 +44,6 @@ export function Sidebar() {
     );
   } else if (view === "secrets") body = <SecretsSection />;
   else if (view === "git") body = <GitSection />;
-  else if (view === "activity") body = <ActivitySection />;
   else if (view === "databases") body = <DatabasesSection />;
   else if (view === "host") body = <LocalHostSection />;
   else if (view === "audit") body = <AuditSection />;

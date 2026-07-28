@@ -5,7 +5,6 @@
 // sectionDots.ts; this file only does the (impure) fetching, each guarded so
 // one slow/failing probe degrades that dot to grey instead of breaking the rest.
 import type { GitStatus, SectionStatuses } from "../shared/ipc";
-import { activityStatus } from "./activity";
 import {
   databaseStatus,
   gitStatusFor,
@@ -13,7 +12,7 @@ import {
   neonStatus,
   renderServicesStatus,
 } from "./ide-state";
-import { activityDot, databasesDot, gitDot, hostDot } from "./sectionDots";
+import { databasesDot, gitDot, hostDot } from "./sectionDots";
 
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
   try {
@@ -32,7 +31,7 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
 export async function sectionStatuses(
   root: string | null,
 ): Promise<SectionStatuses> {
-  const [pg, neon, host, render, git, activity] = await Promise.all([
+  const [pg, neon, host, render, git] = await Promise.all([
     root ? safe(databaseStatus(root), []) : [],
     safe(neonStatus(root), { connected: false }),
     root
@@ -40,13 +39,11 @@ export async function sectionStatuses(
       : { url: null, up: null },
     root ? safe(renderServicesStatus(root), []) : [],
     root ? safe<GitStatus | null>(gitStatusFor(root), null) : null,
-    safe(activityStatus(root), []),
   ]);
   const renderLive = render.some((s) => s.deployStatus === "live");
   return {
     databases: databasesDot(pg, neon.connected),
     host: hostDot(host.up, host.url !== null, renderLive, render.length > 0),
     git: gitDot(git),
-    activity: activityDot(activity),
   };
 }

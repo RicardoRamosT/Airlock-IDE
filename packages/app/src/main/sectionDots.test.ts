@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ActivityItem, GitStatus } from "../shared/ipc";
-import {
-  activityDot,
-  databasesDot,
-  dockerDot,
-  gitDot,
-  hostDot,
-} from "./sectionDots";
+import type { GitStatus } from "../shared/ipc";
+import { databasesDot, dockerDot, gitDot, hostDot } from "./sectionDots";
 
 const docker = (installed: boolean, running: boolean, states: string[]) => ({
   installed,
@@ -86,30 +80,5 @@ describe("gitDot", () => {
     expect(gitDot(git(1, 0, 0, 0, 0))).toBe("yellow");
     expect(gitDot(git(0, 0, 0, 2, 0))).toBe("yellow");
     expect(gitDot(git(0, 0, 0, 0, 3))).toBe("yellow");
-  });
-});
-
-const item = (state: ActivityItem["state"]): ActivityItem =>
-  ({
-    id: state,
-    kind: "ci",
-    title: "t",
-    subtitle: "",
-    state,
-    progress: null,
-  }) as ActivityItem;
-
-describe("activityDot", () => {
-  it("grey when idle (no items)", () => {
-    expect(activityDot([])).toBe("grey");
-  });
-  it("red when any item failed", () => {
-    expect(activityDot([item("running"), item("failed")])).toBe("red");
-  });
-  it("yellow when something is running (and none failed)", () => {
-    expect(activityDot([item("running"), item("done")])).toBe("yellow");
-  });
-  it("green when items present and all finished", () => {
-    expect(activityDot([item("done"), item("idle")])).toBe("green");
   });
 });

@@ -120,7 +120,6 @@ import type {
   Section,
   SessionSnapshot,
 } from "../shared/ipc";
-import { activityStatus, addDismissedActivity } from "./activity";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
 import {
@@ -166,6 +165,7 @@ import {
   resolveFor,
   tokenFor,
 } from "./github/account";
+import { ciRunFor } from "./github/ciStatus";
 import {
   dockerPgDatabases,
   dockerPgReady,
@@ -395,16 +395,6 @@ function workspaceAccountName(cfg: unknown): string | undefined {
   const n =
     w && typeof w === "object" ? (w as { name?: unknown }).name : undefined;
   return typeof n === "string" && n ? n : undefined;
-}
-
-// Tell every window the activity feed changed (no payload) so each ActivitySection
-// refetches the now-filtered list. The dismissed set is app-global, so this fans
-// out to ALL windows (like sections:changed). Reused by the activity:dismiss IPC
-// and the later MCP dismiss tool.
-export function broadcastActivityChanged(): void {
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.webContents.isDestroyed()) w.webContents.send("activity:changed");
-  }
 }
 
 // A project's extension config changed on disk (channel allow-list saved, a
@@ -1261,6 +1251,17 @@ export function registerIpc(
     listBranches(resolveRoot(e, root)),
   );
 
+  // git:ciRun -> the latest CI run for the CURRENT branch. Branch-scoped, so it
+  // renders beside the branch in the Git section: "did CI pass here" is a
+  // question about this branch, and that is where you already look.
+  //
+  // Moved out of the deleted Activity panel, which was the only place CI ever
+  // showed. Every failure mode -- not a repo, no gh, no workflow, detached HEAD
+  // -- degrades to null, i.e. "no CI to report", never an error row.
+  ipcMain.handle("git:ciRun", (e, root: unknown) =>
+    ciRunFor(resolveRoot(e, root)),
+  );
+
   ipcMain.handle("git:fetch", async (e, root: unknown) => {
     const resolved = resolveRoot(e, root);
     const r = await gitFetch(resolved, await tokenFor(resolved));
@@ -1931,19 +1932,6 @@ export function registerIpc(
     }
   });
 
-  // activity:status -> ActivityItem[]; NOT requireRoot-gated (render/docker work
-  // with no folder; activityStatus skips CI itself when there is no root). The
-  // renderer passes the PANE's root explicitly (the one shared sidebar follows
-  // the focused pane, and an implicit window root would race the focus sync);
-  // validate it like resolveRoot does, degrading to global-only items.
-  ipcMain.handle("activity:status", async (e, root?: unknown) => {
-    const prefs = await loadPrefs(prefsFile);
-    return activityStatus(
-      typeof root === "string" && root && isOpenRoot(e, root) ? root : null,
-      prefs.extensions ?? {},
-    );
-  });
-
   // integrations:steady -> SteadyIntegration[] for the sidebar steady surface.
   // The RESOURCE list is account-wide (a warehouse/web app isn't project-scoped)
   // and cached per manifest, but a manifest may declare `relevance` so its
@@ -2499,16 +2487,6 @@ export function registerIpc(
       throw new Error(`No OAuth login configured for ${id}`);
     },
   );
-
-  // activity:dismiss -> add an id to the app-global dismissed set, then broadcast
-  // so every window's ActivitySection refetches the filtered feed live. The same
-  // path the later MCP dismiss tool will reuse. A new run/deploy (new id) reappears.
-  ipcMain.handle("activity:dismiss", (_e, id: unknown) => {
-    if (typeof id === "string") {
-      addDismissedActivity(id);
-      broadcastActivityChanged();
-    }
-  });
 
   ipcMain.handle("docker:start", (_e, id: unknown) => {
     if (typeof id !== "string") throw new Error("Invalid payload");

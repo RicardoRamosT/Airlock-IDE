@@ -23,9 +23,9 @@ import { appendAudit, gateCommand, runCommand } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type {
-  ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  CiRun,
   DevServerStartResult,
   DevServerState,
   EnvFileImport,
@@ -66,8 +66,7 @@ export const TOOL_NAMES: string[] = [
   "import_env",
   "get_terminal_tail",
   "send_terminal_input",
-  "activity_status",
-  "dismiss_activity",
+  "ci_status",
   "plan_usage",
   "list_tabs",
   "open_tab",
@@ -205,11 +204,12 @@ export interface ToolDeps {
   // The focused project's Activity feed (CI/Render/Docker), already filtered of
   // dismissed ids (activityStatus self-filters). Status metadata only -- no
   // secret values, consistent with the other status reads.
-  getActivity: (root: string | null) => Promise<ActivityItem[]>;
+  getCiRun: (
+    root: string | null,
+  ) => Promise<{ branch: string; run: CiRun } | null>;
   // Dismiss an Activity entry by id: add it to the app-global dismissed set and
   // broadcast so the UI refetches the filtered feed live. Carries an opaque id,
   // never a secret value. Sync (it mutates the in-memory set + fans out).
-  dismissActivity: (entryId: string) => void;
   // The account's Claude plan usage for plan_usage: main's cached QuotaStatus
   // (null until a session emits) and the per-session ledger the Usage dashboard
   // shows (busiest-first). Usage metadata only -- percentages, costs, paths --
@@ -379,21 +379,22 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     async ({ id }) => drive({ type: "connect_extension", id }),
   );
 
-  // The aggregated Activity feed. Like render_services it handles a null root
-  // itself (CI is skipped with no folder; render/docker still report), and the
-  // dep self-filters dismissed ids so this read reflects dismissals. Returns the
-  // same ActivityItem[] the sidebar shows -- status metadata only, no secrets.
+  // CI for the focused project's current branch. Replaces activity_status,
+  // whose other two sources (Render deploys, Docker containers) are already
+  // covered by render_services and docker/database tools -- CI was the only
+  // thing the Activity feed uniquely knew, so the tool narrowed with the panel.
+  // Handles a null root itself: no project, no branch, no run.
   mcp.registerTool(
-    "activity_status",
+    "ci_status",
     {
       description:
-        "List the Activity feed for the focused project: in-progress CI runs, Render deploys, and Docker containers, with their state and a stable entry id. Status metadata only -- no secret values. The result's `root` field names which project (null = none focused) it answered for, so check it when the user may have switched tabs.",
+        "Report the latest CI run for the focused project's CURRENT git branch: workflow name, status, conclusion, per-step progress, and the run URL. Returns null when there is no repo, no gh CLI, no workflow, or a detached HEAD. Status metadata only -- no secret values. The result's `root` field names which project (null = none focused) it answered for, so check it when the user may have switched tabs.",
       inputSchema: {},
     },
     async () => {
       // Echo WHICH root this answered for (QA 2026-06-11; see list_secret_names).
       const root = deps.getWorkspaceRoot();
-      return ok({ root, activity: await deps.getActivity(root) });
+      return ok({ root, ci: await deps.getCiRun(root) });
     },
   );
 
@@ -446,23 +447,6 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       return ok(
         await changeVisibility(deps.prefsFile, section as Section, visible),
       );
-    },
-  );
-
-  // Curate the Activity feed: hide one entry by its id (from activity_status).
-  // The dep adds the id to the app-global dismissed set and broadcasts, so the
-  // UI updates live exactly like the activity:dismiss IPC path. The id is opaque
-  // ("ci:<sha>" / "render:<id>" / "docker:<id>") -- no secret value crosses here.
-  mcp.registerTool(
-    "dismiss_activity",
-    {
-      description:
-        "Dismiss an Activity entry by its id (from activity_status) so it disappears from the Activity panel. A later run/deploy with a new id reappears.",
-      inputSchema: { entryId: z.string() },
-    },
-    async ({ entryId }) => {
-      deps.dismissActivity(entryId);
-      return ok({ dismissed: entryId });
     },
   );
 

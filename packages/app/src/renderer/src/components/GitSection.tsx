@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
+  CiRun,
   GitStatus,
   ResolvedGithubAccount,
   SecretLeak,
 } from "../../../shared/ipc";
+import {
+  ciDotClass,
+  ciProgress,
+  ciRunState,
+  ciStateLabel,
+} from "../lib/ciFormat";
 import { openFileInRoot } from "../lib/editorFiles";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
@@ -79,6 +86,11 @@ export function GitSection() {
   const [isRepo, setIsRepo] = useState(false);
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [branches, setBranches] = useState<string[]>([]);
+  // The latest CI run for the current branch, or null when there is none to
+  // report. Re-fetched when the BRANCH changes (a different branch is a
+  // different question), never on the file-status refresh -- CI moves on its own
+  // clock and polling it on every git refresh would spawn `gh` constantly.
+  const [ci, setCi] = useState<{ branch: string; run: CiRun } | null>(null);
   const [message, setMessage] = useState("");
   const [newBranch, setNewBranch] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +142,29 @@ export function GitSection() {
   useEffect(() => {
     refresh().catch(console.error);
   }, [refresh]);
+
+  // Keyed on the BRANCH, not on `refresh`: CI is per-branch and moves on its own
+  // clock, so re-asking on every git refresh would spawn `gh run list` on every
+  // file change. null on any failure -- the row simply does not render.
+  const head = status?.branch.head ?? null;
+  useEffect(() => {
+    if (!root || !head) {
+      setCi(null);
+      return;
+    }
+    let cancelled = false;
+    void window.airlock
+      .gitCiRun(root)
+      .then((r) => {
+        if (!cancelled) setCi(r);
+      })
+      .catch(() => {
+        if (!cancelled) setCi(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [root, head]);
 
   // Dismiss the row menu / confirm on Escape.
   useEffect(() => {
@@ -240,6 +275,31 @@ export function GitSection() {
             </span>
           )}
       </div>
+      {/* CI for THIS branch, moved here when the Activity panel was deleted --
+          it was the only thing in that panel with no other home, and "did CI
+          pass on this branch" belongs beside the branch. Absent entirely when
+          there is no run to report (no gh, no workflow, detached HEAD): an
+          always-present empty CI row is the noise Activity already was. */}
+      {ci && (
+        <div className="git-ci-row">
+          <span className={ciDotClass(ciRunState(ci.run))} />
+          <span className="git-ci-name">{ci.run.workflowName || "CI"}</span>
+          <span className="section-note">{ciStateLabel(ci.run)}</span>
+          {ciProgress(ci.run) && (
+            <span className="git-ci-steps">{ciProgress(ci.run)?.label}</span>
+          )}
+          {ci.run.url && (
+            <button
+              type="button"
+              className="row-action"
+              title="Open this run on GitHub"
+              onClick={() => void window.airlock.hostOpenExternal(ci.run.url)}
+            >
+              <i className="codicon codicon-link-external" />
+            </button>
+          )}
+        </div>
+      )}
       {account && (
         <div className="git-account-row" title={`source: ${account.source}`}>
           <i className="codicon codicon-github" />

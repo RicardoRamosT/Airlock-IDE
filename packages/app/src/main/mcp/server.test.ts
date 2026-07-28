@@ -38,8 +38,7 @@ async function startOnEphemeralPort(
     // server-level tests assert the tool SURFACE (count/names), not the gated
     // write behavior (that is covered in tools.test.ts).
     sendTerminalInput: async () => ({ sent: true as const }),
-    getActivity: async () => [],
-    dismissActivity: () => {},
+    getCiRun: async () => null,
     importEnvFiles: async () => [],
     notifySecretsChanged: () => {},
     getQuota: () => null,
@@ -201,7 +200,7 @@ describe("MCP server handshake", () => {
     const names = (tools ?? []).map((t) => t.name).sort();
     expect(names).toEqual([...TOOL_NAMES].sort());
     // Spell out the count so a drift in TOOL_NAMES is obvious here too.
-    expect(names).toHaveLength(37);
+    expect(names).toHaveLength(36);
   });
 
   it("GET (even authenticated) is 405 -- stateless mode has no SSE stream", async () => {

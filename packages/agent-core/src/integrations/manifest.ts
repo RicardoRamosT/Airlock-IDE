@@ -118,7 +118,7 @@ export interface ItemAction {
 }
 
 // Neutral, UI-agnostic result. app/main maps this to the renderer's
-// ActivityItem (see activity.ts), keeping agent-core free of UI types.
+// the app's own row types, keeping agent-core free of UI types.
 export interface IntegrationItem {
   id: string;
   title: string;

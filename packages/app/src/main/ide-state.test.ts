@@ -11,14 +11,13 @@ import { listSidebarSections } from "./ide-state";
 // human labels, and the default-true visibility semantics (absent /
 // non-false -> visible).
 describe("listSidebarSections", () => {
-  it("returns all nine built-in sections in order, all visible by default", async () => {
+  it("returns all eight built-in sections in order, all visible by default", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "airlock-ide-state-"));
     const rows = await listSidebarSections(path.join(dir, "prefs.json"));
     expect(rows).toEqual([
       { id: "files", label: "Files", visible: true },
       { id: "secrets", label: "Secrets", visible: true },
       { id: "git", label: "Git", visible: true },
-      { id: "activity", label: "Activity", visible: true },
       { id: "databases", label: "Databases", visible: true },
       { id: "host", label: "Host", visible: true },
       { id: "audit", label: "Audit", visible: true },

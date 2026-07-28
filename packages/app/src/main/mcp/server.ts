@@ -28,9 +28,9 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BrowserWindow } from "electron";
 import type {
-  ActivityItem,
   AgentCommand,
   AgentCommandResult,
+  CiRun,
   DevServerStartResult,
   DevServerState,
   EnvFileImport,
@@ -98,8 +98,9 @@ export interface McpDeps {
     terminalId: string,
     data: string,
   ) => Promise<import("../../shared/ipc").TerminalInputResult>;
-  getActivity: (root: string | null) => Promise<ActivityItem[]>;
-  dismissActivity: (entryId: string) => void;
+  getCiRun: (
+    root: string | null,
+  ) => Promise<{ branch: string; run: CiRun } | null>;
   // The account's Claude plan usage for plan_usage: cached QuotaStatus + the
   // per-session ledger. Usage metadata only -- never a secret value.
   getQuota: () => QuotaStatus | null;
@@ -180,8 +181,7 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
     getTerminalTail: deps.getTerminalTail,
     listTerminals: deps.listTerminals,
     sendTerminalInput: deps.sendTerminalInput,
-    getActivity: deps.getActivity,
-    dismissActivity: deps.dismissActivity,
+    getCiRun: deps.getCiRun,
     getQuota: deps.getQuota,
     getUsageLedger: deps.getUsageLedger,
     runAgentCommand: deps.runAgentCommand,

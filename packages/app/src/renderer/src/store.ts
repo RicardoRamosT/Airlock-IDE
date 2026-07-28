@@ -862,7 +862,6 @@ export const useApp = create<AppState>((set) => ({
     files: true,
     secrets: true,
     git: true,
-    activity: true,
     databases: true,
     host: true,
     extensions: true,

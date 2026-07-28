@@ -22,7 +22,6 @@ export const BUILTIN_SECTION_META: SectionMeta[] = [
   { id: "files", label: "Files", icon: "files", group: "core" },
   { id: "secrets", label: "Secrets", icon: "lock", group: "core" },
   { id: "git", label: "Git", icon: "source-control", group: "core" },
-  { id: "activity", label: "Activity", icon: "pulse", group: "core" },
   { id: "databases", label: "Databases", icon: "database", group: "core" },
   { id: "host", label: "Host", icon: "globe", group: "core" },
   { id: "audit", label: "Audit", icon: "shield", group: "core" },

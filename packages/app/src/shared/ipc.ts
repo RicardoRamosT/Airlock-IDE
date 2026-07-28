@@ -2,6 +2,7 @@ import type {
   AgentCommandPolicy,
   AnthropicIndicator,
   AuditEntry,
+  CiRun,
   Container,
   DbContainer,
   DbTable,
@@ -68,6 +69,8 @@ export interface DetectedDevServer {
 }
 
 export type {
+  CiRun,
+  CiStep,
   ExtensionAction,
   ExtensionActionKind,
   ExtensionSummary,
@@ -299,34 +302,6 @@ export interface SectionStatuses {
   host: DotLevel;
   databases: DotLevel;
   git: DotLevel;
-  activity: DotLevel;
-}
-
-/** One CI step (job) projected for the Activity panel's expandable step list. */
-export interface ActivityStep {
-  name: string;
-  status: string;
-  conclusion: string | null;
-}
-
-/**
- * A unified in-progress operation for the Activity panel. CI runs, Render
- * deploys, and transitional Docker containers all map onto this single shape.
- * `progress` is determinate (a percentage + label), indeterminate (spinner),
- * or null (no bar). `href` is an optional external link (e.g. the CI run page).
- */
-export interface ActivityItem {
-  id: string;
-  kind: "ci" | "render" | "docker" | "integration";
-  title: string;
-  subtitle: string;
-  state: "running" | "done" | "failed" | "idle";
-  progress:
-    | { kind: "determinate"; value: number; label: string }
-    | { kind: "indeterminate" }
-    | null;
-  steps?: ActivityStep[];
-  href?: string;
 }
 
 /** The repo's local commit identity (git config user.name / user.email). */
@@ -357,7 +332,6 @@ export type BuiltinSection =
   | "files"
   | "secrets"
   | "git"
-  | "activity"
   | "databases"
   | "host"
   | "extensions"
@@ -992,6 +966,10 @@ export interface AirlockApi {
   // Undo the last commit, keeping its changes staged (soft reset).
   gitUncommit(root: string): Promise<void>;
   gitBranches(root: string): Promise<string[]>;
+  // The latest CI run for the repo's CURRENT branch, or null when there is no
+  // repo / no gh / no workflow / a detached HEAD. Branch-scoped, which is why it
+  // lives beside the branch in the Git section rather than in a feed.
+  gitCiRun(root: string): Promise<{ branch: string; run: CiRun } | null>;
   gitFetch(root: string): Promise<void>;
   gitPull(root: string): Promise<void>;
   gitPush(root: string): Promise<void>;
@@ -1083,14 +1061,6 @@ export interface AirlockApi {
     serviceIdA: string,
     serviceIdB: string,
   ): Promise<EnvDiffEntry[]>;
-  // Activity: aggregated in-progress operations (CI + Render + Docker) for the
-  // Activity panel. NOT root-gated; CI is skipped when no folder is open.
-  // activityDismiss hides an entry by id (app-global, in-memory) and broadcasts
-  // activity:changed to all windows; a new run/deploy (new id) reappears.
-  // Per-project feed for the PANE's root (CI is repo-gated; docker/render are
-  // global). null = blank pane -> global items only.
-  activityStatus(root: string | null): Promise<ActivityItem[]>;
-  activityDismiss(id: string): Promise<void>;
   integrationsSteady(): Promise<SteadyIntegration[]>;
   // `scoped: true` = this caller belongs to ONE project, so an account-wide CLI
   // list must come back as status "irrelevant" in a project that does not use
@@ -1171,7 +1141,6 @@ export interface AirlockApi {
   // connect recording its workspace). Carries the root so a section can ignore
   // other projects. Fires in EVERY window, including the one that caused it.
   onExtensionsChanged(cb: (e: { root: string }) => void): () => void;
-  onActivityChanged(cb: () => void): () => void;
   // Host/local dev server: hostProbe + hostOpenExternal are global; hostLocalUrl
   // is per-project (config.devUrl, else guessed). hostOpenExternal opens only
   // http(s) URLs in the system browser.
@@ -1238,7 +1207,7 @@ export interface AirlockApi {
     limit: number,
   ): Promise<QueryResult>;
   // Traffic-light status per service section for the activity-rail dots. One
-  // aggregate read (main fans out to docker/db/host/git/activity).
+  // aggregate read (main fans out to docker/db/host/git).
   sectionStatuses(root: string | null): Promise<SectionStatuses>;
   prefsGet(): Promise<AppPrefs>;
   prefsSet(patch: Partial<AppPrefs>): Promise<AppPrefs>;

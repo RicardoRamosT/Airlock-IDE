@@ -1,8 +1,8 @@
 # MCP tools
 
-airlock exposes 37 tools over this MCP server. Nine are **read-only status** tools
+airlock exposes 36 tools over this MCP server. Nine are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); two curate the UI
-(`set_sidebar_section_visibility` drives the sidebar, `dismiss_activity` hides
+(`set_sidebar_section_visibility` drives the sidebar, which hides
 an Activity entry); one (`run_command`) runs a shell command with named vaulted secrets
 injected and the output returned with those values **redacted**; one (`git_commit`) commits
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
@@ -50,14 +50,16 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   It returns what was started and **the step the user must complete** — it does not finish
   the connection and never accepts or handles a token, because the browser approval or
   pasted key is where consent actually lives. It can never disconnect anything.
-- **`activity_status`** — the focused project's Activity feed: in-progress CI runs, Render
-  deploys, and transitional Docker containers, each with its state and a **stable entry id**.
-  This is the same list the Activity panel shows (`sidebar-activity.md`) — status metadata
-  only (titles, states, branches, urls), never a secret value. App-global: CI is skipped when
-  no folder is open; Render/Docker still report. Use it to watch live build/deploy/container
-  progress, and to get the entry ids you pass to `dismiss_activity`. The result's `root`
-  field names which project's feed you got (null = none focused) — check it if the user
-  may have switched tabs.
+- **`ci_status`** — the latest CI run for the focused project's **current git branch**:
+  workflow name, status, conclusion, per-step progress (`stepsDone`/`stepsTotal`), and the
+  run URL. Status metadata only, never a secret value. Returns `ci: null` when there is no
+  repo, no `gh` CLI, no workflow, or a detached HEAD — that is a normal answer meaning "no
+  CI to report", not a failure. This is the same data the Git section's CI row shows; both
+  read one implementation. Replaced `activity_status` when the Activity panel was removed:
+  its other two sources are covered by `render_services` and the docker/database tools, so
+  CI was the only thing that feed uniquely knew. The result's `root` field names which
+  project it answered for (null = none focused) — check it if the user may have switched
+  tabs.
 - **`plan_usage`** — the account's **Claude plan usage** (the data behind the sidebar quota
   meter and the Usage dashboard): the 5-hour and 7-day rate-limit windows (percent used +
   reset time, plus the active model), and a per-session breakdown for this app run (project
@@ -241,17 +243,6 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   the terminal output or its secret values — this tool only writes; pair it with
   `get_terminal_tail` to read the result.
 
-## Curating the Activity feed
-
-- **`dismiss_activity`** — hide one Activity entry by its **id** (the `id` field from
-  `activity_status`, e.g. `ci:<sha>`, `render:<id>`, `docker:<id>`). Arg: `entryId`. It
-  removes that entry from the Activity panel for everyone (the dismissed set is app-global,
-  in-memory) and the UI updates live. Use it to clear a finished or no-longer-interesting
-  row — a passed CI run, a completed deploy — so the panel shows only what still matters.
-  Dismissal is **not sticky to new work**: a later run/deploy/container gets a **new id** and
-  reappears, and the set is **not persisted** across an app restart. Call `activity_status`
-  first to get the id; the id is opaque and carries no secret value.
-
 ## Driving the IDE - tabs, split, terminals, page-tabs (focused window)
 
 Nine tools let you arrange the **layout** of the focused window. They carry only tab ids,
@@ -321,8 +312,8 @@ main-side; you never see it.
   to start the flow, then tell the user the `nextStep` it returns.
 - "Start / stop the dev server" → `start_dev_server` / `stop_dev_server` (runs only the
   project's configured dev command; use `host_status` to check the managed state).
-- "What is building / deploying right now?" → `activity_status` (the live CI/deploy/container
-  feed with entry ids); to clear a finished row from the panel, `dismiss_activity` with its id.
+- "Did CI pass on this branch?" → `ci_status`. For deploys and containers ask the thing
+  that owns them: `render_services` / `host_status` and `database_status`.
 - "What does this project use?" → `list_secret_names` + the status reads together paint the
   picture (e.g. a `postgres-url` secret + a reachable DB ⇒ surface Databases).
 - "Run something that needs a credential" → `run_command` with the secret **names** in

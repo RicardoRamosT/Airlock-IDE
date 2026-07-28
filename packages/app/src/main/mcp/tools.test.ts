@@ -4,18 +4,15 @@ import { fileURLToPath } from "node:url";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it, vi } from "vitest";
 import type {
-  ActivityItem,
-  AgentCommand,
   AgentCommandResult,
+  CiRun,
   DevServerStartResult,
   EnvFileImport,
   JournalEntry,
   QuotaStatus,
-  SecretMeta,
   Section,
   SectionVisibility,
   SessionUsage,
-  TabsSnapshot,
   TerminalInputResult,
 } from "../../shared/ipc";
 import { BUILTIN_SECTIONS } from "../prefs";
@@ -94,8 +91,9 @@ const baseDeps = {
       _root: string | null,
     ): Promise<{ id: string; preview: string }[]> => [],
   ),
-  getActivity: vi.fn(async () => [] as ActivityItem[]),
-  dismissActivity: vi.fn((_entryId: string) => {}),
+  getCiRun: vi.fn(
+    async (): Promise<{ branch: string; run: CiRun } | null> => null,
+  ),
   // The injected batch env importer for import_env (the real one is agent-core's
   // importAllDotEnv, wired in server.ts) + the secrets:changed broadcast. Both
   // injected so these tests never touch the keychain/fs or Electron windows.
@@ -200,7 +198,7 @@ describe("registerTools allowlist guard", () => {
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(37);
+    expect(registered).toHaveLength(36);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");
@@ -208,8 +206,7 @@ describe("registerTools allowlist guard", () => {
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
     expect(registered).toContain("import_env");
-    expect(registered).toContain("activity_status");
-    expect(registered).toContain("dismiss_activity");
+    expect(registered).toContain("ci_status");
     expect(registered).toContain("plan_usage");
     // The nine IDE-control tools (tabs / split / terminals / page-tabs).
     expect(registered).toContain("list_tabs");
@@ -604,803 +601,71 @@ describe("send_terminal_input tool", () => {
   });
 });
 
-describe("activity_status tool", () => {
-  // Build the tool against a deps object whose getWorkspaceRoot/getActivity are
-  // spies, so each test can assert what the read forwarded and returned.
-  function getActivityTool(deps: typeof baseDeps) {
+describe("ci_status tool", () => {
+  // Replaced activity_status when the Activity panel was deleted. Its other two
+  // sources (Render deploys, Docker containers) are already covered by
+  // render_services and the docker/database tools; CI was the only thing the
+  // feed uniquely knew, so the tool narrowed with the panel.
+  function ciTool(deps: typeof baseDeps) {
     const { mcp, tools } = fakeServer();
     registerTools(mcp, deps);
-    const tool = tools.find((t) => t.name === "activity_status");
-    if (!tool) throw new Error("activity_status tool not registered");
+    const tool = tools.find((t) => t.name === "ci_status");
+    if (!tool) throw new Error("ci_status tool not registered");
     return tool;
   }
 
+  const RUN: CiRun = {
+    workflowName: "CI",
+    status: "in_progress",
+    conclusion: null,
+    headSha: "abc123",
+    url: "https://github.com/o/r/actions/runs/1",
+    steps: [],
+    stepsDone: 1,
+    stepsTotal: 3,
+  };
+
   it("declares an empty input schema (no args)", () => {
-    const tool = getActivityTool(baseDeps);
-    expect(tool.config.inputSchema).toEqual({});
+    expect(ciTool(baseDeps).config.inputSchema).toEqual({});
   });
 
-  it("returns the items from deps.getActivity, passing the workspace root", async () => {
-    const items: ActivityItem[] = [
-      {
-        id: "ci:abc123",
-        kind: "ci",
-        title: "CI",
-        subtitle: "main",
-        state: "running",
-        progress: { kind: "indeterminate" },
-      },
-    ];
-    const getActivity = vi.fn(async () => items);
-    const tool = getActivityTool({
+  it("returns the run from deps.getCiRun, passing the workspace root", async () => {
+    const getCiRun = vi.fn(async () => ({ branch: "main", run: RUN }));
+    const tool = ciTool({
       ...baseDeps,
       getWorkspaceRoot: () => "/repo",
-      getActivity,
+      getCiRun,
     });
     const res = (await tool.handler({})) as {
       content: [{ text: string }];
       isError?: boolean;
     };
-    // activity_status handles a null root itself (like render_services), so it
-    // forwards the root verbatim rather than short-circuiting on no workspace.
-    expect(getActivity).toHaveBeenCalledWith("/repo");
+    expect(getCiRun).toHaveBeenCalledWith("/repo");
     expect(res.isError).toBeUndefined();
     // The result echoes WHICH root it answered for (QA 2026-06-11: the tools
     // follow GUI focus, so the agent must be able to detect a focus change).
     expect(JSON.parse(res.content[0].text)).toEqual({
       root: "/repo",
-      activity: items,
+      ci: { branch: "main", run: RUN },
     });
   });
 
-  it("forwards a null root (no folder open) without erroring", async () => {
-    const getActivity = vi.fn(async () => [] as ActivityItem[]);
-    const tool = getActivityTool({
+  // No repo / no gh / no workflow / detached HEAD all arrive here as null. That
+  // is a normal answer, not an error -- the agent should report "no CI", not
+  // "the tool failed".
+  it("reports null without erroring when there is no run", async () => {
+    const getCiRun = vi.fn(async () => null);
+    const tool = ciTool({
       ...baseDeps,
       getWorkspaceRoot: () => null,
-      getActivity,
-    });
-    const res = (await tool.handler({})) as { isError?: boolean };
-    expect(getActivity).toHaveBeenCalledWith(null);
-    expect(res.isError).toBeUndefined();
-  });
-});
-
-describe("dismiss_activity tool", () => {
-  function getDismissTool(deps: typeof baseDeps) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, deps);
-    const tool = tools.find((t) => t.name === "dismiss_activity");
-    if (!tool) throw new Error("dismiss_activity tool not registered");
-    return tool;
-  }
-
-  it("declares the entryId input schema", () => {
-    const tool = getDismissTool(baseDeps);
-    expect(tool.config.inputSchema).toBeDefined();
-    expect(tool.config.inputSchema?.entryId).toBeDefined();
-  });
-
-  it("calls deps.dismissActivity with the entryId and echoes it back", async () => {
-    const dismissActivity = vi.fn((_entryId: string) => {});
-    const tool = getDismissTool({ ...baseDeps, dismissActivity });
-    const res = (await tool.handler({ entryId: "ci:abc123" })) as {
-      content: [{ text: string }];
-      isError?: boolean;
-    };
-    expect(dismissActivity).toHaveBeenCalledWith("ci:abc123");
-    expect(res.isError).toBeUndefined();
-    expect(JSON.parse(res.content[0].text)).toEqual({ dismissed: "ci:abc123" });
-  });
-});
-
-describe("IDE-control tools (tabs / split / terminals / page-tabs)", () => {
-  // A sample layout the round-trip resolves on the ok path; the handler must
-  // forward it verbatim as JSON (it is layout metadata -- names/titles only).
-  const SNAPSHOT: TabsSnapshot = {
-    tabs: [
-      {
-        id: "proj-1",
-        name: "repo",
-        root: "/repo",
-        focused: true,
-        inSplit: false,
-        terminals: [{ id: "term-1", ptyId: "pty-uuid-1", title: "zsh" }],
-      },
-    ],
-    split: null,
-    appPages: { open: ["usage"], shown: null },
-  };
-
-  // Build one IDE-control tool against a runAgentCommand spy so each test can
-  // assert the exact AgentCommand the handler forwarded and the result mapping.
-  function getTool(
-    name: string,
-    runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>,
-  ) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, { ...baseDeps, runAgentCommand });
-    const tool = tools.find((t) => t.name === name);
-    if (!tool) throw new Error(`${name} tool not registered`);
-    return tool;
-  }
-
-  // (toolName, handler args, expected AgentCommand) for the happy path: each tool
-  // builds the right command and returns r.data on ok.
-  const cases: Array<{
-    name: string;
-    args: Record<string, unknown>;
-    cmd: AgentCommand;
-  }> = [
-    { name: "list_tabs", args: {}, cmd: { type: "list_tabs" } },
-    // open_tab WITH a path is confined (PB-C1) and covered by its own tests below;
-    // the no-path (blank tab) case forwards unconditionally.
-    {
-      name: "open_tab",
-      args: {},
-      cmd: { type: "open_tab", path: undefined },
-    },
-    {
-      name: "close_tab",
-      args: { tabId: "proj-2" },
-      cmd: { type: "close_tab", tabId: "proj-2" },
-    },
-    {
-      name: "switch_tab",
-      args: { tabId: "proj-3" },
-      cmd: { type: "switch_tab", tabId: "proj-3" },
-    },
-    {
-      name: "split_view",
-      args: {},
-      cmd: { type: "split_view", tabId: undefined },
-    },
-    {
-      name: "split_view",
-      args: { tabId: "proj-4" },
-      cmd: { type: "split_view", tabId: "proj-4" },
-    },
-    {
-      name: "open_terminal",
-      args: {},
-      cmd: { type: "open_terminal", tabId: undefined },
-    },
-    {
-      name: "open_terminal",
-      args: { tabId: "proj-5" },
-      cmd: { type: "open_terminal", tabId: "proj-5" },
-    },
-    {
-      name: "close_terminal",
-      args: { terminalId: "term-9" },
-      cmd: { type: "close_terminal", terminalId: "term-9" },
-    },
-    {
-      name: "open_app_page",
-      args: { page: "usage" },
-      cmd: { type: "open_app_page", page: "usage" },
-    },
-    {
-      name: "open_app_page",
-      args: { page: "settings" },
-      cmd: { type: "open_app_page", page: "settings" },
-    },
-    {
-      name: "close_app_page",
-      args: { page: "settings" },
-      cmd: { type: "close_app_page", page: "settings" },
-    },
-  ];
-
-  for (const { name, args, cmd } of cases) {
-    it(`${name}(${JSON.stringify(args)}) forwards ${JSON.stringify(
-      cmd,
-    )} and returns the snapshot on ok`, async () => {
-      const runAgentCommand = vi.fn(
-        async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
-      );
-      const tool = getTool(name, runAgentCommand);
-      const res = (await tool.handler(args)) as {
-        content: [{ text: string }];
-        isError?: boolean;
-      };
-      expect(runAgentCommand).toHaveBeenCalledTimes(1);
-      expect(runAgentCommand).toHaveBeenCalledWith(cmd);
-      expect(res.isError).toBeUndefined();
-      expect(JSON.parse(res.content[0].text)).toEqual(SNAPSHOT);
-    });
-  }
-
-  it("returns isError with the error message when the command result is !ok", async () => {
-    const runAgentCommand = vi.fn(
-      async () =>
-        ({ ok: false, error: "No airlock window" }) as AgentCommandResult,
-    );
-    const tool = getTool("list_tabs", runAgentCommand);
-    const res = (await tool.handler({})) as {
-      content: [{ text: string }];
-      isError?: boolean;
-    };
-    expect(res.isError).toBe(true);
-    expect(res.content[0].text).toBe("No airlock window");
-  });
-
-  it("does NOT gate the IDE-control tools on an open workspace (acts on the focused window)", async () => {
-    // baseDeps.getWorkspaceRoot() is null. Unlike the workspace-rooted reads the
-    // IDE-control tools must still reach runAgentCommand (layout control applies to
-    // any window, including a blank-tab one), so the call goes through.
-    const runAgentCommand = vi.fn(
-      async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
-    );
-    // A blank tab (no path) needs no workspace and no path-sanctioning, so it
-    // still reaches runAgentCommand even with getWorkspaceRoot() null.
-    const tool = getTool("open_tab", runAgentCommand);
-    const res = (await tool.handler({})) as { isError?: boolean };
-    expect(runAgentCommand).toHaveBeenCalledWith({
-      type: "open_tab",
-      path: undefined,
-    });
-    expect(res.isError).toBeUndefined();
-  });
-
-  // PB-C1: open_tab confines the agent's path to a folder the user already
-  // opened (a current/recent root or a subfolder), so the agent cannot point its
-  // own workspace root at an arbitrary directory and self-poison resolveRoot.
-  it("open_tab forwards a path inside an open root (PB-C1)", async () => {
-    const runAgentCommand = vi.fn(
-      async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
-    );
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, {
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      runAgentCommand,
-    });
-    const tool = tools.find((t) => t.name === "open_tab");
-    if (!tool) throw new Error("open_tab not registered");
-    await tool.handler({ path: "/repo/packages/app" });
-    expect(runAgentCommand).toHaveBeenCalledWith({
-      type: "open_tab",
-      path: "/repo/packages/app",
-    });
-  });
-
-  it("open_tab REJECTS a path outside any open/recent root (PB-C1)", async () => {
-    const runAgentCommand = vi.fn(
-      async () => ({ ok: true, data: SNAPSHOT }) as AgentCommandResult,
-    );
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, {
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      runAgentCommand,
-    });
-    const tool = tools.find((t) => t.name === "open_tab");
-    if (!tool) throw new Error("open_tab not registered");
-    const res = (await tool.handler({ path: "/Users/victim/.ssh" })) as {
-      isError?: boolean;
-      content: [{ text: string }];
-    };
-    expect(runAgentCommand).not.toHaveBeenCalled();
-    expect(res.isError).toBe(true);
-    expect(res.content[0].text).toMatch(/already opened/i);
-  });
-
-  it("declares the expected input schemas (optional path/tabId, required tabId/terminalId)", () => {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, baseDeps);
-    const byName = (n: string) => tools.find((t) => t.name === n);
-    // list_tabs: empty schema (no args).
-    expect(byName("list_tabs")?.config.inputSchema).toEqual({});
-    expect(byName("open_tab")?.config.inputSchema?.path).toBeDefined();
-    expect(byName("close_tab")?.config.inputSchema?.tabId).toBeDefined();
-    expect(byName("switch_tab")?.config.inputSchema?.tabId).toBeDefined();
-    expect(byName("split_view")?.config.inputSchema?.tabId).toBeDefined();
-    expect(byName("open_terminal")?.config.inputSchema?.tabId).toBeDefined();
-    expect(
-      byName("close_terminal")?.config.inputSchema?.terminalId,
-    ).toBeDefined();
-    // The page-tab tools take the page enum ("settings" | "usage").
-    expect(byName("open_app_page")?.config.inputSchema?.page).toBeDefined();
-    expect(byName("close_app_page")?.config.inputSchema?.page).toBeDefined();
-  });
-});
-
-describe("import_env tool", () => {
-  function getTool(overrides: Partial<typeof baseDeps> = {}) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, { ...baseDeps, ...overrides });
-    const tool = tools.find((t) => t.name === "import_env");
-    if (!tool) throw new Error("import_env tool not registered");
-    return tool;
-  }
-
-  const importedResult = (file: string, names: string[]): EnvFileImport => ({
-    file,
-    result: {
-      imported: names.map((name) => ({ name }) as SecretMeta),
-      skipped: [],
-      failed: [],
-      deleted: false,
-    },
-  });
-
-  it("errors cleanly with no workspace and never calls the importer", async () => {
-    const importEnvFiles = vi.fn(async () => [] as EnvFileImport[]);
-    const tool = getTool({ importEnvFiles });
-    const res = (await tool.handler({})) as {
-      isError?: boolean;
-      content: { text: string }[];
-    };
-    expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toBe("No workspace open");
-    expect(importEnvFiles).not.toHaveBeenCalled();
-  });
-
-  it("forwards files + deleteAfter and stamps the agent actor", async () => {
-    const importEnvFiles = vi.fn(async () => [] as EnvFileImport[]);
-    const tool = getTool({
-      getWorkspaceRoot: () => "/ws",
-      importEnvFiles,
-    });
-    await tool.handler({ files: [".env.example"], deleteAfter: true });
-    expect(importEnvFiles).toHaveBeenCalledWith("/ws", {
-      files: [".env.example"],
-      deleteAfter: true,
-      actor: "agent",
-    });
-  });
-
-  it("defaults deleteAfter to false (autonomous actor must opt in)", async () => {
-    const importEnvFiles = vi.fn(async () => [] as EnvFileImport[]);
-    const tool = getTool({
-      getWorkspaceRoot: () => "/ws",
-      importEnvFiles,
-    });
-    await tool.handler({});
-    expect(importEnvFiles).toHaveBeenCalledWith("/ws", {
-      files: undefined,
-      deleteAfter: false,
-      actor: "agent",
-    });
-  });
-
-  it("broadcasts secrets:changed only when something was imported", async () => {
-    const notifySecretsChanged = vi.fn((_root: string) => {});
-    const tool = getTool({
-      getWorkspaceRoot: () => "/ws",
-      importEnvFiles: vi.fn(async () => [importedResult(".env", ["A"])]),
-      notifySecretsChanged,
-    });
-    await tool.handler({});
-    expect(notifySecretsChanged).toHaveBeenCalledWith("/ws");
-
-    const quietNotify = vi.fn((_root: string) => {});
-    const quietTool = getTool({
-      getWorkspaceRoot: () => "/ws",
-      importEnvFiles: vi.fn(async () => [] as EnvFileImport[]),
-      notifySecretsChanged: quietNotify,
-    });
-    await quietTool.handler({});
-    expect(quietNotify).not.toHaveBeenCalled();
-  });
-
-  it("returns the per-file summary (names only)", async () => {
-    const tool = getTool({
-      getWorkspaceRoot: () => "/ws",
-      importEnvFiles: vi.fn(async () => [
-        importedResult(".env", ["A", "B"]),
-        { file: ".env.local", error: "EACCES" } as EnvFileImport,
-      ]),
-    });
-    const res = (await tool.handler({})) as { content: { text: string }[] };
-    const parsed = JSON.parse(res.content[0]?.text ?? "") as EnvFileImport[];
-    expect(parsed).toHaveLength(2);
-    expect(parsed[0]?.result?.imported.map((m) => m.name)).toEqual(["A", "B"]);
-    expect(parsed[1]?.error).toBe("EACCES");
-  });
-});
-
-describe("plan_usage tool", () => {
-  // Build the tool against getQuota/getUsageLedger spies so each test can
-  // assert the read is forwarded verbatim (account usage metadata only).
-  function getPlanUsageTool(deps: typeof baseDeps) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, deps);
-    const tool = tools.find((t) => t.name === "plan_usage");
-    if (!tool) throw new Error("plan_usage tool not registered");
-    return tool;
-  }
-
-  const QUOTA: QuotaStatus = {
-    fiveHour: { usedPercentage: 91, resetsAt: 1_781_080_800 },
-    sevenDay: { usedPercentage: 16, resetsAt: 1_781_370_000 },
-    model: "Opus 4.8 (1M context)",
-    updatedAt: 1_781_129_748,
-    available: true,
-  };
-  const SESSIONS: SessionUsage[] = [
-    {
-      sessionId: "s-1",
-      cwd: "/repo",
-      model: "Opus 4.8 (1M context)",
-      modelsSeen: ["Opus 4.8 (1M context)"],
-      contextTokens: 118_300,
-      contextWindowSize: 1_000_000,
-      costUsd: 4.6,
-      apiMs: 669_000,
-      linesAdded: 39,
-      linesRemoved: 26,
-      lastEmitAt: 1_781_129_748,
-      lastProgressAt: 1_781_129_748,
-    },
-  ];
-
-  it("declares an empty input schema (no args)", () => {
-    const tool = getPlanUsageTool(baseDeps);
-    expect(tool.config.inputSchema).toEqual({});
-  });
-
-  it("returns meterEnabled + the quota and sessions from the deps, with NO workspace gate", async () => {
-    const getQuota = vi.fn(() => QUOTA);
-    const getUsageLedger = vi.fn(() => SESSIONS);
-    const tool = getPlanUsageTool({
-      ...baseDeps,
-      // Account-wide read: getWorkspaceRoot() is null in baseDeps and the tool
-      // must still answer (quota is not project state).
-      prefsFile: "/tmp/airlock-test-prefs-plan-usage-absent.json",
-      getQuota,
-      getUsageLedger,
+      getCiRun,
     });
     const res = (await tool.handler({})) as {
       content: [{ text: string }];
       isError?: boolean;
     };
-    expect(getQuota).toHaveBeenCalledTimes(1);
-    expect(getUsageLedger).toHaveBeenCalledTimes(1);
+    expect(getCiRun).toHaveBeenCalledWith(null);
     expect(res.isError).toBeUndefined();
-    const body = JSON.parse(res.content[0].text);
-    // The prefs file does not exist, so loadPrefs falls back to DEFAULTS
-    // (quotaMeter on by default).
-    expect(body.meterEnabled).toBe(true);
-    expect(body.quota).toEqual(QUOTA);
-    expect(body.sessions).toEqual(SESSIONS);
-  });
-
-  it("returns quota: null and sessions: [] before any session has emitted", async () => {
-    const tool = getPlanUsageTool({
-      ...baseDeps,
-      prefsFile: "/tmp/airlock-test-prefs-plan-usage-absent.json",
-    });
-    const res = (await tool.handler({})) as {
-      content: [{ text: string }];
-      isError?: boolean;
-    };
-    expect(res.isError).toBeUndefined();
-    const body = JSON.parse(res.content[0].text);
-    expect(body.quota).toBeNull();
-    expect(body.sessions).toEqual([]);
-  });
-});
-
-describe("list_secret_names tool", () => {
-  it("echoes the root it answered for alongside the names", async () => {
-    // The agent-core mock's listSecrets resolves [] (empty vault), so this
-    // exercises the handler's shape without disk or keychain.
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, { ...baseDeps, getWorkspaceRoot: () => "/repo" });
-    const tool = tools.find((t) => t.name === "list_secret_names");
-    if (!tool) throw new Error("list_secret_names tool not registered");
-    const res = (await tool.handler({})) as { content: [{ text: string }] };
-    // The result names WHICH root it answered for (QA 2026-06-11: the tools
-    // follow GUI focus, so the agent must be able to detect a focus change).
-    expect(JSON.parse(res.content[0].text)).toEqual({
-      root: "/repo",
-      secrets: [],
-    });
-  });
-});
-
-describe("self-verification tools gate on selfVerify", () => {
-  function getTool(name: string, deps = baseDeps) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, deps);
-    const t = tools.find((x) => x.name === name);
-    if (!t) throw new Error(`${name} not registered`);
-    return t.handler;
-  }
-
-  it("capture_screenshot + set_pref refuse when self-verify is off", async () => {
-    const shot = (await getTool("capture_screenshot")({})) as {
-      isError?: boolean;
-    };
-    expect(shot.isError).toBe(true);
-    const pref = (await getTool("set_pref")({
-      key: "quotaMeter",
-      value: { enabled: true },
-    })) as { isError?: boolean };
-    expect(pref.isError).toBe(true);
-  });
-
-  it("capture_screenshot returns image content when enabled", async () => {
-    const handler = getTool("capture_screenshot", {
-      ...baseDeps,
-      selfVerifyEnabled: vi.fn(async () => true),
-      captureScreenshot: vi.fn(async () => "AAAA"),
-    });
-    const res = (await handler({})) as {
-      content: { type: string; data?: string }[];
-    };
-    expect(res.content[0]?.type).toBe("image");
-    expect(res.content[0]?.data).toBe("AAAA");
-  });
-
-  it("set_pref forwards to deps.setPref when enabled", async () => {
-    const setPref = vi.fn(async () => ({ ok: true }));
-    const handler = getTool("set_pref", {
-      ...baseDeps,
-      selfVerifyEnabled: vi.fn(async () => true),
-      setPref,
-    });
-    const res = (await handler({
-      key: "quotaMeter",
-      value: { enabled: true },
-    })) as { isError?: boolean };
-    expect(setPref).toHaveBeenCalledWith("quotaMeter", { enabled: true });
-    expect(res.isError).toBeUndefined();
-  });
-});
-
-// add_changelog_entry (single) was FOLDED INTO add_changelog_entries. The
-// plural already accepted 1..N, so the singular was strictly subsumed -- and
-// the plural's own description had to spend a sentence telling the model when
-// to prefer it over the singular, which is a schema problem wearing a
-// description as a bandage. This pins that the single-entry case, the common
-// one, still works through the surviving tool.
-describe("add_changelog_entry was folded into the bulk tool", () => {
-  it("no longer registers a separate single-entry tool", () => {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, baseDeps);
-    expect(tools.find((x) => x.name === "add_changelog_entry")).toBeUndefined();
-    expect(tools.find((x) => x.name === "add_changelog_entries")).toBeTruthy();
-  });
-
-  it("still appends a SINGLE entry, with its tag and details", async () => {
-    const addChangelogEntries = vi.fn(async () => ({
-      ok: true as const,
-      added: 1,
-      skipped: 0,
-      entries: [{ ts: 1, tag: "change" as const, text: "did X", details: "d" }],
-    }));
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, {
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      addChangelogEntries,
-    });
-    const t = tools.find((x) => x.name === "add_changelog_entries");
-    if (!t) throw new Error("add_changelog_entries not registered");
-    const res = (await t.handler({
-      entries: [{ text: "did X", tag: "change", details: "d" }],
-    })) as { content: { text: string }[] };
-
-    expect(addChangelogEntries).toHaveBeenCalledWith("/repo", [
-      { text: "did X", tag: "change", details: "d" },
-    ]);
-    expect(JSON.parse(res.content[0]?.text ?? "{}").added).toBe(1);
-  });
-});
-
-describe("add_changelog_entries (bulk)", () => {
-  function getTool(deps = baseDeps) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, deps);
-    const t = tools.find((x) => x.name === "add_changelog_entries");
-    if (!t) throw new Error("add_changelog_entries not registered");
-    return t.handler;
-  }
-  it("NO_WORKSPACE when no root", async () => {
-    const res = (await getTool()({ entries: [{ text: "hi" }] })) as {
-      isError?: boolean;
-    };
-    expect(res.isError).toBe(true);
-  });
-  it("hands the whole batch to deps in ONE call and reports the counts", async () => {
-    const addChangelogEntries = vi.fn(async () => ({
-      ok: true as const,
-      added: 2,
-      skipped: 1,
-      entries: [
-        { ts: 1, tag: "change" as const, text: "a" },
-        { ts: 2, tag: "fix" as const, text: "b" },
-      ],
-    }));
-    const entries = [
-      { text: "a", tag: "change" as const },
-      { text: "b", tag: "fix" as const, ts: 1700000000000 },
-      { text: " " },
-    ];
-    const handler = getTool({
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      addChangelogEntries,
-    });
-    const res = (await handler({ entries })) as { content: { text: string }[] };
-    expect(addChangelogEntries).toHaveBeenCalledTimes(1);
-    expect(addChangelogEntries).toHaveBeenCalledWith("/repo", entries);
-    const out = JSON.parse(res.content[0]?.text ?? "{}");
-    expect(out.added).toBe(2);
-    expect(out.skipped).toBe(1);
-  });
-  it("errors when deps refuse (oversize batch)", async () => {
-    const handler = getTool({
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      addChangelogEntries: vi.fn(async () => ({
-        ok: false as const,
-        error: "Too many entries in one call",
-      })),
-    });
-    const res = (await handler({ entries: [{ text: "x" }] })) as {
-      isError?: boolean;
-    };
-    expect(res.isError).toBe(true);
-  });
-});
-
-describe("update_changelog_notes (bulk)", () => {
-  function getTool(deps = baseDeps) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, deps);
-    const t = tools.find((x) => x.name === "update_changelog_notes");
-    if (!t) throw new Error("update_changelog_notes not registered");
-    return t.handler;
-  }
-  it("NO_WORKSPACE when no root", async () => {
-    const res = (await getTool()({ updates: [{ ts: 1, text: "x" }] })) as {
-      isError?: boolean;
-    };
-    expect(res.isError).toBe(true);
-  });
-  it("passes the batch through and reports updated/skipped", async () => {
-    const updateChangelogNotes = vi.fn(async () => ({
-      ok: true as const,
-      updated: 2,
-      skipped: 1,
-    }));
-    const updates = [
-      { ts: 1, text: "N1" },
-      { ts: 2, text: "N2", details: "why" },
-      { ts: 3, text: "nope" },
-    ];
-    const handler = getTool({
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      updateChangelogNotes,
-    });
-    const res = (await handler({ updates })) as { content: { text: string }[] };
-    expect(updateChangelogNotes).toHaveBeenCalledTimes(1);
-    expect(updateChangelogNotes).toHaveBeenCalledWith("/repo", updates);
-    const out = JSON.parse(res.content[0]?.text ?? "{}");
-    expect(out.updated).toBe(2);
-    expect(out.skipped).toBe(1);
-  });
-  it("errors when nothing matched", async () => {
-    const handler = getTool({
-      ...baseDeps,
-      getWorkspaceRoot: () => "/repo",
-      updateChangelogNotes: vi.fn(async () => ({
-        ok: false as const,
-        error: "No notes matched",
-      })),
-    });
-    const res = (await handler({ updates: [{ ts: 9, text: "x" }] })) as {
-      isError?: boolean;
-    };
-    expect(res.isError).toBe(true);
-  });
-});
-
-// extension_status / extension_connect replaced docker_status, neon_status and
-// render_services. Those three were not confusable with each other -- the
-// PATTERN was the problem, since one tool per product does not scale as
-// extensions are added. These assertions pin the two properties that made the
-// merge safe: no capability was lost, and the new connect tool cannot do
-// anything the user did not ask for.
-describe("extension tools", () => {
-  const row = (patch: Record<string, unknown> = {}) =>
-    ({
-      id: "docker",
-      name: "Docker",
-      icon: "docker",
-      tier: "section",
-      status: "connected",
-      enabled: true,
-      pinned: false,
-      hasConfig: false,
-      authKind: "token",
-      hasSection: true,
-      actions: [],
-      ...patch,
-    }) as unknown as import("@airlock/agent-core").ExtensionSummary;
-
-  type ToolRes = { isError?: boolean; content: { text: string }[] };
-  const call = (
-    t: { handler: (a: Record<string, unknown>) => Promise<unknown> },
-    args: Record<string, unknown>,
-  ) => t.handler(args) as Promise<ToolRes>;
-
-  function extTool(name: string, over: Record<string, unknown> = {}) {
-    const { mcp, tools } = fakeServer();
-    registerTools(mcp, { ...baseDeps, ...over });
-    const t = tools.find((x) => x.name === name);
-    if (!t) throw new Error(`${name} not registered`);
-    return t;
-  }
-
-  it("extension_status with no id returns the whole inventory", async () => {
-    const t = extTool("extension_status", {
-      listExtensions: vi.fn(async () => [
-        row(),
-        row({ id: "neon", name: "Neon" }),
-      ]),
-    });
-    const out = JSON.parse((await call(t, {})).content[0]?.text ?? "{}") as {
-      extensions: { id: string }[];
-    };
-    expect(out.extensions.map((e) => e.id)).toEqual(["docker", "neon"]);
-  });
-
-  it("extension_status reports the status, so 'is it connected' has an answer", async () => {
-    const t = extTool("extension_status", {
-      listExtensions: vi.fn(async () => [row({ status: "absent" })]),
-    });
-    const out = JSON.parse((await call(t, {})).content[0]?.text ?? "{}") as {
-      extensions: { status: string }[];
-    };
-    expect(out.extensions[0]?.status).toBe("absent");
-  });
-
-  it("extension_status errors on an unknown id instead of answering emptily", async () => {
-    const t = extTool("extension_status", {
-      listExtensions: vi.fn(async () => [row()]),
-    });
-    const res = await call(t, { id: "nope" });
-    expect(res.isError).toBe(true);
-    expect(res.content[0]?.text).toContain("Unknown extension");
-  });
-
-  it("extension_connect forwards a connect_extension command", async () => {
-    const runAgentCommand = vi.fn(async () => ({
-      ok: true as const,
-      data: {
-        id: "slack",
-        name: "Slack",
-        started: true,
-        action: "connectOauth",
-        status: "unauthed",
-        nextStep: "approve it in your browser",
-      },
-    }));
-    const t = extTool("extension_connect", { runAgentCommand });
-    const res = await call(t, { id: "slack" });
-    expect(runAgentCommand).toHaveBeenCalledWith({
-      type: "connect_extension",
-      id: "slack",
-    });
-    // The user-facing next step must survive to the caller: a tool that said
-    // only "ok" would have Claude report a connection that has not happened.
-    expect(res.content[0]?.text).toContain("approve it in your browser");
-  });
-
-  it("extension_connect surfaces a failure as a tool error", async () => {
-    const t = extTool("extension_connect", {
-      runAgentCommand: vi.fn(async () => ({
-        ok: false as const,
-        error: "no window",
-      })),
-    });
-    const res = await call(t, { id: "slack" });
-    expect(res.isError).toBe(true);
+    expect(JSON.parse(res.content[0].text).ci).toBeNull();
   });
 });
