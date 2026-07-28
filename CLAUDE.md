@@ -313,6 +313,18 @@ command, so `extensionActions` gave them nothing — an accurate "Not connected.
 and no way to act on it. Any row with `hasSection` now gets an `openSection`
 action, appended LAST so a real connect action stays the primary button.
 
+**There is NO "Show in {category}" switch, and there must not be.** It wrote
+the `pinned` pref, whose only readers — `integrations:steady` and
+`extensions:resources` (via `eyeOnConnected`/`pinnedEnabledManifests`) — lost
+their renderer callers when Databases and Host were rewritten to always-present
+`ProviderRows`. So it silently controlled nothing (found 2026-07-27: Render and
+Azure showed in Host with the switch off). It cannot be repaired by re-wiring
+either, because router rule 1 is that a provider row is ALWAYS present and
+always states a reason — a switch that hid one would contradict the design.
+**That plumbing is now dead and should be removed**: `integrations:steady`,
+`extensions:resources`, `useExtensionResources`, `eyeOnConnected`,
+`pinnedEnabledManifests`, and the `pinned` field itself.
+
 **The detail pane is SIX FIXED SLOTS** — header, status, actions, settings,
 resources, danger — and a slot is never omitted, only filled differently. The
 button rule is `splitActions` (pure, exported, unit-tested): the destructive

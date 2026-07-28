@@ -61,8 +61,11 @@ export function ExtensionResources({
         items.map((r) => <ResourceRow key={r.id} r={r} />)
       )}
       <div className="section-note">
+        {/* "when pinned" used to qualify the connected case. It was already
+            false: the routers show every provider row unconditionally, and the
+            pin that once gated them reads nothing any more. */}
         {connected
-          ? `Also shown in the ${viewLabel} section when pinned.`
+          ? `Also shown in the ${viewLabel} section.`
           : `Also shown in the ${viewLabel} view for projects that use ${name}.`}
       </div>
     </div>

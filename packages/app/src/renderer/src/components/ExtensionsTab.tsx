@@ -271,7 +271,6 @@ export function ExtensionsTab() {
             // than re-running all.find a second time.
             const sel = current;
             const enabled = enabledOf(sel);
-            const pinned = prefs[sel.id]?.pinned ?? sel.pinned;
             const actions = sel.actions ?? [];
             const { primary, secondary, danger } = splitActions(actions);
             // Whether the extension is in a state where resources could exist
@@ -344,19 +343,14 @@ export function ExtensionsTab() {
                     checked={enabled}
                     onChange={(v) => applyPref(sel.id, { enabled: v })}
                   />
-                  {/* No category means the eye has nowhere to surface it, so
-                      the switch is omitted rather than shown pointing at
-                      nothing. */}
-                  {sel.category && (
-                    <Switch
-                      label={`Show in ${sel.category}`}
-                      ariaLabel={`${pinned ? "Hide" : "Show"} ${sel.name} ${
-                        pinned ? "from" : "in"
-                      } ${sel.category}`}
-                      checked={pinned}
-                      onChange={(v) => applyPref(sel.id, { pinned: v })}
-                    />
-                  )}
+                  {/* There is deliberately no "Show in {category}" switch.
+                      Databases and Host are ROUTERS: every provider row is
+                      ALWAYS present and always states a reason, so nothing can
+                      hide one -- a switch claiming to would be a lie, which is
+                      exactly what it became. It wrote the `pinned` pref, whose
+                      only readers (integrations:steady and extensions:resources)
+                      lost their callers when the routers were rewritten to
+                      ProviderRows, so toggling it changed nothing at all. */}
                 </div>
                 {/* Slot 5. ALWAYS rendered, in four mutually exclusive states.
                   THE ORDER MATTERS, because two of them overlap: Neon is both

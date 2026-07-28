@@ -281,22 +281,32 @@ it("toggles enable through prefs", async () => {
   });
 });
 
-it("toggles pin through prefs, naming the section it surfaces into", async () => {
+// Reported from the UI: "Show in host" was off for Render and Azure, and both
+// still appeared in Host. The control was not merely broken -- it was orphaned.
+// It wrote the `pinned` pref, whose only readers (integrations:steady and
+// extensions:resources) lost their renderer callers when Databases and Host
+// were rewritten to always-present ProviderRows, so toggling it changed
+// nothing anywhere. And it could not be repaired by wiring it back up: rule 1
+// of the router is that a provider row is ALWAYS present and always states a
+// reason, so a switch that hides one would contradict the design on purpose.
+it("offers NO show-in switch, since the routers always show every provider", async () => {
+  mount([SLACK]); // category "activity"
+  await selectRow("Slack");
+  expect(screen.queryByLabelText(/Show Slack in/)).toBeNull();
+  expect(screen.queryByText(/^Show in/)).toBeNull();
+});
+
+it("never writes the dead `pinned` pref", async () => {
   mount([SLACK]);
   await selectRow("Slack");
   await act(async () => {
-    fireEvent.click(screen.getByLabelText("Show Slack in activity"));
+    fireEvent.click(screen.getByLabelText("Enable Slack"));
   });
+  // Enabled still round-trips; pinned is gone from the payload entirely.
   expect(prefsSet).toHaveBeenCalledWith({
-    extensions: { slack: { pinned: true } },
+    extensions: { slack: { enabled: false } },
   });
-});
-
-it("offers no pin control for an extension with no target section", async () => {
-  // category undefined => the eye has nowhere to surface it.
-  mount([{ ...SLACK, category: undefined }]);
-  await selectRow("Slack");
-  expect(screen.queryByLabelText(/Show Slack in/)).toBeNull();
+  expect(JSON.stringify(prefsSet.mock.calls)).not.toContain("pinned");
 });
 
 it("says so plainly when a row has nothing to act on", async () => {
@@ -906,13 +916,15 @@ it("renders the Settings block even when it carries a single toggle", async () =
   expect(within(settings).queryByText(/^Show in/)).toBeNull();
 });
 
-it("renders the Show-in toggle inside Settings when there IS a category", async () => {
+it("keeps the Settings block even though Enabled is now its only control", async () => {
   const { container } = mount([SNOWFLAKE]); // category: "databases"
   await selectRow("Snowflake");
   const settings = container.querySelector(
     ".ext-detail-settings",
   ) as HTMLElement;
-  expect(within(settings).getByText("Show in databases")).toBeTruthy();
+  expect(within(settings).getByText("Settings")).toBeTruthy();
+  expect(within(settings).getByLabelText("Enable Snowflake")).toBeTruthy();
+  expect(within(settings).queryByText("Show in databases")).toBeNull();
 });
 
 it("keeps the toggles OUT of the button row", async () => {
