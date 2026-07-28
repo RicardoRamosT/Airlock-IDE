@@ -141,6 +141,22 @@ it("tells you what releasing will do, naming the dragged project", async () => {
   expect(screen.queryByText(/Drop to add/)).toBeNull();
 });
 
+it("tells main the drag ended even when the drop already cleared the strip", async () => {
+  // HTML5 fires `drop` BEFORE `dragend`, and the drop clears the strip's drag
+  // state. dragEnd is the ONLY path that stops main's cursor poll, so it has to
+  // report regardless -- a leaked poll shows a phantom "Release to open ..."
+  // label on every later mouse-exit and takes the macOS dock tile with it.
+  stubApi({ kind: "reorder" }); // an in-window drop resolves to a reorder
+  render(<ProjectTabs />);
+  const label = screen.getByText("B");
+  fireEvent.dragStart(label, { dataTransfer: dt() });
+  const list = document.querySelector(".project-tabs-list");
+  if (!list) throw new Error("tab list missing");
+  fireEvent.drop(list, { dataTransfer: dt() });
+  fireEvent.dragEnd(label, { dataTransfer: dt() });
+  expect(tabDragEnd).toHaveBeenCalled();
+});
+
 it("sends a null payload for a window's last tab (nothing to move)", async () => {
   const only = useApp.getState().tabs.find((t) => t.root === "/b");
   if (!only) throw new Error("seed failed");

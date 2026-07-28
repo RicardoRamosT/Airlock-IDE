@@ -89,6 +89,25 @@ function onFocus(): void {
   void recompute();
 }
 
+// macOS takes the app's ENTIRE dock tile away when any window opts into
+// setVisibleOnAllWorkspaces -- which the tab-drag cursor label does. Verified on
+// Electron 42: app.dock.isVisible() flips to false on that call, and destroying
+// the window does NOT undo it, so one drag outside the window cost you this badge
+// AND the system's running-app indicator for the rest of the session.
+//
+// Restoring is ours to do (nothing else calls dock.show()). Repaint after, rather
+// than trusting the cache: a re-created tile can come back carrying the bundle
+// icon, and paintDock skips a state it believes is already painted. No-op when
+// the tile is already there, and off macOS.
+export function restoreDockTile(): void {
+  if (process.platform !== "darwin" || !app.dock || app.dock.isVisible())
+    return;
+  void app.dock.show().then(() => {
+    resetPainted();
+    void recompute();
+  });
+}
+
 // usePolling (NOT native fs.watch): a native handle goes silent across macOS
 // sleep/wake + long App-Nap and never re-arms (diagnosed 2026-06-11 for the
 // quota watcher); polling self-heals. Only the PHASE dir is watched for events;

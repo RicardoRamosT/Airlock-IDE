@@ -19,6 +19,13 @@ import type { MovingSessions } from "./moving";
 import { resolveDropTarget, sameTarget } from "./target";
 
 const POLL_MS = 16; // ~60Hz, only while a drag is in flight
+// Backstop for a drag whose end never arrives (a `dragend` the source window
+// never received, an OS-cancelled drag). Without it the poll runs for the rest
+// of the session and every later mouse-exit paints the follow-the-cursor label
+// with no drag behind it. Nothing depends on the poll for correctness --
+// endTabDrag resolves the target and performs the move on its own -- so standing
+// down early costs at most the live hint on an absurdly long drag.
+const MAX_DRAG_MS = 30_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let dragSourceId: number | null = null;
@@ -102,6 +109,7 @@ export function startTabDrag(
   stop(); // a new drag supersedes any stale one
   dragSourceId = sourceWindowId;
   dragLabel = label;
+  const startedAt = Date.now();
   timer = setInterval(() => {
     if (dragSourceId === null) {
       stop();
@@ -110,6 +118,17 @@ export function startTabDrag(
     const src = BrowserWindow.fromId(dragSourceId);
     // Source window vanished mid-drag: end the drag rather than leak the timer.
     if (!src || src.isDestroyed()) {
+      stop();
+      return;
+    }
+    // No end in sight: clear any drop indicator the last hover left behind, then
+    // stand down (see MAX_DRAG_MS).
+    if (Date.now() - startedAt > MAX_DRAG_MS) {
+      broadcast({
+        target: { kind: "reorder" },
+        sourceWindowId: dragSourceId,
+        label: null,
+      });
       stop();
       return;
     }

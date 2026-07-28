@@ -300,10 +300,15 @@ export function ProjectTabs() {
   );
 
   // --- Drag-to-reorder wiring (one group: every strip entry is interchangeable).
-  const clearDrag = () => {
-    dragKey.current = null;
+  // The strip's VISUALS clear on drop; the key itself lives until dragEnd, which
+  // is the only path that tells main the drag is over (see onDragEnd).
+  const clearDragVisuals = () => {
     setOver(null);
     setDragging(null);
+  };
+  const clearDrag = () => {
+    dragKey.current = null;
+    clearDragVisuals();
   };
   // Drag SOURCE goes on the tab's LABEL BUTTON (not the container): a draggable
   // <div> does NOT start a drag when you grab a <button> child in Chromium, so
@@ -348,16 +353,22 @@ export function ProjectTabs() {
     onDragEnd: () => {
       const key = dragKey.current;
       clearDrag();
-      if (key === null) return;
       const s = useApp.getState();
+      // Report to main on EVERY end, even with no key left to move: main's cursor
+      // poll stops here and nowhere else, and a poll left running shows the
+      // follow-the-cursor "Release to open ..." label on every later mouse-exit
+      // (and, on macOS, that label's window takes the whole dock tile away).
+      //
       // A pair/page-tab never moves, and a window's last tab is already its own
       // window: null tells main to report the target and move nothing.
       const payload =
-        isMovableKey(key) && s.tabs.length > 1 ? buildMovingTab(s, key) : null;
+        key !== null && isMovableKey(key) && s.tabs.length > 1
+          ? buildMovingTab(s, key)
+          : null;
       void window.airlock
         .tabDragEnd?.(payload)
         .then((target) => {
-          if (payload && target && target.kind !== "reorder")
+          if (key !== null && payload && target && target.kind !== "reorder")
             useApp.getState().detachTab(key);
         })
         .catch(() => {
@@ -396,7 +407,9 @@ export function ProjectTabs() {
         useApp
           .getState()
           .setStripOrder(reorderNames(orderedKeys, dk, over.key, over.place));
-      clearDrag();
+      // Visuals only: dragEnd (next event) still needs the key to build its
+      // payload and, above all, to tell main the drag ended.
+      clearDragVisuals();
     },
   };
   const dropClass = (key: string): string =>
