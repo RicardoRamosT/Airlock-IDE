@@ -271,6 +271,8 @@ invariants are the part that's tested hardest — 2,048 unit tests, including th
 [source-level guard](packages/app/src/main/mcp/tools.test.ts) that fails the
 build if the MCP tool file so much as references a value-returning function.
 
+What changed in each release: [CHANGELOG](CHANGELOG.md).
+
 ## FAQ
 
 **Why macOS only?** AirLock leans hard on macOS-native pieces — the Keychain
