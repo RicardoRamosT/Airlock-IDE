@@ -37,11 +37,12 @@ const readSettings = async () =>
   };
 
 describe("installDockStatusHooks", () => {
-  it("registers our five events with AirLock-labeled commands", async () => {
+  it("registers our six events with AirLock-labeled commands", async () => {
     await installDockStatusHooks(p);
     const s = await readSettings();
     for (const ev of [
       "UserPromptSubmit",
+      "PreToolUse",
       "PostToolUse",
       "Stop",
       "Notification",
@@ -61,6 +62,22 @@ describe("installDockStatusHooks", () => {
     // The live dir must exist -- its existence is what enables the quota emitter's
     // per-session liveness heartbeat.
     expect(await exists(p.liveDir)).toBe(true);
+  });
+
+  // Regression: the badge read idle for minutes while Claude was demonstrably
+  // working. A turn can RESUME with no UserPromptSubmit (feeding bash-mode `!`
+  // output back into the conversation is one real path) and its first act can be
+  // a minutes-long tool call. PostToolUse only fires when that call RETURNS, so
+  // with no tool-START edge the `done` latched by the previous Stop survived the
+  // whole call -- and `working` is phase-gated, so the liveness heartbeat could
+  // not rescue it. PreToolUse is that missing edge.
+  it("re-asserts `working` at tool START, not only on completion", async () => {
+    await installDockStatusHooks(p);
+    const s = await readSettings();
+    const cmd = (ev: string) => s.hooks?.[ev]?.[0]?.hooks?.[0]?.command ?? "";
+    expect(cmd("PreToolUse")).toContain(" working  #");
+    expect(cmd("PostToolUse")).toContain(" working  #");
+    expect(cmd("Stop")).toContain(" done  #");
   });
 
   it("preserves a user's existing hook on the same event", async () => {

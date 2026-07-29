@@ -2,6 +2,16 @@
 
 All notable user-facing changes to AirLock. Dates are when the version was cut.
 
+## Unreleased
+
+### Fixed
+- **The dock badge dropped to grey while Claude was still working.** AirLock only
+  learned a session was busy when you submitted a prompt or when a tool call
+  *finished* — but a turn can resume without any prompt being submitted (feeding
+  `!` shell output back into the conversation does exactly that), and if its
+  first move is a long tool call, nothing said "busy" until that call returned.
+  Four straight minutes of real work read as idle. Tool *starts* now count too.
+
 ## 0.6.2
 
 ### Fixed

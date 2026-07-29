@@ -20,6 +20,17 @@ const LABEL =
   "AirLock dock-status indicator - safe to remove if AirLock is uninstalled";
 const HOOK_EVENTS: { event: string; state: string }[] = [
   { event: "UserPromptSubmit", state: "working" },
+  // PreToolUse is the tool-START edge, and it exists because UserPromptSubmit is
+  // NOT the only way a turn begins (diagnosed 2026-07-29). A turn can RESUME with
+  // no prompt submitted at all -- feeding bash-mode (`!`) output back into the
+  // conversation is one real path -- and its first act can be a minutes-long tool
+  // call. Since PostToolUse only fires when that call RETURNS, the `done` latched
+  // by the previous Stop stayed put for the whole call, and because `working` is
+  // phase-gated the liveness heartbeat could not rescue it: the badge showed idle
+  // (no dot) for 4+ minutes while Claude was demonstrably working. Observed as a
+  // Stop at 09:59:01, a resume at 10:01:14, and a single Bash call spanning
+  // 10:01:16 -> 10:03:23 with no phase write in between.
+  { event: "PreToolUse", state: "working" },
   // PostToolUse is the "still working" heartbeat: it re-stamps `working` on every
   // tool call so the state stays fresh through a long turn, and (crucially) lets
   // WORKING_STALE_SECONDS clear it soon after activity stops even when `Stop`
