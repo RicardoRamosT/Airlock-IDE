@@ -282,6 +282,28 @@ describe("mcp-docs / allowlist parity", () => {
       expect(n).toBe(String(TOOL_NAMES.length));
     }
   });
+
+  // CLAUDE.md dogfoods the same number inside its own "MCP tool surface"
+  // section -- the same section that narrates the README's past drift -- and
+  // it drifted too: a fourth count site the original two-doc parity test
+  // above didn't cover, caught only by a human reviewer, not by CI. Held to
+  // the allowlist exactly like the other two now.
+  it("states the same tool count in CLAUDE.md", () => {
+    const claudeMd = readFileSync(
+      path.join(here, "../../../../../CLAUDE.md"),
+      "utf8",
+    );
+    expect(claudeMd).toContain(`${TOOL_NAMES.length} tools`);
+    // Same drift-proofing sweep as the README check above. CLAUDE.md's own
+    // narrative mentions the historical README drift as "36-tool" (singular,
+    // hyphenated) and a bare "39" -- neither matches `\d+ tools`, so the sweep
+    // does not false-positive on that aside.
+    const others = claudeMd.match(/\*\*(\d+) tools\*\*|\b(\d+) tools\b/g) ?? [];
+    for (const hit of others) {
+      const n = hit.match(/\d+/)?.[0];
+      expect(n).toBe(String(TOOL_NAMES.length));
+    }
+  });
 });
 
 describe("tools.ts secret-value source guard", () => {
