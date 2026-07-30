@@ -63,6 +63,8 @@ describe("captureSecret", () => {
       runner: makeRunner({ stdout: "postgres://secret-value" }),
     });
     const entries = await readAudit(root);
+    const entry = entries.find((e) => e.op === "secret.capture");
+    expect(entry?.actor).toBe("agent");
     const line = JSON.stringify(entries);
     expect(line).toContain("secret.capture");
     expect(line).toContain("PROD_URL");
@@ -77,5 +79,13 @@ describe("captureSecret", () => {
     expect(listSessionSecretNames(root)[0]?.command).toBe(
       "az containerapp show -o tsv",
     );
+  });
+
+  it("never writes the captured value to the keychain", async () => {
+    await captureSecret(root, "az show", "PROD_URL", {
+      keychain: fake,
+      runner: makeRunner({ stdout: "postgres://secret-value" }),
+    });
+    expect(store.size).toBe(0);
   });
 });

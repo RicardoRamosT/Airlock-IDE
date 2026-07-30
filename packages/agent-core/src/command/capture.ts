@@ -10,7 +10,6 @@
 import { appendAudit } from "../audit/audit";
 import type { KeychainStore } from "../broker/keychain";
 import { putSessionSecret } from "../broker/session";
-import { redactSecrets } from "../redact/redact";
 import {
   type CommandRunner,
   DEFAULT_TIMEOUT_MS,
@@ -32,7 +31,6 @@ export interface CaptureSecretResult {
 // A credential past this is not a credential. Refuse rather than truncate: a
 // silently cut value fails confusingly hours later.
 export const MAX_SECRET_BYTES = 8 * 1024;
-const STDERR_CAP = 2 * 1024;
 // Enough for any credential, far below runCommand's 256KB, so an accidental
 // firehose is refused cheaply.
 const CAPTURE_MAX_BYTES = 64 * 1024;
