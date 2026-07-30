@@ -61,7 +61,7 @@ and glows when Claude finishes in a tab you aren't watching. Two usage gauges
 flank the window title (your 5-hour and 7-day windows, colour-shifting as they
 fill) and click through to a full per-session usage dashboard. And through a
 local MCP bridge, the Claude in your terminal can **see and drive the IDE
-itself**: 36 tools and a built-in manual (see below).
+itself**: 37 tools and a built-in manual (see below).
 
 **Your secrets stay yours.** Credentials are vaulted in the macOS Keychain, so no
 `.env` ever sits on disk. A project can opt into putting them in its terminals'
@@ -182,7 +182,7 @@ can write to as it works.
 
 AirLock runs a local MCP server (loopback-only, bearer-token-guarded) that the
 Claude Code in its terminal connects to automatically. No extra setup, no
-second API key. **36 tools**, and a built-in manual so the agent understands
+second API key. **37 tools**, and a built-in manual so the agent understands
 the IDE without you explaining it:
 
 - **See every status:** git, databases (reachability, never passwords), Neon,

@@ -6,7 +6,8 @@ them.** This page states that invariant plainly so you don't waste effort fighti
 ## What you get
 Every airlock MCP tool returns **statuses, metadata, and secret names only**:
 
-- `list_secret_names` → names + provider + a validity flag. No values.
+- `list_secret_names` → names + provider + a validity flag + a `session` flag (vaulted vs.
+  an in-memory secret captured by `capture_secret`). No values.
 - `database_status` → host / database / user (redacted) + reachability. No connection
   string, no password.
 - `neon_status`, `render_services`, `host_status`, `docker_status`, `git_status` → metadata
@@ -80,10 +81,11 @@ same boundary the rest of airlock does:
   redactor as `run_command`.
 - **Audited, ids/counts only.** Each read appends a `terminal.read` audit entry recording
   the terminal **id and the line count** — **never the terminal's content**.
-- **Source-guard green; allowlist 12.** The tool does **not** reference
+- **Source-guard green.** The tool does **not** reference
   `getSecretValue`/`getGlobalSecret`; it calls the main-side `getTerminalTail` dep that
-  resolves + redacts values main-side, exactly as `run_command` calls `runCommand`. So the
-  source-guard test stays green and the allowlist is exactly **12**.
+  resolves + redacts values main-side, exactly as `run_command` calls `runCommand`. The
+  source-guard test — which fails the build if `tools.ts` ever references a
+  value-returning function — stays green.
 
 It is your **first capability to observe the user's session**, but it lives under the *same*
 redact + audit boundary as everything else — you can see what the user is running, never the
@@ -116,8 +118,8 @@ copy button) in the Secrets sidebar. This is the owner acting on their own surfa
 
 - It is **renderer-only IPC** (`secrets:reveal` / `clipboard:copySecret`), audited as
   `secret.reveal` / `secret.copy` — **name only, never the value**.
-- It is **not an MCP/agent tool.** The MCP allowlist is **12**, the `getSecretValue`
-  source-guard test is green, and you (a separate process) **cannot call renderer IPC** —
+- It is **not an MCP/agent tool.** The same source-guard test keeps `getSecretValue`
+  unreferenced from `tools.ts`, and you (a separate process) **cannot call renderer IPC** —
   so you gain no value path. Your zero-value invariant is unchanged.
 - **Copy** resolves the value **main-side** and writes it straight to the clipboard; the
   value **never enters the renderer** for a copy. The clipboard then **auto-clears** after a

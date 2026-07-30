@@ -41,6 +41,16 @@ export { parseDotEnv } from "./broker/dotenv";
 export { type KeychainStore, systemKeychain } from "./broker/keychain";
 export type { SecretMeta } from "./broker/meta";
 export {
+  clearSessionSecrets,
+  getSessionSecretValue,
+  hasSessionSecret,
+  listSessionSecretNames,
+  putSessionSecret,
+  type SessionSecretMeta,
+  sessionSecretEntries,
+  sessionSecretValues,
+} from "./broker/session";
+export {
   type ValidationResult,
   validateSecret,
   validateSecretName,
@@ -49,6 +59,11 @@ export {
   claudeProjectsDirName,
   hasResumableClaudeSession,
 } from "./claude/session";
+export {
+  type CaptureSecretResult,
+  captureSecret,
+  MAX_SECRET_BYTES,
+} from "./command/capture";
 export {
   type AgentCommandPolicy,
   classifyCommand,

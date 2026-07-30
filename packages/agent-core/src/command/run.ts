@@ -7,6 +7,10 @@ import { appendAudit } from "../audit/audit";
 import { getSecretValue, listSecrets } from "../broker/broker";
 import { isDangerousEnvName } from "../broker/dangerous";
 import type { KeychainStore } from "../broker/keychain";
+import {
+  getSessionSecretValue,
+  listSessionSecretNames,
+} from "../broker/session";
 import { redactSecrets } from "../redact/redact";
 
 export interface CommandRunResult {
@@ -105,14 +109,14 @@ export interface RunCommandResult {
   truncated: boolean;
 }
 
-const DEFAULT_TIMEOUT_MS = 30000;
+export const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_BYTES = 256 * 1024;
 
 // Resolve named vaulted secrets main-side, inject them into a child process env,
 // run the command, REDACT every injected value out of the captured output, and
 // audit the run. The agent USES the secret; it never SEES it. Fail-closed: a
-// requested secret that is not vaulted blocks the run (the NAME is safe to
-// surface in the error; a value never is).
+// requested secret we cannot resolve (vault or session) blocks the run (the NAME
+// is safe to surface in the error; a value never is).
 export async function runCommand(
   root: string,
   command: string,
@@ -120,6 +124,54 @@ export async function runCommand(
 ): Promise<RunCommandResult> {
   const runner = opts.runner ?? realRunner;
   const names = opts.injectSecrets ?? [];
+  const p = await prepareRun(root, command, names, opts);
+  const res = await runner.run(command, {
+    cwd: p.resolvedCwd,
+    env: p.env,
+    timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxBytes: opts.maxBytes ?? DEFAULT_MAX_BYTES,
+  });
+  const combined = res.stderr ? `${res.stdout}\n${res.stderr}` : res.stdout;
+  const output = redactSecrets(combined, p.values);
+  await appendAudit(root, "agent", "command.run", {
+    command,
+    cwd: p.resolvedCwd,
+    names: p.injectedNames,
+    blocked: p.blocked,
+    exitCode: res.exitCode,
+    timedOut: res.timedOut,
+    truncated: res.truncated,
+  });
+  return {
+    output,
+    exitCode: res.exitCode,
+    timedOut: res.timedOut,
+    truncated: res.truncated,
+  };
+}
+
+export interface PreparedRun {
+  resolvedCwd: string;
+  env: Record<string, string>;
+  values: string[]; // every known secret value, for redaction
+  injectedNames: string[];
+  blocked: string[];
+}
+
+// Shared by runCommand and captureSecret: contain the cwd, build the redaction
+// set from EVERY known value (vault + session), resolve and inject only the NAMED
+// secrets, and fail closed on a name we cannot resolve. One implementation so the
+// two entry points cannot drift on any of those guarantees.
+export async function prepareRun(
+  root: string,
+  command: string,
+  names: string[],
+  opts: {
+    cwd?: string;
+    baseEnv?: Record<string, string>;
+    keychain?: KeychainStore;
+  } = {},
+): Promise<PreparedRun> {
   // Contain the working directory inside the workspace root (fail-closed). cwd is
   // agent-controlled (the run_command tool forwards it verbatim) and is NOT seen
   // by the command-policy classifier, which only inspects the command string. So
@@ -152,6 +204,20 @@ export async function runCommand(
     }
   };
   const valueByName = new Map<string, string>();
+  // Session-captured values (capture_secret) join BOTH the redaction set and the
+  // resolution map. This loop runs BEFORE the vault loop, so a name held in both
+  // stores resolves to the VAULT value. Capture refuses an already-vaulted name, so
+  // the collision is only reachable in the reverse order (captured first, vaulted
+  // later) -- and there the user's explicit vaulting must win over the agent's
+  // scratch value. The session value still joins the redaction set either way, so a
+  // shadowed value never leaks into output.
+  for (const meta of listSessionSecretNames(root)) {
+    const v = getSessionSecretValue(root, meta.name);
+    if (v !== null) {
+      valueByName.set(meta.name, v);
+      addValue(v);
+    }
+  }
   for (const meta of await listSecrets(root)) {
     const v = await getSecretValue(root, meta.name, {
       keychain: opts.keychain,
@@ -175,7 +241,9 @@ export async function runCommand(
         command,
         missing: name,
       });
-      throw new Error(`requested secret not vaulted: ${name}`);
+      throw new Error(
+        `secret not available: ${name} -- ask the user with request_secret, or fetch it with capture_secret`,
+      );
     }
     addValue(value);
     if (isDangerousEnvName(name)) {
@@ -189,27 +257,11 @@ export async function runCommand(
     ...(opts.baseEnv ?? {}),
     ...injectedEnv,
   };
-  const res = await runner.run(command, {
-    cwd: resolvedCwd,
-    env,
-    timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    maxBytes: opts.maxBytes ?? DEFAULT_MAX_BYTES,
-  });
-  const combined = res.stderr ? `${res.stdout}\n${res.stderr}` : res.stdout;
-  const output = redactSecrets(combined, values);
-  await appendAudit(root, "agent", "command.run", {
-    command,
-    cwd: resolvedCwd,
-    names: Object.keys(injectedEnv),
-    blocked,
-    exitCode: res.exitCode,
-    timedOut: res.timedOut,
-    truncated: res.truncated,
-  });
   return {
-    output,
-    exitCode: res.exitCode,
-    timedOut: res.timedOut,
-    truncated: res.truncated,
+    resolvedCwd,
+    env,
+    values,
+    injectedNames: Object.keys(injectedEnv),
+    blocked,
   };
 }

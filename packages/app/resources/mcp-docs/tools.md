@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 36 tools over this MCP server. Nine are **read-only status** tools
+airlock exposes 37 tools over this MCP server. Nine are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); one curates the UI
 (`set_sidebar_section_visibility` shows or hides a sidebar section); one
 (`run_command`) runs a shell command with named vaulted secrets
@@ -8,6 +8,8 @@ injected and the output returned with those values **redacted**; one (`git_commi
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
 asks the user to vault a secret you need (you get back only whether it was vaulted, never
 the value); one (`import_env`) batch-imports the project's .env files into the vault (per-file summaries, names only);
+one (`capture_secret`) runs a command and stores its stdout as a session-only secret you
+never see, for a credential a CLI can fetch but that lives in neither `.env` nor the vault;
 two terminal tools (`get_terminal_tail` reads a terminal tab's recent output, with every
 vaulted secret value **redacted**; `send_terminal_input` writes input into a running
 terminal behind a one-time per-terminal approval); two **managed dev-server** tools
@@ -113,10 +115,13 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   managed dev-server state (`devServer`: status/url/port/terminalId/command/startedBy/exitCode).
   Use it to check if the dev server is running and to see its managed state.
 - **`list_secret_names`** — the project's secret **names** with provider and validity — no
-  values, ever. Use it to learn what credentials exist (and thus what the project needs),
-  e.g. to decide which sidebar sections to surface. Acts on the **focused** project; the
-  result's `root` field names which project it answered for — check it if the user may
-  have switched tabs since you asked. See `security-model.md`.
+  values, ever. Each entry also carries a `session` flag: `false` for a vaulted secret,
+  `true` for one fetched via `capture_secret` and held only in memory until AirLock quits
+  (never written to the keychain) — vaulted entries are listed first. Use it to learn what
+  credentials exist (and thus what the project needs), e.g. to decide which sidebar
+  sections to surface. Acts on the **focused** project; the result's `root` field names
+  which project it answered for — check it if the user may have switched tabs since you
+  asked. See `security-model.md`.
 - **`project_info`** — the focused project's detected technologies and services (names + categories, with the signal that detected each) plus the prose project overview (`.airlock/overview.md`) when present. Metadata only — no secret values. Use it to understand the stack/layout without re-scanning the tree.
 
 ## Acting — import the project's .env files into the vault
@@ -154,6 +159,16 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   and you get a clean error naming the missing secret (the name is safe; a value never is).
   **Every run is audited** (`command.run` — the command and the secret *names*, never the
   values). Workspace-rooted (needs an open folder). See `security-model.md`.
+- **`capture_secret`** (`command, name, injectSecrets?, cwd?, confirm?`) — run a command
+  and store its **stdout** as a session secret. On success the output is never
+  returned. As with `run_command`, an injected value (via `injectSecrets`) **is**
+  present in the command's environment — a convenience so you need not handle
+  credentials, not a barrier that stops the command from observing it. On
+  **failure** (non-zero exit or timeout) the result carries a redacted, capped
+  `stderr` excerpt so you can see what went wrong. Use it when a credential is in
+  neither `.env` nor the vault but a CLI can fetch it; then name it in a later
+  `run_command`'s `injectSecrets`. Session-scoped: held in memory until AirLock
+  quits, never written to the keychain. Refuses a name that is already vaulted.
 
 ## Acting — commit the staged changes
 

@@ -4,6 +4,16 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 
 ## Unreleased
 
+### Added
+- **Claude can now fetch a credential it is not allowed to see.** When a value
+  lives in neither `.env` nor the vault but a CLI can produce it, Claude runs the
+  fetch and the output goes straight into a session-only store — never into the
+  conversation on success. It can then use the value without it ever being
+  displayed. (A failed fetch still reports a short error excerpt, so Claude can
+  see what went wrong and try again.) Previously the only route was pasting the
+  credential into the terminal yourself, which put it in the transcript in
+  plaintext.
+
 ### Fixed
 - **The dock badge dropped to grey while Claude was still working.** AirLock only
   learned a session was busy when you submitted a prompt or when a tool call

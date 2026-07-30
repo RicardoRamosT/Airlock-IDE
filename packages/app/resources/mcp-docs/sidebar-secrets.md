@@ -14,7 +14,10 @@ value path** — they are not MCP tools, the value never reaches you, and the co
 the value main-side so it never even enters the UI. See `security-model.md`.
 
 The MCP tool `list_secret_names` mirrors this: it returns each secret's name, provider, and
-whether it looks valid — never the value. See `security-model.md`.
+whether it looks valid, plus a `session` flag (`false` for a vaulted secret shown here,
+`true` for one the agent captured itself via `capture_secret` — held only in memory, never
+shown in this sidebar) — never a value. Vaulted entries are listed first. See
+`security-model.md`.
 
 ## When it's useful
 Useful for any project that has credentials: an API-driven app, anything with a database

@@ -440,11 +440,14 @@ Plan: `docs/superpowers/plans/2026-07-27-extensions-hub-page.md`.
 
 ## MCP tool surface
 
-**36 tools** (`main/mcp/tools.ts`, locked by an allowlist test that also asserts
-the count and parity with BOTH `resources/mcp-docs/tools.md` and the **README**
-(added 0.6.1: the README had drifted to 39 for a 36-tool surface, and an outside
-reviewer assessed the project on that stale figure) — update all three
-together). Two rules learned from trimming it:
+**37 tools** (`main/mcp/tools.ts`, locked by an allowlist test that also asserts
+the count and parity across ALL THREE of `resources/mcp-docs/tools.md`, the
+**README**, and this file (the first two added 0.6.1: the README had drifted to
+39 for a 36-tool surface, and an outside reviewer assessed the project on that
+stale figure; this file joined the same test after it independently drifted to
+36 — sitting inside the very section warning about the README's drift, caught
+only by review, not by the test) — update all four together). Two rules
+learned from trimming it:
 
 - **Count is not the diagnostic; ambiguity is.** Tools hurt when the model must
   guess between two of them, not when there are many. `open_tab` /
@@ -465,6 +468,29 @@ logged** — only name, outcome, duration: `send_terminal_input` and `run_comman
 can carry a credential, and the name alone answers the usage question. Use this
 data before pruning further; the earlier round had to be argued rather than
 measured.
+
+## Secrets the agent fetches itself
+
+Three ways a value reaches a command, and they are not interchangeable:
+
+- **`.env` -> vault** (`import_env`), then `run_command(injectSecrets)`. Vaulted
+  secrets are ALSO injected into every terminal by `injectInto` (`pty:create`),
+  which is why the dev server already has them.
+- **User types it** (`request_secret`) — a secure modal; the value goes
+  user -> keychain and the tool resolves only a boolean.
+- **A CLI fetches it** (`capture_secret`) — stdout goes into an in-memory,
+  per-root **session** store (`broker/session.ts`), never the keychain. This
+  exists because the alternative was the agent asking the user to run
+  `az containerapp show ...` by hand, which put a live prod credential in the
+  transcript (observed 2026-07-29).
+
+**Session-scoped is a security property, not laziness.** A captured value must
+never become a vault entry, because `injectInto` would then feed a prod
+credential to every terminal in the project. Consequence: it dies on quit and
+the agent re-fetches. `run_command` computes the session value first, but the
+vault's value overwrites it on a name collision, so a user-managed secret
+always wins. A name already in the vault is REFUSED (v1) rather than
+overwritten.
 
 ## What counts as an extension
 
