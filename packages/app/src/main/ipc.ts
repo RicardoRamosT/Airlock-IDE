@@ -82,6 +82,7 @@ import {
   type SteadyIntegration,
   searchProject,
   sectionExtensionSummaries,
+  sessionSecretValues,
   setGlobalSecret,
   setSecret,
   slackAuthTest,
@@ -2763,10 +2764,15 @@ export function killAllSessions(): void {
   sessionTargets.clear();
 }
 
-// Resolve EVERY vaulted secret value (any could appear in terminal output) so
-// the tail/preview can be redacted. Delegates to the broker's named gather.
+// Resolve EVERY secret value that could appear in terminal output -- vaulted AND
+// session-captured -- so the tail/preview can be redacted. Session values cannot
+// reach a terminal env (they are never auto-injected), but the standing rule is
+// to redact every known value rather than reason about which paths are reachable.
 async function allVaultedValues(root: string): Promise<string[]> {
-  return (await vaultedSecrets(root)).map((s) => s.value);
+  return [
+    ...(await vaultedSecrets(root)).map((s) => s.value),
+    ...sessionSecretValues(root),
+  ];
 }
 
 // Scrub a (now-removed) secret value out of EVERY live PTY ring buffer.
