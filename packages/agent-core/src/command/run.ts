@@ -204,22 +204,24 @@ export async function prepareRun(
     }
   };
   const valueByName = new Map<string, string>();
-  for (const meta of await listSecrets(root)) {
-    const v = await getSecretValue(root, meta.name, {
-      keychain: opts.keychain,
-    });
+  // Session-captured values (capture_secret) join BOTH the redaction set and the
+  // resolution map. This loop runs BEFORE the vault loop, so a name held in both
+  // stores resolves to the VAULT value. Capture refuses an already-vaulted name, so
+  // the collision is only reachable in the reverse order (captured first, vaulted
+  // later) -- and there the user's explicit vaulting must win over the agent's
+  // scratch value. The session value still joins the redaction set either way, so a
+  // shadowed value never leaks into output.
+  for (const meta of listSessionSecretNames(root)) {
+    const v = getSessionSecretValue(root, meta.name);
     if (v !== null) {
       valueByName.set(meta.name, v);
       addValue(v);
     }
   }
-  // Session-captured values (capture_secret) join BOTH the redaction set and the
-  // resolution map, and are applied AFTER the vault so they WIN on a name clash.
-  // Safe: a session entry cannot carry a vaulted name at all in v1 -- capture
-  // refuses that collision before running anything -- so a session entry winning
-  // the lookup is never a silent override of a user-managed secret.
-  for (const meta of listSessionSecretNames(root)) {
-    const v = getSessionSecretValue(root, meta.name);
+  for (const meta of await listSecrets(root)) {
+    const v = await getSecretValue(root, meta.name, {
+      keychain: opts.keychain,
+    });
     if (v !== null) {
       valueByName.set(meta.name, v);
       addValue(v);

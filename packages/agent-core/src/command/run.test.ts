@@ -257,7 +257,7 @@ describe("runCommand", () => {
     expect(runner.calls[0]?.env.PROD_URL).toBe("postgres://from-session");
   });
 
-  it("prefers the session value over a vaulted one of the same name", async () => {
+  it("prefers the vaulted value over a session value of the same name", async () => {
     await setSecret(root, "DATABASE_URL", "postgres://dev", { keychain: fake });
     putSessionSecret(root, "DATABASE_URL", "postgres://prod", "az show");
     const runner = makeRunner();
@@ -266,7 +266,15 @@ describe("runCommand", () => {
       keychain: fake,
       runner,
     });
-    expect(runner.calls[0]?.env.DATABASE_URL).toBe("postgres://prod");
+    expect(runner.calls[0]?.env.DATABASE_URL).toBe("postgres://dev");
+  });
+
+  it("still redacts the shadowed session value from output", async () => {
+    await setSecret(root, "DATABASE_URL", "postgres://dev", { keychain: fake });
+    putSessionSecret(root, "DATABASE_URL", "postgres://prod", "az show");
+    const runner = makeRunner({ stdout: "saw postgres://prod here" });
+    const r = await runCommand(root, "printenv", { keychain: fake, runner });
+    expect(r.output).not.toContain("postgres://prod");
   });
 
   it("redacts a session value that leaks into output even when not injected", async () => {
