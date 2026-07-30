@@ -97,15 +97,40 @@ export async function captureSecret(
       // capped: a failed fetch prints a diagnostic, and an opaque failure would
       // send the agent back to asking the user to run commands by hand.
       stderr: redactSecrets(res.stderr, p.values).slice(0, STDERR_CAP),
+      reason: res.timedOut
+        ? "command timed out"
+        : `command exited ${res.exitCode}`,
     };
   }
+  // Post-run refusals still need an audit record. A command that runs to
+  // completion and produces nothing usable (empty output, truncated output, an
+  // oversized value) would otherwise be a no-trace way to execute a command:
+  // secret.capture only fires on success and secret.capture.failed (above) only
+  // on timeout/non-zero exit, so none of these three ever wrote anything. That
+  // silence is the more dangerous path, not a minor gap -- runCommand audits
+  // command.run unconditionally, and this must not be the quiet exception.
+  const refuseAfterRun = async (
+    reason: string,
+  ): Promise<CaptureSecretResult> => {
+    await appendAudit(root, "agent", "secret.capture.failed", {
+      name,
+      command,
+      exitCode: res.exitCode,
+      timedOut: res.timedOut,
+      truncated: res.truncated,
+      reason,
+    });
+    return { captured: false, name, exitCode: res.exitCode, reason };
+  };
   if (res.truncated)
-    return refuse("output was truncated -- refusing to store a partial secret");
+    return refuseAfterRun(
+      "output was truncated -- refusing to store a partial secret",
+    );
   const value = res.stdout.trim();
-  if (value.length === 0) return refuse("command produced no output");
+  if (value.length === 0) return refuseAfterRun("command produced no output");
   const bytes = Buffer.byteLength(value, "utf8");
   if (bytes > MAX_SECRET_BYTES)
-    return refuse(
+    return refuseAfterRun(
       `captured value too large: ${bytes} bytes (max ${MAX_SECRET_BYTES})`,
     );
   // Audit BEFORE the value becomes retrievable. If appendAudit throws (a disk
