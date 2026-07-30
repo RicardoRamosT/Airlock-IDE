@@ -47,6 +47,7 @@ export {
   listSessionSecretNames,
   putSessionSecret,
   type SessionSecretMeta,
+  sessionSecretEntries,
   sessionSecretValues,
 } from "./broker/session";
 export {

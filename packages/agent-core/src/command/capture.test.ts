@@ -67,10 +67,31 @@ describe("captureSecret", () => {
     const entries = await readAudit(root);
     const entry = entries.find((e) => e.op === "secret.capture");
     expect(entry?.actor).toBe("agent");
+    expect(entry?.detail.bytes).toBe("postgres://secret-value".length);
     const line = JSON.stringify(entries);
     expect(line).toContain("secret.capture");
     expect(line).toContain("PROD_URL");
     expect(line).not.toContain("secret-value");
+  });
+
+  // runCommand's command.run audit records `blocked` (dangerous env names
+  // dropped from injection); secret.capture omitted it, so a captureSecret call
+  // that silently dropped e.g. PATH from injectSecrets left no forensic trace.
+  // Same seeding trick as run.test.ts's equivalent case: PATH can never be
+  // vaulted via setSecret (the reserved-name guard), so seed the vault blob
+  // directly to exercise the inject-time dangerous-name filter.
+  it("records blocked dangerous env names in the secret.capture audit, same as run_command", async () => {
+    const { projectIdFor } = await import("../project/id");
+    const id = await projectIdFor(root);
+    store.set(`airlock|@vault/${id}`, JSON.stringify({ PATH: "/evil/bin" }));
+    await captureSecret(root, "az show", "PROD_URL", {
+      keychain: fake,
+      runner: makeRunner({ stdout: "v" }),
+      injectSecrets: ["PATH"],
+    });
+    const entries = await readAudit(root);
+    const entry = entries.find((e) => e.op === "secret.capture");
+    expect(entry?.detail.blocked).toEqual(["PATH"]);
   });
 
   it("records the fetching command in the session metadata", async () => {
@@ -219,12 +240,16 @@ describe("captureSecret", () => {
     expect(getSessionSecretValue(root, "TOKEN")).toBeNull();
   });
 
+  // exitCode: 0 (not null/nonzero) so this can only pass via the `res.timedOut ||`
+  // half of the failure guard -- a null/nonzero exitCode would also satisfy
+  // `res.exitCode !== 0` and pass even if that check were dropped entirely.
   it("stores nothing when the command times out", async () => {
     const r = await captureSecret(root, "az show", "TOKEN", {
       keychain: fake,
-      runner: makeRunner({ stdout: "abc", timedOut: true, exitCode: null }),
+      runner: makeRunner({ stdout: "abc", timedOut: true, exitCode: 0 }),
     });
     expect(r.captured).toBe(false);
+    expect(r.timedOut).toBe(true);
     expect(getSessionSecretValue(root, "TOKEN")).toBeNull();
   });
 

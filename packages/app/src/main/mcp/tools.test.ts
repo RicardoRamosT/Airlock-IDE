@@ -319,6 +319,7 @@ describe("tools.ts secret-value source guard", () => {
     "vaultedSecrets",
     "getSessionSecretValue",
     "sessionSecretValues",
+    "sessionSecretEntries",
   ];
 
   it("contains none of the forbidden value-returning identifiers", () => {

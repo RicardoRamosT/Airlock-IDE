@@ -148,6 +148,7 @@ export async function captureSecret(
     command,
     cwd: p.resolvedCwd,
     names: p.injectedNames,
+    blocked: p.blocked,
     exitCode: res.exitCode,
   });
   putSessionSecret(root, name, value, command);

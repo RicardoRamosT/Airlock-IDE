@@ -68,6 +68,17 @@ export function sessionSecretValues(root: string): string[] {
   return [...(store.get(root)?.values() ?? [])].map((e) => e.value);
 }
 
+// Name+value pairs for the staged-content leak scanner, which reports WHICH
+// secret it found. VALUE-RETURNING: never reference this from mcp/tools.ts.
+export function sessionSecretEntries(
+  root: string,
+): { name: string; value: string }[] {
+  return [...(store.get(root)?.values() ?? [])].map((e) => ({
+    name: e.meta.name,
+    value: e.value,
+  }));
+}
+
 export function clearSessionSecrets(root?: string): void {
   if (root === undefined) store.clear();
   else store.delete(root);

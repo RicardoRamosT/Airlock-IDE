@@ -8,6 +8,8 @@ injected and the output returned with those values **redacted**; one (`git_commi
 the staged changes after a secret-leak scan of the staged content; one (`request_secret`)
 asks the user to vault a secret you need (you get back only whether it was vaulted, never
 the value); one (`import_env`) batch-imports the project's .env files into the vault (per-file summaries, names only);
+one (`capture_secret`) runs a command and stores its stdout as a session-only secret you
+never see, for a credential a CLI can fetch but that lives in neither `.env` nor the vault;
 two terminal tools (`get_terminal_tail` reads a terminal tab's recent output, with every
 vaulted secret value **redacted**; `send_terminal_input` writes input into a running
 terminal behind a one-time per-terminal approval); two **managed dev-server** tools
@@ -158,11 +160,15 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   **Every run is audited** (`command.run` — the command and the secret *names*, never the
   values). Workspace-rooted (needs an open folder). See `security-model.md`.
 - **`capture_secret`** (`command, name, injectSecrets?, cwd?, confirm?`) — run a command
-  and store its **stdout** as a session secret. The output is never returned. Use
-  it when a credential is in neither `.env` nor the vault but a CLI can fetch it;
-  then name it in a later `run_command`'s `injectSecrets`. Session-scoped: held in
-  memory until AirLock quits, never written to the keychain. Refuses a name that
-  is already vaulted.
+  and store its **stdout** as a session secret. On success the output is never
+  returned. As with `run_command`, an injected value (via `injectSecrets`) **is**
+  present in the command's environment — a convenience so you need not handle
+  credentials, not a barrier that stops the command from observing it. On
+  **failure** (non-zero exit or timeout) the result carries a redacted, capped
+  `stderr` excerpt so you can see what went wrong. Use it when a credential is in
+  neither `.env` nor the vault but a CLI can fetch it; then name it in a later
+  `run_command`'s `injectSecrets`. Session-scoped: held in memory until AirLock
+  quits, never written to the keychain. Refuses a name that is already vaulted.
 
 ## Acting — commit the staged changes
 

@@ -7,6 +7,7 @@ import {
   gitFileVersions,
   gitStatus,
   scanForSecrets,
+  sessionSecretEntries,
   vaultedSecrets,
 } from "@airlock/agent-core";
 import type { SecretLeak } from "../../shared/ipc";
@@ -18,7 +19,17 @@ async function scanFiles(
   paths: string[],
   which: DiffSide,
 ): Promise<SecretLeak[]> {
-  const vaulted = await vaultedSecrets(root);
+  // Both stores: a SESSION-captured value (capture_secret) can reach staged
+  // content exactly like a vaulted one -- injectSecrets into a build,
+  // `printenv > file`, `docker compose config > resolved.yml` -- so the scan set
+  // must cover both or a captured-but-never-vaulted credential leaks through
+  // unreported. Same reasoning as the terminal-tail redactor's allVaultedValues:
+  // redact/scan every known value rather than reason about which paths are
+  // reachable. (audit C1/H1)
+  const known = [
+    ...(await vaultedSecrets(root)),
+    ...sessionSecretEntries(root),
+  ];
   const leaks: SecretLeak[] = [];
   for (const p of paths) {
     let modified: string;
@@ -31,7 +42,7 @@ async function scanFiles(
       continue; // unreadable at this ref -- skip
     }
     if (binary || modified.length > MAX_SCAN_BYTES) continue;
-    for (const f of scanForSecrets(modified, vaulted)) {
+    for (const f of scanForSecrets(modified, known)) {
       leaks.push({
         path: p,
         line: f.line,
