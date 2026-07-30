@@ -8,8 +8,12 @@
 // passing through a tool result -- and therefore the transcript. The agent USES
 // the value; it never SEES it.
 import { appendAudit } from "../audit/audit";
+import { getSecretValue } from "../broker/broker";
+import { isDangerousEnvName } from "../broker/dangerous";
 import type { KeychainStore } from "../broker/keychain";
 import { putSessionSecret } from "../broker/session";
+import { validateSecretName } from "../broker/validators";
+import { redactSecrets } from "../redact/redact";
 import {
   type CommandRunner,
   DEFAULT_TIMEOUT_MS,
@@ -34,6 +38,9 @@ export const MAX_SECRET_BYTES = 8 * 1024;
 // Enough for any credential, far below runCommand's 256KB, so an accidental
 // firehose is refused cheaply.
 const CAPTURE_MAX_BYTES = 64 * 1024;
+// Cap on the redacted stderr returned to the agent on a failed capture --
+// enough for a real diagnostic, far below CAPTURE_MAX_BYTES.
+const STDERR_CAP = 2 * 1024;
 
 export interface CaptureSecretOptions {
   injectSecrets?: string[];
@@ -50,6 +57,21 @@ export async function captureSecret(
   name: string,
   opts: CaptureSecretOptions = {},
 ): Promise<CaptureSecretResult> {
+  const refuse = (reason: string): CaptureSecretResult => ({
+    captured: false,
+    name,
+    exitCode: null,
+    reason,
+  });
+  if (!validateSecretName(name)) return refuse(`invalid secret name: ${name}`);
+  if (isDangerousEnvName(name))
+    return refuse(`refusing to capture into a dangerous env name: ${name}`);
+  // Collision with a USER-managed secret is refused outright in v1; the approval
+  // click arrives with the agent request surface spec. getSecretValue (not the
+  // meta list) so a reserved name seeded straight into the keychain also counts.
+  if ((await getSecretValue(root, name, { keychain: opts.keychain })) !== null)
+    return refuse(`name already vaulted: ${name}`);
+
   const runner = opts.runner ?? realRunner;
   const p = await prepareRun(root, command, opts.injectSecrets ?? [], opts);
   const res = await runner.run(command, {
@@ -58,9 +80,43 @@ export async function captureSecret(
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxBytes: CAPTURE_MAX_BYTES,
   });
+  if (res.timedOut || res.exitCode !== 0) {
+    await appendAudit(root, "agent", "secret.capture.failed", {
+      name,
+      command,
+      exitCode: res.exitCode,
+      timedOut: res.timedOut,
+    });
+    return {
+      captured: false,
+      name,
+      exitCode: res.exitCode,
+      timedOut: res.timedOut,
+      truncated: res.truncated,
+      // The ONE place output can flow. Redacted against every known value and
+      // capped: a failed fetch prints a diagnostic, and an opaque failure would
+      // send the agent back to asking the user to run commands by hand.
+      stderr: redactSecrets(res.stderr, p.values).slice(0, STDERR_CAP),
+    };
+  }
+  if (res.truncated)
+    return refuse("output was truncated -- refusing to store a partial secret");
   const value = res.stdout.trim();
+  if (value.length === 0) return refuse("command produced no output");
   const bytes = Buffer.byteLength(value, "utf8");
-  putSessionSecret(root, name, value, command);
+  if (bytes > MAX_SECRET_BYTES)
+    return refuse(
+      `captured value too large: ${bytes} bytes (max ${MAX_SECRET_BYTES})`,
+    );
+  // Audit BEFORE the value becomes retrievable. If appendAudit throws (a disk
+  // write failure, say), putSessionSecret never runs, so we fail closed with
+  // nothing stored rather than leaving a live, unaudited credential sitting in
+  // the session store -- exactly the state this feature's audit trail exists
+  // to prevent. The reverse ordering's failure mode is milder: if
+  // putSessionSecret somehow threw after a successful audit write, the result
+  // is a phantom audit entry for a value that was never actually stored, and
+  // prepareRun's fail-closed resolution means no later command can use a name
+  // that is not there -- misleading paperwork, not a live unaudited secret.
   await appendAudit(root, "agent", "secret.capture", {
     name,
     bytes,
@@ -69,5 +125,6 @@ export async function captureSecret(
     names: p.injectedNames,
     exitCode: res.exitCode,
   });
+  putSessionSecret(root, name, value, command);
   return { captured: true, name, bytes, exitCode: res.exitCode };
 }
