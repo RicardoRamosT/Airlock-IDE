@@ -113,10 +113,13 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   managed dev-server state (`devServer`: status/url/port/terminalId/command/startedBy/exitCode).
   Use it to check if the dev server is running and to see its managed state.
 - **`list_secret_names`** — the project's secret **names** with provider and validity — no
-  values, ever. Use it to learn what credentials exist (and thus what the project needs),
-  e.g. to decide which sidebar sections to surface. Acts on the **focused** project; the
-  result's `root` field names which project it answered for — check it if the user may
-  have switched tabs since you asked. See `security-model.md`.
+  values, ever. Each entry also carries a `session` flag: `false` for a vaulted secret,
+  `true` for one fetched via `capture_secret` and held only in memory until AirLock quits
+  (never written to the keychain) — vaulted entries are listed first. Use it to learn what
+  credentials exist (and thus what the project needs), e.g. to decide which sidebar
+  sections to surface. Acts on the **focused** project; the result's `root` field names
+  which project it answered for — check it if the user may have switched tabs since you
+  asked. See `security-model.md`.
 - **`project_info`** — the focused project's detected technologies and services (names + categories, with the signal that detected each) plus the prose project overview (`.airlock/overview.md`) when present. Metadata only — no secret values. Use it to understand the stack/layout without re-scanning the tree.
 
 ## Acting — import the project's .env files into the vault

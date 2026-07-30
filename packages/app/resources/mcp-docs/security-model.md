@@ -6,7 +6,8 @@ them.** This page states that invariant plainly so you don't waste effort fighti
 ## What you get
 Every airlock MCP tool returns **statuses, metadata, and secret names only**:
 
-- `list_secret_names` → names + provider + a validity flag. No values.
+- `list_secret_names` → names + provider + a validity flag + a `session` flag (vaulted vs.
+  an in-memory secret captured by `capture_secret`). No values.
 - `database_status` → host / database / user (redacted) + reachability. No connection
   string, no password.
 - `neon_status`, `render_services`, `host_status`, `docker_status`, `git_status` → metadata

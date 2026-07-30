@@ -415,9 +415,13 @@ export async function databaseStatus(root: string): Promise<
   return out; // NO password field, NO raw connection string
 }
 
-// Secret names with provider + validity. NEW composition for MCP. Projects the
-// broker metadata to name/provider/valid; timestamps are dropped and NO secret
-// values are read or returned.
+// Secret names with provider + validity, for MCP. Composes TWO sources into one
+// list: vaulted secrets first (broker metadata projected to name/provider/valid,
+// timestamps dropped), then in-memory session secrets captured via
+// capture_secret (name only; provider always null, valid always true). The
+// `session` flag marks which is which so the agent can tell a keychain-backed
+// secret from one that dies when AirLock quits. NO secret values are read or
+// returned from either source.
 export async function listSecretNames(
   root: string,
 ): Promise<

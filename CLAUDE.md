@@ -466,6 +466,27 @@ can carry a credential, and the name alone answers the usage question. Use this
 data before pruning further; the earlier round had to be argued rather than
 measured.
 
+## Secrets the agent fetches itself
+
+Three ways a value reaches a command, and they are not interchangeable:
+
+- **`.env` -> vault** (`import_env`), then `run_command(injectSecrets)`. Vaulted
+  secrets are ALSO injected into every terminal by `injectInto` (`pty:create`),
+  which is why the dev server already has them.
+- **User types it** (`request_secret`) — a secure modal; the value goes
+  user -> keychain and the tool resolves only a boolean.
+- **A CLI fetches it** (`capture_secret`) — stdout goes into an in-memory,
+  per-root **session** store (`broker/session.ts`), never the keychain. This
+  exists because the alternative was the agent asking the user to run
+  `az containerapp show ...` by hand, which put a live prod credential in the
+  transcript (observed 2026-07-29).
+
+**Session-scoped is a security property, not laziness.** A captured value must
+never become a vault entry, because `injectInto` would then feed a prod
+credential to every terminal in the project. Consequence: it dies on quit and
+the agent re-fetches. `run_command` resolves the session store FIRST, then the
+vault. A name already in the vault is REFUSED (v1) rather than overwritten.
+
 ## What counts as an extension
 
 **Core is what AirLock authored over your own machine; an extension is an
