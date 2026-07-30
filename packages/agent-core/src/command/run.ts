@@ -7,6 +7,10 @@ import { appendAudit } from "../audit/audit";
 import { getSecretValue, listSecrets } from "../broker/broker";
 import { isDangerousEnvName } from "../broker/dangerous";
 import type { KeychainStore } from "../broker/keychain";
+import {
+  getSessionSecretValue,
+  listSessionSecretNames,
+} from "../broker/session";
 import { redactSecrets } from "../redact/redact";
 
 export interface CommandRunResult {
@@ -161,6 +165,17 @@ export async function runCommand(
       addValue(v);
     }
   }
+  // Session-captured values (capture_secret) join BOTH the redaction set and the
+  // resolution map, and are applied AFTER the vault so they WIN on a name clash.
+  // Safe: a session entry can only carry a vaulted name with the user's approval,
+  // so whenever the session store wins it is a substitution the user allowed.
+  for (const meta of listSessionSecretNames(root)) {
+    const v = getSessionSecretValue(root, meta.name);
+    if (v !== null) {
+      valueByName.set(meta.name, v);
+      addValue(v);
+    }
+  }
   // Inject only the NAMED secrets. Resolve any not covered by the meta scan (a
   // reserved name can be seeded directly in the keychain with no meta entry).
   const injectedEnv: Record<string, string> = {};
@@ -175,7 +190,9 @@ export async function runCommand(
         command,
         missing: name,
       });
-      throw new Error(`requested secret not vaulted: ${name}`);
+      throw new Error(
+        `secret not available: ${name} -- ask the user with request_secret, or fetch it with capture_secret`,
+      );
     }
     addValue(value);
     if (isDangerousEnvName(name)) {

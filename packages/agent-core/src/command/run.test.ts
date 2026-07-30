@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readAudit } from "../audit/audit";
 import { setSecret } from "../broker/broker";
 import type { KeychainStore } from "../broker/keychain";
+import { clearSessionSecrets, putSessionSecret } from "../broker/session";
 import { type CommandRunner, type CommandRunResult, runCommand } from "./run";
 
 let root: string;
@@ -20,6 +21,8 @@ beforeEach(async () => {
     delete: (s, a) => store.delete(`${s}|${a}`),
   };
 });
+
+beforeEach(() => clearSessionSecrets());
 
 // A fake runner that records the options it was handed (so we can assert on the
 // injected env + cwd) and returns a scripted result. Defaults to an empty,
@@ -241,5 +244,48 @@ describe("runCommand", () => {
       runner,
     });
     expect(res.output).toBe("out line\nerr line");
+  });
+
+  it("injects a session-captured secret by name", async () => {
+    putSessionSecret(root, "PROD_URL", "postgres://from-session", "az show");
+    const runner = makeRunner();
+    await runCommand(root, "echo hi", {
+      injectSecrets: ["PROD_URL"],
+      keychain: fake,
+      runner,
+    });
+    expect(runner.calls[0]?.env.PROD_URL).toBe("postgres://from-session");
+  });
+
+  it("prefers the session value over a vaulted one of the same name", async () => {
+    await setSecret(root, "DATABASE_URL", "postgres://dev", { keychain: fake });
+    putSessionSecret(root, "DATABASE_URL", "postgres://prod", "az show");
+    const runner = makeRunner();
+    await runCommand(root, "echo hi", {
+      injectSecrets: ["DATABASE_URL"],
+      keychain: fake,
+      runner,
+    });
+    expect(runner.calls[0]?.env.DATABASE_URL).toBe("postgres://prod");
+  });
+
+  it("redacts a session value that leaks into output even when not injected", async () => {
+    putSessionSecret(root, "PROD_URL", "postgres://leaked", "az show");
+    const runner = makeRunner({ stdout: "connected to postgres://leaked ok" });
+    const r = await runCommand(root, "printenv", { keychain: fake, runner });
+    expect(r.output).not.toContain("postgres://leaked");
+  });
+
+  it("names both escape hatches when a requested secret is missing", async () => {
+    const runner = makeRunner();
+    await expect(
+      runCommand(root, "echo hi", {
+        injectSecrets: ["NOPE"],
+        keychain: fake,
+        runner,
+      }),
+    ).rejects.toThrow(
+      /secret not available: NOPE.*request_secret.*capture_secret/,
+    );
   });
 });
