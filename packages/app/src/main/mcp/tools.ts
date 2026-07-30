@@ -19,7 +19,12 @@
 // ASCII-only comments: this module is CJS-bundled into the Electron main process
 // and Electron's cjs_lexer crashes on multibyte characters.
 import path from "node:path";
-import { appendAudit, gateCommand, runCommand } from "@airlock/agent-core";
+import {
+  appendAudit,
+  captureSecret,
+  gateCommand,
+  runCommand,
+} from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type {
@@ -63,6 +68,7 @@ export const TOOL_NAMES: string[] = [
   "list_secret_names",
   "run_command",
   "request_secret",
+  "capture_secret",
   "import_env",
   "get_terminal_tail",
   "send_terminal_input",
@@ -741,6 +747,53 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       try {
         return ok(
           await runCommand(root, command, {
+            injectSecrets,
+            cwd,
+            baseEnv: deps.getBaseEnv(),
+          }),
+        );
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e));
+      }
+    },
+  );
+
+  // Run a command and put its stdout in the SESSION secret store instead of the
+  // result. The handler passes only NAMES in and reads only metadata out, so it
+  // references no value-returning identifier and the source guard stays green.
+  mcp.registerTool(
+    "capture_secret",
+    {
+      description:
+        'Run a command and store its stdout as a SESSION secret you never see. Use this when a credential is absent from .env AND the vault but a CLI can fetch it (e.g. `az containerapp show ... -o tsv`): the output is NEVER returned -- you get { name, bytes, exitCode } -- and the value is held in memory only until AirLock quits, never written to the keychain. Inject the captured name into a later run_command via injectSecrets. Refuses a name that is already vaulted (choose another name, or use request_secret). Same policy gate as run_command (action="ask" -> re-call with confirm:true).',
+      inputSchema: {
+        command: z.string(),
+        name: z.string(),
+        injectSecrets: z.array(z.string()).optional(),
+        cwd: z.string().optional(),
+        confirm: z.boolean().optional(),
+      },
+    },
+    async ({ command, name, injectSecrets, cwd, confirm }) => {
+      const root = deps.getWorkspaceRoot();
+      if (!root) return err(NO_WORKSPACE);
+      const policy = (await loadPrefs(deps.prefsFile)).agentPolicy;
+      const gate = gateCommand(command, policy, confirm ?? false);
+      if (!gate.run) {
+        await appendAudit(root, "agent", "command.policy.blocked", {
+          action: gate.action,
+          categories: gate.categories,
+        }).catch(() => {});
+        return ok({
+          blocked: true,
+          action: gate.action,
+          categories: gate.categories,
+          reason: gate.reason,
+        });
+      }
+      try {
+        return ok(
+          await captureSecret(root, command, name, {
             injectSecrets,
             cwd,
             baseEnv: deps.getBaseEnv(),

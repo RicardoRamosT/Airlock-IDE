@@ -1,6 +1,6 @@
 # MCP tools
 
-airlock exposes 36 tools over this MCP server. Nine are **read-only status** tools
+airlock exposes 37 tools over this MCP server. Nine are **read-only status** tools
 (including `plan_usage`, your own Claude plan usage); one curates the UI
 (`set_sidebar_section_visibility` shows or hides a sidebar section); one
 (`run_command`) runs a shell command with named vaulted secrets
@@ -154,6 +154,12 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   and you get a clean error naming the missing secret (the name is safe; a value never is).
   **Every run is audited** (`command.run` — the command and the secret *names*, never the
   values). Workspace-rooted (needs an open folder). See `security-model.md`.
+- **`capture_secret`** (`command, name, injectSecrets?, cwd?, confirm?`) — run a command
+  and store its **stdout** as a session secret. The output is never returned. Use
+  it when a credential is in neither `.env` nor the vault but a CLI can fetch it;
+  then name it in a later `run_command`'s `injectSecrets`. Session-scoped: held in
+  memory until AirLock quits, never written to the keychain. Refuses a name that
+  is already vaulted.
 
 ## Acting — commit the staged changes
 

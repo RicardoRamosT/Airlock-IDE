@@ -198,13 +198,14 @@ describe("registerTools allowlist guard", () => {
 
     const registered = tools.map((t) => t.name).sort();
     expect(registered).toEqual([...TOOL_NAMES].sort());
-    expect(registered).toHaveLength(36);
+    expect(registered).toHaveLength(37);
     expect(registered).toContain("start_dev_server");
     expect(registered).toContain("stop_dev_server");
     expect(registered).toContain("project_info");
     expect(registered).toContain("git_commit");
     expect(registered).toContain("run_command");
     expect(registered).toContain("request_secret");
+    expect(registered).toContain("capture_secret");
     expect(registered).toContain("import_env");
     expect(registered).toContain("ci_status");
     expect(registered).toContain("plan_usage");
@@ -285,6 +286,8 @@ describe("tools.ts secret-value source guard", () => {
     "dbConnString",
     "injectInto",
     "vaultedSecrets",
+    "getSessionSecretValue",
+    "sessionSecretValues",
   ];
 
   it("contains none of the forbidden value-returning identifiers", () => {
@@ -691,5 +694,16 @@ describe("ci_status tool", () => {
     expect(getCiRun).toHaveBeenCalledWith(null);
     expect(res.isError).toBeUndefined();
     expect(JSON.parse(res.content[0].text).ci).toBeNull();
+  });
+});
+
+describe("capture_secret", () => {
+  it("never returns the captured value", async () => {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, baseDeps);
+    const tool = tools.find((t) => t.name === "capture_secret");
+    expect(tool).toBeDefined();
+    const res = await tool?.handler({ command: "echo hi", name: "TOKEN" });
+    expect(JSON.stringify(res)).not.toContain("hi");
   });
 });
