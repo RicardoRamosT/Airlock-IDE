@@ -1,8 +1,9 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { clearSessionSecrets, putSessionSecret } from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
-import { listSidebarSections } from "./ide-state";
+import { listSecretNames, listSidebarSections } from "./ide-state";
 
 // listSidebarSections is the one NEW (MCP-only) read with no existing coverage.
 // The other ide-state functions are thin extractions of already-tested IPC
@@ -51,5 +52,24 @@ describe("listSidebarSections", () => {
     expect(ids[ids.length - 1]).toBe("ext:slack");
     expect(rows[rows.length - 1]?.label).toBe("Slack");
     expect(rows[rows.length - 1]?.visible).toBe(true);
+  });
+});
+
+describe("listSecretNames", () => {
+  it("includes session-captured names, flagged", async () => {
+    const root = await mkdtemp(
+      path.join(tmpdir(), "airlock-ide-state-secrets-"),
+    );
+    clearSessionSecrets();
+    putSessionSecret(root, "PROD_URL", "postgres://x", "az show");
+    const names = await listSecretNames(root);
+    const hit = names.find((n) => n.name === "PROD_URL");
+    expect(hit).toEqual({
+      name: "PROD_URL",
+      provider: null,
+      valid: true,
+      session: true,
+    });
+    expect(JSON.stringify(names)).not.toContain("postgres://x");
   });
 });

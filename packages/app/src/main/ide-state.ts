@@ -32,6 +32,7 @@ import {
   headSha,
   LIST_DATABASES_SQL,
   listSecrets,
+  listSessionSecretNames,
   listTables,
   type NeonBranch,
   type NeonDatabase,
@@ -419,13 +420,26 @@ export async function databaseStatus(root: string): Promise<
 // values are read or returned.
 export async function listSecretNames(
   root: string,
-): Promise<{ name: string; provider: string | null; valid: boolean }[]> {
+): Promise<
+  { name: string; provider: string | null; valid: boolean; session: boolean }[]
+> {
   const metas = await listSecrets(root);
-  return metas.map((m) => ({
-    name: m.name,
-    provider: m.provider,
-    valid: m.valid,
-  }));
+  return [
+    ...metas.map((m) => ({
+      name: m.name,
+      provider: m.provider,
+      valid: m.valid,
+      session: false,
+    })),
+    // Session-captured secrets (capture_secret): usable by run_command right now
+    // but NOT vaulted, so the agent must be able to tell the difference.
+    ...listSessionSecretNames(root).map((m) => ({
+      name: m.name,
+      provider: null,
+      valid: true,
+      session: true,
+    })),
+  ];
 }
 
 // --- Docker Postgres explorer -------------------------------------------
