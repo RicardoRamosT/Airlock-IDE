@@ -59,6 +59,11 @@ export {
   hasResumableClaudeSession,
 } from "./claude/session";
 export {
+  type CaptureSecretResult,
+  captureSecret,
+  MAX_SECRET_BYTES,
+} from "./command/capture";
+export {
   type AgentCommandPolicy,
   classifyCommand,
   DEFAULT_AGENT_POLICY,

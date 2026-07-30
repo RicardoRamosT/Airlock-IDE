@@ -109,7 +109,7 @@ export interface RunCommandResult {
   truncated: boolean;
 }
 
-const DEFAULT_TIMEOUT_MS = 30000;
+export const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_BYTES = 256 * 1024;
 
 // Resolve named vaulted secrets main-side, inject them into a child process env,
