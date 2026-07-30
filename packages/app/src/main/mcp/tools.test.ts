@@ -18,13 +18,19 @@ import type {
 import { BUILTIN_SECTIONS } from "../prefs";
 import { registerTools, TOOL_NAMES } from "./tools";
 
-// Mock agent-core's runCommand so the run_command handler tests can assert it is
-// NOT invoked on the fail-closed (no-workspace) path. tools.ts imports runCommand
-// directly (it does NOT inject it), so a module mock is the only seam. This also
-// keeps the test from resolving/injecting real secrets or spawning a process.
+// Mock agent-core's runCommand/gateCommand/appendAudit/captureSecret so the
+// run_command and capture_secret handler tests can assert exactly what IS and
+// is NOT invoked on each branch (fail-closed no-workspace, policy-gate
+// blocked, and the allowed pass-through). tools.ts imports all four directly
+// (it does NOT inject them), so a module mock is the only seam. This also
+// keeps the tests from resolving/injecting real secrets, writing a real audit
+// log, or spawning a process.
 // DEFAULT_AGENT_POLICY is included because prefs.ts (imported by tools.ts) reads
 // it at module-init time to build DEFAULTS -- the mock must export it.
 const runCommandMock = vi.fn();
+const gateCommandMock = vi.fn();
+const appendAuditMock = vi.fn(async (..._args: unknown[]) => undefined);
+const captureSecretMock = vi.fn();
 vi.mock("@airlock/agent-core", () => ({
   DEFAULT_AGENT_POLICY: {
     network: "allow",
@@ -33,6 +39,9 @@ vi.mock("@airlock/agent-core", () => ({
     privilege: "block",
   },
   runCommand: (...args: unknown[]) => runCommandMock(...args),
+  gateCommand: (...args: unknown[]) => gateCommandMock(...args),
+  appendAudit: (...args: unknown[]) => appendAuditMock(...args),
+  captureSecret: (...args: unknown[]) => captureSecretMock(...args),
   // ide-state's listSecretNames calls agent-core's listSecrets; the
   // list_secret_names handler test below needs it to resolve (empty vault).
   listSecrets: async () => [],
@@ -697,13 +706,108 @@ describe("ci_status tool", () => {
   });
 });
 
-describe("capture_secret", () => {
-  it("never returns the captured value", async () => {
+describe("capture_secret tool", () => {
+  // The value-never-leaks guarantee is the ENGINE's contract and is proven
+  // there, against a real captured value: agent-core's capture.test.ts ("the
+  // load-bearing assertion: the value is nowhere in the result"). What the
+  // MCP layer can genuinely assert is its OWN thin-wrapper behavior: the
+  // schema, the fail-closed no-workspace branch, the policy-gate block, and
+  // that an allowed call forwards args and returns the engine's result as-is.
+  function getCaptureSecretTool(deps: typeof baseDeps = baseDeps) {
     const { mcp, tools } = fakeServer();
-    registerTools(mcp, baseDeps);
+    registerTools(mcp, deps);
     const tool = tools.find((t) => t.name === "capture_secret");
-    expect(tool).toBeDefined();
-    const res = await tool?.handler({ command: "echo hi", name: "TOKEN" });
-    expect(JSON.stringify(res)).not.toContain("hi");
+    if (!tool) throw new Error("capture_secret tool not registered");
+    return tool;
+  }
+
+  it("declares the command/name/injectSecrets/cwd/confirm input schema", () => {
+    const tool = getCaptureSecretTool();
+    expect(tool.config.inputSchema).toBeDefined();
+    expect(tool.config.inputSchema?.command).toBeDefined();
+    expect(tool.config.inputSchema?.name).toBeDefined();
+    expect(tool.config.inputSchema?.injectSecrets).toBeDefined();
+    expect(tool.config.inputSchema?.cwd).toBeDefined();
+    expect(tool.config.inputSchema?.confirm).toBeDefined();
+  });
+
+  it("returns NO_WORKSPACE and does NOT call captureSecret with no workspace open", async () => {
+    captureSecretMock.mockClear();
+    // baseDeps.getWorkspaceRoot() is null, so the handler must short-circuit
+    // before reaching agent-core's captureSecret (which would run the command).
+    const tool = getCaptureSecretTool();
+    const res = (await tool.handler({
+      command: "echo hi",
+      name: "TOKEN",
+    })) as { content: [{ text: string }]; isError?: boolean };
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toBe("No workspace open");
+    expect(captureSecretMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks on a policy-gated command, audits it, and does not call captureSecret", async () => {
+    gateCommandMock.mockClear();
+    appendAuditMock.mockClear();
+    captureSecretMock.mockClear();
+    gateCommandMock.mockReturnValue({
+      run: false,
+      action: "block",
+      categories: ["privilege"],
+      reason: "This command uses elevated privileges.",
+    });
+    const tool = getCaptureSecretTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+    });
+    const res = (await tool.handler({
+      command: "sudo az show",
+      name: "TOKEN",
+    })) as { content: [{ text: string }]; isError?: boolean };
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual({
+      blocked: true,
+      action: "block",
+      categories: ["privilege"],
+      reason: "This command uses elevated privileges.",
+    });
+    expect(appendAuditMock).toHaveBeenCalledWith(
+      "/repo",
+      "agent",
+      "command.policy.blocked",
+      { action: "block", categories: ["privilege"] },
+    );
+    expect(captureSecretMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards command/name/injectSecrets/cwd/baseEnv to captureSecret and returns its result verbatim", async () => {
+    gateCommandMock.mockClear();
+    captureSecretMock.mockClear();
+    gateCommandMock.mockReturnValue({ run: true });
+    const engineResult = {
+      captured: true,
+      name: "TOKEN",
+      bytes: 5,
+      exitCode: 0,
+    };
+    captureSecretMock.mockResolvedValue(engineResult);
+    const tool = getCaptureSecretTool({
+      ...baseDeps,
+      getWorkspaceRoot: () => "/repo",
+      getBaseEnv: () => ({ FOO: "bar" }),
+    });
+    const res = (await tool.handler({
+      command: "az containerapp show -o tsv",
+      name: "TOKEN",
+      injectSecrets: ["OTHER"],
+      cwd: "sub",
+    })) as { content: [{ text: string }]; isError?: boolean };
+    expect(captureSecretMock).toHaveBeenCalledWith(
+      "/repo",
+      "az containerapp show -o tsv",
+      "TOKEN",
+      { injectSecrets: ["OTHER"], cwd: "sub", baseEnv: { FOO: "bar" } },
+    );
+    expect(res.isError).toBeUndefined();
+    expect(JSON.parse(res.content[0].text)).toEqual(engineResult);
   });
 });
