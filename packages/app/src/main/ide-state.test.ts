@@ -1,7 +1,12 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { clearSessionSecrets, putSessionSecret } from "@airlock/agent-core";
+import {
+  clearSessionSecrets,
+  type KeychainStore,
+  putSessionSecret,
+  setSecret,
+} from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
 import { listSecretNames, listSidebarSections } from "./ide-state";
 
@@ -56,20 +61,49 @@ describe("listSidebarSections", () => {
 });
 
 describe("listSecretNames", () => {
-  it("includes session-captured names, flagged", async () => {
+  it("includes session-captured names, flagged, alongside a vaulted one flagged the other way", async () => {
     const root = await mkdtemp(
       path.join(tmpdir(), "airlock-ide-state-secrets-"),
     );
     clearSessionSecrets();
+
+    // A real vaulted secret via the broker's own setSecret, backed by an
+    // in-memory fake keychain (same shape as broker.test.ts / run.test.ts /
+    // capture.test.ts in agent-core) -- never touches the real OS keychain.
+    const kcStore = new Map<string, string>();
+    const fake: KeychainStore = {
+      set: (s, a, v) => void kcStore.set(`${s}|${a}`, v),
+      get: (s, a) => kcStore.get(`${s}|${a}`) ?? null,
+      delete: (s, a) => kcStore.delete(`${s}|${a}`),
+    };
+    await setSecret(root, "DATABASE_URL", "postgres://dev", {
+      keychain: fake,
+    });
     putSessionSecret(root, "PROD_URL", "postgres://x", "az show");
+
     const names = await listSecretNames(root);
-    const hit = names.find((n) => n.name === "PROD_URL");
-    expect(hit).toEqual({
+
+    const vaulted = names.find((n) => n.name === "DATABASE_URL");
+    const session = names.find((n) => n.name === "PROD_URL");
+    expect(vaulted).toEqual({
+      name: "DATABASE_URL",
+      provider: null,
+      valid: true,
+      session: false,
+    });
+    expect(session).toEqual({
       name: "PROD_URL",
       provider: null,
       valid: true,
       session: true,
     });
-    expect(JSON.stringify(names)).not.toContain("postgres://x");
+    // Vaulted first, session-captured last -- the ordering the agent relies
+    // on to read the durable/vaulted set before the ephemeral one.
+    expect(names.findIndex((n) => n.name === "DATABASE_URL")).toBeLessThan(
+      names.findIndex((n) => n.name === "PROD_URL"),
+    );
+    const serialised = JSON.stringify(names);
+    expect(serialised).not.toContain("postgres://dev");
+    expect(serialised).not.toContain("postgres://x");
   });
 });
