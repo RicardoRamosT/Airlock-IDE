@@ -41,6 +41,15 @@ export { parseDotEnv } from "./broker/dotenv";
 export { type KeychainStore, systemKeychain } from "./broker/keychain";
 export type { SecretMeta } from "./broker/meta";
 export {
+  clearSessionSecrets,
+  getSessionSecretValue,
+  hasSessionSecret,
+  listSessionSecretNames,
+  putSessionSecret,
+  type SessionSecretMeta,
+  sessionSecretValues,
+} from "./broker/session";
+export {
   type ValidationResult,
   validateSecret,
   validateSecretName,
