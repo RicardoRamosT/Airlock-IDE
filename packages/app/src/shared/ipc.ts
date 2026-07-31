@@ -220,7 +220,6 @@ export interface TerminalInputResult {
   sent?: true;
   denied?: true;
   timedOut?: true;
-  busy?: true;
   error?: string;
 }
 
