@@ -1,376 +1,256 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AgentRequest, SecretRequest } from "../shared/agentRequests";
+import { REGISTRY_MAX } from "../shared/agentRequests";
 import {
-  type GrantNotifier,
+  __resetAgentRequests,
+  dismissAgentRequest,
   gatedTerminalInput,
-  type RequestNotifier,
+  listRequestsForWindow,
+  pruneRequestsOnPtyExit,
   requestSecretFromUser,
+  requestTerminalGrant,
+  rerouteRequestsFromClosedWindow,
+  resolveExternallyVaulted,
   resolveSecretRequest,
   resolveTerminalGrant,
+  setRequestHost,
 } from "./agent-requests";
 
-type NotifyPayload = Parameters<RequestNotifier>[0];
-
-// A fake renderer notifier: records every payload it is handed and reports a
-// live window (returns true) by default. The "no window" case overrides this to
-// return false. Using a fake here is the whole point of the DI seam -- the
-// resolver/timeout/busy logic runs with NO Electron.
-function makeFakeNotify(result = true) {
-  const payloads: NotifyPayload[] = [];
-  const notify: RequestNotifier = (p) => {
-    payloads.push(p);
-    return result;
+// Electron is never touched: the registry reaches windows only through this seam,
+// which is the whole point of the RequestHost DI boundary.
+function fakeHost(live: number[] = [1]) {
+  const h = {
+    live,
+    sent: [] as { windowId: number; requests: AgentRequest[] }[],
+    windowIds: () => h.live,
+    pickWindow: () => h.live[0] ?? null,
+    send: (windowId: number, requests: AgentRequest[]) => {
+      h.sent.push({ windowId, requests });
+    },
   };
-  return { notify, payloads };
+  return h;
 }
 
-// Narrowing accessor: returns the i-th recorded payload, throwing if absent.
-// The repo enables noUncheckedIndexedAccess, so direct payloads[i] is possibly
-// undefined; this asserts the request was recorded and gives a non-optional type.
-function nth(payloads: NotifyPayload[], i: number): NotifyPayload {
-  const p = payloads[i];
-  if (!p) throw new Error(`expected a recorded payload at index ${i}`);
-  return p;
-}
+const names = (windowId = 1) =>
+  listRequestsForWindow(windowId)
+    .filter((r): r is SecretRequest => r.kind === "secret")
+    .map((r) => r.name)
+    .sort();
 
-type GrantPayload = Parameters<GrantNotifier>[0];
-
-// Same narrowing as nth(), for a mocked GrantNotifier: returns its first
-// recorded payload (throwing if absent) so noUncheckedIndexedAccess does not
-// flag the direct calls[0][0] access in the terminal-grant tests below.
-function firstGrant(
-  notify: ReturnType<typeof vi.fn<GrantNotifier>>,
-): GrantPayload {
-  const call = notify.mock.calls[0];
-  if (!call) throw new Error("expected a recorded grant request");
-  return call[0];
-}
-
-afterEach(() => {
-  // Defensive: a test that leaves a pending request (it should not) would make
-  // the next one report busy. Real timers are restored per-test where faked.
-  vi.useRealTimers();
+beforeEach(() => {
+  __resetAgentRequests();
+  setRequestHost(fakeHost());
 });
 
-describe("requestSecretFromUser", () => {
-  it("includes root and projectName (basename) in the notify payload when root is set", () => {
-    const { notify, payloads } = makeFakeNotify();
-    void requestSecretFromUser(
-      "API_KEY",
-      "hint",
-      "/Users/me/myproject",
-      notify,
-    );
-
-    expect(payloads).toHaveLength(1);
-    const p = nth(payloads, 0);
-    expect(p.root).toBe("/Users/me/myproject");
-    expect(p.projectName).toBe("myproject");
-
-    resolveSecretRequest(p.requestId, false);
+describe("queueing", () => {
+  it("allows several concurrent requests instead of refusing the second", () => {
+    // The old single-modal-slot design returned {busy:true} here. A non-blocking
+    // corner stack can hold several, so refusing would be incoherent.
+    void requestSecretFromUser("A", undefined, "/a");
+    void requestSecretFromUser("B", undefined, "/a");
+    expect(names()).toEqual(["A", "B"]);
   });
 
-  it("sets root and projectName to null in the notify payload when root is null", () => {
-    const { notify, payloads } = makeFakeNotify();
-    void requestSecretFromUser("API_KEY", undefined, null, notify);
-
-    expect(payloads).toHaveLength(1);
-    const p = nth(payloads, 0);
-    expect(p.root).toBeNull();
-    expect(p.projectName).toBeNull();
-
-    resolveSecretRequest(p.requestId, false);
+  it("lets a secret request and a terminal grant coexist", () => {
+    void requestSecretFromUser("A", undefined, "/a");
+    void requestTerminalGrant("p1", "proj", "ls");
+    expect(listRequestsForWindow(1)).toHaveLength(2);
   });
 
-  it("notifies the renderer once with a non-empty requestId, name, and providerHint", () => {
-    const { notify, payloads } = makeFakeNotify();
-    void requestSecretFromUser("API_KEY", "hint", null, notify);
+  it("resolves not-vaulted immediately when there is no window to ask", async () => {
+    setRequestHost(fakeHost([]));
+    expect(await requestSecretFromUser("A", undefined, "/a")).toEqual({
+      vaulted: false,
+    });
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+  });
+});
 
-    expect(payloads).toHaveLength(1);
-    expect(nth(payloads, 0).name).toBe("API_KEY");
-    expect(nth(payloads, 0).providerHint).toBe("hint");
-    expect(typeof nth(payloads, 0).requestId).toBe("string");
-    expect(nth(payloads, 0).requestId.length).toBeGreaterThan(0);
-
-    // Clean up the in-flight request so it does not leak into the next test.
-    resolveSecretRequest(nth(payloads, 0).requestId, false);
+describe("coalescing", () => {
+  it("shows one card for the same root and name and resolves BOTH waiters", async () => {
+    const p1 = requestSecretFromUser("DB", undefined, "/a");
+    const p2 = requestSecretFromUser("DB", undefined, "/a");
+    const all = listRequestsForWindow(1);
+    expect(all).toHaveLength(1);
+    resolveSecretRequest(all[0]?.requestId ?? "", true);
+    expect(await p1).toEqual({ vaulted: true });
+    expect(await p2).toEqual({ vaulted: true });
   });
 
-  it("resolves {vaulted:true} when the renderer reports the captured requestId saved", async () => {
-    const { notify, payloads } = makeFakeNotify();
-    const p = requestSecretFromUser("API_KEY", "hint", null, notify);
-
-    resolveSecretRequest(nth(payloads, 0).requestId, true);
-
-    await expect(p).resolves.toEqual({ vaulted: true });
+  it("does not coalesce different names, or the same name in another project", () => {
+    void requestSecretFromUser("DB", undefined, "/a");
+    void requestSecretFromUser("OTHER", undefined, "/a");
+    void requestSecretFromUser("DB", undefined, "/b");
+    expect(listRequestsForWindow(1)).toHaveLength(3);
   });
 
-  it("resolves {vaulted:false} when the renderer reports cancel", async () => {
-    const { notify, payloads } = makeFakeNotify();
-    const p = requestSecretFromUser("API_KEY", "hint", null, notify);
-
-    resolveSecretRequest(nth(payloads, 0).requestId, false);
-
-    await expect(p).resolves.toEqual({ vaulted: false });
+  it("never coalesces terminal grants", () => {
+    void requestTerminalGrant("p1", "proj", "ls");
+    void requestTerminalGrant("p2", "proj", "ls");
+    expect(listRequestsForWindow(1)).toHaveLength(2);
   });
+});
 
-  it("rejects a 2nd request while one is pending (busy) without notifying again", async () => {
-    const { notify, payloads } = makeFakeNotify();
-    const first = requestSecretFromUser("FIRST", undefined, null, notify);
-
-    const second = await requestSecretFromUser(
-      "SECOND",
-      undefined,
-      null,
-      notify,
-    );
-    expect(second).toEqual({ vaulted: false, busy: true });
-    // The fake was NOT called a 2nd time -- no second modal was opened.
-    expect(payloads).toHaveLength(1);
-    expect(nth(payloads, 0).name).toBe("FIRST");
-
-    // The first is still resolvable afterward.
-    resolveSecretRequest(nth(payloads, 0).requestId, true);
-    await expect(first).resolves.toEqual({ vaulted: true });
-  });
-
-  it("resolves {vaulted:false} with no window, leaving no stuck pending entry", async () => {
-    const { notify: noWindow, payloads } = makeFakeNotify(false);
-    await expect(
-      requestSecretFromUser("API_KEY", "hint", null, noWindow),
-    ).resolves.toEqual({ vaulted: false });
-    expect(payloads).toHaveLength(1);
-
-    // A subsequent request still works (the no-window path left nothing pending),
-    // so this one is NOT reported busy and reaches a live fake.
-    const { notify: ok, payloads: okPayloads } = makeFakeNotify();
-    const p = requestSecretFromUser("NEXT", undefined, null, ok);
-    expect(okPayloads).toHaveLength(1);
-    resolveSecretRequest(nth(okPayloads, 0).requestId, true);
-    await expect(p).resolves.toEqual({ vaulted: true });
-  });
-
-  it("times out to {vaulted:false, timedOut:true} and clears pending for the next request", async () => {
+describe("expiry", () => {
+  it("keeps an expired secret request visible but prunes an expired grant", async () => {
     vi.useFakeTimers();
-    const { notify, payloads } = makeFakeNotify();
-    const p = requestSecretFromUser("API_KEY", "hint", null, notify);
-
-    // Advance well past the 5-minute timeout with no resolve.
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
-    await expect(p).resolves.toEqual({ vaulted: false, timedOut: true });
-
-    // Pending was cleared by the timeout -- a new request is NOT busy.
-    const second = requestSecretFromUser("AGAIN", undefined, null, notify);
-    expect(payloads).toHaveLength(2);
-    resolveSecretRequest(nth(payloads, 1).requestId, true);
-    await expect(second).resolves.toEqual({ vaulted: true });
+    const secret = requestSecretFromUser("DB", undefined, "/a");
+    const grant = requestTerminalGrant("p1", "proj", "ls");
+    vi.advanceTimersByTime(5 * 60 * 1000 + 10);
+    expect(await secret).toEqual({ vaulted: false, timedOut: true });
+    expect(await grant).toEqual({ granted: false, timedOut: true });
+    const left = listRequestsForWindow(1);
+    expect(left).toHaveLength(1);
+    expect(left[0]?.kind).toBe("secret");
+    expect(left[0]?.state).toBe("expired");
+    vi.useRealTimers();
   });
 });
 
-// grantedTerminals is module state that persists across tests, so each test uses
-// a UNIQUE ptyId to avoid cross-test grant leakage.
-describe("terminal input grants", () => {
-  it("unknown terminal -> error, no prompt, no write", async () => {
-    const notify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const r = await gatedTerminalInput("p-unknown", "hi\n", {
-      write,
+describe("dismiss", () => {
+  it("moves the card to the bell WITHOUT resolving the agent", async () => {
+    let settled = false;
+    void requestSecretFromUser("DB", undefined, "/a").then(() => {
+      settled = true;
+    });
+    const id = listRequestsForWindow(1)[0]?.requestId ?? "";
+    dismissAgentRequest(id);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(listRequestsForWindow(1)[0]?.dismissed).toBe(true);
+  });
+});
+
+describe("lifecycle pruning", () => {
+  it("prunes a pending grant when its pty exits", async () => {
+    const p = requestTerminalGrant("p1", "proj", "ls");
+    pruneRequestsOnPtyExit("p1");
+    expect(await p).toEqual({ granted: false });
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+  });
+
+  it("leaves a secret request alone on a pty exit", () => {
+    void requestSecretFromUser("DB", undefined, "/a");
+    pruneRequestsOnPtyExit("p1");
+    expect(listRequestsForWindow(1)).toHaveLength(1);
+  });
+
+  it("resolves a matching request when the user vaults the secret by hand", async () => {
+    const p = requestSecretFromUser("DB", undefined, "/a");
+    resolveExternallyVaulted("/a", "DB");
+    expect(await p).toEqual({ vaulted: true });
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+  });
+
+  it("ignores an unrelated external vault write", () => {
+    void requestSecretFromUser("DB", undefined, "/a");
+    resolveExternallyVaulted("/a", "SOMETHING_ELSE");
+    resolveExternallyVaulted("/other", "DB");
+    expect(listRequestsForWindow(1)).toHaveLength(1);
+  });
+});
+
+describe("window lifecycle", () => {
+  it("re-routes to a surviving window when the target window closes", () => {
+    const host = fakeHost([1, 2]);
+    setRequestHost(host);
+    void requestSecretFromUser("DB", undefined, "/a"); // targets 1
+    host.live = [2];
+    rerouteRequestsFromClosedWindow(1);
+    expect(listRequestsForWindow(2)).toHaveLength(1);
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+  });
+
+  it("resolves everything immediately when the LAST window closes", async () => {
+    const host = fakeHost([1]);
+    setRequestHost(host);
+    const p = requestSecretFromUser("DB", undefined, "/a");
+    host.live = [];
+    rerouteRequestsFromClosedWindow(1);
+    // Nothing left to ask -- do not hang to the timeout with nothing on screen.
+    expect(await p).toEqual({ vaulted: false });
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+  });
+
+  it("pushes each window only its OWN requests", () => {
+    const host = fakeHost([1]);
+    setRequestHost(host);
+    void requestSecretFromUser("DB", undefined, "/a");
+    const last = host.sent.at(-1);
+    expect(last?.windowId).toBe(1);
+    expect(last?.requests).toHaveLength(1);
+  });
+});
+
+describe("registry cap", () => {
+  it("never evicts a pending entry under a flood", () => {
+    void requestSecretFromUser("KEEP", undefined, "/a");
+    for (let i = 0; i < REGISTRY_MAX + 10; i++) {
+      void requestTerminalGrant(`p${i}`, "proj", "ls");
+      const g = listRequestsForWindow(1).find(
+        (r) => r.kind === "terminalGrant",
+      );
+      if (g) resolveTerminalGrant(g.requestId, false);
+    }
+    expect(names()).toContain("KEEP");
+  });
+});
+
+describe("resolve", () => {
+  it("resolving the same requestId twice resolves the promise once", async () => {
+    let count = 0;
+    void requestSecretFromUser("DB", undefined, "/a").then(() => {
+      count++;
+    });
+    const id = listRequestsForWindow(1)[0]?.requestId ?? "";
+    resolveSecretRequest(id, true);
+    resolveSecretRequest(id, true);
+    await Promise.resolve();
+    expect(count).toBe(1);
+  });
+
+  it("an unknown requestId is a no-op", () => {
+    expect(() => resolveSecretRequest("nope", true)).not.toThrow();
+  });
+});
+
+describe("gatedTerminalInput", () => {
+  const deps = (written: string[]) => ({
+    write: (_id: string, data: string) => {
+      written.push(data);
+      return true;
+    },
+    label: () => "proj",
+  });
+
+  it("errors when the pty id is unknown", async () => {
+    const r = await gatedTerminalInput("gone", "hi", {
+      write: () => true,
       label: () => null,
-      notify,
     });
-    expect(r).toEqual({ error: expect.any(String) });
-    expect(notify).not.toHaveBeenCalled();
-    expect(write).not.toHaveBeenCalled();
+    expect(r).toEqual({ error: "No such terminal (it may have closed)." });
   });
 
-  it("first send prompts, waits, and on allow writes -> {sent}", async () => {
-    const notify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const promise = gatedTerminalInput("p-allow", "fix tests\n", {
-      write,
-      label: () => "myproj",
-      notify,
-    });
-    expect(notify).toHaveBeenCalledTimes(1);
-    const { requestId, label } = firstGrant(notify);
-    expect(label).toBe("myproj");
-    resolveTerminalGrant(requestId, true);
-    expect(await promise).toEqual({ sent: true });
-    expect(write).toHaveBeenCalledWith("p-allow", "fix tests\n");
+  it("writes once granted, and skips the card for an already-granted pty", async () => {
+    const written: string[] = [];
+    const d = deps(written);
+    const first = gatedTerminalInput("p1", "hi\n", d);
+    const id = listRequestsForWindow(1)[0]?.requestId ?? "";
+    resolveTerminalGrant(id, true);
+    expect(await first).toEqual({ sent: true });
+    // Second send to the same pty must NOT open another card.
+    const second = await gatedTerminalInput("p1", "again\n", d);
+    expect(second).toEqual({ sent: true });
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+    expect(written).toEqual(["hi\n", "again\n"]);
   });
 
-  it("a second send to an already-granted terminal skips the prompt", async () => {
-    const notify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const p1 = gatedTerminalInput("p-twice", "a\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    resolveTerminalGrant(firstGrant(notify).requestId, true);
-    await p1;
-    notify.mockClear();
-    const r2 = await gatedTerminalInput("p-twice", "b\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    expect(notify).not.toHaveBeenCalled();
-    expect(r2).toEqual({ sent: true });
-    expect(write).toHaveBeenLastCalledWith("p-twice", "b\n");
-  });
-
-  it("deny -> {denied}, no write", async () => {
-    const notify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const promise = gatedTerminalInput("p-deny", "x\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    resolveTerminalGrant(firstGrant(notify).requestId, false);
-    expect(await promise).toEqual({ denied: true });
-    expect(write).not.toHaveBeenCalled();
-  });
-
-  it("a second request while one is pending -> {busy}", async () => {
-    const notify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const p1 = gatedTerminalInput("p-busy-1", "x\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    const r2 = await gatedTerminalInput("p-busy-2", "y\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    expect(r2).toEqual({ busy: true });
-    resolveTerminalGrant(firstGrant(notify).requestId, false); // cleanup
-    await p1;
-  });
-
-  it("no live window (notify false) -> {denied}, no write", async () => {
-    const notify = vi.fn<GrantNotifier>(() => false);
-    const write = vi.fn(() => true);
-    const r = await gatedTerminalInput("p-nowin", "x\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    expect(r).toEqual({ denied: true });
-    expect(write).not.toHaveBeenCalled();
-  });
-
-  it("times out to {timedOut:true} when the grant is never resolved, and does not write", async () => {
-    vi.useFakeTimers();
-    const notify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const promise = gatedTerminalInput("p-grant-timeout", "x\n", {
-      write,
-      label: () => "x",
-      notify,
-    });
-    // Advance well past the 5-minute grant timeout with no allow/deny.
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
-    expect(await promise).toEqual({ timedOut: true });
-    expect(write).not.toHaveBeenCalled();
-  });
-});
-
-// Both flows share the renderer's single `modal` slot, so an outstanding request
-// in EITHER flow must make the OTHER flow report busy (else the second modal
-// would clobber the first, stranding the first agent until its timeout). Each
-// test uses unique ptyIds/names since grant/secret state is module-level.
-describe("cross-flow agent-modal busy guard", () => {
-  it("a pending secret request makes a terminal grant for an ungranted pty report busy without notifying", async () => {
-    const { notify: secretNotify, payloads } = makeFakeNotify();
-    // Leave this secret request pending (do not resolve) -- a modal is open.
-    const secret = requestSecretFromUser(
-      "X_SECRET",
-      undefined,
-      null,
-      secretNotify,
-    );
-
-    const grantNotify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const r = await gatedTerminalInput("p-cross-1", "y\n", {
-      write,
-      label: () => "x",
-      notify: grantNotify,
-    });
-    expect(r).toEqual({ busy: true });
-    // No second modal was opened, and nothing was written.
-    expect(grantNotify).not.toHaveBeenCalled();
-    expect(write).not.toHaveBeenCalled();
-
-    // Clean up the pending secret request so it does not leak into later tests.
-    resolveSecretRequest(nth(payloads, 0).requestId, false);
-    await expect(secret).resolves.toEqual({ vaulted: false });
-  });
-
-  it("a pending terminal grant makes a secret request report {vaulted:false, busy:true}", async () => {
-    const grantNotify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    // Leave this grant request pending (do not resolve) -- a modal is open.
-    const grant = gatedTerminalInput("p-cross-2", "z\n", {
-      write,
-      label: () => "x",
-      notify: grantNotify,
-    });
-
-    const { notify: secretNotify, payloads } = makeFakeNotify();
-    const second = await requestSecretFromUser(
-      "Y_SECRET",
-      undefined,
-      null,
-      secretNotify,
-    );
-    expect(second).toEqual({ vaulted: false, busy: true });
-    // No secret modal was opened.
-    expect(payloads).toHaveLength(0);
-
-    // Clean up the pending grant.
-    resolveTerminalGrant(firstGrant(grantNotify).requestId, false);
-    await expect(grant).resolves.toEqual({ denied: true });
-  });
-
-  it("an already-granted pty still resolves immediately even while a secret request is pending", async () => {
-    // First, grant the pty via a resolved grant request.
-    const grantNotify = vi.fn<GrantNotifier>(() => true);
-    const write = vi.fn(() => true);
-    const g1 = gatedTerminalInput("p-cross-3", "a\n", {
-      write,
-      label: () => "x",
-      notify: grantNotify,
-    });
-    resolveTerminalGrant(firstGrant(grantNotify).requestId, true);
-    await g1;
-    grantNotify.mockClear();
-
-    // Now open (and leave pending) a secret request.
-    const { notify: secretNotify, payloads } = makeFakeNotify();
-    const secret = requestSecretFromUser(
-      "Z_SECRET",
-      undefined,
-      null,
-      secretNotify,
-    );
-
-    // The already-granted pty short-circuits before the busy guard: no notify,
-    // resolves {granted:true} (here surfaced as {sent:true} after the write).
-    const r2 = await gatedTerminalInput("p-cross-3", "b\n", {
-      write,
-      label: () => "x",
-      notify: grantNotify,
-    });
-    expect(r2).toEqual({ sent: true });
-    expect(grantNotify).not.toHaveBeenCalled();
-    expect(write).toHaveBeenLastCalledWith("p-cross-3", "b\n");
-
-    // Clean up the pending secret request.
-    resolveSecretRequest(nth(payloads, 0).requestId, false);
-    await expect(secret).resolves.toEqual({ vaulted: false });
+  it("reports denied without writing", async () => {
+    const written: string[] = [];
+    const p = gatedTerminalInput("p9", "rm -rf /\n", deps(written));
+    const id = listRequestsForWindow(1)[0]?.requestId ?? "";
+    resolveTerminalGrant(id, false);
+    expect(await p).toEqual({ denied: true });
+    expect(written).toEqual([]);
   });
 });
