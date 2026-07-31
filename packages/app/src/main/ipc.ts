@@ -122,6 +122,10 @@ import type {
   Section,
   SessionSnapshot,
 } from "../shared/ipc";
+import {
+  pruneRequestsOnPtyExit,
+  resolveExternallyVaulted,
+} from "./agent-requests";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
 import {
@@ -937,6 +941,10 @@ export function registerIpc(
     const old = await getSecretValue(resolved, name);
     const meta = await setSecret(resolved, name, value);
     if (old !== null && old !== value) scrubSecretFromBuffers(old);
+    // An agent may be waiting on a card asking for exactly this secret. Vaulting
+    // it by hand satisfies that request, so resolve it rather than leave a card
+    // asking for something that now exists.
+    resolveExternallyVaulted(resolved, name);
     return meta;
   });
 
@@ -2630,6 +2638,9 @@ export function registerIpc(
         if (target && !target.isDestroyed())
           target.send("pty:exit", { id: s.id, exitCode });
         onPtyExitForDevServer(s.id); // managed dev server: terminal closed -> reset
+        // A pending "let Claude type into this terminal?" card is moot once the
+        // terminal is gone -- approving it could only fail.
+        pruneRequestsOnPtyExit(s.id);
         // Release the listeners explicitly. node-pty has no destroy(); kill()
         // is teardown, but the onData/onExit subscriptions are IDisposables
         // that should be disposed once the session has exited.

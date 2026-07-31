@@ -191,6 +191,13 @@ export function createWindow(): BrowserWindow {
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
     focusOrder = focusOrder.filter((id) => id !== win.id);
+    // Pending agent request cards must not die with the window while their
+    // agents keep waiting -- hand them to a surviving window (or resolve them if
+    // none survives). lazy-require: agent-requests imports windowForRoot from
+    // here, so a top-level import would be a cycle.
+    (
+      require("./agent-requests") as typeof import("./agent-requests")
+    ).rerouteRequestsFromClosedWindow(win.id);
     // A tab drag started here must not leave the cursor poll running, and an
     // unclaimed torn-off tab must not be kept alive for a dead window.
     stopTabDragFor(win.id);

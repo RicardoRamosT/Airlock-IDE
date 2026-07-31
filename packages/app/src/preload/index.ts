@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   AgentCommand,
   AgentCommandResult,
+  AgentRequest,
   AirlockApi,
   AnthropicStatus,
   AppPrefs,
@@ -283,23 +284,13 @@ const api: AirlockApi = {
   onJournalChanged: (cb) => subscribe<{ root: string }>("journal:changed", cb),
   getAgentPolicy: () => ipcRenderer.invoke("agentPolicy:get"),
   setAgentPolicy: (policy) => ipcRenderer.invoke("agentPolicy:set", policy),
-  onRequestSecret: (cb) =>
-    subscribe<{
-      requestId: string;
-      name: string;
-      providerHint?: string;
-      root: string | null;
-      projectName: string | null;
-    }>("agent:request-secret", cb),
+  agentRequestsList: () => ipcRenderer.invoke("agent:requests-list"),
+  onAgentRequests: (cb) =>
+    subscribe<AgentRequest[]>("agent:requests-changed", cb),
+  agentRequestDismiss: (requestId) =>
+    ipcRenderer.invoke("agent:request-dismiss", requestId),
   requestSecretResolve: (requestId, vaulted) =>
     ipcRenderer.invoke("agent:request-secret-resolved", requestId, vaulted),
-  onTerminalGrantRequest: (cb) =>
-    subscribe<{
-      requestId: string;
-      ptyId: string;
-      label: string;
-      preview: string;
-    }>("agent:terminal-grant-request", cb),
   terminalGrantResolve: (requestId, granted) =>
     ipcRenderer.invoke("agent:terminal-grant-resolved", requestId, granted),
   onAgentCommand: (cb) =>

@@ -124,23 +124,9 @@ export function usePrefs(): void {
     });
   }, []);
 
-  // The agent (via the request_secret MCP tool) asks the user to vault a secret.
-  // Main pushes agent:request-secret; open the secure modal for it. SecretModal
-  // reports the outcome back so the awaiting agent is never stranded.
-  useEffect(() => {
-    return window.airlock.onRequestSecret((p) => {
-      useApp.getState().setModal({ requestSecret: p });
-    });
-  }, []);
-
-  // The agent (via send_terminal_input) asks to type into a live terminal. Main
-  // pushes agent:terminal-grant-request; open the approval modal for it. The
-  // modal reports allow/deny back so the awaiting agent is never stranded.
-  useEffect(() => {
-    return window.airlock.onTerminalGrantRequest((p) => {
-      useApp.getState().setModal({ grantTerminal: p });
-    });
-  }, []);
+  // Agent-initiated requests no longer open a modal from here. Main owns the
+  // registry and pushes each window its projection; AgentRequestStack subscribes
+  // via useAgentRequests and renders it in the corner.
 
   // Apply the active theme to the DOM whenever it changes. This single effect
   // covers BOTH hydrate (store.theme updated above) and any live toggle, so
