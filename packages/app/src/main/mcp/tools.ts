@@ -172,7 +172,7 @@ export interface ToolDeps {
     name: string,
     providerHint: string | undefined,
     root: string | null,
-  ) => Promise<{ vaulted: boolean; timedOut?: boolean; busy?: boolean }>;
+  ) => Promise<{ vaulted: boolean; timedOut?: boolean }>;
   // Batch-import env files into the vault for import_env (production wires
   // agent-core's importAllDotEnv in server.ts; tests inject a fake). Returns
   // per-file summaries carrying secret NAMES only -- never a value -- so the
@@ -201,7 +201,7 @@ export interface ToolDeps {
   ) => Promise<{ id: string; preview: string }[]>;
   // Gated terminal input for send_terminal_input: writes agent input into a live
   // pty AFTER a one-time per-terminal user grant (modal). Returns a value-free
-  // outcome (sent/denied/timedOut/busy/error) -- never terminal output or a
+  // outcome (sent/denied/timedOut/error) -- never terminal output or a
   // secret -- so this dep keeps the source-guard green.
   sendTerminalInput: (
     terminalId: string,
@@ -874,7 +874,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "send_terminal_input",
     {
       description:
-        'Send input to a RUNNING terminal: type a prompt into a live Claude session, answer an interactive prompt, or send a keystroke. terminalId is the PTY session id -- the `ptyId` from list_tabs (the same id get_terminal_tail takes, NOT the layout id). data is written verbatim: include "\\n" to submit a line, "\\u0003" for Ctrl-C. The FIRST send to a terminal opens a one-time approval modal in the IDE and waits for the user; once approved, later sends to that terminal proceed without a prompt for the rest of the session. Returns { sent } on success, or { denied } / { timedOut } / { busy } when approval did not complete. You never see the terminal output or its secret values.',
+        'Send input to a RUNNING terminal: type a prompt into a live Claude session, answer an interactive prompt, or send a keystroke. terminalId is the PTY session id -- the `ptyId` from list_tabs (the same id get_terminal_tail takes, NOT the layout id). data is written verbatim: include "\\n" to submit a line, "\\u0003" for Ctrl-C. The FIRST send to a terminal raises a one-time approval prompt in the IDE (a non-blocking card in the corner, not a modal) and waits for the user; once approved, later sends to that terminal proceed without a prompt for the rest of the session. Returns { sent } on success, or { denied } / { timedOut } when approval did not complete. You never see the terminal output or its secret values.',
       inputSchema: {
         terminalId: z.string(),
         data: z.string(),

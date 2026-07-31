@@ -1,11 +1,5 @@
-import {
-  type MouseEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { restartActiveTerminal } from "../lib/restartActiveTerminal";
+import { useEffect, useState } from "react";
+import { useVaultSecret } from "../lib/useVaultSecret";
 import { useApp } from "../store";
 
 const COMMON_NAMES = [
@@ -19,65 +13,36 @@ const COMMON_NAMES = [
   "GITHUB_TOKEN",
 ];
 
+// USER-INITIATED vaulting only: "Add secret" and "Update <name>". Agent-initiated
+// requests do NOT come here any more -- they render as non-blocking cards in the
+// corner (AgentRequestStack), because a dialog the user did not ask for should
+// not seize the window. The keychain write itself goes through useVaultSecret,
+// the one save path shared with those cards.
 export function SecretModal() {
   // The modal is app-global chrome that acts on the FOCUSED project, so it uses
   // the active tab's root (the top-level mirror) -- which equals the window
   // root, so resolveRoot resolves it identically.
-  const { modal, setModal, setSecrets, config, root } = useApp();
+  const { modal, setModal, root } = useApp();
   const updating =
     typeof modal === "object" && modal !== null && "update" in modal
       ? modal.update
       : null;
-  // Agent-requested mode: main pushed agent:request-secret and an agent is
-  // awaiting the round-trip. The name is fixed (the agent specified it) and the
-  // outcome MUST be reported back so the agent is never stranded.
-  const requested =
-    typeof modal === "object" && modal !== null && "requestSecret" in modal
-      ? modal.requestSecret
-      : null;
-  const [name, setName] = useState(requested?.name ?? updating ?? "");
+  const { save, busy } = useVaultSecret();
+  const [name, setName] = useState(updating ?? "");
   const [value, setValue] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // UPDATE mode pre-fill: fetch the CURRENT value so the user can see and
-  // tweak it instead of overwriting blind. true only while that fetch is in
-  // flight (update mode starts loading; add/requested modes never load).
-  // The initializer is correct because App.tsx keys <SecretModal/> per open
-  // (and unmounts it on close), so every open is a fresh mount -- if that
+  // UPDATE mode pre-fill: fetch the CURRENT value so the user can see and tweak
+  // it instead of overwriting blind. true only while that fetch is in flight.
+  // The initializer is correct because App.tsx keys <SecretModal/> per open (and
+  // unmounts it on close), so every open is a fresh mount -- if that
   // remount-per-open contract ever changes, this must become an effect.
   const [loading, setLoading] = useState(updating !== null);
-  // Resolve the awaiting agent exactly once: a save OR a cancel/backdrop/Escape
-  // flips this, and every dismissal path checks it first so a request can never
-  // be resolved twice (the second resolve would be a no-op main-side, but
-  // guarding here keeps the contract explicit).
-  const resolvedRef = useRef(false);
-
-  // Report not-vaulted, then close. Used by Cancel, backdrop click, and Escape
-  // in requested mode. No-op once already resolved (saved or cancelled). Stable
-  // (useCallback) so the Escape effect can depend on it without re-subscribing.
-  const cancelRequested = useCallback(async () => {
-    if (!requested || resolvedRef.current) return;
-    resolvedRef.current = true;
-    await window.airlock.requestSecretResolve(requested.requestId, false);
-    setModal(null);
-  }, [requested, setModal]);
-
-  // Escape dismisses the modal in requested mode (reporting not-vaulted). Only
-  // wired for requested mode so the non-requested modal's behavior is unchanged.
-  useEffect(() => {
-    if (!requested) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") void cancelRequested();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [requested, cancelRequested]);
 
   // secretsReveal is the same owner-triggered, audited (secret.reveal) IPC the
-  // row's Reveal uses -- the value enters the renderer through the existing
-  // door with the same audit trail. A missing keychain entry (null) leaves the
-  // field empty, which is the pre-existing lost-value behavior.
+  // row's Reveal uses -- the value enters the renderer through the existing door
+  // with the same audit trail. A missing keychain entry (null) leaves the field
+  // empty, which is the pre-existing lost-value behavior.
   useEffect(() => {
     if (!updating || !root) {
       setLoading(false);
@@ -106,112 +71,44 @@ export function SecretModal() {
   if (modal === null) return null;
 
   const submit = async () => {
-    // In agent-requested mode, save to the CALLER'S project root (payload.root),
-    // not the currently focused tab's root. This is the whole point of Task 6:
-    // a session in project A asking for a secret while the GUI is focused on B
-    // must vault it in A, not B.
-    const saveRoot = requested?.root ?? root;
-    if (!saveRoot) {
+    if (!root) {
       setError("Open a folder before vaulting a secret.");
       return;
     }
-    setBusy(true);
     setError(null);
-    try {
-      const meta = await window.airlock.secretsSet(
-        saveRoot,
-        name.trim(),
-        value,
-      );
-      // Requested mode: secretsSet RESOLVED, so the keychain write happened --
-      // the agent's request is fulfilled even if the value looks unusual. Report
-      // vaulted:true and close; do NOT keep the modal open on the !valid warning
-      // (the agent is awaiting -- never strand it).
-      if (requested) {
-        resolvedRef.current = true;
-        await window.airlock.requestSecretResolve(requested.requestId, true);
-        setSecrets(await window.airlock.secretsList(saveRoot));
-        setModal(null);
-        // A newly vaulted secret only reaches the shell on spawn, so replace the
-        // active terminal when injection is on.
-        if (config?.injectSecretsIntoTerminal) restartActiveTerminal();
-        return;
-      }
-      if (!meta.valid) {
-        setError(
-          "Saved, but the value looks unusual for this name. Check the provider hint.",
-        );
-      } else {
-        setSecrets(await window.airlock.secretsList(saveRoot));
-        setModal(null);
-        // A newly vaulted secret only reaches the shell on spawn, so replace
-        // the active terminal when injection is on.
-        if (config?.injectSecretsIntoTerminal) restartActiveTerminal();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
+    const r = await save(root, name, value);
+    if (!r.ok) {
+      setError(r.error ?? "Could not save.");
+      return;
     }
+    // Saved either way. On a suspicious value keep the dialog open with the
+    // warning so the user can correct it; the secret IS vaulted regardless.
+    if (r.warning) setError(r.warning);
+    else setModal(null);
   };
 
-  // Backdrop click (the overlay itself, not the modal body) dismisses in
-  // requested mode -- reporting not-vaulted. The target check avoids needing a
-  // stopPropagation handler on the modal body. Keyboard dismissal is the Escape
-  // effect above. Only active in requested mode (undefined otherwise) so the
-  // non-requested modal cannot be backdrop-dismissed (behavior unchanged).
-  const onBackdrop = requested
-    ? (e: MouseEvent) => {
-        if (e.target === e.currentTarget) void cancelRequested();
-      }
-    : undefined;
-
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop is a dismiss affordance, not a control
-    // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard dismissal is handled by the global Escape effect above
-    <div className="modal-backdrop" onClick={onBackdrop}>
+    <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-title">
-          {requested
-            ? requested.projectName
-              ? `Vault ${requested.name} for ${requested.projectName}`
-              : `Vault ${requested.name}`
-            : updating
-              ? `Update ${updating}`
-              : "Add secret"}
+          {updating ? `Update ${updating}` : "Add secret"}
         </div>
-        {requested ? (
-          <input
-            className="modal-input"
-            value={name}
-            readOnly
-            spellCheck={false}
-          />
-        ) : (
-          !updating && (
-            <>
-              <input
-                className="modal-input"
-                placeholder="NAME (e.g. DATABASE_URL)"
-                value={name}
-                onChange={(e) => setName(e.target.value.toUpperCase())}
-                list="common-secret-names"
-                spellCheck={false}
-              />
-              <datalist id="common-secret-names">
-                {COMMON_NAMES.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
-            </>
-          )
-        )}
-        {requested && (
-          <div className="modal-caption">
-            Claude is requesting this secret to use on your behalf. It is
-            vaulted in your keychain; Claude never sees the value.
-            {requested.providerHint ? ` Hint: ${requested.providerHint}` : ""}
-          </div>
+        {!updating && (
+          <>
+            <input
+              className="modal-input"
+              placeholder="NAME (e.g. DATABASE_URL)"
+              value={name}
+              onChange={(e) => setName(e.target.value.toUpperCase())}
+              list="common-secret-names"
+              spellCheck={false}
+            />
+            <datalist id="common-secret-names">
+              {COMMON_NAMES.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </>
         )}
         <textarea
           className={`modal-input modal-value${show ? "" : " masked"}`}
@@ -240,14 +137,7 @@ export function SecretModal() {
           <button
             type="button"
             className="btn"
-            onClick={async () => {
-              if (requested) {
-                await cancelRequested();
-                return;
-              }
-              if (root) setSecrets(await window.airlock.secretsList(root));
-              setModal(null);
-            }}
+            onClick={() => setModal(null)}
             disabled={busy}
           >
             Cancel

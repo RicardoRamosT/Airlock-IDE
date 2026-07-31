@@ -53,10 +53,21 @@ import type {
   TechCategory,
   WorkbookData,
 } from "@airlock/agent-core";
+// Agent-request types live in shared/ (not agent-core) precisely so the renderer
+// can import them as VALUES without pulling in native deps. Re-exported here so
+// preload and the renderer can pull the whole IPC surface from one place.
+import type { AgentRequest } from "./agentRequests";
 
 // DevServerState re-exported via import type only (erased at build — never a
 // value import; only npm run package catches a violation).
 export type { DevServerState } from "@airlock/agent-core";
+export type {
+  AgentRequest,
+  AgentRequestKind,
+  AgentRequestState,
+  SecretRequest,
+  TerminalGrantRequest,
+} from "./agentRequests";
 export type DevServerStartResult =
   | { ok: true; state: DevServerState }
   | { ok: false; needsCommand: true; guess: string | null };
@@ -209,7 +220,6 @@ export interface TerminalInputResult {
   sent?: true;
   denied?: true;
   timedOut?: true;
-  busy?: true;
   error?: string;
 }
 
@@ -1271,29 +1281,21 @@ export interface AirlockApi {
   // the secure modal, then reports the outcome via requestSecretResolve. ONLY a
   // boolean crosses back -- the value goes user -> keychain via secretsSet; the
   // agent never sees it.
-  onRequestSecret(
-    cb: (p: {
-      requestId: string;
-      name: string;
-      providerHint?: string;
-      root: string | null;
-      projectName: string | null;
-    }) => void,
-  ): () => void;
+  // Main owns the registry and pushes each window its OWN projection, so a
+  // window close, a renderer reload or a project tear-off cannot destroy a
+  // pending request while its agent waits. Renderer state is a view, never the
+  // source of truth. Only booleans cross back on resolve -- a vaulted value goes
+  // user -> keychain via secretsSet and the agent never sees it.
+  agentRequestsList(): Promise<AgentRequest[]>;
+  onAgentRequests(cb: (requests: AgentRequest[]) => void): () => void;
+  // Dismiss means LATER: the card moves to the bell and the agent keeps waiting.
+  agentRequestDismiss(requestId: string): Promise<void>;
   requestSecretResolve(requestId: string, vaulted: boolean): Promise<void>;
   // Agent-requested terminal input: main pushes agent:terminal-grant-request when
   // the send_terminal_input MCP tool asks to type into a live terminal. The
   // renderer opens the approval modal, then reports allow/deny via
   // terminalGrantResolve. Only a boolean crosses back -- no terminal output, no
   // secret. `preview` is the agent's own input (never a vault value).
-  onTerminalGrantRequest(
-    cb: (p: {
-      requestId: string;
-      ptyId: string;
-      label: string;
-      preview: string;
-    }) => void,
-  ): () => void;
   terminalGrantResolve(requestId: string, granted: boolean): Promise<void>;
   // Agent IDE-control command: main pushes agent:command when an IDE-control MCP
   // tool (list_tabs/open_tab/close_tab/switch_tab/split_view/open_terminal/

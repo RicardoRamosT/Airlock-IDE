@@ -379,26 +379,12 @@ export interface AppState {
   // resuming. Claiming it makes a resumed tab indistinguishable from a
   // fresh-started one, so hadClaude stays true across restarts.
   adoptResumedClaude: (tabId: string) => void;
+  // USER-INITIATED dialogs only. Agent-initiated requests are NOT modals: main
+  // owns their registry and AgentRequestStack renders them as corner cards, so
+  // an interruption the user did not ask for never seizes the window.
   modal:
     | "add-secret"
     | { update: string }
-    | {
-        requestSecret: {
-          requestId: string;
-          name: string;
-          providerHint?: string;
-          root: string | null;
-          projectName: string | null;
-        };
-      }
-    | {
-        grantTerminal: {
-          requestId: string;
-          ptyId: string;
-          label: string; // project folder name (from main)
-          preview: string; // short echo of the bytes to be sent
-        };
-      }
     | "connect-neon"
     | "connect-render"
     | "connect-slack"

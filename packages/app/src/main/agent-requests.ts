@@ -1,15 +1,28 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { BrowserWindow, ipcMain } from "electron";
+import {
+  AGENT_REQUEST_POLICY,
+  type AgentRequest,
+  coalesceKey,
+  REGISTRY_MAX,
+  type SecretRequest,
+  shouldPruneOn,
+  shouldPruneOnExpiry,
+  type TerminalGrantRequest,
+} from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
 import { windowForRoot } from "./window";
 
-// MAIN-ONLY resolver: the agent (via the request_secret MCP tool) asks the USER
-// to vault a secret. This module pushes an event to the renderer (which opens
-// the secure modal) and resolves a promise when the renderer reports the user's
-// save/cancel. THE INVARIANT: it NEVER reads/returns/handles a secret value --
-// the value flows user -> keychain via the existing secretsSet path. The only
-// thing that crosses back to the agent is the boolean below.
+// MAIN-ONLY registry of agent-initiated requests (request_secret, and
+// send_terminal_input's grant). MAIN OWNS THE STATE and the renderer renders a
+// per-window projection of it -- that is load-bearing, not a preference: if the
+// list lived in renderer state, a window close, a renderer reload or a project
+// tear-off would destroy it while the agent kept waiting.
+//
+// THE INVARIANT: this module NEVER reads/returns/handles a secret value. A
+// vaulted value flows user -> keychain via the existing secretsSet path; the only
+// thing that crosses back to the agent is a boolean.
 //
 // ASCII-only comments AND string literals: this file is CJS-bundled into the
 // Electron main process and Electron's cjs_lexer crashes on multibyte chars.
@@ -17,225 +30,324 @@ import { windowForRoot } from "./window";
 export interface SecretRequestResult {
   vaulted: boolean;
   timedOut?: boolean;
-  busy?: boolean;
 }
 
-// ~5 minutes: long enough for the user to find + paste the secret, bounded so a
-// dismissed/ignored modal never strands the agent waiting forever.
+// ~5 minutes: long enough for the user to find + paste the secret, bounded so an
+// ignored card never strands the agent waiting forever.
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+const GRANT_TIMEOUT_MS = 5 * 60 * 1000;
 
-// In-flight requests keyed by requestId. There is at most one at a time (see the
-// busy guard in requestSecretFromUser), but a Map keeps the resolve+timer paired
-// and makes the resolved-IPC lookup explicit.
-const pending = new Map<
-  string,
-  {
-    resolve: (r: SecretRequestResult) => void;
-    timer: ReturnType<typeof setTimeout>;
-  }
->();
+// How main reaches windows. A DI seam so the registry's queueing, coalescing,
+// expiry, pruning and re-routing are all unit-testable WITHOUT Electron.
+export interface RequestHost {
+  // Ids of live windows.
+  windowIds(): number[];
+  // Which window should own a request for this root.
+  pickWindow(root: string | null): number | null;
+  // Push one window its own projection.
+  send(windowId: number, requests: AgentRequest[]): void;
+}
 
-// DI seam: how we tell the renderer to open the modal. Returns false if there is
-// no live window to ask. Injected in tests so the resolver/timeout/busy logic is
-// unit-testable WITHOUT Electron.
-export type RequestNotifier = (payload: {
-  requestId: string;
-  name: string;
-  providerHint?: string;
-  root: string | null;
-  projectName: string | null;
-}) => boolean;
-
-// Route the prompt to the window that owns `root` (active-tab match first),
-// falling back to the focused window, then any window -- the same escalation
-// as before but now the caller's project window is preferred over GUI focus.
-const realNotify: RequestNotifier = (payload) => {
-  let win: BrowserWindow | null = null;
-  if (payload.root) win = windowForRoot(payload.root);
-  if (!win)
-    win =
+const electronHost: RequestHost = {
+  windowIds: () => BrowserWindow.getAllWindows().map((w) => w.id),
+  pickWindow: (root) => {
+    const win =
+      (root ? windowForRoot(root) : null) ??
       BrowserWindow.getFocusedWindow() ??
       BrowserWindow.getAllWindows()[0] ??
       null;
-  const wc = win?.webContents;
-  if (!wc || wc.isDestroyed()) return false;
-  wc.send("agent:request-secret", payload);
-  return true;
+    return win ? win.id : null;
+  },
+  send: (windowId, requests) => {
+    const wc = BrowserWindow.fromId(windowId)?.webContents;
+    if (wc && !wc.isDestroyed()) wc.send("agent:requests-changed", requests);
+  },
 };
 
-// One agent modal at a time across BOTH flows: they share the renderer's single
-// `modal` slot, so a second request must return busy rather than clobber the
-// first modal (which would unmount it unresolved and strand the first agent).
-function anyAgentModalPending(): boolean {
-  return pending.size > 0 || grantPending.size > 0;
+let host: RequestHost = electronHost;
+
+export function setRequestHost(h: RequestHost): void {
+  host = h;
 }
 
-// MAIN-ONLY: ask the user to vault a secret. Opens the modal and awaits the
-// user's save/cancel. NEVER returns or handles a value -- the value goes
-// user -> keychain via secretsSet; this resolves only a boolean.
-// root identifies the CALLING SESSION's project so the prompt targets that
-// window (not GUI focus) and the renderer saves to that project's vault.
+interface Entry {
+  req: AgentRequest;
+  targetWindowId: number | null;
+  // Coalesced waiters: several agents can await the SAME card.
+  waiters: ((o: { ok: boolean; timedOut?: boolean }) => void)[];
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+const entries = new Map<string, Entry>();
+
+// PTY ids the user has approved for agent input this run. In-memory: clears on
+// quit. Keyed by PTY id (not layout id), so a respawned terminal re-prompts.
+const grantedTerminals = new Set<string>();
+
+// Test-only: drop all state and timers between cases.
+export function __resetAgentRequests(): void {
+  for (const e of entries.values()) if (e.timer) clearTimeout(e.timer);
+  entries.clear();
+  grantedTerminals.clear();
+}
+
+export function listRequestsForWindow(windowId: number): AgentRequest[] {
+  const out: AgentRequest[] = [];
+  for (const e of entries.values())
+    if (e.targetWindowId === windowId) out.push(e.req);
+  return out;
+}
+
+function broadcast(): void {
+  for (const id of host.windowIds()) host.send(id, listRequestsForWindow(id));
+}
+
+// Resolve every waiter exactly once and drop the entry. A missing id (already
+// settled) is a no-op, so a late timeout cannot double-resolve.
+function settle(
+  requestId: string,
+  outcome: { ok: boolean; timedOut?: boolean },
+): void {
+  const e = entries.get(requestId);
+  if (!e) return;
+  if (e.timer) clearTimeout(e.timer);
+  entries.delete(requestId);
+  for (const w of e.waiters) w(outcome);
+  broadcast();
+}
+
+// Evict the oldest NON-pending entries when over the cap. NEVER a pending one --
+// dropping a pending entry strands the agent waiting on it.
+function enforceCap(): void {
+  if (entries.size <= REGISTRY_MAX) return;
+  const evictable = [...entries.values()]
+    .filter((e) => e.req.state !== "pending")
+    .sort((a, b) => a.req.createdAt - b.req.createdAt);
+  for (const e of evictable) {
+    if (entries.size <= REGISTRY_MAX) break;
+    entries.delete(e.req.requestId);
+  }
+}
+
+// On timeout the agent stops waiting. The card does NOT vanish: it flips to
+// "expired" so the user can see why, UNLESS the kind is worthless once expired
+// (a terminal grant), in which case it is pruned.
+function expire(requestId: string): void {
+  const e = entries.get(requestId);
+  if (!e) return;
+  e.timer = null;
+  e.req = { ...e.req, state: "expired" };
+  const waiters = e.waiters;
+  e.waiters = [];
+  if (shouldPruneOnExpiry(e.req)) entries.delete(requestId);
+  for (const w of waiters) w({ ok: false, timedOut: true });
+  broadcast();
+}
+
+function register(
+  req: AgentRequest,
+  timeoutMs: number,
+  waiter: (o: { ok: boolean; timedOut?: boolean }) => void,
+): void {
+  entries.set(req.requestId, {
+    req,
+    targetWindowId: host.pickWindow(req.root),
+    waiters: [waiter],
+    timer: setTimeout(() => expire(req.requestId), timeoutMs),
+  });
+  enforceCap();
+  broadcast();
+}
+
+// Find an existing card that means the same thing, so a second agent asking for
+// the same secret in the same project joins it rather than opening a duplicate.
+function findCoalescable(req: AgentRequest): Entry | null {
+  const key = coalesceKey(req);
+  if (key === null) return null;
+  for (const e of entries.values())
+    if (e.req.state === "pending" && coalesceKey(e.req) === key) return e;
+  return null;
+}
+
+// MAIN-ONLY: ask the user to vault a secret. Resolves only a boolean -- the value
+// goes user -> keychain via secretsSet and never passes through here. `root`
+// identifies the CALLING SESSION's project so the card lands in that project's
+// window rather than following GUI focus.
 export function requestSecretFromUser(
   name: string,
   providerHint: string | undefined,
   root: string | null,
-  notify: RequestNotifier = realNotify,
 ): Promise<SecretRequestResult> {
-  // Single in-flight across BOTH agent-modal flows: a 2nd request while either a
-  // secret OR a terminal-grant modal is pending returns busy rather than
-  // clobbering the open modal (see anyAgentModalPending).
-  if (anyAgentModalPending())
-    return Promise.resolve({ vaulted: false, busy: true });
-  const requestId = randomUUID();
-  // Derive a display name for the project (shown in the modal title so the user
-  // knows which project asked). ASCII-only (path.basename is fine).
-  const projectName = root ? path.basename(root) : null;
-  // No live window to ask -- resolve not-vaulted immediately and leave no
-  // pending entry, so the next request can proceed.
-  if (!notify({ requestId, name, providerHint, root, projectName })) {
+  // No live window to ask -- resolve not-vaulted immediately and store nothing.
+  if (host.pickWindow(root) === null)
     return Promise.resolve({ vaulted: false });
-  }
+  const req: SecretRequest = {
+    kind: "secret",
+    requestId: randomUUID(),
+    state: "pending",
+    createdAt: Date.now(),
+    dismissed: false,
+    root,
+    projectName: root ? path.basename(root) : null,
+    name,
+    providerHint,
+  };
   return new Promise<SecretRequestResult>((resolve) => {
-    const timer = setTimeout(() => {
-      pending.delete(requestId);
-      resolve({ vaulted: false, timedOut: true });
-    }, REQUEST_TIMEOUT_MS);
-    pending.set(requestId, { resolve, timer });
+    const waiter = (o: { ok: boolean; timedOut?: boolean }) =>
+      resolve(
+        o.timedOut ? { vaulted: o.ok, timedOut: true } : { vaulted: o.ok },
+      );
+    const existing = findCoalescable(req);
+    if (existing) {
+      existing.waiters.push(waiter);
+      return;
+    }
+    register(req, REQUEST_TIMEOUT_MS, waiter);
   });
 }
 
-// Resolve a pending request (called from the renderer-resolved IPC). Clears the
-// timeout and the pending entry so a late timeout cannot double-resolve. A
-// missing/unknown requestId (already resolved or timed out) is a no-op.
 export function resolveSecretRequest(
   requestId: string,
   vaulted: boolean,
 ): void {
-  const p = pending.get(requestId);
-  if (!p) return;
-  clearTimeout(p.timer);
-  pending.delete(requestId);
-  p.resolve({ vaulted });
+  settle(requestId, { ok: vaulted });
 }
 
-// Register the renderer-resolved IPC handler. The renderer reports the outcome
-// as (requestId, vaulted: boolean) ONLY -- never a value. Validate the payload
-// shape before resolving so a malformed message cannot resolve a request.
+// --- Terminal input grants (the send_terminal_input MCP tool) ----------------
+// THE INVARIANT: this writes the agent's OWN input bytes; it never reads or
+// returns a secret value.
+
+export function requestTerminalGrant(
+  ptyId: string,
+  label: string,
+  preview: string,
+): Promise<{ granted: boolean; timedOut?: boolean }> {
+  // Already-granted pty opens NO card, so it must short-circuit FIRST.
+  if (grantedTerminals.has(ptyId)) return Promise.resolve({ granted: true });
+  if (host.pickWindow(null) === null)
+    return Promise.resolve({ granted: false });
+  const req: TerminalGrantRequest = {
+    kind: "terminalGrant",
+    requestId: randomUUID(),
+    state: "pending",
+    createdAt: Date.now(),
+    dismissed: false,
+    root: null,
+    projectName: label,
+    ptyId,
+    label,
+    preview,
+  };
+  return new Promise((resolve) => {
+    register(req, GRANT_TIMEOUT_MS, (o) =>
+      resolve(
+        o.timedOut ? { granted: o.ok, timedOut: true } : { granted: o.ok },
+      ),
+    );
+  });
+}
+
+export function resolveTerminalGrant(
+  requestId: string,
+  granted: boolean,
+): void {
+  const e = entries.get(requestId);
+  if (e && e.req.kind === "terminalGrant" && granted)
+    grantedTerminals.add(e.req.ptyId);
+  settle(requestId, { ok: granted });
+}
+
+// --- Lifecycle: the events that make a request moot or move it ---------------
+
+// Dismiss means LATER, not gone: the card moves to the bell and the agent keeps
+// waiting. It does NOT resolve anything.
+export function dismissAgentRequest(requestId: string): void {
+  const e = entries.get(requestId);
+  if (!e || !AGENT_REQUEST_POLICY[e.req.kind].dismissible) return;
+  e.req = { ...e.req, dismissed: true };
+  broadcast();
+}
+
+// A dead pty makes its pending grant moot -- approving it could only fail.
+export function pruneRequestsOnPtyExit(ptyId: string): void {
+  for (const e of [...entries.values()])
+    if (
+      e.req.kind === "terminalGrant" &&
+      e.req.ptyId === ptyId &&
+      shouldPruneOn(e.req, "ptyExit")
+    )
+      settle(e.req.requestId, { ok: false });
+}
+
+// The user vaulted the requested secret by hand while the card was open. The
+// request is satisfied -- resolve it rather than leave a card asking for
+// something that now exists.
+export function resolveExternallyVaulted(root: string, name: string): void {
+  for (const e of [...entries.values()])
+    if (
+      e.req.kind === "secret" &&
+      AGENT_REQUEST_POLICY.secret.resolvesExternally &&
+      e.req.root === root &&
+      e.req.name === name
+    )
+      settle(e.req.requestId, { ok: true });
+}
+
+// A window closing must not take pending requests with it. Re-route to a
+// surviving window; only when NOTHING survives do we resolve them, rather than
+// letting them hang to the timeout with nothing on screen anywhere.
+export function rerouteRequestsFromClosedWindow(closedId: number): void {
+  const survivors = host.windowIds().filter((w) => w !== closedId);
+  for (const e of [...entries.values()]) {
+    if (e.targetWindowId !== closedId) continue;
+    const preferred = host.pickWindow(e.req.root);
+    const next =
+      preferred !== null && preferred !== closedId
+        ? preferred
+        : (survivors[0] ?? null);
+    if (next === null) settle(e.req.requestId, { ok: false });
+    else e.targetWindowId = next;
+  }
+  broadcast();
+}
+
+// --- IPC ---------------------------------------------------------------------
+
 export function registerAgentRequestIpc(): void {
+  ipcMain.handle("agent:requests-list", (e) => {
+    const id = BrowserWindow.fromWebContents(e.sender)?.id;
+    return id === undefined ? [] : listRequestsForWindow(id);
+  });
+  ipcMain.handle("agent:request-dismiss", (_e, requestId: unknown) => {
+    if (typeof requestId !== "string") throw new Error("Invalid payload");
+    dismissAgentRequest(requestId);
+  });
   ipcMain.handle(
     "agent:request-secret-resolved",
     (_e, requestId: unknown, vaulted: unknown) => {
-      if (typeof requestId !== "string" || typeof vaulted !== "boolean") {
+      if (typeof requestId !== "string" || typeof vaulted !== "boolean")
         throw new Error("Invalid payload");
-      }
       resolveSecretRequest(requestId, vaulted);
     },
   );
   ipcMain.handle(
     "agent:terminal-grant-resolved",
     (_e, requestId: unknown, granted: unknown) => {
-      if (typeof requestId !== "string" || typeof granted !== "boolean") {
+      if (typeof requestId !== "string" || typeof granted !== "boolean")
         throw new Error("Invalid payload");
-      }
       resolveTerminalGrant(requestId, granted);
     },
   );
 }
 
-// --- Terminal input grants (the send_terminal_input MCP tool) ----------------
-// Mirrors the secret-request flow above: the agent asks to type into a live
-// terminal; main opens a modal and awaits the user's allow/deny, then on allow
-// remembers that pty id for the rest of the run so later sends skip the prompt.
-// THE INVARIANT: this writes the agent's OWN input bytes; it never reads or
-// returns a secret value. ASCII-only (CJS-bundled into main).
-
-// PTY ids the user has approved for agent input this run. In-memory: clears on
-// quit. Keyed by PTY id (not layout id), so a respawned terminal re-prompts.
-const grantedTerminals = new Set<string>();
-
-const GRANT_TIMEOUT_MS = 5 * 60 * 1000;
-
-const grantPending = new Map<
-  string,
-  {
-    ptyId: string;
-    resolve: (granted: boolean) => void;
-    timer: ReturnType<typeof setTimeout>;
-  }
->();
-
-export type GrantNotifier = (payload: {
-  requestId: string;
-  ptyId: string;
-  label: string;
-  preview: string;
-}) => boolean;
-
-const realGrantNotify: GrantNotifier = (payload) => {
-  const win =
-    BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-  const wc = win?.webContents;
-  if (!wc || wc.isDestroyed()) return false;
-  wc.send("agent:terminal-grant-request", payload);
-  return true;
-};
-
-// Ask the user to allow agent input into one terminal. Resolves immediately when
-// already granted (no modal). One outstanding request at a time (busy), bounded
-// by a timeout so an ignored modal never strands the agent.
-export function requestTerminalGrant(
-  ptyId: string,
-  label: string,
-  preview: string,
-  notify: GrantNotifier = realGrantNotify,
-): Promise<{ granted: boolean; timedOut?: boolean; busy?: boolean }> {
-  // Already-granted pty opens NO modal, so it must short-circuit FIRST -- never
-  // blocked by an unrelated pending modal from either flow.
-  if (grantedTerminals.has(ptyId)) return Promise.resolve({ granted: true });
-  // Busy if EITHER flow has a modal open (they share the renderer's single modal
-  // slot); see anyAgentModalPending.
-  if (anyAgentModalPending())
-    return Promise.resolve({ granted: false, busy: true });
-  const requestId = randomUUID();
-  if (!notify({ requestId, ptyId, label, preview })) {
-    return Promise.resolve({ granted: false });
-  }
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      grantPending.delete(requestId);
-      resolve({ granted: false, timedOut: true });
-    }, GRANT_TIMEOUT_MS);
-    grantPending.set(requestId, {
-      ptyId,
-      resolve: (granted) => resolve({ granted }),
-      timer,
-    });
-  });
-}
-
-// Resolve a pending grant (from the renderer-resolved IPC). On allow, remember
-// the pty id so later sends skip the modal. Unknown/late requestId is a no-op.
-export function resolveTerminalGrant(
-  requestId: string,
-  granted: boolean,
-): void {
-  const p = grantPending.get(requestId);
-  if (!p) return;
-  clearTimeout(p.timer);
-  grantPending.delete(requestId);
-  if (granted) grantedTerminals.add(p.ptyId);
-  p.resolve(granted);
-}
-
 export interface TerminalInputDeps {
   write: (ptyId: string, data: string) => boolean; // false if no live session
   label: (ptyId: string) => string | null; // null if the pty id is unknown
-  notify?: GrantNotifier;
 }
 
-// A short, single-line echo of the bytes to be typed, for the modal. These are
+// A short, single-line echo of the bytes to be typed, for the card. These are
 // the agent's OWN input (never a vault secret -- the agent never holds values);
-// control chars become spaces and the length is bounded. ASCII-only literal.
+// control chars become spaces and the length is bounded.
 function previewInput(data: string): string {
   const oneLine = data.replace(/[^\x20-\x7e]/g, " ").trim();
   return oneLine.length > 80 ? `${oneLine.slice(0, 79)}...` : oneLine;
@@ -251,13 +363,7 @@ export async function gatedTerminalInput(
   const label = deps.label(ptyId);
   if (label === null)
     return { error: "No such terminal (it may have closed)." };
-  const g = await requestTerminalGrant(
-    ptyId,
-    label,
-    previewInput(data),
-    deps.notify,
-  );
-  if (g.busy) return { busy: true };
+  const g = await requestTerminalGrant(ptyId, label, previewInput(data));
   if (g.timedOut) return { timedOut: true };
   if (!g.granted) return { denied: true };
   if (!deps.write(ptyId, data))
