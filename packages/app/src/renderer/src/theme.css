@@ -6315,3 +6315,104 @@ button.docker-row .codicon-chevron-right {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* --- Agent request cards -------------------------------------------------
+   Non-blocking prompts from the AGENT, bottom-right above the status bar.
+   A dialog the user did not open must not seize the window, so there is no
+   backdrop and nothing here takes focus. z-index sits above the panes but
+   BELOW .modal-backdrop (50+), so a user-opened dialog still wins. */
+.agent-request-stack {
+  position: fixed;
+  right: 12px;
+  bottom: 34px; /* clears the 22px status bar + breathing room */
+  z-index: 40;
+  display: flex;
+  flex-direction: column-reverse; /* newest nearest the corner */
+  gap: var(--sb-gap);
+  width: 320px;
+  max-width: calc(100vw - 24px);
+}
+.agent-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  padding: 10px 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+/* Slide-in only where motion is welcome. Under prefers-reduced-motion the card
+   still MOUNTS -- only the animation is dropped (the Loading precedent). */
+@media (prefers-reduced-motion: no-preference) {
+  .agent-request-card {
+    animation: agent-request-in 140ms ease-out;
+  }
+}
+@keyframes agent-request-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.agent-request-card.expired {
+  opacity: 0.85;
+  border-style: dashed;
+}
+.agent-request-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.agent-request-expired,
+.agent-request-hint,
+.agent-request-note {
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.agent-request-error {
+  font-size: 11px;
+  color: var(--danger, #f14c4c);
+}
+.agent-request-input {
+  height: var(--control-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  padding: 0 8px;
+  font-size: 12px;
+}
+.agent-request-preview {
+  font-size: 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.agent-request-actions {
+  display: flex;
+  gap: var(--sb-gap);
+  justify-content: flex-end;
+}
+.agent-request-later {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.agent-request-overflow {
+  font-size: 11px;
+  color: var(--fg-dim);
+  text-align: right;
+}

@@ -1,6 +1,7 @@
 import type React from "react";
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
+import { AgentRequestStack } from "./components/AgentRequestStack";
 import { ExtensionsTab } from "./components/ExtensionsTab";
 import { NeonConnectModal } from "./components/NeonConnectModal";
 import { OAuthDeviceModal } from "./components/OAuthDeviceModal";
@@ -18,7 +19,6 @@ import { SidebarResizer } from "./components/SidebarResizer";
 import { SlackChannelsModal } from "./components/SlackChannelsModal";
 import { SlackConnectModal } from "./components/SlackConnectModal";
 import { StatusBar } from "./components/StatusBar";
-import { TerminalGrantModal } from "./components/TerminalGrantModal";
 import { TerminalManager } from "./components/TerminalManager";
 import { TitleBar } from "./components/TitleBar";
 import { UsageTab } from "./components/UsageTab";
@@ -131,25 +131,16 @@ export function App() {
             survive split toggles / focus swaps / tab switches. */}
         <TerminalManager />
         <StatusBar />
+        {/* Agent-initiated prompts: non-blocking, bottom-right. Mounted once
+            here (not per pane) so it survives tab/split changes. */}
+        <AgentRequestStack />
+        {/* USER-initiated vaulting only. Agent requests render as corner cards. */}
         {(modal === "add-secret" ||
           (typeof modal === "object" &&
             modal !== null &&
-            ("requestSecret" in modal || "update" in modal))) && (
-          <SecretModal
-            key={
-              typeof modal === "string"
-                ? modal
-                : "requestSecret" in modal
-                  ? modal.requestSecret.requestId
-                  : modal.update
-            }
-          />
+            "update" in modal)) && (
+          <SecretModal key={typeof modal === "string" ? modal : modal.update} />
         )}
-        {typeof modal === "object" &&
-          modal !== null &&
-          "grantTerminal" in modal && (
-            <TerminalGrantModal key={modal.grantTerminal.requestId} />
-          )}
         {modal === "connect-neon" && <NeonConnectModal />}
         {modal === "add-database" && <AddDatabaseModal />}
         {modal === "connect-render" && <RenderConnectModal />}
