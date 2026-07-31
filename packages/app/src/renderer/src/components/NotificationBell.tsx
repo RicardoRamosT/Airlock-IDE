@@ -29,13 +29,11 @@ export function NotificationBell() {
         className="titlebar-bell-btn"
         title={
           count > 0
-            ? `${count} request${count === 1 ? "" : "s"} waiting`
-            : "No waiting requests"
+            ? `${count} notification${count === 1 ? "" : "s"} waiting`
+            : "No notifications"
         }
         aria-label={
-          count > 0
-            ? `Notifications: ${count} waiting`
-            : "Notifications: none waiting"
+          count > 0 ? `Notifications: ${count} waiting` : "Notifications: none"
         }
         onClick={() => setOpen((v) => !v)}
       >
@@ -45,7 +43,7 @@ export function NotificationBell() {
       {open && (
         <div className="titlebar-bell-panel">
           {bell.length === 0 ? (
-            <div className="agent-request-note">Nothing waiting.</div>
+            <div className="agent-request-note">No notifications yet.</div>
           ) : (
             bell.map((r) => (
               // Not dismissible from here: it is already dismissed, so a second

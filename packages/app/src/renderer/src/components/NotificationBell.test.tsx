@@ -65,6 +65,12 @@ it("shows no badge when nothing is waiting", async () => {
   expect(document.querySelector(".titlebar-bell-badge")).toBeNull();
 });
 
+it("says so plainly when the bell is empty", async () => {
+  mount([]);
+  fireEvent.click(await screen.findByRole("button"));
+  expect(screen.getByText("No notifications yet.")).toBeTruthy();
+});
+
 it("badges the number of items you can still act on", async () => {
   mount([secret({ requestId: "a" }), secret({ requestId: "b" })]);
   expect(
