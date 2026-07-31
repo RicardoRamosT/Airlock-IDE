@@ -36,11 +36,21 @@ export function AgentRequestStack() {
   );
 }
 
-function AgentRequestCard({ request }: { request: AgentRequest }) {
+// Exported so the notification bell renders the SAME card, rather than a second
+// implementation of "ask for a secret" that can drift from this one.
+// `dismissible` is false in the bell: an item already there has been dismissed,
+// so offering "Later" again would do nothing.
+export function AgentRequestCard({
+  request,
+  dismissible = true,
+}: {
+  request: AgentRequest;
+  dismissible?: boolean;
+}) {
   return request.kind === "secret" ? (
-    <SecretCard request={request} />
+    <SecretCard request={request} dismissible={dismissible} />
   ) : (
-    <GrantCard request={request} />
+    <GrantCard request={request} dismissible={dismissible} />
   );
 }
 
@@ -48,11 +58,13 @@ function CardShell({
   title,
   expiredNote,
   request,
+  dismissible,
   children,
 }: {
   title: string;
   expiredNote: string;
   request: AgentRequest;
+  dismissible: boolean;
   children: React.ReactNode;
 }) {
   const expired = request.state === "expired";
@@ -61,20 +73,28 @@ function CardShell({
       <div className="agent-request-title">{title}</div>
       {expired && <div className="agent-request-expired">{expiredNote}</div>}
       {children}
-      <button
-        type="button"
-        className="agent-request-later"
-        onClick={() =>
-          void window.airlock.agentRequestDismiss(request.requestId)
-        }
-      >
-        Later
-      </button>
+      {dismissible && (
+        <button
+          type="button"
+          className="agent-request-later"
+          onClick={() =>
+            void window.airlock.agentRequestDismiss(request.requestId)
+          }
+        >
+          Later
+        </button>
+      )}
     </div>
   );
 }
 
-function SecretCard({ request }: { request: SecretRequest }) {
+function SecretCard({
+  request,
+  dismissible,
+}: {
+  request: SecretRequest;
+  dismissible: boolean;
+}) {
   const { save, busy } = useVaultSecret();
   const setSecrets = useApp((s) => s.setSecrets);
   const [value, setValue] = useState("");
@@ -107,6 +127,7 @@ function SecretCard({ request }: { request: SecretRequest }) {
       }
       expiredNote="Claude stopped waiting — you can still add this, then ask it to retry."
       request={request}
+      dismissible={dismissible}
     >
       <input
         type="password"
@@ -137,7 +158,13 @@ function SecretCard({ request }: { request: SecretRequest }) {
   );
 }
 
-function GrantCard({ request }: { request: TerminalGrantRequest }) {
+function GrantCard({
+  request,
+  dismissible,
+}: {
+  request: TerminalGrantRequest;
+  dismissible: boolean;
+}) {
   const respond = (granted: boolean) =>
     void window.airlock.terminalGrantResolve(request.requestId, granted);
   return (
@@ -147,6 +174,7 @@ function GrantCard({ request }: { request: TerminalGrantRequest }) {
       // this note is a safety net rather than an expected state.
       expiredNote="Claude stopped waiting; this no longer applies."
       request={request}
+      dismissible={dismissible}
     >
       <div className="agent-request-hint">
         In <strong>{request.label}</strong>

@@ -9,9 +9,15 @@ const initial = useApp.getState();
 beforeEach(() => {
   useApp.setState(initial, true);
   // Permissive stub so any child IPC call is an inert no-op under jsdom.
+  // onAgentRequests is explicit because it is a SUBSCRIPTION: the titlebar hosts
+  // NotificationBell, whose hook calls the returned unsubscribe on unmount, so a
+  // generic promise-returning stub would throw there.
   (window as unknown as { airlock: unknown }).airlock = new Proxy(
-    {},
-    { get: () => () => Promise.resolve(undefined) },
+    { onAgentRequests: () => () => {} },
+    {
+      get: (t, k) =>
+        k in t ? t[k as keyof typeof t] : () => Promise.resolve(undefined),
+    },
   );
 });
 afterEach(cleanup);

@@ -6416,3 +6416,59 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   text-align: right;
 }
+
+/* Notification bell: right end of the titlebar, OUTSIDE TitleQuota's centering
+   group so the title card stays centred with the meter on or off. */
+.titlebar-bell {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+.titlebar-bell-btn {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+}
+.titlebar-bell-btn:hover {
+  color: var(--fg);
+}
+.titlebar-bell-badge {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  min-width: 13px;
+  height: 13px;
+  border-radius: 7px;
+  background: var(--accent, #3794ff);
+  color: #fff;
+  font-size: 9px;
+  line-height: 13px;
+  text-align: center;
+  padding: 0 3px;
+}
+.titlebar-bell-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  z-index: 45;
+}

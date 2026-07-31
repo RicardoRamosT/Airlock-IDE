@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../store";
+import { NotificationBell } from "./NotificationBell";
 import { TitleQuota } from "./TitleQuota";
 
 // Title-case the folder name so the titlebar matches the project tabs.
@@ -87,6 +88,9 @@ export function TitleBar() {
           <i className="codicon codicon-book" />
         </button>
       )}
+      {/* Outside TitleQuota above, so the title card stays centred whether or
+          not the usage meter is on. Traffic lights own the top-LEFT on macOS. */}
+      <NotificationBell />
     </header>
   );
 }
