@@ -4,6 +4,16 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 
 ## Unreleased
 
+### Changed
+- **Claude's prompts no longer take over the screen.** When Claude needs a secret
+  or asks to type into a terminal, it now appears as a small card in the
+  bottom-right instead of a dialog in the middle of everything. Nothing steals
+  your focus, so you can keep typing and deal with it when you want. Dismissing a
+  card sends it to a new notification bell in the top-right rather than throwing
+  it away, so one you close by accident — or mean to handle later — is still
+  there. Several requests can now wait at once; previously a second one was
+  simply refused while the first dialog was open.
+
 ### Added
 - **Claude can now fetch a credential it is not allowed to see.** When a value
   lives in neither `.env` nor the vault but a CLI can produce it, Claude runs the

@@ -492,6 +492,55 @@ vault's value overwrites it on a name collision, so a user-managed secret
 always wins. A name already in the vault is REFUSED (v1) rather than
 overwritten.
 
+## Agent request surface
+
+**Agent-initiated prompts go to the CORNER; user-initiated dialogs stay MODAL.**
+If you clicked "Connect Neon" you asked for a dialog. If Claude interrupts you it
+should not seize the window, so `request_secret` and `send_terminal_input`'s
+grant render as non-blocking cards bottom-right: no backdrop, no autofocus, no
+global Escape capture, `aria-live="polite"`. `add-secret` / `update` /
+`connect-*` are untouched.
+
+**Main OWNS the registry; the renderer renders a projection.** This is
+load-bearing, not a preference. If the list lived in renderer state, a window
+close, a renderer reload or a project tear-off would destroy it while the agent
+kept waiting. Main already held the promises (`main/agent-requests.ts`); it now
+holds the list too and pushes each window its OWN slice, so no window id crosses
+the boundary. The renderer takes a snapshot on mount (`agent:requests-list`) and
+subscribes (`agent:requests-changed`) — the snapshot is the half that survives a
+reload.
+
+**Per-kind behaviour is DATA** (`shared/agentRequests.ts`, pure + unit-tested),
+the same rule `extensionActions` follows. `AGENT_REQUEST_POLICY` declares
+`actionableAfterExpiry` / `pruneOn` / `dismissible` / `resolvesExternally` per
+kind; adding a kind is one row plus a card renderer, and no surface re-derives
+it. The spec also named a `captureOverwrite` kind — deliberately absent, because
+`capture_secret` v1 refuses an already-vaulted name instead of prompting, so it
+would have no producer.
+
+**The expiry asymmetry must not be collapsed.** An expired **secret** request
+stays actionable: vaulting it is still useful and the agent finds it next
+attempt. An expired **terminal grant** does not: the send already returned
+`timedOut`, so approving later authorises nothing — it is pruned. Treating both
+alike would either strand a useful action or offer a button that does nothing.
+
+**Other invariants worth not breaking:**
+- **Never auto-dismiss.** A toast fades; a pending request must not, or the agent
+  waits on something the user never saw. Expiry changes the card's state
+  *visibly* instead of removing it.
+- **Dismiss means LATER.** It moves the card to the titlebar bell and does NOT
+  resolve the agent. The bell sits outside `TitleQuota`'s centering group so the
+  title stays centred with the meter on or off.
+- **The registry cap never evicts a PENDING entry** — that would strand an agent.
+  Eviction takes oldest-non-pending first.
+- **Requests coalesce** by (root, name) for secrets, so two sessions asking for
+  the same secret share one card and both resolve. Grants are keyed by ptyId and
+  never coalesce.
+- `window.ts` **lazy-requires** `agent-requests` because `agent-requests` imports
+  `windowForRoot` from it; a top-level import would be a cycle.
+- Untrusted payloads are normalised in `useAgentRequests` — the stack renders
+  inside the App tree, so a throw during render whites out the whole window.
+
 ## What counts as an extension
 
 **Core is what AirLock authored over your own machine; an extension is an
