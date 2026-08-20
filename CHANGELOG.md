@@ -4,6 +4,23 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 
 ## Unreleased
 
+### Fixed
+- **Projects stop fighting over your GitHub account.** Pinning a project to an
+  account is supposed to make every push from that repo use it, whatever account
+  is active elsewhere. But a pin could go stale without ever saying so: anything
+  that ran `gh auth setup-git` in the repo — including an agent trying to get
+  past a failed push — quietly swapped AirLock's per-account credential for a
+  generic one that just uses whichever account happens to be active. The project
+  still showed as pinned while its pushes went out as the wrong user, so the fix
+  looked like switching accounts, which then broke the next project. AirLock now
+  checks the pin is genuinely in force each time you focus a project and repairs
+  it if not. Pins made before this check existed are repaired the same way.
+- **Focusing a pinned project no longer switches your active GitHub account.**
+  A pinned project carries its own credentials, so there was never a reason to
+  move the machine-wide account when you clicked its tab — and doing so meant a
+  push running in the background from a different project could go out as the
+  wrong user.
+
 ### Changed
 - **Claude's prompts no longer take over the screen.** When Claude needs a secret
   or asks to type into a terminal, it now appears as a small card in the

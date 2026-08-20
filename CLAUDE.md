@@ -282,6 +282,28 @@ push uses whatever `gh` account is **globally active**, so a wrong active accoun
   runs `gh auth switch` to its auto-detected account (fired by
   `useGithubFocusSync` → `github:autoSwitchOnFocus`). **Pinned projects are
   skipped** (immune).
+- **A pin is re-asserted on focus, because a pin ROTS.** `.airlock/config.json`
+  saying a project is pinned is not proof the pin is in force. `gh auth
+  setup-git` — which an agent reaches for the moment a push 404s — replaces our
+  per-account helper with the account-agnostic `gh auth git-credential`, which
+  serves whatever account is globally ACTIVE; and pins written before 2026-07-20
+  never got a helper at all. Both fail SILENTLY: the UI still shows "pinned"
+  while pushes go out as the wrong user, the agent "fixes" it with
+  `gh auth switch`, and every other project's push breaks in turn. That is the
+  account-thrashing loop, and it was live across three repos until 2026-08-20.
+  `ensurePinnedHelper` (called from `github:autoSwitchOnFocus`) diffs the repo's
+  local helper against the pin via `credentialHelperIntact` (pure, unit-tested)
+  and reinstalls when they disagree. The predicate rejects TWO shapes, not one:
+  a missing/foreign scoped helper, AND a foreign helper in the unscoped
+  `credential.helper` list — git runs that list in order and stops at the first
+  helper that answers, so a generic one sitting after our reset wins even though
+  our correct scoped helper is still present.
+- **Pinned projects never move the global account.** `autoSwitchTarget` (pure,
+  in `git/resolve.ts`) returns null for `source === "override"`. Pinning used to
+  force `gh auth switch` on focus so the accounts dialog looked coherent; that
+  made the one global account follow whichever tab you last clicked — breaking
+  background pushes from every other project — and it propped up clobbered pins,
+  hiding the real defect behind what merely looked like churn.
 - **Accepted limitation:** a **non-pinned** project pushing in the **background**
   while a **different-account** project is focused uses the wrong account — the
   machine has one active account. Remedy: **pin it** (pinned repos are immune).

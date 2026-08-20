@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAuthedArgs,
   buildCredentialHelperConfig,
+  credentialHelperIntact,
   runGitAuthed,
 } from "./auth";
 
@@ -60,5 +61,54 @@ describe("buildCredentialHelperConfig", () => {
     expect(() =>
       buildCredentialHelperConfig("evil$(x).com", "octocat"),
     ).toThrow();
+  });
+});
+
+describe("credentialHelperIntact", () => {
+  const host = "github.com";
+  const user = "octocat";
+  const ours = buildCredentialHelperConfig(host, user).set[1]?.value ?? "";
+  const generic = "!/opt/homebrew/bin/gh auth git-credential";
+
+  it("accepts a freshly-installed pin", () => {
+    expect(
+      credentialHelperIntact({ helper: [""], scoped: [ours] }, host, user),
+    ).toBe(true);
+  });
+
+  it("rejects a pin whose scoped helper was removed (legacy pre-0.6 pin)", () => {
+    expect(credentialHelperIntact({ helper: [], scoped: [] }, host, user)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a generic gh helper standing in for ours", () => {
+    // torque: scoped key holds gh's account-agnostic helper -> serves ACTIVE
+    expect(
+      credentialHelperIntact(
+        { helper: [], scoped: ["!gh auth git-credential"] },
+        host,
+        user,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a foreign helper appended after our reset, even when ours survives", () => {
+    // Revaltone-CRM shape: the generic runs BEFORE our scoped one and wins.
+    expect(
+      credentialHelperIntact(
+        { helper: ["", generic], scoped: [ours] },
+        host,
+        user,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a pin belonging to a DIFFERENT account", () => {
+    const other =
+      buildCredentialHelperConfig(host, "hubot").set[1]?.value ?? "";
+    expect(
+      credentialHelperIntact({ helper: [""], scoped: [other] }, host, user),
+    ).toBe(false);
   });
 });
