@@ -130,6 +130,7 @@ export {
   buildAuthedArgs,
   buildCredentialHelperConfig,
   type CredentialHelperConfig,
+  credentialHelperIntact,
   runGitAuthed,
 } from "./git/auth";
 export { ensureCommitIdentity, type GitIdentity } from "./git/identity";
@@ -149,7 +150,11 @@ export {
   unstageFiles,
 } from "./git/ops";
 export { getOrigin, type ParsedRemote, parseRemote } from "./git/remote";
-export { type ResolvedAccount, resolveProjectAccount } from "./git/resolve";
+export {
+  autoSwitchTarget,
+  type ResolvedAccount,
+  resolveProjectAccount,
+} from "./git/resolve";
 export { isGitRepo, runGit } from "./git/run";
 export {
   type BranchInfo,

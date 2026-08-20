@@ -36,3 +36,43 @@ export function resolveProjectAccount(
   }
   return { account: null, source: "none", protocol };
 }
+
+// Which account, if any, the machine's ACTIVE gh account should be switched to
+// when this project takes focus. Pure -- the caller supplies the resolution, the
+// logged-in accounts, the pref, and the repo's configured commit name.
+//
+// A PINNED project returns null: its repo-local credential helper already
+// authenticates every push as the pinned account, so moving the global active
+// account buys nothing and costs a lot. Switching on focus made the ONE global
+// account follow whichever project you last clicked, so a background push from
+// any other project went out as the wrong user -- and it silently propped up
+// pins whose helper had been clobbered, hiding the real breakage behind a
+// symptom that only looked like churn.
+export function autoSwitchTarget(
+  resolved: ResolvedAccount,
+  accounts: GhAccount[],
+  enabled: boolean,
+  commitName: string,
+): { host: string; username: string } | null {
+  if (resolved.source === "override") return null; // pinned: helper handles it
+  if (!enabled) return null;
+
+  let target = resolved.account;
+  if (!target) {
+    // No owner match. Fall back to the repo's commit name matching a logged-in
+    // account -- what makes an ORG repo work, where origin's owner is the org
+    // but `git config user.name` is the account you actually commit as.
+    const name = commitName.trim().toLowerCase();
+    const m = name
+      ? accounts.find((a) => a.username.toLowerCase() === name)
+      : undefined;
+    if (m) target = { host: m.host, username: m.username };
+  }
+  if (!target) return null;
+
+  const active = accounts.find((a) => a.active);
+  if (active?.host === target.host && active.username === target.username) {
+    return null; // already correct
+  }
+  return target;
+}

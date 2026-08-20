@@ -1,7 +1,11 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { GhAccount } from "../github/accounts";
 import { parseRemote } from "./remote";
-import { resolveProjectAccount } from "./resolve";
+import {
+  autoSwitchTarget,
+  type ResolvedAccount,
+  resolveProjectAccount,
+} from "./resolve";
 
 const accounts: GhAccount[] = [
   { host: "github.com", username: "octocat", active: true },
@@ -64,5 +68,64 @@ it("reports ssh protocol and no remote", () => {
     account: null,
     source: "none",
     protocol: "unknown",
+  });
+});
+
+describe("autoSwitchTarget", () => {
+  const pool: GhAccount[] = [
+    { host: "github.com", username: "vnricardotrevino", active: true },
+    { host: "github.com", username: "RicardoRamosT", active: false },
+  ];
+  const pinned: ResolvedAccount = {
+    account: { host: "github.com", username: "RicardoRamosT" },
+    source: "override",
+    protocol: "https",
+  };
+  const auto: ResolvedAccount = {
+    account: { host: "github.com", username: "RicardoRamosT" },
+    source: "auto",
+    protocol: "https",
+  };
+  const none: ResolvedAccount = {
+    account: null,
+    source: "none",
+    protocol: "https",
+  };
+
+  it("never switches for a PINNED project, even when the active account differs", () => {
+    expect(autoSwitchTarget(pinned, pool, true, "")).toBeNull();
+    expect(autoSwitchTarget(pinned, pool, false, "")).toBeNull();
+  });
+
+  it("switches a non-pinned project to its detected account", () => {
+    expect(autoSwitchTarget(auto, pool, true, "")).toEqual({
+      host: "github.com",
+      username: "RicardoRamosT",
+    });
+  });
+
+  it("stays put when the pref is off", () => {
+    expect(autoSwitchTarget(auto, pool, false, "")).toBeNull();
+  });
+
+  it("stays put when the target is already active", () => {
+    const already: ResolvedAccount = {
+      account: { host: "github.com", username: "vnricardotrevino" },
+      source: "auto",
+      protocol: "https",
+    };
+    expect(autoSwitchTarget(already, pool, true, "")).toBeNull();
+  });
+
+  it("falls back to the commit name for an ORG repo, case-insensitively", () => {
+    expect(autoSwitchTarget(none, pool, true, "ricardoramost")).toEqual({
+      host: "github.com",
+      username: "RicardoRamosT",
+    });
+  });
+
+  it("stays put when nothing resolves", () => {
+    expect(autoSwitchTarget(none, pool, true, "")).toBeNull();
+    expect(autoSwitchTarget(none, pool, true, "nobody")).toBeNull();
   });
 });

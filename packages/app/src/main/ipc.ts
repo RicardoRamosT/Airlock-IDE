@@ -168,6 +168,7 @@ import {
   applyCredentialHelper,
   autoSwitchForFocus,
   ensureIdentityFor,
+  ensurePinnedHelper,
   resolveFor,
   tokenFor,
 } from "./github/account";
@@ -1395,14 +1396,19 @@ export function registerIpc(
     },
   );
 
-  // Fired by the renderer when the focused project changes. Best-effort global
-  // gh account switch for NON-PINNED projects, gated by the githubAutoSwitch
-  // pref. Pinned projects are untouched (they carry their own credential helper).
+  // Fired by the renderer when the focused project changes. Two jobs: re-assert
+  // a PINNED project's credential helper if something clobbered it (an agent
+  // running `gh auth setup-git` after a push 404 is the usual culprit), then --
+  // for NON-PINNED projects only -- best-effort switch the global gh account,
+  // gated by the githubAutoSwitch pref.
   ipcMain.handle("github:autoSwitchOnFocus", (e, root: unknown) => {
     const resolved = resolveRoot(e, root);
     // Chain onto the prior switch so they run one at a time, in focus order.
     const run = ghAutoSwitchChain.then(async () => {
       const prefs = await loadPrefs(prefsFile);
+      if (await ensurePinnedHelper(resolved)) {
+        console.warn(`[airlock] repaired clobbered gh pin in ${resolved}`);
+      }
       await autoSwitchForFocus(resolved, prefs.githubAutoSwitch);
     });
     // Non-rejecting tail so one failed switch can't wedge the queue.

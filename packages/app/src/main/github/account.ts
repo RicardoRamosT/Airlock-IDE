@@ -1,5 +1,7 @@
 import {
+  autoSwitchTarget,
   buildCredentialHelperConfig,
+  credentialHelperIntact,
   ensureCommitIdentity,
   getOrigin,
   ghAccounts,
@@ -90,52 +92,62 @@ export async function applyCredentialHelper(
   }
 }
 
+// Read every value of a multi-valued local git config key, in git's own order.
+// An absent key throws (exit 1) => []. An empty value is MEANINGFUL here (it is
+// our reset), so only the trailing newline is stripped -- never blank entries.
+async function localValues(root: string, key: string): Promise<string[]> {
+  const out = await runGit(root, ["config", "--local", "--get-all", key]).catch(
+    () => "",
+  );
+  return out === "" ? [] : out.replace(/\n$/, "").split("\n");
+}
+
+// Re-assert a pin whose credential helper no longer matches it. A pin recorded
+// in .airlock/config.json is not proof of a pin in force: `gh auth setup-git`
+// (which an agent reaches for the moment a push 404s) replaces our per-account
+// helper with an account-agnostic one, and pins written before the helper
+// existed never had one at all. Both leave the repo pushing as the machine's
+// ACTIVE account while the UI still shows it pinned. Returns whether it
+// repaired. Best-effort: focus must never fail on a git issue.
+export async function ensurePinnedHelper(root: string): Promise<boolean> {
+  try {
+    const pin = (await readProjectConfig(root)).githubAccount;
+    if (!pin) return false; // not pinned: nothing to assert
+    const originUrl = await getOrigin(root).catch(() => null);
+    const remote = originUrl ? parseRemote(originUrl) : null;
+    if (remote?.protocol !== "https") return false; // ssh pushes by key
+    const [helper, scoped] = await Promise.all([
+      localValues(root, "credential.helper"),
+      localValues(root, `credential.https://${pin.host}.helper`),
+    ]);
+    if (credentialHelperIntact({ helper, scoped }, pin.host, pin.username)) {
+      return false;
+    }
+    await applyCredentialHelper(root, pin);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // On focusing a NON-PINNED project, switch the machine's active gh account to
-// the project's detected account (best-effort). Skipped for pinned projects
-// (source==="override" -- they carry their own credential helper) and when the
-// pref is off. Never throws: focus must not fail on gh issues.
+// the project's detected account (best-effort), gated by the pref. PINNED
+// projects are skipped -- their credential helper authenticates every push on
+// its own, so the global account never has to follow focus. Never throws.
 export async function autoSwitchForFocus(
   root: string,
   enabled: boolean,
 ): Promise<void> {
   try {
     const r = await resolveFor(root);
+    if (r.source === "override") return; // pinned: the helper is authoritative
     const gh = await ghAccounts();
-    let target: { host: string; username: string } | null = null;
-    if (r.source === "override" && r.account) {
-      // PINNED: the pin is authoritative -- always make it the active account
-      // on focus (independent of the pref), so the active account matches the
-      // pin and the dialog's row-lock is coherent.
-      target = r.account;
-    } else if (enabled) {
-      // NON-pinned: best-effort, gated by the pref. Owner-detected account, else
-      // FALL BACK to the repo's configured commit name matching a logged-in
-      // account -- what makes an ORG repo work (origin owner is the org, but
-      // `git config user.name` is the account you commit as, which does match a
-      // logged-in gh account).
-      target = r.account;
-      if (!target) {
-        const name = (
-          await runGit(root, ["config", "user.name"]).catch(() => "")
-        ).trim();
-        const m =
-          name.length > 0
-            ? gh.accounts.find(
-                (a) => a.username.toLowerCase() === name.toLowerCase(),
-              )
-            : undefined;
-        if (m) target = { host: m.host, username: m.username };
-      }
-    }
-    if (!target) return; // nothing to apply
-    const active = gh.accounts.find((a) => a.active);
-    if (
-      active &&
-      active.host === target.host &&
-      active.username === target.username
-    ) {
-      return; // already correct
-    }
+    // The commit-name fallback only matters when the owner match came up empty.
+    const commitName = r.account
+      ? ""
+      : await runGit(root, ["config", "user.name"]).catch(() => "");
+    const target = autoSwitchTarget(r, gh.accounts, enabled, commitName);
+    if (!target) return;
     await switchGhAccount(target.host, target.username);
   } catch {
     // best-effort

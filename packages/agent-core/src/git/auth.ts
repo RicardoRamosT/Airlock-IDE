@@ -83,3 +83,31 @@ export function buildCredentialHelperConfig(
     unset: ["credential.helper", scopedKey],
   };
 }
+
+// Is this repo's LOCAL credential config still the pin we installed? Two ways
+// it rots, both observed in the wild (2026-08-20):
+//   - our host-scoped helper is gone -- a pin written before this feature
+//     existed, or `gh auth setup-git` clearing the key; or
+//   - a FOREIGN helper sits in the unscoped list after our empty reset. git
+//     runs the list in order and stops at the first helper that answers, so
+//     gh's account-agnostic `gh auth git-credential` gets there first and
+//     serves whatever account is globally ACTIVE.
+// Both fail silently -- the push just goes out as the wrong user -- so callers
+// reinstall rather than trusting that a pin recorded in config is a pin in
+// force. An unparseable host/username is reported intact: it is not repairable
+// (buildCredentialHelperConfig would reject it), so there is nothing to do.
+export function credentialHelperIntact(
+  local: { helper: string[]; scoped: string[] },
+  host: string,
+  username: string,
+): boolean {
+  let ours: string | undefined;
+  try {
+    ours = buildCredentialHelperConfig(host, username).set[1]?.value;
+  } catch {
+    return true;
+  }
+  if (!ours || !local.scoped.includes(ours)) return false;
+  // Only our own empty reset may appear in the unscoped list.
+  return local.helper.every((v) => v.trim() === "");
+}
