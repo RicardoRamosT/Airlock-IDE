@@ -11,24 +11,53 @@
 // hooks in print mode, this is the file to revisit.
 
 import { spawn } from "node:child_process";
+import { homedir } from "node:os";
 import {
   buildComposerArgs,
   type ComposerResult,
   parseComposerOutput,
 } from "@airlock/agent-core";
+import { emitEvent } from "../eventlog/wire";
 
 export type SpawnFn = (args: string[], stdin: string) => Promise<string>;
 
 export function spawnClaude(args: string[], stdin: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", args, { stdio: ["pipe", "pipe", "ignore"] });
+    // stderr is CAPTURED, not ignored. It was ignored, so a failing run gave
+    // the user "Could not reach Claude" and left nobody -- including the logs
+    // -- any way to find out why.
+    // Explicit cwd: a Finder-launched app inherits an arbitrary working
+    // directory (often "/"), and the home directory is a stable, predictable
+    // place to run from. Project access comes from --add-dir, not from cwd.
+    const child = spawn("claude", args, {
+      cwd: homedir(),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     let out = "";
+    let err = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       out += chunk;
     });
-    child.on("error", reject);
-    child.on("close", () => resolve(out));
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      // Bounded: a runaway process must not grow this without limit.
+      if (err.length < 4000) err += chunk;
+    });
+    child.on("error", (e) =>
+      reject(new Error(`spawn claude failed: ${e.message}`)),
+    );
+    child.on("close", (code) => {
+      if (code === 0 || out.includes("{")) {
+        resolve(out);
+        return;
+      }
+      reject(
+        new Error(
+          `claude exited ${code ?? "?"}${err.trim() ? `: ${err.trim().slice(0, 500)}` : " with no output"}`,
+        ),
+      );
+    });
     child.stdin.on("error", reject);
     child.stdin.end(stdin);
   });
@@ -42,8 +71,26 @@ export async function runComposer(
   model?: string,
 ): Promise<ComposerResult | null> {
   try {
-    return parseComposerOutput(await spawnFn(buildComposerArgs(model), prompt));
-  } catch {
+    const raw = await spawnFn(buildComposerArgs(model), prompt);
+    const parsed = parseComposerOutput(raw);
+    if (parsed === null) {
+      emitEvent({
+        level: "error",
+        category: "atlas",
+        op: "atlas.compose",
+        outcome: "error",
+        detail: { reason: "unparseable output", head: raw.slice(0, 300) },
+      });
+    }
+    return parsed;
+  } catch (e) {
+    emitEvent({
+      level: "error",
+      category: "atlas",
+      op: "atlas.compose",
+      outcome: "error",
+      detail: { reason: e instanceof Error ? e.message : String(e) },
+    });
     return null;
   }
 }

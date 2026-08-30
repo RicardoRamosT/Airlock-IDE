@@ -21,6 +21,7 @@ import {
   type RootSnapshot,
   splitReply,
 } from "@airlock/agent-core";
+import { emitEvent } from "../eventlog/wire";
 import type { SpawnFn } from "./composer";
 import { refreshPortfolio } from "./refresh";
 import {
@@ -98,15 +99,30 @@ export async function sendMessage(
 
   let raw: string;
   try {
-    // Plan 2's argv builder, reused: identical cost flags, different model and
-    // system prompt.
     raw = await deps.spawn(buildChatArgs(deps.roots()), prompt);
-  } catch {
+  } catch (e) {
+    // Do not swallow it: a silent "Could not reach Claude" is unactionable.
+    emitEvent({
+      level: "error",
+      category: "atlas",
+      op: "atlas.chat",
+      outcome: "error",
+      detail: { reason: e instanceof Error ? e.message : String(e) },
+    });
     return null;
   }
 
   const result = parseComposerOutput(raw);
-  if (result === null) return null;
+  if (result === null) {
+    emitEvent({
+      level: "error",
+      category: "atlas",
+      op: "atlas.chat",
+      outcome: "error",
+      detail: { reason: "unparseable output", head: raw.slice(0, 300) },
+    });
+    return null;
+  }
 
   const { prose, facts: incoming } = splitReply(result.text);
 
