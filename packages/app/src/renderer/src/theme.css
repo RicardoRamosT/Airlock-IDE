@@ -7038,3 +7038,50 @@ button.docker-row .codicon-chevron-right {
 .atlas-turn-atlas .atlas-brief-gap {
   height: 5px;
 }
+
+/* Past conversations. Nothing is deleted by "New chat", so this is a real
+   trail rather than a courtesy list. */
+.atlas-history {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.atlas-history-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.atlas-history-row:hover {
+  background: var(--bg-panel);
+}
+.atlas-history-when {
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.atlas-history-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.atlas-history-count {
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+.atlas-popover-head {
+  gap: 6px;
+}

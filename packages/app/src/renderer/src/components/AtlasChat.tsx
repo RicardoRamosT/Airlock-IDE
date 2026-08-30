@@ -22,7 +22,13 @@ function withKey(t: Turn): Shown {
   return { ...t, key: `t${keySeq}` };
 }
 
-export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
+export function AtlasChat({
+  chrome = true,
+  reloadKey = 0,
+}: {
+  chrome?: boolean;
+  reloadKey?: number;
+} = {}) {
   const [turns, setTurns] = useState<Shown[]>([]);
   const [asked, setAsked] = useState(false);
   const [draft, setDraft] = useState("");
@@ -106,20 +112,6 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
       <div className="atlas-window">
         {titlebar}
         <div className="atlas-chat">
-          <div className="atlas-chat-bar">
-            <button
-              type="button"
-              className="atlas-btn"
-              title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
-              onClick={() => {
-                void window.airlock?.atlasNewChat();
-                setTurns([]);
-                setFailed(false);
-              }}
-            >
-              New chat
-            </button>
-          </div>
           <div className="atlas-chat-log">
             <p className="atlas-chat-empty">Loading...</p>
           </div>
@@ -132,20 +124,6 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
     <div className="atlas-window">
       {titlebar}
       <div className="atlas-chat">
-        <div className="atlas-chat-bar">
-          <button
-            type="button"
-            className="atlas-btn"
-            title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
-            onClick={() => {
-              void window.airlock?.atlasNewChat();
-              setTurns([]);
-              setFailed(false);
-            }}
-          >
-            New chat
-          </button>
-        </div>
         <div className="atlas-chat-log">
           {turns.length === 0 ? (
             <p className="atlas-chat-empty">
@@ -154,7 +132,8 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
           ) : (
             turns.map((t) => (
               <div key={t.key} className={`atlas-turn atlas-turn-${t.role}`}>
-                {t.text}
+                {/* Atlas writes markdown; the user's text is shown as typed. */}
+                {t.role === "atlas" ? renderBrief(t.text) : t.text}
               </div>
             ))
           )}

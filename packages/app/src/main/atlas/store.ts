@@ -42,10 +42,11 @@ CREATE TABLE IF NOT EXISTS fact (
   supersededAt INTEGER
 );
 CREATE TABLE IF NOT EXISTS turn (
-  seq  INTEGER PRIMARY KEY AUTOINCREMENT,
-  role TEXT NOT NULL,
-  text TEXT NOT NULL,
-  at   INTEGER NOT NULL
+  seq     INTEGER PRIMARY KEY AUTOINCREMENT,
+  role    TEXT NOT NULL,
+  text    TEXT NOT NULL,
+  at      INTEGER NOT NULL,
+  session INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS kv (
   k TEXT PRIMARY KEY,
@@ -232,23 +233,23 @@ export function writeFacts(
 }
 
 export function appendTurn(db: DatabaseSync, turn: Turn, at: number): void {
-  db.prepare("INSERT INTO turn (role, text, at) VALUES (?, ?, ?)").run(
-    turn.role,
-    turn.text,
-    at,
-  );
+  // The active boundary doubles as the session id: no extra bookkeeping, and
+  // every turn is permanently attributable to the conversation it belonged to.
+  db.prepare(
+    "INSERT INTO turn (role, text, at, session) VALUES (?, ?, ?, ?)",
+  ).run(turn.role, turn.text, at, readChatSince(db));
 }
 
 // The most recent `limit` turns, returned OLDEST FIRST so the caller can append
 // them to a prompt in reading order. Turns older than the conversation
 // boundary are excluded -- that is what "New chat" means.
 export function readTurns(db: DatabaseSync, limit: number): Turn[] {
-  const since = readChatSince(db);
+  const session = readChatSince(db);
   const rows = db
     .prepare(
-      "SELECT role, text FROM turn WHERE at >= ? ORDER BY seq DESC LIMIT ?",
+      "SELECT role, text FROM turn WHERE session = ? ORDER BY seq DESC LIMIT ?",
     )
-    .all(since, limit) as { role: string; text: string }[];
+    .all(session, limit) as { role: string; text: string }[];
   return rows
     .reverse()
     .map((r) => ({ role: r.role as Turn["role"], text: r.text }));
@@ -283,4 +284,29 @@ export function writeChatSince(db: DatabaseSync, at: number): void {
   db.prepare(
     "INSERT INTO kv (k, v) VALUES ('chatSince', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
   ).run(String(at));
+}
+
+export interface ChatSession {
+  session: number; // the boundary value that identifies it
+  startedAt: number; // epoch ms of its first turn
+  turns: number;
+  preview: string; // the user's opening message, for the list
+}
+
+// Past conversations, newest first. Nothing is ever deleted, so "New chat"
+// leaves a browsable trail rather than throwing work away.
+export function listSessions(db: DatabaseSync, limit = 30): ChatSession[] {
+  return db
+    .prepare(
+      "SELECT session, MIN(at) AS startedAt, COUNT(*) AS turns, " +
+        "(SELECT text FROM turn t2 WHERE t2.session = t.session AND t2.role = 'user' ORDER BY seq LIMIT 1) AS preview " +
+        "FROM turn t GROUP BY session ORDER BY startedAt DESC LIMIT ?",
+    )
+    .all(limit) as unknown as ChatSession[];
+}
+
+// Reopen a past conversation: point the boundary back at it, so it becomes the
+// active session again and can simply be continued.
+export function resumeSession(db: DatabaseSync, session: number): void {
+  writeChatSince(db, session);
 }

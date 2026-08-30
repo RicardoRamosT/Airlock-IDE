@@ -135,7 +135,14 @@ import { spawnClaude } from "./atlas/composer";
 import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
 import { makeCollectDeps } from "./atlas/runners";
-import { dayKey, readBrief, readTurns, writeChatSince } from "./atlas/store";
+import {
+  dayKey,
+  listSessions,
+  readBrief,
+  readTurns,
+  resumeSession,
+  writeChatSince,
+} from "./atlas/store";
 import { openAtlasWindow } from "./atlas/trayWindow";
 import {
   detectUnmanaged,
@@ -1095,6 +1102,12 @@ export function registerIpc(
   // still knows the deadlines and priorities it was told.
   ipcMain.handle("atlas:newChat", () => {
     writeChatSince(atlasDb(), Date.now());
+  });
+  ipcMain.handle("atlas:sessions", () => listSessions(atlasDb()));
+  ipcMain.handle("atlas:resume", (_e, session: unknown) => {
+    if (typeof session === "number" && Number.isFinite(session)) {
+      resumeSession(atlasDb(), session);
+    }
   });
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
   ipcMain.handle("atlas:state", async () => {

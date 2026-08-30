@@ -8,6 +8,7 @@ import {
   appendTurn,
   dayKey,
   lastBriefDay,
+  listSessions,
   openAtlasDb,
   readAskedDay,
   readBrief,
@@ -15,6 +16,7 @@ import {
   readRegistry,
   readSnapshot,
   readTurns,
+  resumeSession,
   saveBrief,
   saveSnapshot,
   writeAskedDay,
@@ -268,4 +270,46 @@ it("deletes nothing: a boundary moved back reveals the old turns again", () => {
   expect(readTurns(d, 10)).toEqual([]);
   writeChatSince(d, 0);
   expect(readTurns(d, 10).map((t) => t.text)).toEqual(["old"]);
+});
+
+it("lists past conversations newest-first, with a preview and a count", () => {
+  const d = db();
+  writeChatSince(d, 100);
+  appendTurn(d, { role: "user", text: "first question" }, 110);
+  appendTurn(d, { role: "atlas", text: "an answer" }, 120);
+  writeChatSince(d, 200);
+  appendTurn(d, { role: "user", text: "second question" }, 210);
+
+  const out = listSessions(d);
+  expect(out.map((x) => x.session)).toEqual([200, 100]);
+  expect(out[0]).toMatchObject({ preview: "second question", turns: 1 });
+  expect(out[1]).toMatchObject({ preview: "first question", turns: 2 });
+});
+
+it("reopens a past conversation instead of only showing it", () => {
+  // "In case I want to go back into a chat" -- resuming makes it active again,
+  // so it can simply be continued.
+  const d = db();
+  writeChatSince(d, 100);
+  appendTurn(d, { role: "user", text: "old thread" }, 110);
+  writeChatSince(d, 200);
+  appendTurn(d, { role: "user", text: "new thread" }, 210);
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["new thread"]);
+
+  resumeSession(d, 100);
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["old thread"]);
+  // And the newer one is still there to go back to.
+  resumeSession(d, 200);
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["new thread"]);
+});
+
+it("groups by the session a turn was written in, not by timestamp", () => {
+  // A turn keeps its session even if the boundary later moves past its time.
+  const d = db();
+  writeChatSince(d, 100);
+  appendTurn(d, { role: "user", text: "belongs to 100" }, 500);
+  writeChatSince(d, 300);
+  expect(readTurns(d, 10)).toEqual([]);
+  resumeSession(d, 100);
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["belongs to 100"]);
 });

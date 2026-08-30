@@ -23,6 +23,13 @@ export function AtlasTitlebarButton() {
   } | null>(null);
   const [asked, setAsked] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [history, setHistory] = useState<
+    { session: number; startedAt: number; turns: number; preview: string }[]
+  >([]);
+  const [showHistory, setShowHistory] = useState(false);
+  // Bumping this remounts the chat's fetch, so New chat and Resume both show
+  // their result immediately rather than after the next open.
+  const [reloadKey, setReloadKey] = useState(0);
   const atlas = useApp((st) => st.atlas);
   const setAtlas = useApp((st) => st.setAtlas);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -149,22 +156,85 @@ export function AtlasTitlebarButton() {
                   &#10022;
                 </span>
                 <h1>Atlas</h1>
+                {showChat ? (
+                  <>
+                    <button
+                      type="button"
+                      className="atlas-btn"
+                      title="Past conversations"
+                      onClick={() => {
+                        setShowHistory((v) => !v);
+                        void window.airlock
+                          ?.atlasSessions()
+                          .then(setHistory)
+                          .catch(() => setHistory([]));
+                      }}
+                    >
+                      History
+                    </button>
+                    <button
+                      type="button"
+                      className="atlas-btn"
+                      title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
+                      onClick={() => {
+                        void window.airlock?.atlasNewChat();
+                        setShowHistory(false);
+                        setReloadKey((k) => k + 1);
+                      }}
+                    >
+                      New chat
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
                   className="atlas-btn"
-                  onClick={() =>
+                  onClick={() => {
+                    setShowHistory(false);
                     setShowChat((v) => {
                       if (v) markRead(); // returning to the debrief reads it
                       return !v;
-                    })
-                  }
+                    });
+                  }}
                 >
                   {showChat ? "Debrief" : "Chat"}
                 </button>
               </div>
-              {showChat ? (
+              {showChat && showHistory ? (
+                <div className="atlas-history">
+                  {history.length === 0 ? (
+                    <p className="atlas-note">No past conversations yet.</p>
+                  ) : (
+                    history.map((h) => (
+                      <button
+                        key={`s${h.session}`}
+                        type="button"
+                        className="atlas-history-row"
+                        onClick={() => {
+                          void window.airlock?.atlasResume(h.session);
+                          setShowHistory(false);
+                          setReloadKey((k) => k + 1);
+                        }}
+                      >
+                        <span className="atlas-history-when">
+                          {new Date(h.startedAt).toLocaleString([], {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        <span className="atlas-history-preview">
+                          {h.preview || "(no messages)"}
+                        </span>
+                        <span className="atlas-history-count">{h.turns}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : showChat ? (
                 <div className="atlas-pane-chat">
-                  <AtlasChat chrome={false} />
+                  <AtlasChat chrome={false} reloadKey={reloadKey} />
                 </div>
               ) : brief === null ? (
                 <p className="atlas-note">
