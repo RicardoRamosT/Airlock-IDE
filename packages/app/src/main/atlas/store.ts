@@ -7,7 +7,12 @@
 // Main-process only. The renderer receives projections over IPC.
 
 import { DatabaseSync } from "node:sqlite";
-import type { AtlasProject, RootSnapshot } from "@airlock/agent-core";
+import type {
+  AtlasFact,
+  AtlasProject,
+  RootSnapshot,
+  Turn,
+} from "@airlock/agent-core";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -26,6 +31,25 @@ CREATE TABLE IF NOT EXISTS brief (
   text      TEXT NOT NULL,
   costUsd   REAL NOT NULL DEFAULT 0,
   createdAt INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fact (
+  id           TEXT PRIMARY KEY,
+  project      TEXT,
+  kind         TEXT NOT NULL,
+  value        TEXT NOT NULL,
+  verbatim     TEXT NOT NULL,
+  saidAt       INTEGER NOT NULL,
+  supersededAt INTEGER
+);
+CREATE TABLE IF NOT EXISTS turn (
+  seq  INTEGER PRIMARY KEY AUTOINCREMENT,
+  role TEXT NOT NULL,
+  text TEXT NOT NULL,
+  at   INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kv (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
 );
 `;
 
@@ -150,4 +174,91 @@ export function lastBriefDay(db: DatabaseSync): string | null {
     | { day: string | null }
     | undefined;
   return row?.day ?? null;
+}
+
+export function readFacts(db: DatabaseSync): AtlasFact[] {
+  const rows = db
+    .prepare(
+      "SELECT id, project, kind, value, verbatim, saidAt, supersededAt FROM fact ORDER BY saidAt, id",
+    )
+    .all() as {
+    id: string;
+    project: string | null;
+    kind: string;
+    value: string;
+    verbatim: string;
+    saidAt: number;
+    supersededAt: number | null;
+  }[];
+  return rows.map((r) => ({
+    id: r.id,
+    project: r.project,
+    kind: r.kind as AtlasFact["kind"],
+    value: r.value,
+    verbatim: r.verbatim,
+    saidAt: r.saidAt,
+    supersededAt: r.supersededAt,
+  }));
+}
+
+// Wholesale replace, like the registry: mergeFacts always produces the complete
+// list, and a partial write could resurrect a superseded row.
+export function writeFacts(
+  db: DatabaseSync,
+  facts: readonly AtlasFact[],
+): void {
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM fact").run();
+    const ins = db.prepare(
+      "INSERT INTO fact (id, project, kind, value, verbatim, saidAt, supersededAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
+    for (const f of facts) {
+      ins.run(
+        f.id,
+        f.project,
+        f.kind,
+        f.value,
+        f.verbatim,
+        f.saidAt,
+        f.supersededAt,
+      );
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export function appendTurn(db: DatabaseSync, turn: Turn, at: number): void {
+  db.prepare("INSERT INTO turn (role, text, at) VALUES (?, ?, ?)").run(
+    turn.role,
+    turn.text,
+    at,
+  );
+}
+
+// The most recent `limit` turns, returned OLDEST FIRST so the caller can append
+// them to a prompt in reading order.
+export function readTurns(db: DatabaseSync, limit: number): Turn[] {
+  const rows = db
+    .prepare("SELECT role, text FROM turn ORDER BY seq DESC LIMIT ?")
+    .all(limit) as { role: string; text: string }[];
+  return rows
+    .reverse()
+    .map((r) => ({ role: r.role as Turn["role"], text: r.text }));
+}
+
+export function readAskedDay(db: DatabaseSync): string | null {
+  const row = db.prepare("SELECT v FROM kv WHERE k = 'askedDay'").get() as
+    | { v: string }
+    | undefined;
+  return row?.v ?? null;
+}
+
+export function writeAskedDay(db: DatabaseSync, day: string): void {
+  db.prepare(
+    "INSERT INTO kv (k, v) VALUES ('askedDay', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
+  ).run(day);
 }

@@ -1,14 +1,24 @@
-import type { AtlasProject, RootSnapshot } from "@airlock/agent-core";
+import type {
+  AtlasFact,
+  AtlasProject,
+  RootSnapshot,
+} from "@airlock/agent-core";
 import { expect, it } from "vitest";
 import {
+  appendTurn,
   dayKey,
   lastBriefDay,
   openAtlasDb,
+  readAskedDay,
   readBrief,
+  readFacts,
   readRegistry,
   readSnapshot,
+  readTurns,
   saveBrief,
   saveSnapshot,
+  writeAskedDay,
+  writeFacts,
   writeRegistry,
 } from "./store";
 
@@ -155,4 +165,75 @@ it("overwrites a brief for the same day rather than appending", () => {
   saveBrief(d, { day: "2026-08-30", text: "first", costUsd: 0, createdAt: 1 });
   saveBrief(d, { day: "2026-08-30", text: "second", costUsd: 0, createdAt: 2 });
   expect(readBrief(d, "2026-08-30")?.text).toBe("second");
+});
+
+const aFact = (over: Partial<AtlasFact> = {}): AtlasFact => ({
+  id: "f0",
+  project: "Muros-Estates",
+  kind: "deadline",
+  value: "2026-09-15",
+  verbatim: "Muros is due the 15th",
+  saidAt: 1000,
+  supersededAt: null,
+  ...over,
+});
+
+it("starts with no facts", () => {
+  expect(readFacts(db())).toEqual([]);
+});
+
+it("round-trips a fact including its verbatim source", () => {
+  const d = db();
+  writeFacts(d, [aFact()]);
+  expect(readFacts(d)[0]).toMatchObject({
+    project: "Muros-Estates",
+    kind: "deadline",
+    value: "2026-09-15",
+    verbatim: "Muros is due the 15th",
+    supersededAt: null,
+  });
+});
+
+it("round-trips a portfolio-wide fact whose project is null", () => {
+  const d = db();
+  writeFacts(d, [aFact({ id: "f1", project: null })]);
+  expect(readFacts(d)[0]?.project).toBeNull();
+});
+
+it("keeps superseded facts, with their timestamp intact", () => {
+  // Never silently deleted: "why do you think that?" must be answerable.
+  const d = db();
+  writeFacts(d, [aFact({ supersededAt: 9000 })]);
+  expect(readFacts(d)[0]?.supersededAt).toBe(9000);
+});
+
+it("replaces the fact table wholesale so a rewrite cannot duplicate rows", () => {
+  const d = db();
+  writeFacts(d, [aFact()]);
+  writeFacts(d, [aFact(), aFact({ id: "f1", project: "ElArqui" })]);
+  expect(readFacts(d)).toHaveLength(2);
+});
+
+it("appends turns and reads them back oldest-first", () => {
+  const d = db();
+  appendTurn(d, { role: "user", text: "first" }, 1);
+  appendTurn(d, { role: "atlas", text: "second" }, 2);
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["first", "second"]);
+});
+
+it("returns the MOST RECENT turns when limited, still oldest-first", () => {
+  const d = db();
+  for (let i = 0; i < 5; i++) {
+    appendTurn(d, { role: "user", text: `t${i}` }, i);
+  }
+  expect(readTurns(d, 2).map((t) => t.text)).toEqual(["t3", "t4"]);
+});
+
+it("round-trips the day a staleness question was last asked", () => {
+  const d = db();
+  expect(readAskedDay(d)).toBeNull();
+  writeAskedDay(d, "2026-08-30");
+  expect(readAskedDay(d)).toBe("2026-08-30");
+  writeAskedDay(d, "2026-08-31");
+  expect(readAskedDay(d)).toBe("2026-08-31");
 });
