@@ -33,7 +33,12 @@ export const COMPOSER_SYSTEM_PROMPT =
   "input. Prefer one short sentence per project over a list of commits.";
 
 // The prompt is NOT included: it goes on stdin. See the module comment.
-export function buildComposerArgs(model: string = COMPOSER_MODEL): string[] {
+// The system prompt is a parameter so the conversation path (Opus, a different
+// system prompt) can reuse the identical cost flags rather than duplicate them.
+export function buildComposerArgs(
+  model: string = COMPOSER_MODEL,
+  system: string = COMPOSER_SYSTEM_PROMPT,
+): string[] {
   return [
     "-p",
     "--output-format",
@@ -41,7 +46,7 @@ export function buildComposerArgs(model: string = COMPOSER_MODEL): string[] {
     "--model",
     model,
     "--system-prompt",
-    COMPOSER_SYSTEM_PROMPT,
+    system,
     "--strict-mcp-config",
     "--disallowed-tools",
     ...COMPOSER_DISALLOWED_TOOLS,
