@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type {
   AtlasFact,
   AtlasProject,
@@ -352,4 +355,39 @@ it("re-collects a legacy snapshot that recorded no window", () => {
     JSON.stringify([{ root: "/p/a" }]),
   );
   expect(readSnapshot(d, "2026-08-30", 0)).toBeNull();
+});
+
+it("MIGRATES a database whose turn table predates the session column", () => {
+  // The bug this pins: turn.session was added to the schema, but CREATE TABLE
+  // IF NOT EXISTS never alters an existing table, so every database created
+  // before that change lacked the column and every chat died with
+  // "no such column: session" before reaching Claude.
+  //
+  // A real file, not :memory: -- an in-memory database cannot be REOPENED, and
+  // reopening is the whole behaviour under test.
+  const file = path.join(
+    mkdtempSync(path.join(tmpdir(), "atlas-mig-")),
+    "atlas.db",
+  );
+  const first = openAtlasDb(file);
+  first.exec("DROP TABLE turn");
+  first.exec(
+    "CREATE TABLE turn (seq INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, text TEXT NOT NULL, at INTEGER NOT NULL)",
+  );
+  first
+    .prepare("INSERT INTO turn (role, text, at) VALUES ('user','legacy',1)")
+    .run();
+  first.close();
+
+  // Opening it again must repair the shape without losing the row.
+  const second = openAtlasDb(file);
+  const cols = (
+    second.prepare("PRAGMA table_info(turn)").all() as { name: string }[]
+  ).map((c) => c.name);
+  expect(cols).toContain("session");
+  expect(readTurns(second, 10).map((t) => t.text)).toEqual(["legacy"]);
+
+  // And a third open must not try to add it twice.
+  second.close();
+  expect(() => openAtlasDb(file).close()).not.toThrow();
 });

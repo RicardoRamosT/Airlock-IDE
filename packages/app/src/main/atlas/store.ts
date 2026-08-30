@@ -54,11 +54,36 @@ CREATE TABLE IF NOT EXISTS kv (
 );
 `;
 
-// Idempotent: CREATE TABLE IF NOT EXISTS means reopening an existing database
-// is safe and never destructive.
+// Columns added to a table that ALREADY EXISTS. CREATE TABLE IF NOT EXISTS is
+// idempotent for CREATION and does nothing for EVOLUTION: adding a column to
+// the schema above leaves every existing database without it. That is exactly
+// what happened with turn.session -- every chat died on "no such column:
+// session" before it ever reached Claude. New columns go here, not only above.
+const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
+  {
+    table: "turn",
+    column: "session",
+    ddl: "ALTER TABLE turn ADD COLUMN session INTEGER NOT NULL DEFAULT 0",
+  },
+];
+
+function migrate(db: DatabaseSync): void {
+  for (const { table, column, ddl } of ADDED_COLUMNS) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
+      name: string;
+    }[];
+    if (cols.length === 0) continue; // table not created yet; SCHEMA has it
+    if (cols.some((c) => c.name === column)) continue;
+    db.exec(ddl);
+  }
+}
+
+// Safe to reopen: CREATE TABLE IF NOT EXISTS creates what is missing, then
+// migrate() adds columns to tables that predate them.
 export function openAtlasDb(file: string): DatabaseSync {
   const db = new DatabaseSync(file);
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 
