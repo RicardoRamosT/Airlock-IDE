@@ -6848,7 +6848,15 @@ button.docker-row .codicon-chevron-right {
    it reads as part of the titlebar rather than bolted on. The rail icon is
    easy to lose among fourteen others; this one is always visible. */
 .titlebar-atlas {
-  position: relative;
+  /* ABSOLUTE, like .titlebar-bell, and offset left of it. The bell is
+     `position: absolute; right: 8px`, so an in-flow sibling does not push it
+     over -- the two simply draw on top of each other. The bell button is a
+     16px icon with 4px side padding, so it occupies roughly 8-32px from the
+     right; 38px clears it with a gap. */
+  position: absolute;
+  right: 38px;
+  top: 0;
+  height: 100%;
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
