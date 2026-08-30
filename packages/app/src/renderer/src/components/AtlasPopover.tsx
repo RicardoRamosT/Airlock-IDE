@@ -31,6 +31,9 @@ export function AtlasPopover() {
   return (
     <div className="atlas-popover">
       <h1>Atlas</h1>
+      <button type="button" onClick={() => window.airlock?.atlasOpenWindow()}>
+        Open Atlas
+      </button>
       {brief === null ? (
         <p>No debrief yet. It writes itself the first time you arrive.</p>
       ) : (

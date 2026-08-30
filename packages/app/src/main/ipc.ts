@@ -48,6 +48,7 @@ import {
   listFilesRecursive,
   listSecrets,
   listTables,
+  MAX_HISTORY_TURNS,
   mergeSectionExtensions,
   move,
   neonConnectionUri,
@@ -128,8 +129,11 @@ import {
 } from "./agent-requests";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
+import { spawnClaude } from "./atlas/composer";
+import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
-import { dayKey, readBrief } from "./atlas/store";
+import { dayKey, readBrief, readTurns } from "./atlas/store";
+import { openAtlasWindow } from "./atlas/trayWindow";
 import {
   detectUnmanaged,
   getDevServerState,
@@ -1058,6 +1062,21 @@ export function registerIpc(
     const day = dayKey(Date.now(), -new Date().getTimezoneOffset());
     return readBrief(atlasDb(), day)?.text ?? null;
   });
+  ipcMain.handle("atlas:turns", () => readTurns(atlasDb(), MAX_HISTORY_TURNS));
+  ipcMain.handle("atlas:send", (_e, message: unknown) =>
+    typeof message === "string"
+      ? sendMessage(
+          {
+            db: atlasDb(),
+            spawn: spawnClaude,
+            now: () => Date.now(),
+            tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
+          },
+          message,
+        )
+      : null,
+  );
+  ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
   ipcMain.handle("app:info", () => ({
     version: app.getVersion(),

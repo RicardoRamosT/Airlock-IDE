@@ -68,6 +68,40 @@ function toggle(): void {
   setUnread(false);
 }
 
+let chatWin: BrowserWindow | null = null;
+
+// Its own window, NOT an AppPage: a page would replace the workspace view and
+// take the user's work away at the moment they want to talk about it.
+export function openAtlasWindow(): void {
+  if (chatWin && !chatWin.isDestroyed()) {
+    chatWin.show();
+    chatWin.focus();
+    return;
+  }
+  chatWin = new BrowserWindow({
+    width: 460,
+    height: 720,
+    title: "Atlas",
+    backgroundColor: "#0d1117",
+    titleBarStyle: "hiddenInset",
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  });
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (devUrl) chatWin.loadURL(`${devUrl}#atlas-chat`);
+  else
+    chatWin.loadFile(path.join(__dirname, "../renderer/index.html"), {
+      hash: "atlas-chat",
+    });
+  chatWin.on("closed", () => {
+    chatWin = null;
+  });
+}
+
 export function setUnread(next: boolean): void {
   unread = next;
   tray?.setTitle(trayTitle(unread));
@@ -82,6 +116,8 @@ export function startAtlasTray(): void {
 }
 
 export function stopAtlasTray(): void {
+  chatWin?.destroy();
+  chatWin = null;
   popover?.destroy();
   popover = null;
   tray?.destroy();

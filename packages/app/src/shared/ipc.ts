@@ -1235,6 +1235,9 @@ export interface AirlockApi {
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;
   atlasBrief(): Promise<string | null>;
+  atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
+  atlasSend(message: string): Promise<string | null>;
+  atlasOpenWindow(): Promise<void>;
   // Per-session usage ledger (persisted; most-recent across launches) for the
   // Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
