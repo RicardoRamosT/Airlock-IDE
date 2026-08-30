@@ -2,9 +2,12 @@ import type { AtlasProject, RootSnapshot } from "@airlock/agent-core";
 import { expect, it } from "vitest";
 import {
   dayKey,
+  lastBriefDay,
   openAtlasDb,
+  readBrief,
   readRegistry,
   readSnapshot,
+  saveBrief,
   saveSnapshot,
   writeRegistry,
 } from "./store";
@@ -113,4 +116,43 @@ it("returns null rather than throwing when stored snapshot JSON is corrupt", () 
     "{not json",
   );
   expect(readSnapshot(d, "2026-08-30")).toBeNull();
+});
+
+it("returns null for lastBriefDay before any brief exists", () => {
+  expect(lastBriefDay(db())).toBeNull();
+});
+
+it("round-trips a brief", () => {
+  const d = db();
+  saveBrief(d, {
+    day: "2026-08-30",
+    text: "YESTERDAY: you shipped the calendar.",
+    costUsd: 0.0316,
+    createdAt: 1756512000000,
+  });
+  expect(readBrief(d, "2026-08-30")).toMatchObject({
+    day: "2026-08-30",
+    text: "YESTERDAY: you shipped the calendar.",
+    costUsd: 0.0316,
+  });
+});
+
+it("returns null for a day with no brief", () => {
+  expect(readBrief(db(), "2026-08-30")).toBeNull();
+});
+
+it("reports the most recent day, not merely the last written", () => {
+  // Days can be written out of order if a compose is slow or backfilled.
+  const d = db();
+  const b = (day: string) => ({ day, text: "x", costUsd: 0, createdAt: 1 });
+  saveBrief(d, b("2026-08-30"));
+  saveBrief(d, b("2026-08-28"));
+  expect(lastBriefDay(d)).toBe("2026-08-30");
+});
+
+it("overwrites a brief for the same day rather than appending", () => {
+  const d = db();
+  saveBrief(d, { day: "2026-08-30", text: "first", costUsd: 0, createdAt: 1 });
+  saveBrief(d, { day: "2026-08-30", text: "second", costUsd: 0, createdAt: 2 });
+  expect(readBrief(d, "2026-08-30")?.text).toBe("second");
 });

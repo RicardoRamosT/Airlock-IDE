@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS snapshot (
   day  TEXT PRIMARY KEY,
   json TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS brief (
+  day       TEXT PRIMARY KEY,
+  text      TEXT NOT NULL,
+  costUsd   REAL NOT NULL DEFAULT 0,
+  createdAt INTEGER NOT NULL
+);
 `;
 
 // Idempotent: CREATE TABLE IF NOT EXISTS means reopening an existing database
@@ -114,4 +120,34 @@ export function dayKey(at: number, tzOffsetMinutes: number): string {
   const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
   const d = String(shifted.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+export interface StoredBrief {
+  day: string;
+  text: string;
+  costUsd: number;
+  createdAt: number;
+}
+
+export function saveBrief(db: DatabaseSync, brief: StoredBrief): void {
+  db.prepare(
+    "INSERT INTO brief (day, text, costUsd, createdAt) VALUES (?, ?, ?, ?) " +
+      "ON CONFLICT(day) DO UPDATE SET text = excluded.text, costUsd = excluded.costUsd, createdAt = excluded.createdAt",
+  ).run(brief.day, brief.text, brief.costUsd, brief.createdAt);
+}
+
+export function readBrief(db: DatabaseSync, day: string): StoredBrief | null {
+  const row = db
+    .prepare("SELECT day, text, costUsd, createdAt FROM brief WHERE day = ?")
+    .get(day) as StoredBrief | undefined;
+  return row ?? null;
+}
+
+// MAX, not "last inserted": days can be written out of order if a compose is
+// slow, and the trigger compares against the most recent day that exists.
+export function lastBriefDay(db: DatabaseSync): string | null {
+  const row = db.prepare("SELECT MAX(day) AS day FROM brief").get() as
+    | { day: string | null }
+    | undefined;
+  return row?.day ?? null;
 }
