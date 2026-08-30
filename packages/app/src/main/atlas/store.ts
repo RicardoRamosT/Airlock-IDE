@@ -108,33 +108,56 @@ export function writeRegistry(
   }
 }
 
+// The window is stored WITH the snapshot. Without it, a snapshot collected over
+// 24 hours was indistinguishable from one collected over a week, so the chat
+// reused the daily snapshot and reported "1 commit" as a week's work. The
+// collector was right; the cache was lying about what it covered.
 export function saveSnapshot(
   db: DatabaseSync,
   day: string,
+  sinceMs: number,
   roots: readonly RootSnapshot[],
 ): void {
   db.prepare(
     "INSERT INTO snapshot (day, json) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
-  ).run(day, JSON.stringify(roots));
+  ).run(day, JSON.stringify({ sinceMs, roots }));
 }
 
 // null means NO SNAPSHOT WAS EVER TAKEN for this day; [] means one was taken
 // and the portfolio was empty. Conflating the two is the mistake CLAUDE.md's
 // loading-states section warns about.
+// Returns the snapshot only if it covers AT LEAST as far back as `wantedSince`;
+// a narrower one is not a cache hit, it is a wrong answer. A wider one is
+// usable, with its commits trimmed to the window actually asked for.
 export function readSnapshot(
   db: DatabaseSync,
   day: string,
+  wantedSince = Number.POSITIVE_INFINITY,
 ): RootSnapshot[] | null {
   const row = db.prepare("SELECT json FROM snapshot WHERE day = ?").get(day) as
     | { json: string }
     | undefined;
   if (!row) return null;
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(row.json);
-    return Array.isArray(parsed) ? (parsed as RootSnapshot[]) : null;
+    parsed = JSON.parse(row.json);
   } catch {
     return null;
   }
+  // Older rows were a bare array with no window recorded. Treat them as
+  // covering nothing, so they are re-collected rather than trusted.
+  if (Array.isArray(parsed)) return null;
+  if (!parsed || typeof parsed !== "object") return null;
+  const env = parsed as { sinceMs?: unknown; roots?: unknown };
+  if (typeof env.sinceMs !== "number" || !Array.isArray(env.roots)) return null;
+  if (env.sinceMs > wantedSince) return null; // too narrow
+
+  const roots = env.roots as RootSnapshot[];
+  if (!Number.isFinite(wantedSince)) return roots;
+  return roots.map((r) => ({
+    ...r,
+    commits: r.commits.filter((c) => c.at >= wantedSince),
+  }));
 }
 
 // Local-time day key. The arrival trigger compares calendar days, so this must

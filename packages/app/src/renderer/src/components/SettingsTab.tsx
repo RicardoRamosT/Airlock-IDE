@@ -48,6 +48,25 @@ export function SettingsTab() {
     (s) => s.setShowRunningProcessNotice,
   );
   const atlas = useApp((s) => s.atlas);
+  // Which credential actually pays for Atlas. Read from main, where the
+  // environment is visible.
+  const [atlasState, setAtlasState] = useState<{
+    mode: "api-key" | "auth-token" | "subscription";
+  } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    window.airlock
+      ?.atlasState()
+      .then((v) => {
+        if (alive) setAtlasState({ mode: v.mode });
+      })
+      .catch(() => {
+        if (alive) setAtlasState(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const setAtlas = useApp((s) => s.setAtlas);
   const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
@@ -389,6 +408,25 @@ export function SettingsTab() {
                 about what to work on. In AirLock it lives in the sidebar, next
                 to Files and Git. The macOS menu bar item is optional and stays
                 reachable even when AirLock is not in front.
+              </p>
+              <div className="settings-row">
+                <span className="settings-label">Paying with</span>
+                <span className="settings-value">
+                  {atlasState === null
+                    ? "Checking\u2026"
+                    : atlasState.mode === "subscription"
+                      ? "Your Claude plan"
+                      : atlasState.mode === "api-key"
+                        ? "An Anthropic API key (ANTHROPIC_API_KEY)"
+                        : "An Anthropic auth token (ANTHROPIC_AUTH_TOKEN)"}
+                </span>
+              </div>
+              <p className="settings-note">
+                {atlasState === null
+                  ? null
+                  : atlasState.mode === "subscription"
+                    ? "No API key is set on this machine, so Atlas runs on your Claude subscription and costs usage quota rather than money. Nothing to add."
+                    : "That credential is read from your environment, so Atlas bills your API account for every debrief and reply. To move Atlas onto your Claude plan instead, unset it in your shell and restart AirLock."}
               </p>
               <div className="settings-row">
                 <label htmlFor="atlas-hour">Debrief no earlier than</label>

@@ -143,7 +143,12 @@ import {
   resumeSession,
   writeChatSince,
 } from "./atlas/store";
-import { openAtlasWindow } from "./atlas/trayWindow";
+import {
+  openAtlasWindow,
+  setAtlasPanelSize,
+  startAtlasTray,
+  stopAtlasTray,
+} from "./atlas/trayWindow";
 import {
   detectUnmanaged,
   getDevServerState,
@@ -1112,9 +1117,11 @@ export function registerIpc(
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
   ipcMain.handle("atlas:state", async () => {
     const prefs = await loadPrefs(prefsFile);
+    const mode = detectCredentialMode(process.env);
     return {
       acknowledged: prefs.atlas.acknowledged,
-      disclosure: costDisclosure(detectCredentialMode(process.env)),
+      disclosure: costDisclosure(mode),
+      mode,
     };
   });
   ipcMain.handle("atlas:consent", async () => {
@@ -1197,6 +1204,19 @@ export function registerIpc(
   ipcMain.handle("prefs:set", async (_e, patch: unknown) => {
     if (!patch || typeof patch !== "object") throw new Error("Invalid payload");
     const saved = await savePrefs(prefsFile, patch as Partial<AppPrefs>);
+    // Atlas's menu bar item reacts immediately: requiring a relaunch to see a
+    // setting you just changed reads as the setting not working.
+    if ("atlas" in (patch as object)) {
+      if (saved.atlas.enabled && saved.atlas.surface === "both") {
+        setAtlasPanelSize({
+          width: saved.atlas.width,
+          height: saved.atlas.height,
+        });
+        startAtlasTray();
+      } else {
+        stopAtlasTray();
+      }
+    }
     // Flipping the tabs-vs-windows toggle relabels the File-menu + dock "New"
     // item (New Tab <-> New Window) live, so rebuild both menus from the
     // freshly persisted prefs.

@@ -42,6 +42,6 @@ export async function refreshPortfolio(
 
   const present = new Set(snaps.filter((s) => !s.missing).map((s) => s.root));
   writeRegistry(db, applyPresence(merged, present, now));
-  saveSnapshot(db, dayKey(now, input.tzOffsetMinutes), snaps);
+  saveSnapshot(db, dayKey(now, input.tzOffsetMinutes), input.sinceMs, snaps);
   return snaps;
 }

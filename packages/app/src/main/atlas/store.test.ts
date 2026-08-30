@@ -80,13 +80,13 @@ it("distinguishes a day never snapshotted from a day snapshotted as empty", () =
   // Three states, per CLAUDE.md: null = never asked, [] = asked, answer is none.
   const d = db();
   expect(readSnapshot(d, "2026-08-30")).toBeNull();
-  saveSnapshot(d, "2026-08-30", []);
+  saveSnapshot(d, "2026-08-30", 0, []);
   expect(readSnapshot(d, "2026-08-30")).toEqual([]);
 });
 
 it("round-trips a snapshot including commits", () => {
   const d = db();
-  saveSnapshot(d, "2026-08-29", [
+  saveSnapshot(d, "2026-08-29", 0, [
     snap("/p/muros", {
       ahead: 34,
       dirty: 2,
@@ -101,15 +101,15 @@ it("round-trips a snapshot including commits", () => {
 
 it("overwrites a snapshot for the same day rather than appending", () => {
   const d = db();
-  saveSnapshot(d, "2026-08-30", [snap("/p/a")]);
-  saveSnapshot(d, "2026-08-30", [snap("/p/a"), snap("/p/b")]);
+  saveSnapshot(d, "2026-08-30", 0, [snap("/p/a")]);
+  saveSnapshot(d, "2026-08-30", 0, [snap("/p/a"), snap("/p/b")]);
   expect(readSnapshot(d, "2026-08-30")).toHaveLength(2);
 });
 
 it("keeps days separate", () => {
   const d = db();
-  saveSnapshot(d, "2026-08-29", [snap("/p/a")]);
-  saveSnapshot(d, "2026-08-30", [snap("/p/b")]);
+  saveSnapshot(d, "2026-08-29", 0, [snap("/p/a")]);
+  saveSnapshot(d, "2026-08-30", 0, [snap("/p/b")]);
   expect(readSnapshot(d, "2026-08-29")?.[0]?.root).toBe("/p/a");
   expect(readSnapshot(d, "2026-08-30")?.[0]?.root).toBe("/p/b");
 });
@@ -312,4 +312,44 @@ it("groups by the session a turn was written in, not by timestamp", () => {
   expect(readTurns(d, 10)).toEqual([]);
   resumeSession(d, 100);
   expect(readTurns(d, 10).map((t) => t.text)).toEqual(["belongs to 100"]);
+});
+
+it("REFUSES a snapshot narrower than the window asked for", () => {
+  // The bug this pins: the chat wanted a week, found a snapshot collected over
+  // 24 hours, and reported its "1 commit" as the week's work. A narrower cache
+  // is not a hit, it is a wrong answer.
+  const d = db();
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = 1_000_000_000_000;
+  saveSnapshot(d, "2026-08-30", now - DAY, [snap("/p/a")]);
+  expect(readSnapshot(d, "2026-08-30", now - 7 * DAY)).toBeNull();
+  // Its own window is still a hit.
+  expect(readSnapshot(d, "2026-08-30", now - DAY)).toHaveLength(1);
+});
+
+it("reuses a WIDER snapshot, trimmed to the window asked for", () => {
+  const d = db();
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = 1_000_000_000_000;
+  saveSnapshot(d, "2026-08-30", now - 7 * DAY, [
+    snap("/p/a", {
+      commits: [
+        { hash: "old", at: now - 5 * DAY, subject: "five days ago" },
+        { hash: "new", at: now - 2 * 60 * 60 * 1000, subject: "today" },
+      ],
+    }),
+  ]);
+  const out = readSnapshot(d, "2026-08-30", now - DAY);
+  expect(out?.[0]?.commits.map((c) => c.hash)).toEqual(["new"]);
+});
+
+it("re-collects a legacy snapshot that recorded no window", () => {
+  // Rows written before the window was stored cannot be trusted to cover
+  // anything, so they must not satisfy a cache lookup.
+  const d = db();
+  d.prepare("INSERT INTO snapshot (day, json) VALUES (?, ?)").run(
+    "2026-08-30",
+    JSON.stringify([{ root: "/p/a" }]),
+  );
+  expect(readSnapshot(d, "2026-08-30", 0)).toBeNull();
 });

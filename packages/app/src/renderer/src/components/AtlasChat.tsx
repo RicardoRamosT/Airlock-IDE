@@ -54,11 +54,17 @@ export function AtlasChat({
     };
   }, []);
 
+  // Follow the conversation: when a turn arrives, or the reply finishes, put
+  // the newest message in view. Keyed on the turn count and the busy flag
+  // rather than every render, so it does not fight the user scrolling back
+  // while nothing is happening.
   useEffect(() => {
-    // Optional call: jsdom has no scrollIntoView, and this effect now runs on
-    // every render (it must, to follow new messages) rather than only on mount.
-    endRef.current?.scrollIntoView?.({ block: "end" });
-  });
+    // Nothing to follow in an empty conversation, and scrolling it would fight
+    // the empty-state message.
+    if (turns.length === 0 && !busy) return;
+    // Optional call: jsdom has no scrollIntoView.
+    endRef.current?.scrollIntoView?.({ block: "end", behavior: "smooth" });
+  }, [turns.length, busy]);
 
   // A bare "..." says nothing about whether anything is happening. Atlas runs a
   // real subprocess that can take many seconds, so show the stage AND a running

@@ -60,7 +60,8 @@ async function portfolioFor(
   // no roots yet (no project window focused), and caching that answer poisoned
   // the entire day: every later message reused it and Atlas kept insisting the
   // portfolio was empty.
-  const existing = readSnapshot(deps.db, today);
+  const wantedSince = now - WINDOW_MS;
+  const existing = readSnapshot(deps.db, today, wantedSince);
   if (existing !== null && existing.length > 0) return existing;
   try {
     return await refreshPortfolio({
@@ -70,7 +71,7 @@ async function portfolioFor(
       openTabRoots: deps.roots(),
       now,
       tzOffsetMinutes: deps.tzOffsetMinutes(),
-      sinceMs: now - WINDOW_MS,
+      sinceMs: wantedSince,
     });
   } catch {
     // A failed collection degrades to no portfolio; the turn still answers.

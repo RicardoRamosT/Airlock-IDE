@@ -1262,7 +1262,11 @@ export interface AirlockApi {
   >;
   atlasResume(session: number): Promise<void>;
   atlasOpenWindow(): Promise<void>;
-  atlasState(): Promise<{ acknowledged: boolean; disclosure: string }>;
+  atlasState(): Promise<{
+    acknowledged: boolean;
+    disclosure: string;
+    mode: "api-key" | "auth-token" | "subscription";
+  }>;
   atlasConsent(): Promise<void>;
   onAtlasRefresh(cb: () => void): () => void;
   // Per-session usage ledger (persisted; most-recent across launches) for the
