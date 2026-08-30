@@ -33,10 +33,13 @@ export function AtlasSection() {
         });
     };
     load();
-    const off = window.airlock?.onAtlasRefresh(load);
+    // Defensive on both ends: the API may be absent (older preload, a test
+    // stub) and its return value may not be callable. A throw in an effect
+    // inside the App tree whites out the whole window.
+    const off = window.airlock?.onAtlasRefresh?.(load);
     return () => {
       alive = false;
-      off?.();
+      if (typeof off === "function") off();
     };
   }, []);
 

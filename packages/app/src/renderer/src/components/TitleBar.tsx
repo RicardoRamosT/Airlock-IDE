@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../store";
+import { AtlasTitlebarButton } from "./AtlasTitlebarButton";
 import { NotificationBell } from "./NotificationBell";
 import { TitleQuota } from "./TitleQuota";
 
@@ -90,6 +91,7 @@ export function TitleBar() {
       )}
       {/* Outside TitleQuota above, so the title card stays centred whether or
           not the usage meter is on. Traffic lights own the top-LEFT on macOS. */}
+      <AtlasTitlebarButton />
       <NotificationBell />
     </header>
   );

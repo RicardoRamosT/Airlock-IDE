@@ -6843,3 +6843,51 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   line-height: 1.5;
 }
+
+/* Atlas's titlebar entry point: same button + dropdown shape as the bell, so
+   it reads as part of the titlebar rather than bolted on. The rail icon is
+   easy to lose among fourteen others; this one is always visible. */
+.titlebar-atlas {
+  position: relative;
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+}
+.titlebar-atlas .codicon-sparkle {
+  color: var(--accent);
+}
+.titlebar-atlas-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.titlebar-atlas-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 360px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+  z-index: 46;
+  font-size: 13px;
+  color: var(--fg);
+  text-align: left;
+  cursor: default;
+}
+.titlebar-atlas-panel .atlas-pane-chat {
+  min-height: 260px;
+  max-height: 46vh;
+}
