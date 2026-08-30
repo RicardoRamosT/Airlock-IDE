@@ -9,6 +9,24 @@ export {
   type ParsedAnthropicStatus,
 } from "./anthropicStatus/client";
 export {
+  COMMIT_LOG_FORMAT,
+  type CommitEntry,
+  parseCommitLog,
+} from "./atlas/activity";
+export {
+  type CollectDeps,
+  collectAll,
+  collectRoot,
+  type RootSnapshot,
+} from "./atlas/collect";
+export {
+  type AtlasProject,
+  applyPresence,
+  mergeRegistry,
+  projectName,
+} from "./atlas/registry";
+export { seedRoots } from "./atlas/seed";
+export {
   type AuditEntry,
   appendAudit,
   appendAuditAt,
