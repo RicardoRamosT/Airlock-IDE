@@ -101,9 +101,13 @@ export function AtlasPanel({
               className="atlas-btn"
               title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
               onClick={() => {
-                void window.airlock?.atlasNewChat();
-                setShowHistory(false);
-                setReloadKey((k) => k + 1);
+                // AWAIT the write: refetching first would read the OLD
+                // conversation boundary and show the same transcript back.
+                void (async () => {
+                  await window.airlock?.atlasNewChat();
+                  setShowHistory(false);
+                  setReloadKey((k) => k + 1);
+                })();
               }}
             >
               New chat
@@ -136,9 +140,11 @@ export function AtlasPanel({
                 type="button"
                 className="atlas-history-row"
                 onClick={() => {
-                  void window.airlock?.atlasResume(h.session);
-                  setShowHistory(false);
-                  setReloadKey((k) => k + 1);
+                  void (async () => {
+                    await window.airlock?.atlasResume(h.session);
+                    setShowHistory(false);
+                    setReloadKey((k) => k + 1);
+                  })();
                 }}
               >
                 <span className="atlas-history-when">

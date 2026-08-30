@@ -83,3 +83,23 @@ it("shows an error line and keeps the user's turn when the send fails", async ()
   );
   expect(screen.getByText("hi")).toBeTruthy();
 });
+
+it("refetches when the host switches conversation", async () => {
+  // The bug this pins: reloadKey was accepted as a prop and never placed in
+  // the effect's dependency array, so New chat and resuming from History both
+  // appeared to do nothing -- the transcript never reloaded.
+  api.atlasTurns.mockResolvedValueOnce([{ role: "user", text: "old chat" }]);
+  const { rerender } = render(<AtlasChat reloadKey={0} />);
+  await waitFor(() => expect(screen.getByText("old chat")).toBeTruthy());
+
+  api.atlasTurns.mockResolvedValueOnce([{ role: "user", text: "new chat" }]);
+  rerender(<AtlasChat reloadKey={1} />);
+  await waitFor(() => expect(screen.getByText("new chat")).toBeTruthy());
+  expect(screen.queryByText("old chat")).toBeNull();
+  expect(api.atlasTurns).toHaveBeenCalledTimes(2);
+});
+
+it("does not refetch when unrelated props stay the same", async () => {
+  render(<AtlasChat reloadKey={3} />);
+  await waitFor(() => expect(api.atlasTurns).toHaveBeenCalledTimes(1));
+});

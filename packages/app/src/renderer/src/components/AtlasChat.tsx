@@ -39,6 +39,14 @@ export function AtlasChat({
 
   useEffect(() => {
     let alive = true;
+    // A non-zero reloadKey means the host switched conversation (New chat, or
+    // resuming one from History). Drop the visible transcript at once, so the
+    // previous conversation does not linger on screen while the new one loads.
+    if (reloadKey > 0) {
+      setTurns([]);
+      setFailed(false);
+      setAsked(false);
+    }
     window.airlock
       ?.atlasTurns()
       .then((t) => {
@@ -52,7 +60,10 @@ export function AtlasChat({
     return () => {
       alive = false;
     };
-  }, []);
+    // Re-runs when the host switches conversation (New chat, or resuming one
+    // from History). Without this dep the prop was accepted and ignored, so
+    // both buttons appeared to do nothing at all.
+  }, [reloadKey]);
 
   // Follow the conversation: when a turn arrives, or the reply finishes, put
   // the newest message in view. Keyed on the turn count and the busy flag
