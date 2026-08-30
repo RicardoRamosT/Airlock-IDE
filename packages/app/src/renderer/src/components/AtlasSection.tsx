@@ -7,7 +7,9 @@ import { AtlasConsent } from "./AtlasConsent";
 // the workspace and hide the code the debrief is about; a section sits beside
 // it, which is the whole point of being able to work and talk at once.
 export function AtlasSection() {
-  const [brief, setBrief] = useState<string | null>(null);
+  const [brief, setBrief] = useState<{ day: string; text: string } | null>(
+    null,
+  );
   const [state, setState] = useState<{
     acknowledged: boolean;
     disclosure: string;
@@ -87,7 +89,9 @@ export function AtlasSection() {
           your Mac.
         </p>
       ) : (
-        <div className="atlas-brief atlas-brief-pane">{renderBrief(brief)}</div>
+        <div className="atlas-brief atlas-brief-pane">
+          {renderBrief(brief.text)}
+        </div>
       )}
     </div>
   );

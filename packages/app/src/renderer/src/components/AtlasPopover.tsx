@@ -14,7 +14,9 @@ interface AtlasState {
 // first-run cost disclosure. Atlas spends nothing before that click, because
 // the same call that costs the author quota costs an API-key user real money.
 export function AtlasPopover() {
-  const [brief, setBrief] = useState<string | null>(null);
+  const [brief, setBrief] = useState<{ day: string; text: string } | null>(
+    null,
+  );
   const [state, setState] = useState<AtlasState | null>(null);
   const [asked, setAsked] = useState(false);
 
@@ -96,7 +98,7 @@ export function AtlasPopover() {
             are back at your Mac.
           </p>
         ) : (
-          <div className="atlas-brief">{renderBrief(brief)}</div>
+          <div className="atlas-brief">{renderBrief(brief.text)}</div>
         )}
       </div>
     </div>

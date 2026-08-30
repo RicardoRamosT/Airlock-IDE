@@ -343,6 +343,7 @@ export interface AppState {
     hour: number;
     width: number;
     height: number;
+    lastReadDay: string;
   };
   setAtlas: (v: {
     enabled: boolean;
@@ -351,6 +352,7 @@ export interface AppState {
     hour: number;
     width: number;
     height: number;
+    lastReadDay: string;
   }) => void;
   dockStatusEnabled: boolean;
   setDockStatusEnabled: (v: boolean) => void;
@@ -851,6 +853,7 @@ export const useApp = create<AppState>((set) => ({
     hour: 9,
     width: 380,
     height: 460,
+    lastReadDay: "",
   },
   setAtlas: (v) => set({ atlas: v }),
   dockStatusEnabled: true,

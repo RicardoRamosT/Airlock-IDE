@@ -586,6 +586,10 @@ export interface AppPrefs {
     // menu bar popover so a size set in one is respected by the other.
     width: number;
     height: number;
+    // Day key of the last debrief the user actually READ. The dot compares this
+    // against the brief's own day; without it "unread" degenerates into "a
+    // brief exists" and never clears.
+    lastReadDay: string;
   };
   // Dock status badge (macOS). OFF by default (opt-in): enabling installs
   // AirLock-labeled Claude Code hooks in ~/.claude/settings.json. App-global.
@@ -1248,7 +1252,8 @@ export interface AirlockApi {
   // Claude quota meter: last-known account usage (null before the first emit),
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;
-  atlasBrief(): Promise<string | null>;
+  atlasBrief(): Promise<{ day: string; text: string } | null>;
+  atlasMarkRead(day: string): Promise<void>;
   atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
   atlasSend(message: string): Promise<string | null>;
   atlasOpenWindow(): Promise<void>;

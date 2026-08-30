@@ -111,6 +111,7 @@ const DEFAULT_PREFS: AppPrefs = {
     hour: 9,
     width: 380,
     height: 460,
+    lastReadDay: "",
   },
   githubAutoSwitch: true,
   runAppSkill: { enabled: true },

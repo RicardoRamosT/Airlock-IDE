@@ -1063,7 +1063,13 @@ export function registerIpc(
   // states matter to the renderer: not-asked, asked-and-none, asked-and-here.
   ipcMain.handle("atlas:brief", () => {
     const day = dayKey(Date.now(), -new Date().getTimezoneOffset());
-    return readBrief(atlasDb(), day)?.text ?? null;
+    const b = readBrief(atlasDb(), day);
+    return b ? { day: b.day, text: b.text } : null;
+  });
+  ipcMain.handle("atlas:markRead", async (_e, day: unknown) => {
+    if (typeof day !== "string" || day.length === 0) return;
+    const cur = (await loadPrefs(prefsFile)).atlas;
+    await savePrefs(prefsFile, { atlas: { ...cur, lastReadDay: day } });
   });
   ipcMain.handle("atlas:turns", () => readTurns(atlasDb(), MAX_HISTORY_TURNS));
   // Recents are the strongest seed for the portfolio, so read them fresh on

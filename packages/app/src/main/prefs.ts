@@ -82,6 +82,7 @@ const DEFAULTS: AppPrefs = {
     hour: 9,
     width: 380,
     height: 460,
+    lastReadDay: "",
   },
   dockStatus: { enabled: true },
   runAppSkill: { enabled: true },
@@ -202,6 +203,7 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
   let hour = 9;
   let width = 380;
   let height = 460;
+  let lastReadDay = "";
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     if (typeof r.enabled === "boolean") enabled = r.enabled;
@@ -222,8 +224,9 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
     if (typeof r.height === "number" && Number.isFinite(r.height)) {
       height = Math.min(1200, Math.max(240, Math.round(r.height)));
     }
+    if (typeof r.lastReadDay === "string") lastReadDay = r.lastReadDay;
   }
-  return { enabled, acknowledged, surface, hour, width, height };
+  return { enabled, acknowledged, surface, hour, width, height, lastReadDay };
 }
 
 // dockStatus is app-global and ON by default (opt-out). Enabling reconciles the

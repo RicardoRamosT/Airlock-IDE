@@ -257,6 +257,7 @@ const api: AirlockApi = {
     ipcRenderer.invoke("terminal:openExternal", root),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
   atlasBrief: () => ipcRenderer.invoke("atlas:brief"),
+  atlasMarkRead: (day: string) => ipcRenderer.invoke("atlas:markRead", day),
   atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
   atlasSend: (message: string) => ipcRenderer.invoke("atlas:send", message),
   atlasOpenWindow: () => ipcRenderer.invoke("atlas:openWindow"),

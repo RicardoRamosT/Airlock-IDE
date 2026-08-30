@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { renderBrief } from "../lib/atlasBrief";
+import { isUnread } from "../lib/atlasUnread";
 import { useApp } from "../store";
 import { AtlasChat } from "./AtlasChat";
 import { AtlasConsent } from "./AtlasConsent";
@@ -13,7 +14,9 @@ import { AtlasConsent } from "./AtlasConsent";
 // section is open.
 export function AtlasTitlebarButton() {
   const [open, setOpen] = useState(false);
-  const [brief, setBrief] = useState<string | null>(null);
+  const [brief, setBrief] = useState<{ day: string; text: string } | null>(
+    null,
+  );
   const [state, setState] = useState<{
     acknowledged: boolean;
     disclosure: string;
@@ -52,9 +55,19 @@ export function AtlasTitlebarButton() {
     };
   }, []);
 
-  // A dot, not a number: there is at most one unread debrief a day, so a count
-  // would always read "1" and mean nothing.
-  const unread = asked && brief !== null && state?.acknowledged === true;
+  // "Unread" is the brief's day being NEWER than the last day the user read.
+  // The old test was `brief !== null`, which is just "a brief exists" -- it
+  // could never turn off, so the dot was permanently lit.
+  const unread =
+    asked && isUnread(brief, state?.acknowledged === true, atlas.lastReadDay);
+
+  // Opening the panel on the debrief is what counts as reading it.
+  function markRead() {
+    if (brief === null || brief.day <= atlas.lastReadDay) return;
+    const next = { ...atlas, lastReadDay: brief.day };
+    setAtlas(next);
+    void window.airlock?.atlasMarkRead(brief.day);
+  }
 
   return (
     <div className="titlebar-atlas">
@@ -63,7 +76,11 @@ export function AtlasTitlebarButton() {
         className="titlebar-bell-btn"
         title="Atlas - your project administrator"
         aria-label="Atlas"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next && !showChat) markRead();
+        }}
       >
         <i className="codicon codicon-sparkle" />
         {unread && <span className="titlebar-atlas-dot" />}
@@ -73,19 +90,48 @@ export function AtlasTitlebarButton() {
           className="titlebar-atlas-panel"
           ref={panelRef}
           style={{ width: atlas.width, height: atlas.height }}
-          // CSS `resize` gives a native grip; there is no resize EVENT for an
-          // element, so the size is captured when the pointer is released.
-          onPointerUp={() => {
-            const el = panelRef.current;
-            if (!el) return;
-            const width = Math.round(el.getBoundingClientRect().width);
-            const height = Math.round(el.getBoundingClientRect().height);
-            if (width === atlas.width && height === atlas.height) return;
-            const next = { ...atlas, width, height };
-            setAtlas(next);
-            void window.airlock?.prefsSet({ atlas: next });
-          }}
         >
+          {/* The grip is on the BOTTOM-LEFT, not the bottom-right: the panel is
+              anchored to the right edge of the window, so it grows leftward and
+              downward. A bottom-right grip would sit at the one corner that
+              never moves. CSS `resize` can only ever place it bottom-right, so
+              this is a pointer-driven handle. */}
+          <button
+            type="button"
+            className="atlas-resize-grip"
+            aria-label="Resize Atlas panel"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startY = e.clientY;
+              const startW = atlas.width;
+              const startH = atlas.height;
+              const el = e.currentTarget;
+              el.setPointerCapture(e.pointerId);
+              const move = (ev: PointerEvent) => {
+                // Dragging LEFT widens; dragging DOWN heightens.
+                const width = Math.min(
+                  900,
+                  Math.max(280, Math.round(startW - (ev.clientX - startX))),
+                );
+                const height = Math.min(
+                  1200,
+                  Math.max(240, Math.round(startH + (ev.clientY - startY))),
+                );
+                setAtlas({ ...atlas, width, height });
+              };
+              const up = () => {
+                el.removeEventListener("pointermove", move);
+                el.removeEventListener("pointerup", up);
+                // Persist once, on release, rather than on every pixel.
+                void window.airlock?.prefsSet({
+                  atlas: useApp.getState().atlas,
+                });
+              };
+              el.addEventListener("pointermove", move);
+              el.addEventListener("pointerup", up);
+            }}
+          />
           {!asked ? (
             <p className="atlas-note">Loading...</p>
           ) : state !== null && !state.acknowledged ? (
@@ -106,7 +152,12 @@ export function AtlasTitlebarButton() {
                 <button
                   type="button"
                   className="atlas-btn"
-                  onClick={() => setShowChat((v) => !v)}
+                  onClick={() =>
+                    setShowChat((v) => {
+                      if (v) markRead(); // returning to the debrief reads it
+                      return !v;
+                    })
+                  }
                 >
                   {showChat ? "Debrief" : "Chat"}
                 </button>
@@ -121,7 +172,7 @@ export function AtlasTitlebarButton() {
                   back at your Mac.
                 </p>
               ) : (
-                <div className="atlas-brief">{renderBrief(brief)}</div>
+                <div className="atlas-brief">{renderBrief(brief.text)}</div>
               )}
             </>
           )}

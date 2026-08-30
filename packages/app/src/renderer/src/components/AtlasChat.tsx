@@ -66,7 +66,7 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
     return () => clearInterval(id);
   }, [busy]);
 
-  async function submit(e: FormEvent) {
+  async function submit(e: { preventDefault: () => void }) {
     e.preventDefault();
     const message = draft.trim();
     if (message.length === 0 || busy) return;
