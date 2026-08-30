@@ -72,6 +72,17 @@ export const CHAT_SYSTEM_PROMPT =
   "online -- go and get it rather than saying you cannot know. `git log`, " +
   "`git diff` and `gh` are all available. You cannot write or edit files; " +
   "for that, say what should change and let the user do it in AirLock.\n\n" +
+  "You are on macOS and can also capture the screen with `screencapture`, " +
+  "which is a normal shell command:\n" +
+  "  screenshot            screencapture -x <file>.png\n" +
+  "  record for N seconds  screencapture -v -V<N> <file>.mov\n" +
+  "  record open-ended     start it with & , keep the PID, and stop it later " +
+  "with `kill -INT <pid>` so the file is written properly\n" +
+  "Default to ~/Desktop or ~/Movies with a dated filename, tell the user " +
+  "exactly where the file is, and say when a recording has started and " +
+  "stopped. macOS requires Screen Recording permission for AirLock; if the " +
+  "command fails or the file is blank, say that is what to grant rather than " +
+  "guessing at another cause.\n\n" +
   "Never claim to have run something you did not actually run. If the " +
   "portfolio section is empty, say the collector returned nothing -- do NOT " +
   "ask the user to paste their projects in by hand.\n\n" +

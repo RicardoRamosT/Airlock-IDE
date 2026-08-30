@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { renderBrief } from "../lib/atlasBrief";
 import { isUnread } from "../lib/atlasUnread";
 import { useApp } from "../store";
-import { AtlasChat } from "./AtlasChat";
-import { AtlasConsent } from "./AtlasConsent";
+import { AtlasPanel } from "./AtlasPanel";
 
 // Atlas's in-app entry point, mounted at the RIGHT END of the titlebar beside
 // the notification bell and using the same button + dropdown-panel pattern.
@@ -68,12 +66,12 @@ export function AtlasTitlebarButton() {
   const unread =
     asked && isUnread(brief, state?.acknowledged === true, atlas.lastReadDay);
 
-  // Opening the panel on the debrief is what counts as reading it.
-  function markRead() {
-    if (brief === null || brief.day <= atlas.lastReadDay) return;
-    const next = { ...atlas, lastReadDay: brief.day };
+  // Reading the debrief is what clears the dot.
+  function markReadDay(day: string) {
+    if (day <= atlas.lastReadDay) return;
+    const next = { ...atlas, lastReadDay: day };
     setAtlas(next);
-    void window.airlock?.atlasMarkRead(brief.day);
+    void window.airlock?.atlasMarkRead(day);
   }
 
   return (
@@ -86,7 +84,7 @@ export function AtlasTitlebarButton() {
         onClick={() => {
           const next = !open;
           setOpen(next);
-          if (next && !showChat) markRead();
+          if (next && brief) markReadDay(brief.day);
         }}
       >
         <i className="codicon codicon-sparkle" />
@@ -98,11 +96,8 @@ export function AtlasTitlebarButton() {
           ref={panelRef}
           style={{ width: atlas.width, height: atlas.height }}
         >
-          {/* The grip is on the BOTTOM-LEFT, not the bottom-right: the panel is
-              anchored to the right edge of the window, so it grows leftward and
-              downward. A bottom-right grip would sit at the one corner that
-              never moves. CSS `resize` can only ever place it bottom-right, so
-              this is a pointer-driven handle. */}
+          {/* Grip bottom-LEFT: the panel is anchored to the right edge, so it
+              grows leftward and downward. */}
           <button
             type="button"
             className="atlas-resize-grip"
@@ -116,21 +111,21 @@ export function AtlasTitlebarButton() {
               const el = e.currentTarget;
               el.setPointerCapture(e.pointerId);
               const move = (ev: PointerEvent) => {
-                // Dragging LEFT widens; dragging DOWN heightens.
-                const width = Math.min(
-                  900,
-                  Math.max(280, Math.round(startW - (ev.clientX - startX))),
-                );
-                const height = Math.min(
-                  1200,
-                  Math.max(240, Math.round(startH + (ev.clientY - startY))),
-                );
-                setAtlas({ ...atlas, width, height });
+                setAtlas({
+                  ...atlas,
+                  width: Math.min(
+                    900,
+                    Math.max(280, Math.round(startW - (ev.clientX - startX))),
+                  ),
+                  height: Math.min(
+                    1200,
+                    Math.max(240, Math.round(startH + (ev.clientY - startY))),
+                  ),
+                });
               };
               const up = () => {
                 el.removeEventListener("pointermove", move);
                 el.removeEventListener("pointerup", up);
-                // Persist once, on release, rather than on every pixel.
                 void window.airlock?.prefsSet({
                   atlas: useApp.getState().atlas,
                 });
@@ -139,113 +134,7 @@ export function AtlasTitlebarButton() {
               el.addEventListener("pointerup", up);
             }}
           />
-          {!asked ? (
-            <p className="atlas-note">Loading...</p>
-          ) : state !== null && !state.acknowledged ? (
-            <AtlasConsent
-              disclosure={state.disclosure}
-              onAccept={() => {
-                window.airlock?.atlasConsent();
-                setState({ ...state, acknowledged: true });
-              }}
-            />
-          ) : (
-            <>
-              <div className="atlas-popover-head">
-                <span className="atlas-mark" aria-hidden="true">
-                  &#10022;
-                </span>
-                <h1>Atlas</h1>
-                {showChat ? (
-                  <>
-                    <button
-                      type="button"
-                      className="atlas-btn"
-                      title="Past conversations"
-                      onClick={() => {
-                        setShowHistory((v) => !v);
-                        void window.airlock
-                          ?.atlasSessions()
-                          .then(setHistory)
-                          .catch(() => setHistory([]));
-                      }}
-                    >
-                      History
-                    </button>
-                    <button
-                      type="button"
-                      className="atlas-btn"
-                      title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
-                      onClick={() => {
-                        void window.airlock?.atlasNewChat();
-                        setShowHistory(false);
-                        setReloadKey((k) => k + 1);
-                      }}
-                    >
-                      New chat
-                    </button>
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  className="atlas-btn"
-                  onClick={() => {
-                    setShowHistory(false);
-                    setShowChat((v) => {
-                      if (v) markRead(); // returning to the debrief reads it
-                      return !v;
-                    });
-                  }}
-                >
-                  {showChat ? "Debrief" : "Chat"}
-                </button>
-              </div>
-              {showChat && showHistory ? (
-                <div className="atlas-history">
-                  {history.length === 0 ? (
-                    <p className="atlas-note">No past conversations yet.</p>
-                  ) : (
-                    history.map((h) => (
-                      <button
-                        key={`s${h.session}`}
-                        type="button"
-                        className="atlas-history-row"
-                        onClick={() => {
-                          void window.airlock?.atlasResume(h.session);
-                          setShowHistory(false);
-                          setReloadKey((k) => k + 1);
-                        }}
-                      >
-                        <span className="atlas-history-when">
-                          {new Date(h.startedAt).toLocaleString([], {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        <span className="atlas-history-preview">
-                          {h.preview || "(no messages)"}
-                        </span>
-                        <span className="atlas-history-count">{h.turns}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              ) : showChat ? (
-                <div className="atlas-pane-chat">
-                  <AtlasChat chrome={false} reloadKey={reloadKey} />
-                </div>
-              ) : brief === null ? (
-                <p className="atlas-note">
-                  No debrief yet. Atlas writes one each morning, once you are
-                  back at your Mac.
-                </p>
-              ) : (
-                <div className="atlas-brief">{renderBrief(brief.text)}</div>
-              )}
-            </>
-          )}
+          <AtlasPanel onBriefRead={markReadDay} />
         </div>
       )}
     </div>

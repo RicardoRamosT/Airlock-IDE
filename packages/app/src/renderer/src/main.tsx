@@ -1,8 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { AtlasChat } from "./components/AtlasChat";
 import { AtlasPopover } from "./components/AtlasPopover";
+import { AtlasWindow } from "./components/AtlasWindow";
 import "@vscode/codicons/dist/codicon.css";
 import "./theme.css";
 
@@ -46,7 +46,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
     {view === "#atlas" ? (
       <AtlasPopover />
     ) : view === "#atlas-chat" ? (
-      <AtlasChat />
+      <AtlasWindow />
     ) : (
       <App />
     )}

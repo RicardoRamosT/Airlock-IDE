@@ -174,3 +174,12 @@ it("includes commit dates and subjects, not just a count", () => {
   expect(out).toContain("Spec the admin panel");
   expect(out).toContain("2026-08-26");
 });
+
+it("tells Atlas it can screenshot and record the screen", () => {
+  // It always COULD -- it has Bash and macOS ships screencapture -- but a tool
+  // it does not know about is a tool it never uses.
+  expect(CHAT_SYSTEM_PROMPT).toContain("screencapture");
+  expect(CHAT_SYSTEM_PROMPT).toMatch(/-v\b/); // video recording
+  expect(CHAT_SYSTEM_PROMPT).toMatch(/kill -INT/); // stopping a long recording
+  expect(CHAT_SYSTEM_PROMPT).toMatch(/Screen Recording permission/i);
+});
