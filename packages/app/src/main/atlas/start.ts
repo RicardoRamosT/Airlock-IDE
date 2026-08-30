@@ -26,6 +26,7 @@ export function startAtlasArrival(prefsFile: string): void {
         now: () => Date.now(),
         tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
         roots: allOpenRoots,
+        recents: () => prefs.recentFolders,
         enabled: () => prefs.atlas.enabled,
         acknowledged: () => prefs.atlas.acknowledged,
         onBriefReady: () => setUnread(true),

@@ -1066,21 +1066,25 @@ export function registerIpc(
     return readBrief(atlasDb(), day)?.text ?? null;
   });
   ipcMain.handle("atlas:turns", () => readTurns(atlasDb(), MAX_HISTORY_TURNS));
-  ipcMain.handle("atlas:send", (_e, message: unknown) =>
-    typeof message === "string"
-      ? sendMessage(
-          {
-            db: atlasDb(),
-            spawn: spawnClaude,
-            collect: makeCollectDeps(),
-            roots: allOpenRoots,
-            now: () => Date.now(),
-            tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
-          },
-          message,
-        )
-      : null,
-  );
+  // Recents are the strongest seed for the portfolio, so read them fresh on
+  // every send: a project opened a minute ago must be visible without a
+  // restart. Passing [] here is what made Atlas report an empty portfolio.
+  ipcMain.handle("atlas:send", async (_e, message: unknown) => {
+    if (typeof message !== "string") return null;
+    const recents = (await loadPrefs(prefsFile)).recentFolders;
+    return sendMessage(
+      {
+        db: atlasDb(),
+        spawn: spawnClaude,
+        collect: makeCollectDeps(),
+        roots: allOpenRoots,
+        recents: () => recents,
+        now: () => Date.now(),
+        tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
+      },
+      message,
+    );
+  });
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
   ipcMain.handle("atlas:state", async () => {
     const prefs = await loadPrefs(prefsFile);

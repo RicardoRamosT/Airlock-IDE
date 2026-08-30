@@ -110,7 +110,12 @@ export function setUnread(next: boolean): void {
 
 export function startAtlasTray(): void {
   if (tray) return;
-  const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL);
+  // The source art is 44px so it downsamples cleanly; the macOS menu bar wants
+  // roughly 18pt. Without this resize it renders at its full 44pt and dwarfs
+  // every other menu bar item.
+  const icon = nativeImage
+    .createFromDataURL(TRAY_ICON_DATA_URL)
+    .resize({ width: 18, height: 18, quality: "best" });
   // Template mode is what makes it adapt to a light or dark menu bar.
   icon.setTemplateImage(true);
   tray = new Tray(icon);

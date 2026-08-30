@@ -30,6 +30,7 @@ const deps = (over: Partial<AtlasDeps> = {}): AtlasDeps => ({
   now: () => Date.UTC(2026, 7, 30, 18, 0, 0),
   tzOffsetMinutes: () => -360,
   roots: () => ["/p/a"],
+  recents: () => [],
   enabled: () => true,
   acknowledged: () => true,
   onBriefReady: () => {},

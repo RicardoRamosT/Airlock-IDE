@@ -25,6 +25,7 @@ export function AtlasChat() {
   const [asked, setAsked] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [failed, setFailed] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -46,8 +47,24 @@ export function AtlasChat() {
   }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, []);
+    // Optional call: jsdom has no scrollIntoView, and this effect now runs on
+    // every render (it must, to follow new messages) rather than only on mount.
+    endRef.current?.scrollIntoView?.({ block: "end" });
+  });
+
+  // A bare "..." says nothing about whether anything is happening. Atlas runs a
+  // real subprocess that can take many seconds, so show the stage AND a running
+  // clock -- the difference between "working" and "hung" has to be visible.
+  useEffect(() => {
+    if (!busy) return;
+    setElapsed(0);
+    const started = Date.now();
+    const id = setInterval(
+      () => setElapsed(Math.round((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, [busy]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

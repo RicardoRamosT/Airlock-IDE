@@ -36,6 +36,7 @@ const deps = (over: Partial<ChatDeps> = {}): ChatDeps => ({
   spawn: async () => reply("Work on Revaltone-CRM first."),
   collect: collect(),
   roots: () => ["/p/Muros-Estates"],
+  recents: () => [],
   now: () => Date.UTC(2026, 7, 30, 18, 0, 0),
   tzOffsetMinutes: () => -360,
   ...over,
@@ -174,4 +175,30 @@ it("still answers when collection throws, rather than failing the turn", async (
     },
   });
   expect(await sendMessage(d, "hi")).toBe("ok");
+});
+
+it("seeds from recentFolders too, not only open windows", async () => {
+  // The bug this pins: the chat passed recentFolders: [] and seeded ONLY from
+  // open windows. With no project window focused that is zero roots, so Atlas
+  // reported an empty portfolio while 21 repositories sat in recents.
+  const spawn = vi.fn(async () => reply("ok"));
+  await sendMessage(
+    deps({ spawn, roots: () => [], recents: () => ["/p/ElArqui"] }),
+    "hi",
+  );
+  const [, stdin] = spawn.mock.calls[0] as unknown as [string[], string];
+  expect(stdin).toContain("ElArqui");
+});
+
+it("re-collects when the cached snapshot is EMPTY", async () => {
+  // An empty collection must not poison the whole day. The first attempt ran
+  // with no roots and cached [], and every later message reused it.
+  const d = deps({ roots: () => [], recents: () => [] });
+  await sendMessage(d, "first");
+  const spawn = vi.fn(async () => reply("ok"));
+  d.spawn = spawn;
+  d.roots = () => ["/p/Muros-Estates"];
+  await sendMessage(d, "second");
+  const [, stdin] = spawn.mock.calls[0] as unknown as [string[], string];
+  expect(stdin).toContain("Muros-Estates");
 });

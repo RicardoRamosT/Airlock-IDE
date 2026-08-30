@@ -23,7 +23,8 @@ export interface AtlasDeps {
   spawn: SpawnFn;
   now(): number;
   tzOffsetMinutes(): number;
-  roots(): string[]; // open tab roots; recents come from prefs at the call site
+  roots(): string[]; // open tab roots
+  recents(): string[]; // AirLock's recentFolders -- the strongest seed
   enabled(): boolean;
   acknowledged(): boolean;
   onBriefReady(day: string): void;
@@ -54,7 +55,7 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
     const snaps = await refreshPortfolio({
       db: deps.db,
       deps: deps.collect,
-      recentFolders: [],
+      recentFolders: deps.recents(),
       openTabRoots: deps.roots(),
       now,
       tzOffsetMinutes: deps.tzOffsetMinutes(),

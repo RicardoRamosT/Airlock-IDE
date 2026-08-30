@@ -41,6 +41,7 @@ export interface ChatDeps {
   spawn: SpawnFn;
   collect: CollectDeps;
   roots(): string[];
+  recents(): string[];
   now(): number;
   tzOffsetMinutes(): number;
 }
@@ -56,13 +57,17 @@ async function portfolioFor(
   today: string,
   now: number,
 ): Promise<RootSnapshot[]> {
+  // An EMPTY snapshot is not a valid cache hit. The first attempt can run with
+  // no roots yet (no project window focused), and caching that answer poisoned
+  // the entire day: every later message reused it and Atlas kept insisting the
+  // portfolio was empty.
   const existing = readSnapshot(deps.db, today);
-  if (existing !== null) return existing;
+  if (existing !== null && existing.length > 0) return existing;
   try {
     return await refreshPortfolio({
       db: deps.db,
       deps: deps.collect,
-      recentFolders: [],
+      recentFolders: deps.recents(),
       openTabRoots: deps.roots(),
       now,
       tzOffsetMinutes: deps.tzOffsetMinutes(),

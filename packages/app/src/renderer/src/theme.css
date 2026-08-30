@@ -6683,3 +6683,57 @@ button.docker-row .codicon-chevron-right {
 .atlas-consent .atlas-what {
   color: var(--fg);
 }
+
+/* Atlas "thinking" row. A bare ellipsis gives no signal about whether work is
+   happening or the call has hung, so this shows a stage label and, past three
+   seconds, a running clock. */
+.atlas-thinking {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.atlas-thinking-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.atlas-thinking-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.35;
+  animation: atlas-pulse 1.2s ease-in-out infinite;
+}
+.atlas-thinking-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.atlas-thinking-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes atlas-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.atlas-thinking-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+/* Respect reduced motion: keep the element, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .atlas-thinking-dots i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
