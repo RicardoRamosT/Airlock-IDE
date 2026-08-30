@@ -256,6 +256,7 @@ const api: AirlockApi = {
   openExternalTerminal: (root) =>
     ipcRenderer.invoke("terminal:openExternal", root),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
+  atlasBrief: () => ipcRenderer.invoke("atlas:brief"),
   usageGet: () => ipcRenderer.invoke("usage:get"),
   memoryGet: () => ipcRenderer.invoke("memory:get"),
   overviewGet: (root) => ipcRenderer.invoke("overview:get", root),

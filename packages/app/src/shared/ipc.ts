@@ -569,6 +569,10 @@ export interface AppPrefs {
   // Code statusLine that AirLock reads (set enabled:false to turn it off and
   // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
+  // Atlas: the portfolio debrief. `enabled` is the feature switch; `acknowledged`
+  // records that the user accepted the first-run cost disclosure. Both must be
+  // true before Atlas spends a single token -- an API-key user pays real money.
+  atlas: { enabled: boolean; acknowledged: boolean };
   // Dock status badge (macOS). OFF by default (opt-in): enabling installs
   // AirLock-labeled Claude Code hooks in ~/.claude/settings.json. App-global.
   dockStatus: { enabled: boolean };
@@ -1230,6 +1234,7 @@ export interface AirlockApi {
   // Claude quota meter: last-known account usage (null before the first emit),
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;
+  atlasBrief(): Promise<string | null>;
   // Per-session usage ledger (persisted; most-recent across launches) for the
   // Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;

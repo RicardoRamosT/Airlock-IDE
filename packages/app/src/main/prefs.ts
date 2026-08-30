@@ -74,6 +74,7 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
+  atlas: { enabled: true, acknowledged: false },
   dockStatus: { enabled: true },
   runAppSkill: { enabled: true },
   selfVerify: { enabled: false },
@@ -179,6 +180,24 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
     if (typeof r.enabled === "boolean") return { enabled: r.enabled };
   }
   return { enabled: true };
+}
+
+// atlas is app-global. `enabled` defaults ON, but `acknowledged` defaults OFF
+// and must be set deliberately: until it is true, Atlas spends nothing. A
+// corrupt or partial value must therefore fall back to NOT acknowledged --
+// failing open here would spend an API-key user's money without asking.
+function sanitizeAtlas(raw: unknown): {
+  enabled: boolean;
+  acknowledged: boolean;
+} {
+  let enabled = true;
+  let acknowledged = false;
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (typeof r.enabled === "boolean") enabled = r.enabled;
+    if (r.acknowledged === true) acknowledged = true;
+  }
+  return { enabled, acknowledged };
 }
 
 // dockStatus is app-global and ON by default (opt-out). Enabling reconciles the
@@ -311,6 +330,7 @@ function sanitize(raw: unknown): AppPrefs {
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
+    atlas: sanitizeAtlas(r.atlas),
     dockStatus: sanitizeDockStatus(r.dockStatus),
     githubAutoSwitch: sanitizeGithubAutoSwitch(r.githubAutoSwitch),
     runAppSkill: sanitizeRunAppSkill(r.runAppSkill),

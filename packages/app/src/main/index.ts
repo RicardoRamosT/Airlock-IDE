@@ -22,6 +22,7 @@ import {
   startAnthropicStatusWatch,
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
+import { startAtlasTray, stopAtlasTray } from "./atlas/trayWindow";
 import {
   getDevServerState,
   startDevServer,
@@ -147,6 +148,7 @@ function bootstrap(): void {
     // in via runAgentCommand in the startMcpServer deps below.
     registerAgentCommandIpc();
     createWindow();
+    startAtlasTray();
     const prefs = await loadPrefs(prefsFile);
     // Event log: start the writer now that we know whether it's enabled and at
     // what level. emitEvent() is a no-op until this is called (writer is null).
@@ -290,6 +292,9 @@ function bootstrap(): void {
     void unregisterMcpServer({ scope: "user" }).catch(() => {});
   });
 
+  app.on("before-quit", () => {
+    stopAtlasTray();
+  });
   app.on("before-quit", () => {
     flushSession(); // synchronous: persist the latest layout before teardown
     killAllSessions();

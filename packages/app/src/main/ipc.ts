@@ -128,6 +128,8 @@ import {
 } from "./agent-requests";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
+import { atlasDb } from "./atlas/db";
+import { dayKey, readBrief } from "./atlas/store";
 import {
   detectUnmanaged,
   getDevServerState,
@@ -1050,6 +1052,12 @@ export function registerIpc(
   });
 
   ipcMain.handle("quota:get", () => getQuota());
+  // Today's Atlas debrief, or null when none has been composed yet. Three
+  // states matter to the renderer: not-asked, asked-and-none, asked-and-here.
+  ipcMain.handle("atlas:brief", () => {
+    const day = dayKey(Date.now(), -new Date().getTimezoneOffset());
+    return readBrief(atlasDb(), day)?.text ?? null;
+  });
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
   ipcMain.handle("app:info", () => ({
     version: app.getVersion(),

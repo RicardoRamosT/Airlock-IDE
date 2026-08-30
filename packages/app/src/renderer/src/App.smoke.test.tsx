@@ -103,6 +103,7 @@ const DEFAULT_PREFS: AppPrefs = {
   },
   quotaMeter: { enabled: false },
   dockStatus: { enabled: false },
+  atlas: { enabled: false, acknowledged: false },
   githubAutoSwitch: true,
   runAppSkill: { enabled: true },
   selfVerify: { enabled: false },
