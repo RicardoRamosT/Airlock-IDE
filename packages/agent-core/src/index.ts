@@ -19,6 +19,13 @@ export {
   MAX_PROMPT_CHARS,
 } from "./atlas/brief";
 export {
+  buildChatPrompt,
+  CHAT_MODEL,
+  CHAT_SYSTEM_PROMPT,
+  MAX_HISTORY_TURNS,
+  type Turn,
+} from "./atlas/chat";
+export {
   type CollectDeps,
   collectAll,
   collectRoot,
@@ -36,13 +43,34 @@ export {
   detectCredentialMode,
 } from "./atlas/credentials";
 export {
+  type AtlasFact,
+  FACT_KINDS,
+  type FactKind,
+  factKey,
+  type IncomingFact,
+  liveFacts,
+  mergeFacts,
+} from "./atlas/facts";
+export {
   type AtlasProject,
   applyPresence,
   mergeRegistry,
   projectName,
 } from "./atlas/registry";
+export {
+  FACTS_CLOSE,
+  FACTS_OPEN,
+  type SplitReply,
+  splitReply,
+} from "./atlas/reply";
 export { type ComposerResult, parseComposerOutput } from "./atlas/result";
 export { seedRoots } from "./atlas/seed";
+export {
+  isStale,
+  pickDailyQuestion,
+  questionFor,
+  STALE_AFTER_DAYS,
+} from "./atlas/staleness";
 export { shouldCompose, type TriggerState } from "./atlas/trigger";
 export {
   type AuditEntry,
