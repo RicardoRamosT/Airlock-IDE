@@ -18,6 +18,7 @@ import {
   saveBrief,
   saveSnapshot,
   writeAskedDay,
+  writeChatSince,
   writeFacts,
   writeRegistry,
 } from "./store";
@@ -236,4 +237,35 @@ it("round-trips the day a staleness question was last asked", () => {
   expect(readAskedDay(d)).toBe("2026-08-30");
   writeAskedDay(d, "2026-08-31");
   expect(readAskedDay(d)).toBe("2026-08-31");
+});
+
+it("hides turns before the conversation boundary but keeps the FACTS", () => {
+  // "New chat" must clear the transcript without forgetting. A fresh chat with
+  // no memory would be a worse assistant, not a cleaner one.
+  const d = db();
+  appendTurn(d, { role: "user", text: "before" }, 1000);
+  writeFacts(d, [aFact()]);
+  writeChatSince(d, 2000);
+  appendTurn(d, { role: "user", text: "after" }, 3000);
+
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["after"]);
+  // The memory survived.
+  expect(readFacts(d)).toHaveLength(1);
+  expect(readFacts(d)[0]?.verbatim).toBe("Muros is due the 15th");
+});
+
+it("shows every turn when no boundary has been set", () => {
+  const d = db();
+  appendTurn(d, { role: "user", text: "one" }, 1);
+  appendTurn(d, { role: "atlas", text: "two" }, 2);
+  expect(readTurns(d, 10)).toHaveLength(2);
+});
+
+it("deletes nothing: a boundary moved back reveals the old turns again", () => {
+  const d = db();
+  appendTurn(d, { role: "user", text: "old" }, 1000);
+  writeChatSince(d, 5000);
+  expect(readTurns(d, 10)).toEqual([]);
+  writeChatSince(d, 0);
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["old"]);
 });

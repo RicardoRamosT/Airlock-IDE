@@ -1,32 +1,63 @@
-// The composer writes light markdown (** for emphasis, "- " and "1." lists).
-// Rendering it raw shows literal asterisks. This handles just those shapes --
-// a full markdown engine would be far more than this needs. Extracted so the
-// popover and the sidebar section share one renderer instead of drifting.
+// Atlas writes light markdown -- **bold**, `code`, "- " bullets, "1." lists --
+// and rendering it raw showed literal asterisks and backticks in the chat.
+// This handles exactly those shapes; a full markdown engine would be far more
+// than this needs. Shared by the debrief and the conversation so the two
+// cannot drift.
 
-function inline(text: string, key: string) {
-  // Keyed by the part's OFFSET in the source string, not by array index: the
-  // offset is a real identity for that run of text.
+import type { ReactNode } from "react";
+
+// Split on bold and code together, so a line can contain both. Keyed by the
+// part's OFFSET in the source string, never by array index: the offset is a
+// real identity for that run of text.
+function inline(text: string, key: string): ReactNode[] {
   let at = 0;
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part) => {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part) => {
     const k = `${key}@${at}`;
     at += part.length;
-    return part.startsWith("**") && part.endsWith("**") ? (
-      <strong key={k}>{part.slice(2, -2)}</strong>
-    ) : (
-      <span key={k}>{part}</span>
-    );
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={k}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return <code key={k}>{part.slice(1, -1)}</code>;
+    }
+    return <span key={k}>{part}</span>;
   });
 }
 
-export function renderBrief(text: string) {
+export function renderBrief(text: string): ReactNode[] {
   return text.split("\n").map((line, i) => {
     const k = `l${i}`;
     const t = line.trim();
     if (t.length === 0) return <div key={k} className="atlas-brief-gap" />;
+
+    // A heading: a whole line that is nothing but bold.
+    const heading = /^\*\*(.+)\*\*$/.exec(t);
+    if (heading) {
+      return (
+        <p key={k} className="atlas-brief-heading">
+          {heading[1]}
+        </p>
+      );
+    }
+
     const bullet = /^[-*]\s+/.test(t);
+    const numbered = /^\d+[.)]\s+/.test(t);
+    if (bullet || numbered) {
+      const body = t.replace(/^[-*]\s+/, "").replace(/^\d+[.)]\s+/, "");
+      const marker = numbered ? (/^(\d+)/.exec(t)?.[1] ?? "") : "";
+      return (
+        <p
+          key={k}
+          className={numbered ? "atlas-brief-num" : "atlas-brief-item"}
+          data-marker={marker}
+        >
+          {inline(body, k)}
+        </p>
+      );
+    }
     return (
-      <p key={k} className={bullet ? "atlas-brief-item" : "atlas-brief-line"}>
-        {inline(bullet ? t.replace(/^[-*]\s+/, "") : t, k)}
+      <p key={k} className="atlas-brief-line">
+        {inline(t, k)}
       </p>
     );
   });

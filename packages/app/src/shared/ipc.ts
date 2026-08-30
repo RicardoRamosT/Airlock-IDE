@@ -1256,6 +1256,7 @@ export interface AirlockApi {
   atlasMarkRead(day: string): Promise<void>;
   atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
   atlasSend(message: string): Promise<string | null>;
+  atlasNewChat(): Promise<void>;
   atlasOpenWindow(): Promise<void>;
   atlasState(): Promise<{ acknowledged: boolean; disclosure: string }>;
   atlasConsent(): Promise<void>;

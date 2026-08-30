@@ -6987,3 +6987,54 @@ button.docker-row .codicon-chevron-right {
 .atlas-chat-form textarea::placeholder {
   color: var(--fg-dim);
 }
+
+.atlas-chat-bar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 6px;
+}
+/* Markdown inside a debrief or an Atlas turn. */
+.atlas-brief-heading {
+  margin: 10px 0 4px;
+  font-weight: 600;
+  color: var(--fg);
+  font-size: 0.94em;
+  letter-spacing: 0.02em;
+}
+.atlas-brief-heading:first-child {
+  margin-top: 0;
+}
+.atlas-brief-num {
+  margin: 0 0 5px;
+  padding-left: 20px;
+  position: relative;
+  line-height: 1.5;
+}
+.atlas-brief-num::before {
+  content: attr(data-marker) ".";
+  position: absolute;
+  left: 0;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+.atlas-brief code,
+.atlas-turn code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.16);
+}
+.atlas-turn-atlas strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.atlas-turn-atlas .atlas-brief-line,
+.atlas-turn-atlas .atlas-brief-item,
+.atlas-turn-atlas .atlas-brief-num {
+  margin-bottom: 4px;
+}
+.atlas-turn-atlas .atlas-brief-gap {
+  height: 5px;
+}

@@ -240,11 +240,15 @@ export function appendTurn(db: DatabaseSync, turn: Turn, at: number): void {
 }
 
 // The most recent `limit` turns, returned OLDEST FIRST so the caller can append
-// them to a prompt in reading order.
+// them to a prompt in reading order. Turns older than the conversation
+// boundary are excluded -- that is what "New chat" means.
 export function readTurns(db: DatabaseSync, limit: number): Turn[] {
+  const since = readChatSince(db);
   const rows = db
-    .prepare("SELECT role, text FROM turn ORDER BY seq DESC LIMIT ?")
-    .all(limit) as { role: string; text: string }[];
+    .prepare(
+      "SELECT role, text FROM turn WHERE at >= ? ORDER BY seq DESC LIMIT ?",
+    )
+    .all(since, limit) as { role: string; text: string }[];
   return rows
     .reverse()
     .map((r) => ({ role: r.role as Turn["role"], text: r.text }));
@@ -261,4 +265,22 @@ export function writeAskedDay(db: DatabaseSync, day: string): void {
   db.prepare(
     "INSERT INTO kv (k, v) VALUES ('askedDay', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
   ).run(day);
+}
+
+// The conversation boundary. "New chat" moves it to now, so the transcript
+// starts empty -- but nothing is deleted, and the FACTS table is untouched, so
+// everything Atlas has learned about the user carries over. A fresh chat with
+// no memory would be a worse assistant, not a cleaner one.
+export function readChatSince(db: DatabaseSync): number {
+  const row = db.prepare("SELECT v FROM kv WHERE k = 'chatSince'").get() as
+    | { v: string }
+    | undefined;
+  const n = row ? Number.parseInt(row.v, 10) : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function writeChatSince(db: DatabaseSync, at: number): void {
+  db.prepare(
+    "INSERT INTO kv (k, v) VALUES ('chatSince', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
+  ).run(String(at));
 }

@@ -1,5 +1,7 @@
 import type { Turn } from "@airlock/agent-core";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { renderBrief } from "../lib/atlasBrief";
+import { formatElapsed } from "../lib/atlasFormat";
 
 // The Atlas conversation. Read-only in the sense that Atlas cannot change any
 // repository from here -- acting is Plan 4. This window is separate from the
@@ -104,6 +106,20 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
       <div className="atlas-window">
         {titlebar}
         <div className="atlas-chat">
+          <div className="atlas-chat-bar">
+            <button
+              type="button"
+              className="atlas-btn"
+              title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
+              onClick={() => {
+                void window.airlock?.atlasNewChat();
+                setTurns([]);
+                setFailed(false);
+              }}
+            >
+              New chat
+            </button>
+          </div>
           <div className="atlas-chat-log">
             <p className="atlas-chat-empty">Loading...</p>
           </div>
@@ -116,6 +132,20 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
     <div className="atlas-window">
       {titlebar}
       <div className="atlas-chat">
+        <div className="atlas-chat-bar">
+          <button
+            type="button"
+            className="atlas-btn"
+            title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
+            onClick={() => {
+              void window.airlock?.atlasNewChat();
+              setTurns([]);
+              setFailed(false);
+            }}
+          >
+            New chat
+          </button>
+        </div>
         <div className="atlas-chat-log">
           {turns.length === 0 ? (
             <p className="atlas-chat-empty">
@@ -143,7 +173,9 @@ export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
                     : "Still thinking\u2026"}
               </span>
               {elapsed >= 3 ? (
-                <span className="atlas-thinking-time">{elapsed}s</span>
+                <span className="atlas-thinking-time">
+                  {formatElapsed(elapsed)}
+                </span>
               ) : null}
             </div>
           ) : null}

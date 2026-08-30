@@ -135,7 +135,7 @@ import { spawnClaude } from "./atlas/composer";
 import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
 import { makeCollectDeps } from "./atlas/runners";
-import { dayKey, readBrief, readTurns } from "./atlas/store";
+import { dayKey, readBrief, readTurns, writeChatSince } from "./atlas/store";
 import { openAtlasWindow } from "./atlas/trayWindow";
 import {
   detectUnmanaged,
@@ -1090,6 +1090,11 @@ export function registerIpc(
       },
       message,
     );
+  });
+  // Clears the visible transcript WITHOUT forgetting: facts survive, so Atlas
+  // still knows the deadlines and priorities it was told.
+  ipcMain.handle("atlas:newChat", () => {
+    writeChatSince(atlasDb(), Date.now());
   });
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
   ipcMain.handle("atlas:state", async () => {
