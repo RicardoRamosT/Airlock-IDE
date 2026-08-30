@@ -14,18 +14,36 @@ export {
   parseCommitLog,
 } from "./atlas/activity";
 export {
+  buildBriefPrompt,
+  MAX_COMMITS_PER_PROJECT,
+  MAX_PROMPT_CHARS,
+} from "./atlas/brief";
+export {
   type CollectDeps,
   collectAll,
   collectRoot,
   type RootSnapshot,
 } from "./atlas/collect";
 export {
+  buildComposerArgs,
+  COMPOSER_DISALLOWED_TOOLS,
+  COMPOSER_MODEL,
+  COMPOSER_SYSTEM_PROMPT,
+} from "./atlas/compose";
+export {
+  type CredentialMode,
+  costDisclosure,
+  detectCredentialMode,
+} from "./atlas/credentials";
+export {
   type AtlasProject,
   applyPresence,
   mergeRegistry,
   projectName,
 } from "./atlas/registry";
+export { type ComposerResult, parseComposerOutput } from "./atlas/result";
 export { seedRoots } from "./atlas/seed";
+export { shouldCompose, type TriggerState } from "./atlas/trigger";
 export {
   type AuditEntry,
   appendAudit,
