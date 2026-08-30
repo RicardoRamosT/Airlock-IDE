@@ -19,7 +19,10 @@ const proj = (root: string): AtlasProject => ({
   missing: false,
 });
 
-const snap = (root: string, over: Partial<RootSnapshot> = {}): RootSnapshot => ({
+const snap = (
+  root: string,
+  over: Partial<RootSnapshot> = {},
+): RootSnapshot => ({
   root,
   missing: false,
   isRepo: true,
