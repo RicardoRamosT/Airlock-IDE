@@ -9,6 +9,7 @@ import type {
 import { expect, it } from "vitest";
 import {
   appendTurn,
+  appendTurns,
   dayKey,
   lastBriefDay,
   listSessions,
@@ -257,6 +258,58 @@ it("hides turns before the conversation boundary but keeps the FACTS", () => {
   // The memory survived.
   expect(readFacts(d)).toHaveLength(1);
   expect(readFacts(d)[0]?.verbatim).toBe("Muros is due the 15th");
+});
+
+it("writes a user turn and its reply as ONE unit, or not at all", () => {
+  // AirLock aborted between the two appendTurn calls on 2026-08-30 (a Node
+  // CHECK inside node:sqlite's bind, crash report AirLock-2026-08-30-163118),
+  // leaving a user turn with no reply in the live database -- exactly the
+  // "poisoned history" conversation.ts's own header forbids. Two statements
+  // with no transaction is what made a crash able to corrupt the transcript.
+  const d = db();
+  expect(
+    () =>
+      appendTurns(
+        d,
+        [
+          { role: "user", text: "what should I do?" },
+          // Forces the SECOND insert to fail, standing in for the abort.
+          { role: "atlas", text: undefined as unknown as string },
+        ],
+        1000,
+      ),
+    // Match the BIND failure specifically: a bare .toThrow() also passes when
+    // appendTurns does not exist at all, which is a vacuous test.
+  ).toThrow(/bound to SQLite/);
+  // Neither turn survives: no dangling user message.
+  expect(readTurns(d, 10)).toEqual([]);
+});
+
+it("commits both turns together on the happy path", () => {
+  const d = db();
+  appendTurns(
+    d,
+    [
+      { role: "user", text: "q" },
+      { role: "atlas", text: "a" },
+    ],
+    1000,
+  );
+  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["q", "a"]);
+});
+
+it("stamps both turns with the SAME session, so a pair cannot straddle a boundary", () => {
+  const d = db();
+  writeChatSince(d, 500);
+  appendTurns(
+    d,
+    [
+      { role: "user", text: "q" },
+      { role: "atlas", text: "a" },
+    ],
+    1000,
+  );
+  expect(readTurns(d, 10)).toHaveLength(2);
 });
 
 it("shows every turn when no boundary has been set", () => {

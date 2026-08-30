@@ -281,11 +281,43 @@ export function writeFacts(
 }
 
 export function appendTurn(db: DatabaseSync, turn: Turn, at: number): void {
-  // The active boundary doubles as the session id: no extra bookkeeping, and
-  // every turn is permanently attributable to the conversation it belonged to.
-  db.prepare(
-    "INSERT INTO turn (role, text, at, session) VALUES (?, ?, ?, ?)",
-  ).run(turn.role, turn.text, at, readChatSince(db));
+  appendTurns(db, [turn], at);
+}
+
+// A user message and its reply are ONE unit and are written in ONE transaction.
+//
+// They used to be two bare INSERTs. On 2026-08-30 the process aborted between
+// them -- a CHECK inside node:sqlite's own parameter binding, see the crash
+// report AirLock-2026-08-30-163118 -- and the live database was left holding a
+// user turn whose reply never landed. That is precisely the "half-written turn
+// ... would poison the history that every later turn resends" state that
+// conversation.ts's header declares must not exist; the guard there covers a
+// failed SPAWN and cannot cover a failed WRITE. Only the transaction can.
+//
+// This also protects against an abort rather than merely an exception: an
+// uncommitted transaction is rolled back when SQLite next opens the file, so a
+// crash mid-pair leaves NEITHER turn instead of a dangling one.
+export function appendTurns(
+  db: DatabaseSync,
+  turns: readonly Turn[],
+  at: number,
+): void {
+  if (turns.length === 0) return;
+  // Read the boundary ONCE, outside the loop: the active boundary doubles as
+  // the session id, and reading it per turn would let a pair straddle two
+  // conversations if "New chat" landed between the two inserts.
+  const session = readChatSince(db);
+  db.exec("BEGIN");
+  try {
+    const ins = db.prepare(
+      "INSERT INTO turn (role, text, at, session) VALUES (?, ?, ?, ?)",
+    );
+    for (const t of turns) ins.run(t.role, t.text, at, session);
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 // The most recent `limit` turns, returned OLDEST FIRST so the caller can append

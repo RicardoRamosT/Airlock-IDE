@@ -6,7 +6,9 @@
 //
 // Nothing is recorded when the call fails. A half-written turn -- a user
 // message with no reply -- would poison the history that every later turn
-// resends.
+// resends. That guard covers a failed SPAWN; it cannot cover a failed WRITE,
+// so the pair is written through appendTurns in a single transaction. An
+// abort mid-pair (which is how this was found) then leaves neither turn.
 
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -25,7 +27,7 @@ import { emitEvent } from "../eventlog/wire";
 import type { SpawnFn } from "./composer";
 import { refreshPortfolio } from "./refresh";
 import {
-  appendTurn,
+  appendTurns,
   dayKey,
   readAskedDay,
   readFacts,
@@ -132,8 +134,14 @@ export async function sendMessage(
 
   const { prose, facts: incoming } = splitReply(result.text);
 
-  appendTurn(deps.db, { role: "user", text: message }, now);
-  appendTurn(deps.db, { role: "atlas", text: prose }, now);
+  appendTurns(
+    deps.db,
+    [
+      { role: "user", text: message },
+      { role: "atlas", text: prose },
+    ],
+    now,
+  );
   if (incoming.length > 0) {
     writeFacts(
       deps.db,
