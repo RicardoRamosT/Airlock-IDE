@@ -136,14 +136,9 @@ import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
 import { atlasMcp } from "./atlas/mcpEndpoint";
 import { makeCollectDeps } from "./atlas/runners";
-import {
-  dayKey,
-  listSessions,
-  readBrief,
-  readTurns,
-  resumeSession,
-  writeChatSince,
-} from "./atlas/store";
+// Only the pure helper: every database call goes through atlasDb(), which
+// speaks to the isolated host process.
+import { dayKey } from "./atlas/store";
 import {
   openAtlasWindow,
   setAtlasPanelSize,
@@ -1074,9 +1069,9 @@ export function registerIpc(
   ipcMain.handle("quota:get", () => getQuota());
   // Today's Atlas debrief, or null when none has been composed yet. Three
   // states matter to the renderer: not-asked, asked-and-none, asked-and-here.
-  ipcMain.handle("atlas:brief", () => {
+  ipcMain.handle("atlas:brief", async () => {
     const day = dayKey(Date.now(), -new Date().getTimezoneOffset());
-    const b = readBrief(atlasDb(), day);
+    const b = await atlasDb().readBrief(day);
     return b ? { day: b.day, text: b.text } : null;
   });
   ipcMain.handle("atlas:markRead", async (_e, day: unknown) => {
@@ -1084,7 +1079,7 @@ export function registerIpc(
     const cur = (await loadPrefs(prefsFile)).atlas;
     await savePrefs(prefsFile, { atlas: { ...cur, lastReadDay: day } });
   });
-  ipcMain.handle("atlas:turns", () => readTurns(atlasDb(), MAX_HISTORY_TURNS));
+  ipcMain.handle("atlas:turns", () => atlasDb().readTurns(MAX_HISTORY_TURNS));
   // Recents are the strongest seed for the portfolio, so read them fresh on
   // every send: a project opened a minute ago must be visible without a
   // restart. Passing [] here is what made Atlas report an empty portfolio.
@@ -1107,13 +1102,13 @@ export function registerIpc(
   });
   // Clears the visible transcript WITHOUT forgetting: facts survive, so Atlas
   // still knows the deadlines and priorities it was told.
-  ipcMain.handle("atlas:newChat", () => {
-    writeChatSince(atlasDb(), Date.now());
+  ipcMain.handle("atlas:newChat", async () => {
+    await atlasDb().writeChatSince(Date.now());
   });
-  ipcMain.handle("atlas:sessions", () => listSessions(atlasDb()));
-  ipcMain.handle("atlas:resume", (_e, session: unknown) => {
+  ipcMain.handle("atlas:sessions", () => atlasDb().listSessions());
+  ipcMain.handle("atlas:resume", async (_e, session: unknown) => {
     if (typeof session === "number" && Number.isFinite(session)) {
-      resumeSession(atlasDb(), session);
+      await atlasDb().resumeSession(session);
     }
   });
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());

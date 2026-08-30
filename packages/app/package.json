@@ -32,6 +32,8 @@
       "out/**"
     ],
     "asarUnpack": [
+      "out/main/atlasDbHost.js",
+      "out/main/chunks/**",
       "node_modules/node-pty/**",
       "node_modules/@parcel/watcher/**",
       "node_modules/@parcel/watcher-darwin-arm64/**"

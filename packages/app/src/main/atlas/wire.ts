@@ -5,20 +5,20 @@
 // window focus fires many times a second while the user switches applications
 // and a compose takes seconds.
 
-import type { DatabaseSync } from "node:sqlite";
 import {
   buildBriefPrompt,
   type CollectDeps,
   shouldCompose,
 } from "@airlock/agent-core";
 import { runComposer, type SpawnFn } from "./composer";
+import type { AtlasDb } from "./dbOps";
 import { refreshPortfolio } from "./refresh";
-import { dayKey, lastBriefDay, saveBrief } from "./store";
+import { dayKey } from "./store";
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface AtlasDeps {
-  db: DatabaseSync;
+  db: AtlasDb;
   collect: CollectDeps;
   spawn: SpawnFn;
   now(): number;
@@ -37,12 +37,14 @@ let composing = false;
 export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
   const now = deps.now();
   const today = dayKey(now, deps.tzOffsetMinutes());
+  // Hoisted: the store is asynchronous now that it lives in its own process.
+  const lastDay = await deps.db.lastBriefDay();
 
   if (
     !shouldCompose({
       enabled: deps.enabled(),
       acknowledged: deps.acknowledged(),
-      lastBriefDay: lastBriefDay(deps.db),
+      lastBriefDay: lastDay,
       today,
       composing,
       localHour: new Date(now + deps.tzOffsetMinutes() * 60_000).getUTCHours(),
@@ -73,7 +75,7 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
     // arrival tries again.
     if (result === null) return false;
 
-    saveBrief(deps.db, {
+    await deps.db.saveBrief({
       day: today,
       text: result.text,
       costUsd: result.costUsd,

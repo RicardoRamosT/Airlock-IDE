@@ -5,7 +5,6 @@
 // This is the free half of Atlas. It spends no model tokens and may therefore
 // run on a timer -- unlike the composer, which never does.
 
-import type { DatabaseSync } from "node:sqlite";
 import {
   applyPresence,
   type CollectDeps,
@@ -14,10 +13,13 @@ import {
   type RootSnapshot,
   seedRoots,
 } from "@airlock/agent-core";
-import { dayKey, readRegistry, saveSnapshot, writeRegistry } from "./store";
+import type { AtlasDb } from "./dbOps";
+// dayKey is pure, so it stays a direct import: only DATABASE work crosses the
+// process boundary.
+import { dayKey } from "./store";
 
 export interface RefreshInput {
-  db: DatabaseSync;
+  db: AtlasDb;
   deps: CollectDeps;
   recentFolders: readonly string[];
   openTabRoots: readonly string[];
@@ -32,7 +34,7 @@ export async function refreshPortfolio(
   const { db, deps, now } = input;
 
   const discovered = seedRoots(input.recentFolders, input.openTabRoots);
-  const merged = mergeRegistry(readRegistry(db), discovered, now);
+  const merged = mergeRegistry(await db.readRegistry(), discovered, now);
 
   const snaps = await collectAll(
     deps,
@@ -41,7 +43,11 @@ export async function refreshPortfolio(
   );
 
   const present = new Set(snaps.filter((s) => !s.missing).map((s) => s.root));
-  writeRegistry(db, applyPresence(merged, present, now));
-  saveSnapshot(db, dayKey(now, input.tzOffsetMinutes), input.sinceMs, snaps);
+  await db.writeRegistry(applyPresence(merged, present, now));
+  await db.saveSnapshot(
+    dayKey(now, input.tzOffsetMinutes),
+    input.sinceMs,
+    snaps,
+  );
   return snaps;
 }

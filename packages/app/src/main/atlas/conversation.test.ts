@@ -2,13 +2,8 @@ import type { CollectDeps } from "@airlock/agent-core";
 import { FACTS_CLOSE, FACTS_OPEN } from "@airlock/agent-core";
 import { expect, it, vi } from "vitest";
 import { type ChatDeps, sendMessage } from "./conversation";
-import {
-  openAtlasDb,
-  readAskedDay,
-  readFacts,
-  readTurns,
-  writeFacts,
-} from "./store";
+import { directDb } from "./dbOps";
+import { openAtlasDb } from "./store";
 
 const reply = (text: string) =>
   JSON.stringify({
@@ -32,7 +27,7 @@ const collect = (): CollectDeps => ({
 });
 
 const deps = (over: Partial<ChatDeps> = {}): ChatDeps => ({
-  db: openAtlasDb(":memory:"),
+  db: directDb(openAtlasDb(":memory:")),
   spawn: async () => reply("Work on Revaltone-CRM first."),
   collect: collect(),
   roots: () => ["/p/Muros-Estates"],
@@ -65,7 +60,7 @@ it("keeps the cost-saving flags from the debrief path", async () => {
 it("records both the user turn and the reply", async () => {
   const d = deps();
   await sendMessage(d, "what should I do?");
-  expect(readTurns(d.db, 10)).toEqual([
+  expect(await d.db.readTurns(10)).toEqual([
     { role: "user", text: "what should I do?" },
     { role: "atlas", text: "Work on Revaltone-CRM first." },
   ]);
@@ -81,7 +76,7 @@ it("persists a fact the reply captured, and never shows the block", async () => 
   const out = await sendMessage(d, "Muros is due the 15th");
   expect(out).toBe("Noted.");
   expect(out).not.toContain("{");
-  const facts = readFacts(d.db);
+  const facts = await d.db.readFacts();
   expect(facts).toHaveLength(1);
   expect(facts[0]).toMatchObject({
     project: "Muros-Estates",
@@ -95,7 +90,7 @@ it("stores the stripped prose as the turn, not the raw reply", async () => {
     spawn: async () => reply(`Noted.\n${FACTS_OPEN}\n[]\n${FACTS_CLOSE}`),
   });
   await sendMessage(d, "hi");
-  expect(readTurns(d.db, 10)[1]?.text).toBe("Noted.");
+  expect((await d.db.readTurns(10))[1]?.text).toBe("Noted.");
 });
 
 it("sends prior turns so the conversation has continuity", async () => {
@@ -111,7 +106,7 @@ it("sends prior turns so the conversation has continuity", async () => {
 it("marks the day when it asked a staleness question", async () => {
   const d = deps();
   const DAY = 24 * 60 * 60 * 1000;
-  writeFacts(d.db, [
+  await d.db.writeFacts([
     {
       id: "f0",
       project: "ezlis",
@@ -123,13 +118,13 @@ it("marks the day when it asked a staleness question", async () => {
     },
   ]);
   await sendMessage(d, "hi");
-  expect(readAskedDay(d.db)).toBe("2026-08-30");
+  expect(await d.db.readAskedDay()).toBe("2026-08-30");
 });
 
 it("does not mark the asked day when nothing was stale", async () => {
   const d = deps();
   await sendMessage(d, "hi");
-  expect(readAskedDay(d.db)).toBeNull();
+  expect(await d.db.readAskedDay()).toBeNull();
 });
 
 it("returns null and records nothing when the CLI fails", async () => {
@@ -139,7 +134,7 @@ it("returns null and records nothing when the CLI fails", async () => {
     },
   });
   expect(await sendMessage(d, "hi")).toBeNull();
-  expect(readTurns(d.db, 10)).toEqual([]);
+  expect(await d.db.readTurns(10)).toEqual([]);
 });
 
 it("collects the portfolio itself when today has no snapshot yet", async () => {

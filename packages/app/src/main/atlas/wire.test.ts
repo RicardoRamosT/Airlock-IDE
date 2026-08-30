@@ -1,6 +1,7 @@
 import type { CollectDeps } from "@airlock/agent-core";
 import { expect, it, vi } from "vitest";
-import { lastBriefDay, openAtlasDb, readBrief } from "./store";
+import { directDb } from "./dbOps";
+import { openAtlasDb } from "./store";
 import { type AtlasDeps, maybeCompose } from "./wire";
 
 const okJson = JSON.stringify({
@@ -24,7 +25,7 @@ const collect = (): CollectDeps => ({
 });
 
 const deps = (over: Partial<AtlasDeps> = {}): AtlasDeps => ({
-  db: openAtlasDb(":memory:"),
+  db: directDb(openAtlasDb(":memory:")),
   collect: collect(),
   spawn: async () => okJson,
   now: () => Date.UTC(2026, 7, 30, 18, 0, 0),
@@ -41,8 +42,8 @@ const deps = (over: Partial<AtlasDeps> = {}): AtlasDeps => ({
 it("composes and stores a brief on the first arrival of a day", async () => {
   const d = deps();
   expect(await maybeCompose(d)).toBe(true);
-  expect(readBrief(d.db, "2026-08-30")?.text).toContain("calendar");
-  expect(lastBriefDay(d.db)).toBe("2026-08-30");
+  expect((await d.db.readBrief("2026-08-30"))?.text).toContain("calendar");
+  expect(await d.db.lastBriefDay()).toBe("2026-08-30");
 });
 
 it("does nothing on a second arrival the same day", async () => {
@@ -72,7 +73,7 @@ it("stores no brief when the composer fails, and can retry the same day", async 
   const spawn = vi.fn(async () => "garbage");
   const d = deps({ spawn });
   expect(await maybeCompose(d)).toBe(false);
-  expect(lastBriefDay(d.db)).toBeNull();
+  expect(await d.db.lastBriefDay()).toBeNull();
   // A failure must not consume the day: the next arrival tries again.
   d.spawn = async () => okJson;
   expect(await maybeCompose(d)).toBe(true);

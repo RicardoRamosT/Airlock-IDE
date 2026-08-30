@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
@@ -21,6 +22,15 @@ export default defineConfig({
     // covers the deep subpath imports (server/mcp.js, server/streamableHttp.js).
     build: {
       rollupOptions: {
+        // TWO main-process entries. atlasDbHost is forked as a utilityProcess
+        // and owns the Atlas SQLite handle, so a Node CHECK inside a bind
+        // aborts that process instead of the whole IDE. It must be built here
+        // rather than shipped as a loose script: it imports the real store
+        // code, and duplicating the SQL would be worse than the crash.
+        input: {
+          index: resolve(__dirname, "src/main/index.ts"),
+          atlasDbHost: resolve(__dirname, "src/main/atlas/dbHost.ts"),
+        },
         external: [
           "node-pty",
           // @parcel/watcher is native (an FSEvents .node binary): require it at
@@ -30,6 +40,18 @@ export default defineConfig({
           "@modelcontextprotocol/sdk",
           /^@modelcontextprotocol\/sdk\/.+/,
         ],
+        // Adding `input` above replaces electron-vite's single-entry lib
+        // config, and with it the CJS default -- rollup then emits ESM
+        // `index.mjs` while package.json still points at `out/main/index.js`,
+        // i.e. an app that does not start. The output shape is therefore
+        // pinned here to exactly what the single-entry build produced.
+        output: {
+          format: "cjs",
+          entryFileNames: "[name].js",
+          chunkFileNames: "chunks/[name].js",
+          // Keeps the native keyring binary flat and unhashed, where it was.
+          assetFileNames: "[name].[ext]",
+        },
       },
     },
   },

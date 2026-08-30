@@ -10,7 +10,6 @@
 // so the pair is written through appendTurns in a single transaction. An
 // abort mid-pair (which is how this was found) then leaves neither turn.
 
-import type { DatabaseSync } from "node:sqlite";
 import {
   buildChatArgs,
   buildChatPrompt,
@@ -25,20 +24,13 @@ import {
 } from "@airlock/agent-core";
 import { emitEvent } from "../eventlog/wire";
 import type { SpawnFn } from "./composer";
+import type { AtlasDb } from "./dbOps";
 import { refreshPortfolio } from "./refresh";
-import {
-  appendTurns,
-  dayKey,
-  readAskedDay,
-  readFacts,
-  readSnapshot,
-  readTurns,
-  writeAskedDay,
-  writeFacts,
-} from "./store";
+// dayKey is pure; everything else now crosses the process boundary.
+import { dayKey } from "./store";
 
 export interface ChatDeps {
-  db: DatabaseSync;
+  db: AtlasDb;
   spawn: SpawnFn;
   collect: CollectDeps;
   roots(): string[];
@@ -67,7 +59,7 @@ async function portfolioFor(
   // the entire day: every later message reused it and Atlas kept insisting the
   // portfolio was empty.
   const wantedSince = now - WINDOW_MS;
-  const existing = readSnapshot(deps.db, today, wantedSince);
+  const existing = await deps.db.readSnapshot(today, wantedSince);
   if (existing !== null && existing.length > 0) return existing;
   try {
     return await refreshPortfolio({
@@ -92,10 +84,15 @@ export async function sendMessage(
   const now = deps.now();
   const today = dayKey(now, deps.tzOffsetMinutes());
 
-  const facts = readFacts(deps.db);
-  const stale = pickDailyQuestion(facts, now, readAskedDay(deps.db), today);
+  const facts = await deps.db.readFacts();
+  const stale = pickDailyQuestion(
+    facts,
+    now,
+    await deps.db.readAskedDay(),
+    today,
+  );
   const prompt = buildChatPrompt({
-    history: readTurns(deps.db, MAX_HISTORY_TURNS),
+    history: await deps.db.readTurns(MAX_HISTORY_TURNS),
     facts,
     snaps: await portfolioFor(deps, today, now),
     question: stale ? questionFor(stale, now) : null,
@@ -134,8 +131,7 @@ export async function sendMessage(
 
   const { prose, facts: incoming } = splitReply(result.text);
 
-  appendTurns(
-    deps.db,
+  await deps.db.appendTurns(
     [
       { role: "user", text: message },
       { role: "atlas", text: prose },
@@ -143,14 +139,13 @@ export async function sendMessage(
     now,
   );
   if (incoming.length > 0) {
-    writeFacts(
-      deps.db,
+    await deps.db.writeFacts(
       mergeFacts(facts, incoming, now, (n) => `${now}-${n}`),
     );
   }
   // Only mark the day if a question was actually asked, so a quiet day does
   // not consume the one question it was entitled to.
-  if (stale) writeAskedDay(deps.db, today);
+  if (stale) await deps.db.writeAskedDay(today);
 
   return prose;
 }
