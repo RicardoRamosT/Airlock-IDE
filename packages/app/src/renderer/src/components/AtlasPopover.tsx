@@ -1,17 +1,28 @@
 import { useEffect, useState } from "react";
+import { AtlasConsent } from "./AtlasConsent";
 
-// The popover is READ-ONLY in this plan: it shows today's brief. Conversation,
-// the facts store and the authority model are Plan 3.
+interface AtlasState {
+  acknowledged: boolean;
+  disclosure: string;
+}
+
+// The popover shows today's debrief -- or, until it has been accepted, the
+// first-run cost disclosure. Atlas spends nothing before that click, because
+// the same call that costs the author quota costs an API-key user real money.
 export function AtlasPopover() {
   const [brief, setBrief] = useState<string | null>(null);
+  const [state, setState] = useState<AtlasState | null>(null);
   const [asked, setAsked] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    window.airlock
-      ?.atlasBrief()
-      .then((text) => {
+    Promise.all([
+      window.airlock?.atlasState() ?? null,
+      window.airlock?.atlasBrief() ?? null,
+    ])
+      .then(([s, text]) => {
         if (!alive) return;
+        setState(s);
         setBrief(text);
         setAsked(true);
       })
@@ -25,8 +36,23 @@ export function AtlasPopover() {
 
   // Three states, not two: not-asked-yet is loading, asked-and-null is
   // genuinely no brief. Conflating them paints a finished-looking empty page
-  // while a fetch is still running.
+  // while a fetch is still running. Both fetches gate the first paint, so the
+  // consent card never flashes over an install that already accepted it.
   if (!asked) return <div className="atlas-popover">Loading...</div>;
+
+  if (state !== null && !state.acknowledged) {
+    return (
+      <div className="atlas-popover">
+        <AtlasConsent
+          disclosure={state.disclosure}
+          onAccept={() => {
+            window.airlock?.atlasConsent();
+            setState({ ...state, acknowledged: true });
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="atlas-popover">

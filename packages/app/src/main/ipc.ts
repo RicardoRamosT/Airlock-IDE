@@ -9,6 +9,7 @@ import {
   CONNECTED_EXTENSIONS,
   type ConnectedStatus,
   connectedSummary,
+  costDisclosure,
   createBranch,
   createDir,
   createFile,
@@ -16,6 +17,7 @@ import {
   type DetectStatus,
   databaseContainers,
   deleteSecret,
+  detectCredentialMode,
   detectInstalledTerminals,
   detectStatus,
   detectWithOutput,
@@ -1077,6 +1079,18 @@ export function registerIpc(
       : null,
   );
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
+  ipcMain.handle("atlas:state", async () => {
+    const prefs = await loadPrefs(prefsFile);
+    return {
+      acknowledged: prefs.atlas.acknowledged,
+      disclosure: costDisclosure(detectCredentialMode(process.env)),
+    };
+  });
+  ipcMain.handle("atlas:consent", async () => {
+    await savePrefs(prefsFile, {
+      atlas: { enabled: true, acknowledged: true },
+    });
+  });
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());
   ipcMain.handle("app:info", () => ({
     version: app.getVersion(),

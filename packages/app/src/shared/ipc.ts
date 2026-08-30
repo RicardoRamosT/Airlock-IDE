@@ -1238,6 +1238,8 @@ export interface AirlockApi {
   atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
   atlasSend(message: string): Promise<string | null>;
   atlasOpenWindow(): Promise<void>;
+  atlasState(): Promise<{ acknowledged: boolean; disclosure: string }>;
+  atlasConsent(): Promise<void>;
   // Per-session usage ledger (persisted; most-recent across launches) for the
   // Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
