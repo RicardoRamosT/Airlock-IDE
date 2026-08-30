@@ -134,6 +134,7 @@ import { getAnthropicStatus } from "./anthropicStatus/watch";
 import { spawnClaude } from "./atlas/composer";
 import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
+import { makeCollectDeps } from "./atlas/runners";
 import { dayKey, readBrief, readTurns } from "./atlas/store";
 import { openAtlasWindow } from "./atlas/trayWindow";
 import {
@@ -1071,6 +1072,8 @@ export function registerIpc(
           {
             db: atlasDb(),
             spawn: spawnClaude,
+            collect: makeCollectDeps(),
+            roots: allOpenRoots,
             now: () => Date.now(),
             tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
           },

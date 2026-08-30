@@ -1,3 +1,4 @@
+import type { CollectDeps } from "@airlock/agent-core";
 import { FACTS_CLOSE, FACTS_OPEN } from "@airlock/agent-core";
 import { expect, it, vi } from "vitest";
 import { type ChatDeps, sendMessage } from "./conversation";
@@ -18,9 +19,23 @@ const reply = (text: string) =>
     modelUsage: { "claude-opus-5": { costUSD: 0.08 } },
   });
 
+const collect = (): CollectDeps => ({
+  exists: async () => true,
+  isRepo: async () => true,
+  status: async () => ({
+    branch: { head: "main", upstream: "origin/main", ahead: 34, behind: 0 },
+    staged: [],
+    unstaged: [],
+    untracked: [],
+  }),
+  log: async () => [],
+});
+
 const deps = (over: Partial<ChatDeps> = {}): ChatDeps => ({
   db: openAtlasDb(":memory:"),
   spawn: async () => reply("Work on Revaltone-CRM first."),
+  collect: collect(),
+  roots: () => ["/p/Muros-Estates"],
   now: () => Date.UTC(2026, 7, 30, 18, 0, 0),
   tzOffsetMinutes: () => -360,
   ...over,
@@ -124,4 +139,39 @@ it("returns null and records nothing when the CLI fails", async () => {
   });
   expect(await sendMessage(d, "hi")).toBeNull();
   expect(readTurns(d.db, 10)).toEqual([]);
+});
+
+it("collects the portfolio itself when today has no snapshot yet", async () => {
+  // The bug this pins: the chat used to read a snapshot that ONLY the debrief
+  // path ever wrote, so before the day's brief ran Atlas told the user "the
+  // portfolio is empty" and asked them to send the data by hand.
+  const spawn = vi.fn(async () => reply("ok"));
+  await sendMessage(deps({ spawn }), "what should I do?");
+  const [, stdin] = spawn.mock.calls[0] as unknown as [string[], string];
+  expect(stdin).toContain("Muros-Estates");
+  expect(stdin).toContain("34 unpushed");
+});
+
+it("reuses today's snapshot instead of re-collecting on every message", async () => {
+  const exists = vi.fn(async () => true);
+  const d = deps({ collect: { ...collect(), exists } });
+  await sendMessage(d, "one");
+  const afterFirst = exists.mock.calls.length;
+  expect(afterFirst).toBeGreaterThan(0);
+  await sendMessage(d, "two");
+  expect(exists.mock.calls.length).toBe(afterFirst);
+});
+
+it("still answers when collection throws, rather than failing the turn", async () => {
+  const spawn = vi.fn(async () => reply("ok"));
+  const d = deps({
+    spawn,
+    collect: {
+      ...collect(),
+      exists: async () => {
+        throw new Error("disk gone");
+      },
+    },
+  });
+  expect(await sendMessage(d, "hi")).toBe("ok");
 });

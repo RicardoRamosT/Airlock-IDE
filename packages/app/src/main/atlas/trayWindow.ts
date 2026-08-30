@@ -12,6 +12,7 @@ import {
   POPOVER_HEIGHT,
   POPOVER_WIDTH,
   popoverBounds,
+  TRAY_ICON_DATA_URL,
   trayTitle,
 } from "./tray";
 
@@ -109,9 +110,12 @@ export function setUnread(next: boolean): void {
 
 export function startAtlasTray(): void {
   if (tray) return;
-  tray = new Tray(nativeImage.createEmpty());
+  const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL);
+  // Template mode is what makes it adapt to a light or dark menu bar.
+  icon.setTemplateImage(true);
+  tray = new Tray(icon);
   tray.setTitle(trayTitle(unread));
-  tray.setToolTip("Atlas");
+  tray.setToolTip("Atlas -- your project administrator");
   tray.on("click", toggle);
 }
 

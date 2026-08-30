@@ -14,14 +14,17 @@ import {
   buildComposerArgs,
   CHAT_MODEL,
   CHAT_SYSTEM_PROMPT,
+  type CollectDeps,
   MAX_HISTORY_TURNS,
   mergeFacts,
   parseComposerOutput,
   pickDailyQuestion,
   questionFor,
+  type RootSnapshot,
   splitReply,
 } from "@airlock/agent-core";
 import type { SpawnFn } from "./composer";
+import { refreshPortfolio } from "./refresh";
 import {
   appendTurn,
   dayKey,
@@ -36,8 +39,39 @@ import {
 export interface ChatDeps {
   db: DatabaseSync;
   spawn: SpawnFn;
+  collect: CollectDeps;
+  roots(): string[];
   now(): number;
   tzOffsetMinutes(): number;
+}
+
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// The conversation must never depend on the DEBRIEF path having run. It used
+// to read a snapshot that only refreshPortfolio wrote, so before the day's
+// brief existed Atlas answered "the portfolio is empty" and asked the user to
+// paste their projects in by hand. Collect on demand, once per day.
+async function portfolioFor(
+  deps: ChatDeps,
+  today: string,
+  now: number,
+): Promise<RootSnapshot[]> {
+  const existing = readSnapshot(deps.db, today);
+  if (existing !== null) return existing;
+  try {
+    return await refreshPortfolio({
+      db: deps.db,
+      deps: deps.collect,
+      recentFolders: [],
+      openTabRoots: deps.roots(),
+      now,
+      tzOffsetMinutes: deps.tzOffsetMinutes(),
+      sinceMs: now - WINDOW_MS,
+    });
+  } catch {
+    // A failed collection degrades to no portfolio; the turn still answers.
+    return [];
+  }
 }
 
 export async function sendMessage(
@@ -52,8 +86,7 @@ export async function sendMessage(
   const prompt = buildChatPrompt({
     history: readTurns(deps.db, MAX_HISTORY_TURNS),
     facts,
-    // The most recent snapshot; null (never collected) is an empty portfolio.
-    snaps: readSnapshot(deps.db, today) ?? [],
+    snaps: await portfolioFor(deps, today, now),
     question: stale ? questionFor(stale, now) : null,
     message,
   });

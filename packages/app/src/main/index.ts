@@ -22,6 +22,7 @@ import {
   startAnthropicStatusWatch,
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
+import { startAtlasArrival } from "./atlas/start";
 import { startAtlasTray, stopAtlasTray } from "./atlas/trayWindow";
 import {
   getDevServerState,
@@ -149,6 +150,7 @@ function bootstrap(): void {
     registerAgentCommandIpc();
     createWindow();
     startAtlasTray();
+    startAtlasArrival(prefsFile);
     const prefs = await loadPrefs(prefsFile);
     // Event log: start the writer now that we know whether it's enabled and at
     // what level. emitEvent() is a no-op until this is called (writer is null).

@@ -38,7 +38,12 @@ export function AtlasPopover() {
   // genuinely no brief. Conflating them paints a finished-looking empty page
   // while a fetch is still running. Both fetches gate the first paint, so the
   // consent card never flashes over an install that already accepted it.
-  if (!asked) return <div className="atlas-popover">Loading...</div>;
+  if (!asked)
+    return (
+      <div className="atlas-popover">
+        <p className="atlas-note">Loading...</p>
+      </div>
+    );
 
   if (state !== null && !state.acknowledged) {
     return (
@@ -56,14 +61,26 @@ export function AtlasPopover() {
 
   return (
     <div className="atlas-popover">
-      <h1>Atlas</h1>
-      <button type="button" onClick={() => window.airlock?.atlasOpenWindow()}>
-        Open Atlas
-      </button>
+      <div className="atlas-popover-head">
+        <span className="atlas-mark" aria-hidden="true">
+          &#10022;
+        </span>
+        <h1>Atlas</h1>
+        <button
+          type="button"
+          className="atlas-btn"
+          onClick={() => window.airlock?.atlasOpenWindow()}
+        >
+          Open
+        </button>
+      </div>
       {brief === null ? (
-        <p>No debrief yet. It writes itself the first time you arrive.</p>
+        <p className="atlas-note">
+          No debrief yet. Atlas writes one the first time you open AirLock on a
+          new day.
+        </p>
       ) : (
-        <pre>{brief}</pre>
+        <p className="atlas-brief">{brief}</p>
       )}
     </div>
   );

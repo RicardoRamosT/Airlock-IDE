@@ -11,6 +11,7 @@ import type {
   Section,
   SectionVisibility,
 } from "../shared/ipc";
+import { openAtlasWindow } from "./atlas/trayWindow";
 import { BUILTIN_SECTIONS, loadPrefs, savePrefs } from "./prefs";
 import { createWindow } from "./window";
 
@@ -159,6 +160,16 @@ export function applyAppMenu(
     {
       label: "View",
       submenu: [
+        {
+          // Discoverability: a sparkle in the menu bar tells nobody what it is.
+          // A named menu item is how someone finds Atlas without hunting.
+          label: "Atlas",
+          accelerator: "CmdOrCtrl+Shift+A",
+          click: () => {
+            openAtlasWindow();
+          },
+        },
+        { type: "separator" },
         { role: "reload" },
         { role: "forceReload" },
         { role: "toggleDevTools" },

@@ -70,39 +70,66 @@ export function AtlasChat() {
     }
   }
 
+  // titleBarStyle is hiddenInset, so the traffic lights float over the content.
+  // This bar reserves their space and carries the drag region.
+  const titlebar = (
+    <div className="atlas-titlebar">
+      <span className="atlas-mark" aria-hidden="true">
+        &#10022;
+      </span>
+      <h1>Atlas</h1>
+    </div>
+  );
+
   // Three states: not asked yet, asked and empty, asked and populated.
-  if (!asked) return <div className="atlas-chat">Loading...</div>;
+  if (!asked) {
+    return (
+      <div className="atlas-window">
+        {titlebar}
+        <div className="atlas-chat">
+          <div className="atlas-chat-log">
+            <p className="atlas-chat-empty">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="atlas-chat">
-      <div className="atlas-chat-log">
-        {turns.length === 0 ? (
-          <p className="atlas-chat-empty">
-            Ask about your projects, or tell me something I should remember.
-          </p>
-        ) : (
-          turns.map((t) => (
-            <div key={t.key} className={`atlas-turn atlas-turn-${t.role}`}>
-              {t.text}
+    <div className="atlas-window">
+      {titlebar}
+      <div className="atlas-chat">
+        <div className="atlas-chat-log">
+          {turns.length === 0 ? (
+            <p className="atlas-chat-empty">
+              Ask about your projects, or tell me something I should remember.
+            </p>
+          ) : (
+            turns.map((t) => (
+              <div key={t.key} className={`atlas-turn atlas-turn-${t.role}`}>
+                {t.text}
+              </div>
+            ))
+          )}
+          {busy ? (
+            <div className="atlas-turn atlas-turn-pending">...</div>
+          ) : null}
+          {failed ? (
+            <div className="atlas-turn atlas-turn-error">
+              Could not reach Claude. Your message is still here; try again.
             </div>
-          ))
-        )}
-        {busy ? <div className="atlas-turn atlas-turn-pending">...</div> : null}
-        {failed ? (
-          <div className="atlas-turn atlas-turn-error">
-            Could not reach Claude. Your message is still here; try again.
-          </div>
-        ) : null}
-        <div ref={endRef} />
+          ) : null}
+          <div ref={endRef} />
+        </div>
+        <form onSubmit={submit} className="atlas-chat-form">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ask, or tell me something..."
+            aria-label="Message Atlas"
+          />
+        </form>
       </div>
-      <form onSubmit={submit} className="atlas-chat-form">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask, or tell me something..."
-          aria-label="Message Atlas"
-        />
-      </form>
     </div>
   );
 }
