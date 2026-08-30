@@ -1234,6 +1234,7 @@ export interface AirlockApi {
   // Claude quota meter: last-known account usage (null before the first emit),
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;
+  atlasBrief(): Promise<string | null>;
   // Per-session usage ledger (persisted; most-recent across launches) for the
   // Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;

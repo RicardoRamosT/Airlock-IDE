@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { AtlasPopover } from "./components/AtlasPopover";
 import "@vscode/codicons/dist/codicon.css";
 import "./theme.css";
 
@@ -35,8 +36,10 @@ window.addEventListener("unhandledrejection", (e) => {
   );
 });
 
+// The Atlas popover reuses this single renderer entry via a hash, so there is
+// no second build target and no change to electron.vite.config.ts.
+const isAtlas = window.location.hash === "#atlas";
+
 createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <React.StrictMode>{isAtlas ? <AtlasPopover /> : <App />}</React.StrictMode>,
 );

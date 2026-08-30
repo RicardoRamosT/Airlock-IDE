@@ -33,3 +33,4 @@ export const Menu = undefined;
 export const BrowserWindow = undefined;
 
 export default undefined;
+export const Tray = undefined;
