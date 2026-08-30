@@ -41,6 +41,9 @@ export interface ChatDeps {
   collect: CollectDeps;
   roots(): string[];
   recents(): string[];
+  // AirLock's own MCP endpoint, when the server is up. Absent -> Atlas simply
+  // has no IDE tools that turn, which is a smaller capability, not an error.
+  mcp?(): { port: number; token: string } | null;
   now(): number;
   tzOffsetMinutes(): number;
 }
@@ -99,7 +102,10 @@ export async function sendMessage(
 
   let raw: string;
   try {
-    raw = await deps.spawn(buildChatArgs(deps.roots()), prompt);
+    raw = await deps.spawn(
+      buildChatArgs(deps.roots(), deps.mcp?.() ?? undefined),
+      prompt,
+    );
   } catch (e) {
     // Do not swallow it: a silent "Could not reach Claude" is unactionable.
     emitEvent({

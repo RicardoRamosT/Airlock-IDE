@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import {
+  airlockMcpConfig,
   buildChatArgs,
   buildChatPrompt,
   CHAT_ALLOWED_TOOLS,
@@ -182,4 +183,41 @@ it("tells Atlas it can screenshot and record the screen", () => {
   expect(CHAT_SYSTEM_PROMPT).toMatch(/-v\b/); // video recording
   expect(CHAT_SYSTEM_PROMPT).toMatch(/kill -INT/); // stopping a long recording
   expect(CHAT_SYSTEM_PROMPT).toMatch(/Screen Recording permission/i);
+});
+
+it("hands Atlas AirLock's own MCP server when one is running", () => {
+  const a = buildChatArgs([], { port: 4319, token: "tok" });
+  expect(a).toContain("--mcp-config");
+  const cfg = a[a.indexOf("--mcp-config") + 1] as string;
+  expect(JSON.parse(cfg)).toEqual({
+    mcpServers: {
+      airlock: {
+        type: "http",
+        url: "http://127.0.0.1:4319/mcp",
+        headers: { Authorization: "Bearer tok" },
+      },
+    },
+  });
+  // --allowed-tools does not wildcard, so the server must be named.
+  expect(a).toContain("mcp__airlock");
+});
+
+it("still passes --strict-mcp-config, so no OTHER server is loaded", () => {
+  // The cost measurement behind that flag depends on it: Atlas gets AirLock's
+  // tools and nothing else, not the user's whole MCP roster.
+  const a = buildChatArgs([], { port: 1, token: "t" });
+  expect(a).toContain("--strict-mcp-config");
+  expect(airlockMcpConfig(1, "t")).not.toContain("Neon");
+});
+
+it("omits MCP entirely when the server is not running", () => {
+  const a = buildChatArgs([]);
+  expect(a).not.toContain("--mcp-config");
+  expect(a).not.toContain("mcp__airlock");
+  expect(a).toContain("--strict-mcp-config");
+});
+
+it("tells Atlas it can drive AirLock", () => {
+  expect(CHAT_SYSTEM_PROMPT).toMatch(/AIRLOCK/i);
+  expect(CHAT_SYSTEM_PROMPT).toMatch(/open a terminal|project tabs/i);
 });

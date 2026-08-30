@@ -7085,3 +7085,15 @@ button.docker-row .codicon-chevron-right {
 .atlas-popover-head {
   gap: 6px;
 }
+
+/* A read-only settings row: label then value, adjacent. Without an explicit
+   rule the value drifted to the far right of the row and read as unrelated to
+   its label. */
+.settings-label {
+  flex: 0 0 auto;
+}
+.settings-value {
+  flex: 1 1 auto;
+  color: var(--fg-dim);
+  text-align: left;
+}

@@ -127,6 +127,16 @@ export function openAtlasWindow(): void {
     chatWin.loadFile(path.join(__dirname, "../renderer/index.html"), {
       hash: "atlas-chat",
     });
+  // Closing MINIMIZES. The reply is produced in the main process and persisted
+  // there, so a close mid-answer never loses it -- but destroying the window
+  // would throw away the scroll position and force a rebuild, and reads to the
+  // user as "I interrupted it". Hide instead, and reopen the same window.
+  chatWin.on("close", (e) => {
+    if (chatWin && !chatWin.isDestroyed()) {
+      e.preventDefault();
+      chatWin.hide();
+    }
+  });
   chatWin.on("closed", () => {
     chatWin = null;
   });
@@ -154,6 +164,8 @@ export function startAtlasTray(): void {
 }
 
 export function stopAtlasTray(): void {
+  // destroy(), not close(): the close handler above hides rather than closes,
+  // so a quit has to bypass it or the app would refuse to exit.
   chatWin?.destroy();
   chatWin = null;
   popover?.destroy();

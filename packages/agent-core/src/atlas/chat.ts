@@ -40,7 +40,27 @@ export const CHAT_DENIED_TOOLS: readonly string[] = [
 
 // `roots` become --add-dir entries: without them Claude Code confines file
 // access to the cwd and Atlas cannot read the very projects it administers.
-export function buildChatArgs(roots: readonly string[]): string[] {
+// AirLock's own MCP server, as a --mcp-config payload. This is how Atlas
+// reaches the IDE: open a project tab, start a terminal, send a prompt to a
+// Claude already running in one. --strict-mcp-config stays, so this is the
+// ONLY server it gets -- none of the user's other MCP servers are loaded, and
+// the cost measurement behind that flag still holds.
+export function airlockMcpConfig(port: number, token: string): string {
+  return JSON.stringify({
+    mcpServers: {
+      airlock: {
+        type: "http",
+        url: `http://127.0.0.1:${port}/mcp`,
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    },
+  });
+}
+
+export function buildChatArgs(
+  roots: readonly string[],
+  mcp?: { port: number; token: string },
+): string[] {
   return [
     "-p",
     "--output-format",
@@ -50,8 +70,12 @@ export function buildChatArgs(roots: readonly string[]): string[] {
     "--system-prompt",
     CHAT_SYSTEM_PROMPT,
     "--strict-mcp-config",
+    ...(mcp ? ["--mcp-config", airlockMcpConfig(mcp.port, mcp.token)] : []),
     "--allowed-tools",
     ...CHAT_ALLOWED_TOOLS,
+    // AirLock's MCP tools, so Atlas can drive the IDE rather than only
+    // describe it. Named explicitly: --allowed-tools does not wildcard.
+    ...(mcp ? ["mcp__airlock"] : []),
     "--disallowed-tools",
     ...CHAT_DENIED_TOOLS,
     ...(roots.length > 0 ? ["--add-dir", ...roots] : []),
@@ -66,6 +90,11 @@ export const CHAT_SYSTEM_PROMPT =
   "You answer questions about their projects and help them decide what to work " +
   "on. Be concrete and brief. Never invent activity or facts that are not in " +
   "the input.\n\n" +
+  "You can also DRIVE AIRLOCK through its own tools when they are available: " +
+  "list and open project tabs, open a terminal in a project, and send input " +
+  "to a Claude already running in one. Prefer doing work yourself with the " +
+  "shell; open a tab when the USER should take it over, or when a project " +
+  "needs a Claude session of its own. Say what you opened.\n\n" +
   "You CAN read files, search, run shell commands, and search the web. The " +
   "portfolio below is a head start, not a limit: if it does not contain what " +
   "you need -- older history, commit contents, a file, a diff, something " +

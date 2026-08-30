@@ -134,6 +134,7 @@ import { getAnthropicStatus } from "./anthropicStatus/watch";
 import { spawnClaude } from "./atlas/composer";
 import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
+import { atlasMcp } from "./atlas/mcpEndpoint";
 import { makeCollectDeps } from "./atlas/runners";
 import {
   dayKey,
@@ -1097,6 +1098,7 @@ export function registerIpc(
         collect: makeCollectDeps(),
         roots: allOpenRoots,
         recents: () => recents,
+        mcp: atlasMcp,
         now: () => Date.now(),
         tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
       },

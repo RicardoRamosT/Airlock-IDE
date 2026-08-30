@@ -22,6 +22,7 @@ import {
   startAnthropicStatusWatch,
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
+import { setAtlasMcp } from "./atlas/mcpEndpoint";
 import { startAtlasArrival } from "./atlas/start";
 import {
   onAtlasPanelResize,
@@ -137,6 +138,8 @@ function bootstrap(): void {
     // MCP identity (stable port + token), generated/persisted once. Resolved
     // before registerIpc so the onFolderOpen callback below can close over it.
     const { port, token } = await ensureMcpConfig(prefsFile);
+    // Atlas reaches AirLock's own tools through this; see atlas/chat.ts.
+    setAtlasMcp({ port, token });
 
     // Event log capture: instrument ipcMain BEFORE any handler registers so the
     // wrapper is in place for every subsequent ipcMain.handle() call. Process
