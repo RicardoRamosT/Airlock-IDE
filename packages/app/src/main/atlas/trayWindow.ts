@@ -19,14 +19,32 @@ import {
 let tray: Tray | null = null;
 let popover: BrowserWindow | null = null;
 let unread = false;
+// Last size the user chose, fed in by main from prefs, and updated when they
+// drag the window. Shared with the in-app panel so the two agree.
+let panelSize = { width: POPOVER_WIDTH, height: POPOVER_HEIGHT };
+let onResize: ((s: { width: number; height: number }) => void) | null = null;
 
-function buildPopover(): BrowserWindow {
+export function setAtlasPanelSize(s: { width: number; height: number }): void {
+  panelSize = { ...s };
+}
+
+export function onAtlasPanelResize(
+  cb: (s: { width: number; height: number }) => void,
+): void {
+  onResize = cb;
+}
+
+function buildPopover(size: { width: number; height: number }): BrowserWindow {
   const win = new BrowserWindow({
-    width: POPOVER_WIDTH,
-    height: POPOVER_HEIGHT,
+    width: size.width,
+    height: size.height,
+    minWidth: 280,
+    minHeight: 240,
     show: false,
     frame: false,
-    resizable: false,
+    // Resizable like any other window: the user decides how much of the
+    // debrief they want to see at once.
+    resizable: true,
     skipTaskbar: true,
     fullscreenable: false,
     // Transparent so the renderer can draw a rounded bubble WITH a pointer aimed
@@ -51,22 +69,26 @@ function buildPopover(): BrowserWindow {
     });
   // A popover closes when you click away, like every other menu bar panel.
   win.on("blur", () => win.hide());
+  win.on("resized", () => {
+    // getSize() is number[]; noUncheckedIndexedAccess makes each element
+    // possibly-undefined, so fall back rather than assert.
+    const [w, h] = win.getSize();
+    panelSize = { width: w ?? panelSize.width, height: h ?? panelSize.height };
+    onResize?.(panelSize);
+  });
   return win;
 }
 
 function toggle(): void {
   if (!tray) return;
-  if (!popover) popover = buildPopover();
+  if (!popover) popover = buildPopover(panelSize);
   if (popover.isVisible()) {
     popover.hide();
     return;
   }
   const b = tray.getBounds();
   const display = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
-  const at = popoverBounds(b, display, {
-    width: POPOVER_WIDTH,
-    height: POPOVER_HEIGHT,
-  });
+  const at = popoverBounds(b, display, panelSize);
   popover.setPosition(at.x, at.y, false);
   // Re-fetch on every open. The popover used to read the brief once on mount,
   // so a debrief composed afterwards showed as "No debrief yet" forever.

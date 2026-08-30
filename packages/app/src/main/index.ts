@@ -23,7 +23,12 @@ import {
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
 import { startAtlasArrival } from "./atlas/start";
-import { startAtlasTray, stopAtlasTray } from "./atlas/trayWindow";
+import {
+  onAtlasPanelResize,
+  setAtlasPanelSize,
+  startAtlasTray,
+  stopAtlasTray,
+} from "./atlas/trayWindow";
 import {
   getDevServerState,
   startDevServer,
@@ -153,7 +158,19 @@ function bootstrap(): void {
     const prefs = await loadPrefs(prefsFile);
     // The menu bar item is OPT-IN: in-app (the sidebar section) is the default
     // surface, so a user who never wants a menu bar item never gets one.
-    if (prefs.atlas.enabled && prefs.atlas.surface === "both") startAtlasTray();
+    if (prefs.atlas.enabled && prefs.atlas.surface === "both") {
+      setAtlasPanelSize({
+        width: prefs.atlas.width,
+        height: prefs.atlas.height,
+      });
+      onAtlasPanelResize((size) => {
+        void (async () => {
+          const cur = (await loadPrefs(prefsFile)).atlas;
+          await savePrefs(prefsFile, { atlas: { ...cur, ...size } });
+        })();
+      });
+      startAtlasTray();
+    }
     // Event log: start the writer now that we know whether it's enabled and at
     // what level. emitEvent() is a no-op until this is called (writer is null).
     startEventLog(prefs.eventLog);

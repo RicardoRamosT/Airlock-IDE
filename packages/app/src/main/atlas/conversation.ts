@@ -10,10 +10,8 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import {
+  buildChatArgs,
   buildChatPrompt,
-  buildComposerArgs,
-  CHAT_MODEL,
-  CHAT_SYSTEM_PROMPT,
   type CollectDeps,
   MAX_HISTORY_TURNS,
   mergeFacts,
@@ -46,7 +44,8 @@ export interface ChatDeps {
   tzOffsetMinutes(): number;
 }
 
-const WINDOW_MS = 24 * 60 * 60 * 1000;
+// A week. 24h made 'what did I do this week' unanswerable by construction.
+const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 // The conversation must never depend on the DEBRIEF path having run. It used
 // to read a snapshot that only refreshPortfolio wrote, so before the day's
@@ -100,10 +99,7 @@ export async function sendMessage(
   try {
     // Plan 2's argv builder, reused: identical cost flags, different model and
     // system prompt.
-    raw = await deps.spawn(
-      buildComposerArgs(CHAT_MODEL, CHAT_SYSTEM_PROMPT),
-      prompt,
-    );
+    raw = await deps.spawn(buildChatArgs(deps.roots()), prompt);
   } catch {
     return null;
   }

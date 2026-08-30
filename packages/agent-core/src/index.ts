@@ -19,9 +19,13 @@ export {
   MAX_PROMPT_CHARS,
 } from "./atlas/brief";
 export {
+  buildChatArgs,
   buildChatPrompt,
+  CHAT_ALLOWED_TOOLS,
+  CHAT_DENIED_TOOLS,
   CHAT_MODEL,
   CHAT_SYSTEM_PROMPT,
+  MAX_COMMITS_IN_CHAT,
   MAX_HISTORY_TURNS,
   type Turn,
 } from "./atlas/chat";

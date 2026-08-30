@@ -202,3 +202,31 @@ it("re-collects when the cached snapshot is EMPTY", async () => {
   const [, stdin] = spawn.mock.calls[0] as unknown as [string[], string];
   expect(stdin).toContain("Muros-Estates");
 });
+
+it("collects a WEEK of history, not a day", async () => {
+  // "What did I do this week" was unanswerable by construction: the window was
+  // 24 hours.
+  let since = 0;
+  const d = deps({
+    collect: {
+      ...collect(),
+      log: async (_r, sinceMs) => {
+        since = sinceMs;
+        return [];
+      },
+    },
+  });
+  const now = d.now();
+  await sendMessage(d, "summarize my week");
+  const days = Math.round((now - since) / (24 * 60 * 60 * 1000));
+  expect(days).toBe(7);
+});
+
+it("lets Atlas use tools when talking", async () => {
+  const spawn = vi.fn(async () => reply("ok"));
+  await sendMessage(deps({ spawn }), "hi");
+  const [args] = spawn.mock.calls[0] as unknown as [string[], string];
+  expect(args).toContain("--allowed-tools");
+  expect(args).toContain("Bash");
+  expect(args).not.toContain("--append-system-prompt");
+});

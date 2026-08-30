@@ -582,6 +582,10 @@ export interface AppPrefs {
     acknowledged: boolean;
     surface: "app" | "both";
     hour: number;
+    // Size of the Atlas panel, in px. Shared by the titlebar dropdown and the
+    // menu bar popover so a size set in one is respected by the other.
+    width: number;
+    height: number;
   };
   // Dock status badge (macOS). OFF by default (opt-in): enabling installs
   // AirLock-labeled Claude Code hooks in ~/.claude/settings.json. App-global.

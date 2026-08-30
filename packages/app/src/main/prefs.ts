@@ -75,7 +75,14 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
-  atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
+  atlas: {
+    enabled: true,
+    acknowledged: false,
+    surface: "app",
+    hour: 9,
+    width: 380,
+    height: 460,
+  },
   dockStatus: { enabled: true },
   runAppSkill: { enabled: true },
   selfVerify: { enabled: false },
@@ -193,6 +200,8 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
   // In-app is the default surface: the menu bar item is opt-in.
   let surface: "app" | "both" = "app";
   let hour = 9;
+  let width = 380;
+  let height = 460;
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     if (typeof r.enabled === "boolean") enabled = r.enabled;
@@ -206,8 +215,15 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
     ) {
       hour = r.hour;
     }
+    // Clamped: a hand-edited prefs file must not produce a 4px or 9000px panel.
+    if (typeof r.width === "number" && Number.isFinite(r.width)) {
+      width = Math.min(900, Math.max(280, Math.round(r.width)));
+    }
+    if (typeof r.height === "number" && Number.isFinite(r.height)) {
+      height = Math.min(1200, Math.max(240, Math.round(r.height)));
+    }
   }
-  return { enabled, acknowledged, surface, hour };
+  return { enabled, acknowledged, surface, hour, width, height };
 }
 
 // dockStatus is app-global and ON by default (opt-out). Enabling reconciles the

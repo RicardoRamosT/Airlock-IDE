@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { renderBrief } from "../lib/atlasBrief";
+import { useApp } from "../store";
 import { AtlasChat } from "./AtlasChat";
 import { AtlasConsent } from "./AtlasConsent";
 
@@ -19,6 +20,9 @@ export function AtlasTitlebarButton() {
   } | null>(null);
   const [asked, setAsked] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const atlas = useApp((st) => st.atlas);
+  const setAtlas = useApp((st) => st.setAtlas);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -65,7 +69,23 @@ export function AtlasTitlebarButton() {
         {unread && <span className="titlebar-atlas-dot" />}
       </button>
       {open && (
-        <div className="titlebar-atlas-panel">
+        <div
+          className="titlebar-atlas-panel"
+          ref={panelRef}
+          style={{ width: atlas.width, height: atlas.height }}
+          // CSS `resize` gives a native grip; there is no resize EVENT for an
+          // element, so the size is captured when the pointer is released.
+          onPointerUp={() => {
+            const el = panelRef.current;
+            if (!el) return;
+            const width = Math.round(el.getBoundingClientRect().width);
+            const height = Math.round(el.getBoundingClientRect().height);
+            if (width === atlas.width && height === atlas.height) return;
+            const next = { ...atlas, width, height };
+            setAtlas(next);
+            void window.airlock?.prefsSet({ atlas: next });
+          }}
+        >
           {!asked ? (
             <p className="atlas-note">Loading...</p>
           ) : state !== null && !state.acknowledged ? (

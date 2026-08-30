@@ -11,19 +11,70 @@ import { type AtlasFact, liveFacts } from "./facts";
 import { FACTS_CLOSE, FACTS_OPEN } from "./reply";
 
 export const CHAT_MODEL = "claude-opus-5";
+
+// The conversation HAS TOOLS. The composer deliberately has none -- it
+// summarizes a fixed payload -- and reusing its argv here was a mistake: Atlas
+// could not read a file, grep a repo, run `git log`, or look anything up, so
+// every question outside the daily snapshot got "I cannot know that". The
+// portfolio is meant to be a head start, not a ceiling.
+//
+// Verified headless on 2026-08-30: with these flags a `claude -p` run executed
+// git log across four turns with zero permission denials.
+export const CHAT_ALLOWED_TOOLS: readonly string[] = [
+  "Bash",
+  "Read",
+  "Glob",
+  "Grep",
+  "WebSearch",
+  "WebFetch",
+];
+
+// Reading and searching are free; CHANGING code is not. The spec's boundary
+// holds: Atlas reads and decides, AirLock edits. This panel has no diff view,
+// no approval step and no undo, so an edit made here would be unreviewable.
+export const CHAT_DENIED_TOOLS: readonly string[] = [
+  "Write",
+  "Edit",
+  "NotebookEdit",
+];
+
+// `roots` become --add-dir entries: without them Claude Code confines file
+// access to the cwd and Atlas cannot read the very projects it administers.
+export function buildChatArgs(roots: readonly string[]): string[] {
+  return [
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    CHAT_MODEL,
+    "--system-prompt",
+    CHAT_SYSTEM_PROMPT,
+    "--strict-mcp-config",
+    "--allowed-tools",
+    ...CHAT_ALLOWED_TOOLS,
+    "--disallowed-tools",
+    ...CHAT_DENIED_TOOLS,
+    ...(roots.length > 0 ? ["--add-dir", ...roots] : []),
+  ];
+}
 export const MAX_HISTORY_TURNS = 20;
+// Per project, so one busy repo cannot crowd out the other twenty.
+export const MAX_COMMITS_IN_CHAT = 12;
 
 export const CHAT_SYSTEM_PROMPT =
   "You are Atlas, an administrator for one developer's project portfolio. " +
   "You answer questions about their projects and help them decide what to work " +
   "on. Be concrete and brief. Never invent activity or facts that are not in " +
   "the input.\n\n" +
-  "You have NO tools and cannot run anything. Never say you scanned, checked, " +
-  "searched, ran a job, or looked at a folder -- you did none of it. " +
-  "Everything you know is in this prompt. If the portfolio section is empty, " +
-  "say the collector returned nothing, and do NOT ask the user to paste their " +
-  "projects in by hand; that is a bug for them to report, not work for them " +
-  "to do.\n\n" +
+  "You CAN read files, search, run shell commands, and search the web. The " +
+  "portfolio below is a head start, not a limit: if it does not contain what " +
+  "you need -- older history, commit contents, a file, a diff, something " +
+  "online -- go and get it rather than saying you cannot know. `git log`, " +
+  "`git diff` and `gh` are all available. You cannot write or edit files; " +
+  "for that, say what should change and let the user do it in AirLock.\n\n" +
+  "Never claim to have run something you did not actually run. If the " +
+  "portfolio section is empty, say the collector returned nothing -- do NOT " +
+  "ask the user to paste their projects in by hand.\n\n" +
   "When the user tells you something durable that the code cannot show -- a " +
   "deadline, a priority, a project being dead or blocked -- record it by " +
   `ending your reply with a block:\n${FACTS_OPEN}\n` +
@@ -46,8 +97,22 @@ function portfolio(snaps: readonly RootSnapshot[]): string {
     if (s.upstream === null) bits.push("no remote");
     else if (s.ahead > 0) bits.push(`${s.ahead} unpushed`);
     if (s.dirty > 0) bits.push(`${s.dirty} uncommitted`);
-    if (s.commits.length > 0) bits.push(`${s.commits.length} recent commits`);
-    return `- ${s.root}: ${bits.join(", ")}`;
+    const head = `- ${s.root}: ${bits.join(", ")}`;
+    if (s.commits.length === 0) return head;
+    // The commits themselves, not just a count. Rendering only the count is
+    // why Atlas said it had "no dates, no commit messages" -- it was telling
+    // the truth, because this function was discarding both.
+    const shown = s.commits.slice(0, MAX_COMMITS_IN_CHAT);
+    const rest = s.commits.length - shown.length;
+    const body = shown.map(
+      (c) =>
+        `    ${new Date(c.at).toISOString().slice(0, 10)}  ${c.subject.split("\n")[0] ?? ""}`,
+    );
+    if (rest > 0)
+      body.push(
+        `    (${rest} older commits not listed -- use git log for more)`,
+      );
+    return `${head}; ${s.commits.length} commits:\n${body.join("\n")}`;
   });
   return lines.join("\n");
 }

@@ -1,6 +1,9 @@
 import { expect, it } from "vitest";
 import {
+  buildChatArgs,
   buildChatPrompt,
+  CHAT_ALLOWED_TOOLS,
+  CHAT_DENIED_TOOLS,
   CHAT_MODEL,
   CHAT_SYSTEM_PROMPT,
   MAX_HISTORY_TURNS,
@@ -113,4 +116,61 @@ it("tells the model how to emit facts, and to emit none when nothing was said", 
 
 it("instructs that facts must quote the user verbatim", () => {
   expect(CHAT_SYSTEM_PROMPT).toMatch(/verbatim/i);
+});
+
+it("gives the conversation real tools, unlike the composer", () => {
+  // The composer has none by design. Reusing its argv here left Atlas unable
+  // to read a file, grep a repo or run git log, so every question outside the
+  // daily snapshot got "I cannot know that".
+  const a = buildChatArgs([]);
+  const i = a.indexOf("--allowed-tools");
+  expect(i).toBeGreaterThanOrEqual(0);
+  for (const t of ["Bash", "Read", "Grep", "WebSearch"]) {
+    expect(CHAT_ALLOWED_TOOLS).toContain(t);
+    expect(a).toContain(t);
+  }
+});
+
+it("refuses to write or edit, keeping the spec's boundary", () => {
+  // Atlas reads and decides; AirLock edits. This panel has no diff view, no
+  // approval step and no undo.
+  const a = buildChatArgs([]);
+  expect(a).toContain("--disallowed-tools");
+  for (const t of ["Write", "Edit", "NotebookEdit"]) {
+    expect(CHAT_DENIED_TOOLS).toContain(t);
+    expect(a).toContain(t);
+  }
+  expect(CHAT_ALLOWED_TOOLS).not.toContain("Write");
+  expect(CHAT_ALLOWED_TOOLS).not.toContain("Edit");
+});
+
+it("grants access to the project roots, or Atlas cannot read them", () => {
+  // Without --add-dir, Claude Code confines file access to the cwd.
+  const a = buildChatArgs(["/p/one", "/p/two"]);
+  expect(a).toContain("--add-dir");
+  expect(a).toContain("/p/one");
+  expect(a).toContain("/p/two");
+  expect(buildChatArgs([])).not.toContain("--add-dir");
+});
+
+it("includes commit dates and subjects, not just a count", () => {
+  // The bug this pins: portfolio() rendered "3 recent commits" and dropped the
+  // commits, so Atlas correctly reported having no dates and no messages.
+  const out = buildChatPrompt(
+    input({
+      snaps: [
+        snap("/p/ElArqui", {
+          commits: [
+            {
+              hash: "a1",
+              at: Date.UTC(2026, 7, 26),
+              subject: "Spec the admin panel",
+            },
+          ],
+        }),
+      ],
+    }),
+  );
+  expect(out).toContain("Spec the admin panel");
+  expect(out).toContain("2026-08-26");
 });

@@ -6899,3 +6899,13 @@ button.docker-row .codicon-chevron-right {
   min-height: 260px;
   max-height: 46vh;
 }
+
+/* The Atlas dropdown is resizable like a window: CSS `resize` gives a native
+   grip in the corner, and the chosen size is persisted. `max-height` has to go
+   or it would fight the inline height. */
+.titlebar-atlas-panel {
+  resize: both;
+  max-height: none;
+  min-width: 280px;
+  min-height: 240px;
+}
