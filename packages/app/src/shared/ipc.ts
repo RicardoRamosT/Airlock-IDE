@@ -346,7 +346,8 @@ export type BuiltinSection =
   | "host"
   | "extensions"
   | "audit"
-  | "events";
+  | "events"
+  | "atlas";
 // An extension's own section, namespaced so it can never collide with a
 // built-in and so the rail can tell the two groups apart for its divider.
 export type Section = BuiltinSection | `ext:${string}`;
@@ -572,7 +573,16 @@ export interface AppPrefs {
   // Atlas: the portfolio debrief. `enabled` is the feature switch; `acknowledged`
   // records that the user accepted the first-run cost disclosure. Both must be
   // true before Atlas spends a single token -- an API-key user pays real money.
-  atlas: { enabled: boolean; acknowledged: boolean };
+  // `surface` decides WHERE Atlas appears: "app" is the sidebar section only
+  // (the default), "both" adds the macOS menu bar item. `enabled: false` turns
+  // it off entirely. `hour` is the local hour (0-23) before which no debrief is
+  // composed -- the day flips at midnight but nobody wants a 00:01 debrief.
+  atlas: {
+    enabled: boolean;
+    acknowledged: boolean;
+    surface: "app" | "both";
+    hour: number;
+  };
   // Dock status badge (macOS). OFF by default (opt-in): enabling installs
   // AirLock-labeled Claude Code hooks in ~/.claude/settings.json. App-global.
   dockStatus: { enabled: boolean };

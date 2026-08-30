@@ -52,6 +52,7 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   extensions: true,
   audit: true,
   events: true,
+  atlas: true,
 };
 
 // Persisted sidebar width clamp. Lenient bounds (the renderer's resizer commits
@@ -74,7 +75,7 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
-  atlas: { enabled: true, acknowledged: false },
+  atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
   dockStatus: { enabled: true },
   runAppSkill: { enabled: true },
   selfVerify: { enabled: false },
@@ -186,18 +187,27 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
 // and must be set deliberately: until it is true, Atlas spends nothing. A
 // corrupt or partial value must therefore fall back to NOT acknowledged --
 // failing open here would spend an API-key user's money without asking.
-function sanitizeAtlas(raw: unknown): {
-  enabled: boolean;
-  acknowledged: boolean;
-} {
+function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
   let enabled = true;
   let acknowledged = false;
+  // In-app is the default surface: the menu bar item is opt-in.
+  let surface: "app" | "both" = "app";
+  let hour = 9;
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     if (typeof r.enabled === "boolean") enabled = r.enabled;
     if (r.acknowledged === true) acknowledged = true;
+    if (r.surface === "both" || r.surface === "app") surface = r.surface;
+    if (
+      typeof r.hour === "number" &&
+      Number.isInteger(r.hour) &&
+      r.hour >= 0 &&
+      r.hour <= 23
+    ) {
+      hour = r.hour;
+    }
   }
-  return { enabled, acknowledged };
+  return { enabled, acknowledged, surface, hour };
 }
 
 // dockStatus is app-global and ON by default (opt-out). Enabling reconciles the

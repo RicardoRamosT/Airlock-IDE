@@ -336,6 +336,18 @@ export interface AppState {
   setQuota: (q: QuotaStatus) => void;
   quotaMeterEnabled: boolean;
   setQuotaMeterEnabled: (v: boolean) => void;
+  atlas: {
+    enabled: boolean;
+    acknowledged: boolean;
+    surface: "app" | "both";
+    hour: number;
+  };
+  setAtlas: (v: {
+    enabled: boolean;
+    acknowledged: boolean;
+    surface: "app" | "both";
+    hour: number;
+  }) => void;
   dockStatusEnabled: boolean;
   setDockStatusEnabled: (v: boolean) => void;
   runAppSkillEnabled: boolean;
@@ -828,6 +840,8 @@ export const useApp = create<AppState>((set) => ({
   setQuota: (q) => set({ quota: q }),
   quotaMeterEnabled: false,
   setQuotaMeterEnabled: (v) => set({ quotaMeterEnabled: v }),
+  atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
+  setAtlas: (v) => set({ atlas: v }),
   dockStatusEnabled: true,
   setDockStatusEnabled: (v) => set({ dockStatusEnabled: v }),
   runAppSkillEnabled: true,

@@ -52,6 +52,7 @@ export function usePrefs(): void {
         setRestoreSession(p.restoreSession);
         setDefaultTerminal(p.defaultTerminal);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
+        useApp.getState().setAtlas(p.atlas);
         setDockStatusEnabled(p.dockStatus.enabled);
         setRunAppSkillEnabled(p.runAppSkill.enabled);
         setSelfVerifyEnabled(p.selfVerify.enabled);
@@ -117,6 +118,7 @@ export function usePrefs(): void {
       s.setRestoreSession(p.restoreSession);
       s.setDefaultTerminal(p.defaultTerminal);
       s.setQuotaMeterEnabled(p.quotaMeter.enabled);
+      s.setAtlas(p.atlas);
       s.setDockStatusEnabled(p.dockStatus.enabled);
       s.setRunAppSkillEnabled(p.runAppSkill.enabled);
       s.setSelfVerifyEnabled(p.selfVerify.enabled);

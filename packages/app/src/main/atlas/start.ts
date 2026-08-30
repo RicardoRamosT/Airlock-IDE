@@ -29,6 +29,7 @@ export function startAtlasArrival(prefsFile: string): void {
         recents: () => prefs.recentFolders,
         enabled: () => prefs.atlas.enabled,
         acknowledged: () => prefs.atlas.acknowledged,
+        earliestHour: () => prefs.atlas.hour,
         onBriefReady: () => setUnread(true),
       });
       if (composed) setUnread(true);

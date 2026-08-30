@@ -13,12 +13,17 @@ export interface TriggerState {
   lastBriefDay: string | null; // day key of the last stored brief, or null
   today: string; // day key for now, in the USER's local time
   composing: boolean; // a compose is already in flight
+  localHour: number; // 0-23, the user's local clock hour right now
+  earliestHour: number; // 0-23, the configured "not before" hour
 }
 
 export function shouldCompose(s: TriggerState): boolean {
   if (!s.enabled) return false;
   if (!s.acknowledged) return false;
   if (s.composing) return false;
+  // The day rolls over at midnight, but nobody wants a debrief at 00:01. The
+  // user picks the hour their day starts; before it, Atlas simply waits.
+  if (s.localHour < s.earliestHour) return false;
   if (s.lastBriefDay === null) return true;
   // Day keys are YYYY-MM-DD, so a string compare is a date compare. Strictly
   // less-than also means a stored day in the FUTURE (clock change, timezone

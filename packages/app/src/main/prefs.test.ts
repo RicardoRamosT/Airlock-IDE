@@ -27,6 +27,7 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
+        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -43,7 +44,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
-      atlas: { enabled: true, acknowledged: false },
+      atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
       githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
@@ -103,6 +104,7 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
+        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -119,7 +121,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
-      atlas: { enabled: true, acknowledged: false },
+      atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
       githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
@@ -233,6 +235,7 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
+        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -249,7 +252,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
-      atlas: { enabled: true, acknowledged: false },
+      atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
       githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
@@ -277,6 +280,7 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
+        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -293,7 +297,7 @@ describe("app prefs", () => {
       },
       quotaMeter: { enabled: true },
       dockStatus: { enabled: true },
-      atlas: { enabled: true, acknowledged: false },
+      atlas: { enabled: true, acknowledged: false, surface: "app", hour: 9 },
       githubAutoSwitch: true,
       runAppSkill: { enabled: true },
       selfVerify: { enabled: false },
@@ -348,6 +352,7 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
+      atlas: true,
     });
   });
 
@@ -367,6 +372,7 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
+      atlas: true,
     });
     expect((await loadPrefs(file)).sectionVisibility).toEqual({
       files: true,
@@ -377,6 +383,7 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
+      atlas: true,
     });
   });
 
@@ -393,6 +400,7 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
+      atlas: true,
     });
   });
 
@@ -412,6 +420,7 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
+      atlas: true,
     });
   });
 });

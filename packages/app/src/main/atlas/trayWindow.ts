@@ -29,7 +29,11 @@ function buildPopover(): BrowserWindow {
     resizable: false,
     skipTaskbar: true,
     fullscreenable: false,
-    backgroundColor: "#0d1117",
+    // Transparent so the renderer can draw a rounded bubble WITH a pointer aimed
+    // at the tray icon -- a square window cannot show an arrow.
+    transparent: true,
+    hasShadow: false,
+    backgroundColor: "#00000000",
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,

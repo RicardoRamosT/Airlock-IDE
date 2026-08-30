@@ -7,6 +7,8 @@ const state = (over: Partial<TriggerState> = {}): TriggerState => ({
   lastBriefDay: "2026-08-29",
   today: "2026-08-30",
   composing: false,
+  localHour: 9,
+  earliestHour: 9,
   ...over,
 });
 
@@ -48,4 +50,16 @@ it("does not compose if the stored day is somehow in the future", () => {
   expect(
     shouldCompose(state({ lastBriefDay: "2026-09-01", today: "2026-08-30" })),
   ).toBe(false);
+});
+
+it("waits until the configured hour before composing", () => {
+  // The calendar day flips at midnight; a debrief at 00:01 is useless. The
+  // user sets when their day starts.
+  expect(shouldCompose(state({ localHour: 7, earliestHour: 9 }))).toBe(false);
+  expect(shouldCompose(state({ localHour: 9, earliestHour: 9 }))).toBe(true);
+  expect(shouldCompose(state({ localHour: 14, earliestHour: 9 }))).toBe(true);
+});
+
+it("composes at any hour when the earliest hour is midnight", () => {
+  expect(shouldCompose(state({ localHour: 0, earliestHour: 0 }))).toBe(true);
 });

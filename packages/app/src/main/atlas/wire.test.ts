@@ -33,6 +33,7 @@ const deps = (over: Partial<AtlasDeps> = {}): AtlasDeps => ({
   recents: () => [],
   enabled: () => true,
   acknowledged: () => true,
+  earliestHour: () => 0,
   onBriefReady: () => {},
   ...over,
 });

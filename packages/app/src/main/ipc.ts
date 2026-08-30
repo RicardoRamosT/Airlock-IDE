@@ -1094,8 +1094,10 @@ export function registerIpc(
     };
   });
   ipcMain.handle("atlas:consent", async () => {
+    // Preserve surface and hour: consent only flips acknowledged.
+    const cur = (await loadPrefs(prefsFile)).atlas;
     await savePrefs(prefsFile, {
-      atlas: { enabled: true, acknowledged: true },
+      atlas: { ...cur, enabled: true, acknowledged: true },
     });
   });
   ipcMain.handle("anthropicStatus:get", () => getAnthropicStatus());

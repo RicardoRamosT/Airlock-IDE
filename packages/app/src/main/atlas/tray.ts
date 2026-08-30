@@ -11,7 +11,8 @@
 // belongs to the frontmost application's menus and is not addressable by any
 // API; the right-hand area is the one that stays visible whatever has focus.
 
-export const POPOVER_WIDTH = 360;
+export const POPOVER_WIDTH = 380;
+export const POINTER_H = 10; // the bubble's little arrow
 export const POPOVER_HEIGHT = 420;
 
 // A four-point sparkle, the near-universal mark for AI. Drawn as a macOS
@@ -30,16 +31,21 @@ export function trayTitle(hasUnread: boolean): string {
   return hasUnread ? " •" : "";
 }
 
-// Centre under the item, then clamp inside the display it is on.
+// Anchor so the bubble's POINTER lands under the tray icon. The pointer sits
+// a fixed inset from the bubble's left edge, so the bubble is offset left by
+// that inset rather than centred -- centring made the panel drift away from
+// the icon and read as unconnected.
+export const POINTER_INSET = 22;
+
 export function popoverBounds(
   trayBounds: { x: number; y: number; width: number },
   display: { x: number; width: number },
   size: { width: number; height: number },
 ): { x: number; y: number } {
-  const centred = Math.round(
-    trayBounds.x + trayBounds.width / 2 - size.width / 2,
+  const wanted = Math.round(
+    trayBounds.x + trayBounds.width / 2 - POINTER_INSET,
   );
   const min = display.x;
   const max = display.x + display.width - size.width;
-  return { x: Math.min(Math.max(centred, min), max), y: trayBounds.y };
+  return { x: Math.min(Math.max(wanted, min), max), y: trayBounds.y };
 }

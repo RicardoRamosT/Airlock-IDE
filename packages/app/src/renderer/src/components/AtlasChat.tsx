@@ -20,7 +20,7 @@ function withKey(t: Turn): Shown {
   return { ...t, key: `t${keySeq}` };
 }
 
-export function AtlasChat() {
+export function AtlasChat({ chrome = true }: { chrome?: boolean } = {}) {
   const [turns, setTurns] = useState<Shown[]>([]);
   const [asked, setAsked] = useState(false);
   const [draft, setDraft] = useState("");
@@ -89,7 +89,7 @@ export function AtlasChat() {
 
   // titleBarStyle is hiddenInset, so the traffic lights float over the content.
   // This bar reserves their space and carries the drag region.
-  const titlebar = (
+  const titlebar = !chrome ? null : (
     <div className="atlas-titlebar">
       <span className="atlas-mark" aria-hidden="true">
         &#10022;
@@ -129,7 +129,23 @@ export function AtlasChat() {
             ))
           )}
           {busy ? (
-            <div className="atlas-turn atlas-turn-pending">...</div>
+            <div className="atlas-thinking" aria-live="polite">
+              <span className="atlas-thinking-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>
+                {elapsed < 3
+                  ? "Reading your portfolio\u2026"
+                  : elapsed < 10
+                    ? "Thinking\u2026"
+                    : "Still thinking\u2026"}
+              </span>
+              {elapsed >= 3 ? (
+                <span className="atlas-thinking-time">{elapsed}s</span>
+              ) : null}
+            </div>
           ) : null}
           {failed ? (
             <div className="atlas-turn atlas-turn-error">

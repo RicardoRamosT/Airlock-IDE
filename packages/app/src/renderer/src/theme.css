@@ -6770,3 +6770,76 @@ button.docker-row .codicon-chevron-right {
 .atlas-brief {
   color: var(--fg-dim);
 }
+
+/* The menu bar popover is a real bubble: a transparent window hosting a rounded
+   panel with a pointer aimed at the tray icon, so it reads as attached to the
+   sparkle rather than floating near it. */
+.atlas-bubble {
+  position: relative;
+  height: 100vh;
+  box-sizing: border-box;
+  padding-top: 10px;
+  background: transparent;
+}
+.atlas-bubble-pointer {
+  position: absolute;
+  top: 2px;
+  left: 22px; /* POINTER_INSET in tray.ts -- keep the two in step */
+  width: 16px;
+  height: 10px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: rotate(45deg) translateY(4px);
+  border-radius: 2px 0 0 0;
+}
+.atlas-bubble > .atlas-popover {
+  height: calc(100vh - 10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+}
+
+/* Atlas as a sidebar section: same content, narrow column. */
+.atlas-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-block-gap, 10px);
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.atlas-brief-pane {
+  overflow-y: auto;
+  padding-right: 2px;
+  font-size: 12px;
+}
+.atlas-pane-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.atlas-pane-chat .atlas-window,
+.atlas-pane-chat .atlas-chat {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.atlas-pane-chat .atlas-chat-log {
+  padding: 4px 2px;
+}
+.atlas-pane-chat .atlas-turn {
+  max-width: 100%;
+  font-size: 12px;
+}
+.atlas-pane-chat .atlas-chat-form {
+  padding: 8px 0 0;
+  background: none;
+}
+.section-empty-note {
+  margin: 0;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}

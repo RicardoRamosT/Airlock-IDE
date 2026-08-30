@@ -9,6 +9,10 @@ import { AgentSection } from "./AgentSection";
 // Settings categories shown as a left nav rail; the content pane renders only
 // the selected one (no more one-long-scroll). Module-level so the union type is
 // derivable and the array isn't rebuilt per render.
+// The 24 hours, as VALUES: mapping over an index would make the key an
+// array index, which is not a stable identity.
+const HOURS_OF_DAY = Array.from({ length: 24 }, (_, i) => i);
+
 const CATEGORIES = [
   { id: "appearance", label: "Appearance", icon: "symbol-color" },
   { id: "layout", label: "Layout", icon: "layout" },
@@ -43,6 +47,8 @@ export function SettingsTab() {
   const setShowRunningProcessNotice = useApp(
     (s) => s.setShowRunningProcessNotice,
   );
+  const atlas = useApp((s) => s.atlas);
+  const setAtlas = useApp((s) => s.setAtlas);
   const quotaMeterEnabled = useApp((s) => s.quotaMeterEnabled);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
   const dockStatusEnabled = useApp((s) => s.dockStatusEnabled);
@@ -349,6 +355,68 @@ export function SettingsTab() {
             </section>
           )}
 
+          {category === "claude" && (
+            <section className="settings-section">
+              <h3>Atlas</h3>
+              <div className="settings-row">
+                <label htmlFor="atlas-surface">Where Atlas appears</label>
+                <select
+                  id="atlas-surface"
+                  className="sb-control"
+                  value={atlas.enabled ? atlas.surface : "off"}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const next =
+                      v === "off"
+                        ? { ...atlas, enabled: false }
+                        : {
+                            ...atlas,
+                            enabled: true,
+                            surface: v as "app" | "both",
+                          };
+                    setAtlas(next);
+                    void window.airlock.prefsSet({ atlas: next });
+                  }}
+                >
+                  <option value="app">In AirLock only</option>
+                  <option value="both">In AirLock and the menu bar</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <p className="settings-note">
+                Atlas is your project administrator: it reads every repository
+                you have, writes a short debrief each day, and answers questions
+                about what to work on. In AirLock it lives in the sidebar, next
+                to Files and Git. The macOS menu bar item is optional and stays
+                reachable even when AirLock is not in front.
+              </p>
+              <div className="settings-row">
+                <label htmlFor="atlas-hour">Debrief no earlier than</label>
+                <select
+                  id="atlas-hour"
+                  className="sb-control"
+                  value={String(atlas.hour)}
+                  onChange={(e) => {
+                    const next = { ...atlas, hour: Number(e.target.value) };
+                    setAtlas(next);
+                    void window.airlock.prefsSet({ atlas: next });
+                  }}
+                >
+                  {HOURS_OF_DAY.map((h) => (
+                    <option key={`hour-${h}`} value={String(h)}>
+                      {`${String(h).padStart(2, "0")}:00`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="settings-note">
+                The calendar day turns over at midnight, but a debrief at 00:01
+                is no use. Atlas waits until this hour, then writes one the
+                first time you are back at your Mac -- once per day, never again
+                until tomorrow.
+              </p>
+            </section>
+          )}
           {category === "claude" && (
             <section className="settings-section">
               <h3>Claude</h3>

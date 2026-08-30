@@ -149,9 +149,11 @@ function bootstrap(): void {
     // in via runAgentCommand in the startMcpServer deps below.
     registerAgentCommandIpc();
     createWindow();
-    startAtlasTray();
     startAtlasArrival(prefsFile);
     const prefs = await loadPrefs(prefsFile);
+    // The menu bar item is OPT-IN: in-app (the sidebar section) is the default
+    // surface, so a user who never wants a menu bar item never gets one.
+    if (prefs.atlas.enabled && prefs.atlas.surface === "both") startAtlasTray();
     // Event log: start the writer now that we know whether it's enabled and at
     // what level. emitEvent() is a no-op until this is called (writer is null).
     startEventLog(prefs.eventLog);

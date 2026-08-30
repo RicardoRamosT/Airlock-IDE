@@ -27,6 +27,7 @@ export interface AtlasDeps {
   recents(): string[]; // AirLock's recentFolders -- the strongest seed
   enabled(): boolean;
   acknowledged(): boolean;
+  earliestHour(): number;
   onBriefReady(day: string): void;
 }
 
@@ -44,6 +45,8 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
       lastBriefDay: lastBriefDay(deps.db),
       today,
       composing,
+      localHour: new Date(now + deps.tzOffsetMinutes() * 60_000).getUTCHours(),
+      earliestHour: deps.earliestHour(),
     })
   ) {
     return false;
