@@ -24,7 +24,11 @@ it("derives a display name from the last path segment", () => {
 it("adds discovered roots that are not yet known", () => {
   const out = mergeRegistry([], ["/a/one", "/a/two"], 5000);
   expect(out.map((p) => p.root)).toEqual(["/a/one", "/a/two"]);
-  expect(out[0]).toMatchObject({ name: "one", addedAt: 5000, lastSeenAt: 5000 });
+  expect(out[0]).toMatchObject({
+    name: "one",
+    addedAt: 5000,
+    lastSeenAt: 5000,
+  });
 });
 
 it("NEVER evicts a known root that is absent from the discovered list", () => {
@@ -51,7 +55,9 @@ it("marks a root missing when it is not present, without dropping it", () => {
     new Set(["/a/here"]),
     7000,
   );
-  expect(out.find((p) => p.root === "/a/gone")).toMatchObject({ missing: true });
+  expect(out.find((p) => p.root === "/a/gone")).toMatchObject({
+    missing: true,
+  });
   expect(out.find((p) => p.root === "/a/here")).toMatchObject({
     missing: false,
     lastSeenAt: 7000,
