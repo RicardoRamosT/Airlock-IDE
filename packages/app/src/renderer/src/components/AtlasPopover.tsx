@@ -1,6 +1,38 @@
 import { useEffect, useState } from "react";
 import { AtlasConsent } from "./AtlasConsent";
 
+// The composer writes light markdown (** for emphasis, "- " and "1." for
+// lists). Rendering it raw shows literal asterisks, so this handles just those
+// three shapes -- a full markdown engine would be far more than this needs.
+function inline(text: string, key: string) {
+  // Keyed by the part's OFFSET in the source string, not by array index: the
+  // offset is a real identity for that run of text.
+  let at = 0;
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part) => {
+    const k = `${key}@${at}`;
+    at += part.length;
+    return part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={k}>{part.slice(2, -2)}</strong>
+    ) : (
+      <span key={k}>{part}</span>
+    );
+  });
+}
+
+function renderBrief(text: string) {
+  return text.split("\n").map((line, i) => {
+    const k = `l${i}`;
+    const t = line.trim();
+    if (t.length === 0) return <div key={k} className="atlas-brief-gap" />;
+    const bullet = /^[-*]\s+/.test(t);
+    return (
+      <p key={k} className={bullet ? "atlas-brief-item" : "atlas-brief-line"}>
+        {inline(bullet ? t.replace(/^[-*]\s+/, "") : t, k)}
+      </p>
+    );
+  });
+}
+
 interface AtlasState {
   acknowledged: boolean;
   disclosure: string;
@@ -16,21 +48,28 @@ export function AtlasPopover() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      window.airlock?.atlasState() ?? null,
-      window.airlock?.atlasBrief() ?? null,
-    ])
-      .then(([s, text]) => {
-        if (!alive) return;
-        setState(s);
-        setBrief(text);
-        setAsked(true);
-      })
-      .catch(() => {
-        if (alive) setAsked(true);
-      });
+    const load = () => {
+      Promise.all([
+        window.airlock?.atlasState() ?? null,
+        window.airlock?.atlasBrief() ?? null,
+      ])
+        .then(([s, text]) => {
+          if (!alive) return;
+          setState(s);
+          setBrief(text);
+          setAsked(true);
+        })
+        .catch(() => {
+          if (alive) setAsked(true);
+        });
+    };
+    load();
+    // Main re-sends this every time the popover opens: a debrief composed after
+    // the first mount used to stay invisible behind "No debrief yet".
+    const off = window.airlock?.onAtlasRefresh(load);
     return () => {
       alive = false;
+      off?.();
     };
   }, []);
 
@@ -76,11 +115,11 @@ export function AtlasPopover() {
       </div>
       {brief === null ? (
         <p className="atlas-note">
-          No debrief yet. Atlas writes one the first time you open AirLock on a
-          new day.
+          No debrief yet. Atlas writes one each morning, the first time you are
+          back at your Mac.
         </p>
       ) : (
-        <p className="atlas-brief">{brief}</p>
+        <div className="atlas-brief">{renderBrief(brief)}</div>
       )}
     </div>
   );

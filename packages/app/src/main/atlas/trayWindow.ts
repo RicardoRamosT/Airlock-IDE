@@ -64,6 +64,9 @@ function toggle(): void {
     height: POPOVER_HEIGHT,
   });
   popover.setPosition(at.x, at.y, false);
+  // Re-fetch on every open. The popover used to read the brief once on mount,
+  // so a debrief composed afterwards showed as "No debrief yet" forever.
+  popover.webContents.send("atlas:refresh");
   popover.show();
   // Reading the brief is what clears the dot.
   setUnread(false);

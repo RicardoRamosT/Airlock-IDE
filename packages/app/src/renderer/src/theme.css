@@ -6737,3 +6737,36 @@ button.docker-row .codicon-chevron-right {
     opacity: 0.6;
   }
 }
+
+/* The debrief renders light markdown, so lines and bullets need real spacing
+   rather than a single pre-wrap block. */
+.atlas-brief-line {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.atlas-brief-item {
+  margin: 0 0 5px;
+  padding-left: 14px;
+  position: relative;
+  line-height: 1.5;
+}
+.atlas-brief-item::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+}
+.atlas-brief-gap {
+  height: 6px;
+}
+.atlas-brief strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.atlas-brief {
+  color: var(--fg-dim);
+}

@@ -6,7 +6,7 @@
 // listener below is the whole point of the "on arrival, not on a clock"
 // design, so it must never be implicit again.
 
-import { app } from "electron";
+import { app, powerMonitor } from "electron";
 import { loadPrefs } from "../prefs";
 import { allOpenRoots } from "../window";
 import { spawnClaude } from "./composer";
@@ -35,11 +35,23 @@ export function startAtlasArrival(prefsFile: string): void {
     })();
   };
 
-  // Focus is the arrival signal. maybeCompose is idempotent per day and guards
-  // its own in-flight state, so firing on every focus is safe and cheap: it
-  // returns immediately once today's brief exists.
-  app.on("browser-window-focus", onArrival);
-  // Also try once at startup, for the case where the app is launched and
-  // focused before this listener is attached.
-  onArrival();
+  // ARRIVAL means "the user showed up today", not "AirLock was launched".
+  // AirLock is typically left running for days, so launch is far too rare a
+  // signal -- someone who never quits it would never get a debrief. What
+  // actually marks a new day starting is the machine waking up and the person
+  // sitting down.
+  //
+  // maybeCompose is idempotent per calendar day and guards its own in-flight
+  // state, so every one of these is safe to fire repeatedly: once today's
+  // brief exists they all return immediately.
+  app.on("browser-window-focus", onArrival); // sat down at the app
+  powerMonitor.on("resume", onArrival); // Mac woke from sleep
+  powerMonitor.on("unlock-screen", onArrival); // unlocked the screen
+  app.on("activate", onArrival); // clicked the dock icon
+  onArrival(); // launched
+
+  // Backstop for a machine that never sleeps and an app that keeps focus
+  // across midnight: without this the day could roll over with no signal at
+  // all. Cheap -- it is a day-key comparison, and composes at most once a day.
+  setInterval(onArrival, 15 * 60 * 1000).unref();
 }

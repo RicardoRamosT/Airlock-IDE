@@ -1240,6 +1240,7 @@ export interface AirlockApi {
   atlasOpenWindow(): Promise<void>;
   atlasState(): Promise<{ acknowledged: boolean; disclosure: string }>;
   atlasConsent(): Promise<void>;
+  onAtlasRefresh(cb: () => void): () => void;
   // Per-session usage ledger (persisted; most-recent across launches) for the
   // Usage dashboard.
   usageGet(): Promise<SessionUsage[]>;
