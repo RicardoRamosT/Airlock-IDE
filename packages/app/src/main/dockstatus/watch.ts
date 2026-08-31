@@ -132,6 +132,9 @@ export function startDockWatch(
   });
   const fire = () => void recompute();
   watcher.on("add", fire).on("change", fire).on("unlink", fire);
+  // An unhandled "error" on an EventEmitter THROWS; a dead watcher here leaves
+  // the dock badge stuck on its last value forever.
+  watcher.on("error", (e) => console.error("[dockstatus] watch error:", e));
   if (!focusHooked) {
     app.on("browser-window-focus", onFocus);
     focusHooked = true;

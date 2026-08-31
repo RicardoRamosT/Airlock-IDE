@@ -87,10 +87,31 @@ function errorOf(e: unknown): { message: string; stack?: string } {
   return { message: String(e) };
 }
 
+// An ERROR must survive this, and JSON.stringify destroys one: an Error has no
+// enumerable own properties, so `JSON.stringify(new Error("EMFILE"))` is "{}".
+// That silently gutted every `console.error("msg", err)` in main -- 24+ call
+// sites, including the LSP spawn failures and `session.json write failed` --
+// and produced 106 identical "[fsWatch] watch error for <root>: {}" entries
+// over five days: the one recurring failure in normal use, logged in the one
+// form that makes it undiagnosable.
 function stringifyArg(a: unknown): string {
   if (typeof a === "string") return a;
+  if (a instanceof Error) {
+    // The stack already begins with "Name: message", so it is the better
+    // single string when present. Node's `code`/`errno` (EMFILE, EPERM) live
+    // off-prototype and are exactly what a watcher failure needs, so carry
+    // them explicitly.
+    const extra = [];
+    for (const k of ["code", "errno", "syscall", "path"]) {
+      const v = (a as unknown as Record<string, unknown>)[k];
+      if (v !== undefined) extra.push(`${k}=${String(v)}`);
+    }
+    const head = a.stack ?? `${a.name}: ${a.message}`;
+    return extra.length > 0 ? `${head} (${extra.join(" ")})` : head;
+  }
   try {
-    return JSON.stringify(a);
+    // A circular object would throw; String() is the honest fallback.
+    return JSON.stringify(a) ?? String(a);
   } catch {
     return String(a);
   }

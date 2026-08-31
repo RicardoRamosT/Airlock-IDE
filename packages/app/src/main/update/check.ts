@@ -131,6 +131,12 @@ export function startUpdateCheck(currentVersion: string): void {
     });
     const run = () => void recompute(currentVersion);
     devWatcher.on("add", run).on("change", run).on("unlink", run);
+    // An unhandled "error" on an EventEmitter THROWS. Without this a watch
+    // failure became an uncaughtException with no context, and the watcher was
+    // dead afterwards with nothing saying so.
+    devWatcher.on("error", (e) =>
+      console.error("[update] dev manifest watch error:", e),
+    );
   }
   void recompute(currentVersion);
   timer = setInterval(() => void recompute(currentVersion), POLL_MS);

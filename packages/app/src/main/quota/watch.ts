@@ -143,6 +143,9 @@ export function startQuotaWatch(outPath: string, ledgerPathArg: string): void {
   });
   const fire = () => void readAndBroadcast(outPath);
   watcher.on("add", fire).on("change", fire);
+  // An unhandled "error" on an EventEmitter THROWS; a silently dead watcher
+  // here freezes the quota meter with no explanation.
+  watcher.on("error", (e) => console.error("[quota] watch error:", e));
 }
 
 export async function stopQuotaWatch(): Promise<void> {
