@@ -127,6 +127,14 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
           // escape as an uncaught exception and destabilize main. Log it.
           if (err) {
             console.error(`[fsWatch] watch error for ${root}:`, err);
+            // ...then RE-LIST ANYWAY. An error means the watch may have missed
+            // changes, and the batch we were handed is discarded along with it,
+            // so this is precisely the moment the tree is most likely to be
+            // stale. Returning here meant the file tree silently stopped
+            // matching disk -- 106 times over five days in one real log, on the
+            // user's three most-used projects, with nobody able to tell because
+            // the error itself serialised as "{}".
+            fire();
             return;
           }
           // Re-list only when a NON-ignored path changed -- defense in depth vs
@@ -137,6 +145,12 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
       )
       .catch((err) => {
         console.error(`[fsWatch] subscribe failed for ${root}:`, err);
+        // Drop it so a later reconcile RETRIES. A failed subscription left in
+        // the map made the root look permanently watched (`current.has(root)`
+        // short-circuits the next pass) while nothing was watching it, so the
+        // editor and file tree stopped seeing external changes for the rest of
+        // the session -- silently, and indistinguishably from "nothing changed".
+        if (current.get(root) === subP) current.delete(root);
         return null;
       });
     current.set(root, subP);
