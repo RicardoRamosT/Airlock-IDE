@@ -106,6 +106,11 @@ const CLAUDE_ENV_STRIP = "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN";
 // skip-permissions Claude started here has both no prompts and real
 // credentials in its environment -- a wider blast radius than the same flag in
 // a plain terminal.
+// Terminals the AGENT opened to run commands in. Module-level rather than store
+// state: it is consumed once at pty adoption and never rendered, so putting it
+// in the store would add a re-render for nothing.
+const plainShellTerminals = new Set<string>();
+
 export const SKIP_PERMISSIONS_FLAG = "--dangerously-skip-permissions";
 
 function claudeCommand(args: string, skipPermissions: boolean): string {
@@ -508,7 +513,11 @@ export interface AppState {
   // tabId defaults to the active tab. setTerminalPty/Title/removeTerminal find the
   // tab that OWNS the terminal id (a background tab's pane can fire these on adopt
   // / OSC title / process exit), so they must NOT assume the active tab.
-  addTerminal: (tabId?: string) => string; // returns new id, sets it active (in tabId or the active tab)
+  // `plainShell` suppresses Claude auto-start for THIS terminal. The agent's
+  // open_terminal asks for a shell to run commands in; auto-starting Claude in
+  // it hands the agent a TUI instead, so its next send lands in a composer
+  // rather than at a prompt (observed 2026-08-31).
+  addTerminal: (tabId?: string, opts?: { plainShell?: boolean }) => string; // returns new id, sets it active (in tabId or the active tab)
   removeTerminal: (id: string) => void;
   setActiveTerminal: (id: string, tabId?: string) => void;
   setTerminalPty: (id: string, ptyId: string) => void;
@@ -1428,8 +1437,9 @@ export const useApp = create<AppState>((set) => ({
   setRunningNotice: (runningNotice) => set({ runningNotice }),
 
   // --- Terminal setters ---
-  addTerminal: (tabId) => {
+  addTerminal: (tabId, opts) => {
     const entry = newEntry();
+    if (opts?.plainShell) plainShellTerminals.add(entry.id);
     set((s) => {
       // Target the given pane's tab (the terminal-tabs UI passes ITS tabId), so
       // adding a terminal in a SPLIT pane hits that pane -- not the focused one.
@@ -1770,6 +1780,10 @@ export const useApp = create<AppState>((set) => ({
     }),
 
   claudeAutoDecision: (terminalId) => {
+    // The agent asked for a SHELL. Consumed here so a later terminal reusing
+    // the id (there is none today, but ids are not reserved forever) cannot
+    // inherit the suppression.
+    if (plainShellTerminals.delete(terminalId)) return false;
     // A restored tab resumes via claude --continue on focus (the lazy-resume
     // effect), so its terminal must NOT fresh-start claude at adoption.
     {

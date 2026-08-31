@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeTerminalEscapes } from "./terminalEscapes";
+import { decodeTerminalEscapes, submitNewline } from "./terminalEscapes";
 
 describe("decodeTerminalEscapes", () => {
   it("submits a line an agent escaped as literal text", () => {
@@ -55,5 +55,36 @@ describe("decodeTerminalEscapes", () => {
 
   it("decodes several escapes in one payload", () => {
     expect(decodeTerminalEscapes("a\\tb\\nc")).toBe("a\tb\nc");
+  });
+});
+
+describe("submitNewline", () => {
+  it("sends CR so a live Claude session actually submits", () => {
+    // LF in a raw-mode TUI inserts a newline in the composer and submits
+    // nothing -- `git status` sat typed but unsent on 2026-08-31.
+    expect(submitNewline("git status\n")).toBe("git status\r");
+    expect(submitNewline("\n")).toBe("\r");
+  });
+
+  it("leaves interior newlines alone in a multi-line paste", () => {
+    expect(submitNewline("line one\nline two\n")).toBe("line one\nline two\r");
+  });
+
+  it("does not invent a submit that was not asked for", () => {
+    // No trailing newline means the agent wanted to TYPE without sending.
+    expect(submitNewline("partial")).toBe("partial");
+    expect(submitNewline("")).toBe("");
+    expect(submitNewline("\u0003")).toBe("\u0003"); // Ctrl-C is not a submit
+  });
+
+  it("leaves an existing CR untouched", () => {
+    expect(submitNewline("already\r")).toBe("already\r");
+  });
+
+  it("composes with escape decoding, in that order", () => {
+    // An agent writing a literal backslash-n must end up submitting too.
+    expect(submitNewline(decodeTerminalEscapes("git status\\n"))).toBe(
+      "git status\r",
+    );
   });
 });

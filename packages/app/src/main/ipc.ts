@@ -284,6 +284,7 @@ import {
   startTabDrag,
   takePendingAdopt,
 } from "./tabdrag/wire";
+import { resolveTailScope } from "./terminalScope";
 import { applyUpdate } from "./update/apply";
 import { getUpdate } from "./update/check";
 import {
@@ -3166,22 +3167,20 @@ export async function getTerminalTail(
   lines: number,
   root: string | null,
 ): Promise<{ tail: string } | { error: string }> {
-  if (!root) return { error: "No workspace open" };
-  // Scope to the calling session's project root only. The window filter is
-  // DROPPED: the caller's project may live in a non-focused window when multiple
-  // projects are open, so filtering by window would hide valid terminals.
-  if (sessionRoots.get(termId) !== root) {
-    return { error: "No such terminal" };
-  }
+  // The scoping rule lives in terminalScope.ts with its own test: it is an
+  // isolation boundary, not wiring.
+  const decided = resolveTailScope(root, sessionRoots.get(termId) ?? null);
+  if (!decided.ok) return { error: decided.error };
+  const scope = decided.scope;
   const raw = ptyBuffers.get(termId);
   if (raw === undefined) return { error: "No such terminal" };
   const n = Math.min(
     MAX_TAIL_LINES,
     Math.max(1, Math.floor(lines) || DEFAULT_TAIL_LINES),
   );
-  const values = await allVaultedValues(root);
+  const values = await allVaultedValues(scope);
   const tail = redactedTail(raw, values, n);
-  await appendAudit(root, "agent", "terminal.read", {
+  await appendAudit(scope, "agent", "terminal.read", {
     termId,
     lines: n,
   });

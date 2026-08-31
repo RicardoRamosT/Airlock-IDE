@@ -63,3 +63,22 @@ export function decodeTerminalEscapes(data: string): string {
   }
   return out;
 }
+
+// Make a trailing newline actually SUBMIT, wherever it lands.
+//
+// send_terminal_input's own description offers two things that contradict
+// each other: "type a prompt into a live Claude session" and "include a
+// newline to submit a line". In a raw-mode TUI -- which is what a running
+// Claude is -- LF inserts a newline in the composer and submits nothing.
+// Observed 2026-08-31: Atlas typed `git status` into a Claude session and it
+// sat there unsent.
+//
+// CR is Enter in a raw-mode TUI, and a pty in canonical mode maps CR to NL
+// (termios ICRNL, on by default), so a shell submits on CR too. CR is
+// therefore correct in BOTH destinations where LF is correct in only one.
+//
+// Only the LAST newline is converted, so an intentional multi-line paste
+// keeps its interior line breaks and only its submit becomes an Enter.
+export function submitNewline(data: string): string {
+  return data.endsWith("\n") ? `${data.slice(0, -1)}\r` : data;
+}

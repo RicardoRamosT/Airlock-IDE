@@ -99,7 +99,10 @@ async function applyCommand(cmd: AgentCommand): Promise<ConnectStarted | null> {
       // tabId to addTerminal so it targets that exact pane (robust even when the
       // tab is the secondary half of a split, where it is visible but not active).
       if (cmd.tabId && cmd.tabId !== s.activeTabId) s.switchTab(cmd.tabId);
-      useApp.getState().addTerminal(cmd.tabId);
+      // plainShell: the agent wants a prompt to run commands at. Auto-starting
+      // Claude here gave it a TUI, so its next send landed in a composer and
+      // was typed but never submitted.
+      useApp.getState().addTerminal(cmd.tabId, { plainShell: true });
       break;
     case "close_terminal":
       s.removeTerminal(cmd.terminalId);

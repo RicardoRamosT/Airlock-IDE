@@ -13,7 +13,7 @@ import {
 } from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
 import { type AgentAuthor, signAgentInput } from "./agentAuthor";
-import { decodeTerminalEscapes } from "./terminalEscapes";
+import { decodeTerminalEscapes, submitNewline } from "./terminalEscapes";
 import { appWindows, isAppWindow, windowForRoot } from "./window";
 
 // MAIN-ONLY registry of agent-initiated requests (request_secret, and

@@ -84,3 +84,42 @@ it("unknown terminal ids never grant", () => {
   useApp.getState().setClaudeAutoStart("every");
   expect(useApp.getState().claudeAutoDecision("term-nope")).toBe(false);
 });
+
+it("does NOT auto-start Claude in a terminal the AGENT opened", () => {
+  // open_terminal means "give me a shell to run commands in". Auto-starting
+  // Claude there hands the agent a TUI instead, so its next send lands in a
+  // composer and is typed but never submitted (observed 2026-08-31).
+  openProjectTab("/p/airlock");
+  useApp.getState().setClaudeAutoStart("every");
+  const agentTerm = useApp.getState().addTerminal(undefined, {
+    plainShell: true,
+  });
+  expect(useApp.getState().claudeAutoDecision(agentTerm)).toBe(false);
+});
+
+it("still auto-starts in a terminal the USER opened, in the same tab", () => {
+  // The suppression is per-terminal, not a mode switch: opening one shell for
+  // the agent must not turn auto-start off for everything after it.
+  openProjectTab("/p/airlock");
+  useApp.getState().setClaudeAutoStart("every");
+  const agentTerm = useApp.getState().addTerminal(undefined, {
+    plainShell: true,
+  });
+  const userTerm = useApp.getState().addTerminal();
+  expect(useApp.getState().claudeAutoDecision(agentTerm)).toBe(false);
+  expect(useApp.getState().claudeAutoDecision(userTerm)).toBe(true);
+});
+
+it("does not let an agent terminal hold the 'first' claim it never used", () => {
+  // In "first" mode the claim is what stops a second Claude starting. An agent
+  // shell must not take it, or the user's next terminal would silently lose
+  // its session.
+  openProjectTab("/p/airlock");
+  useApp.getState().setClaudeAutoStart("first");
+  const agentTerm = useApp.getState().addTerminal(undefined, {
+    plainShell: true,
+  });
+  expect(useApp.getState().claudeAutoDecision(agentTerm)).toBe(false);
+  const userTerm = useApp.getState().addTerminal();
+  expect(useApp.getState().claudeAutoDecision(userTerm)).toBe(true);
+});
