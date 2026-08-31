@@ -7255,3 +7255,49 @@ button.docker-row .codicon-chevron-right {
   opacity: 1;
   color: var(--fg);
 }
+
+/* What Atlas is doing while it thinks. Collapsed to a count by default: the
+   steps answer "is it stuck?", which is only asked when a run feels long. */
+.atlas-activity-toggle {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.atlas-activity-toggle:hover {
+  color: var(--fg);
+}
+.atlas-activity {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  font-size: 11px;
+}
+.atlas-activity li {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  align-items: baseline;
+}
+.atlas-activity-tool {
+  flex: 0 0 auto;
+  color: var(--fg);
+  font-weight: 600;
+}
+.atlas-activity-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--fg-dim);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -12,6 +12,7 @@ import {
   type TerminalGrantRequest,
 } from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
+import { decodeTerminalEscapes } from "./terminalEscapes";
 import { appWindows, isAppWindow, windowForRoot } from "./window";
 
 // MAIN-ONLY registry of agent-initiated requests (request_secret, and
@@ -380,14 +381,18 @@ export async function gatedTerminalInput(
   const label = deps.label(ptyId);
   if (label === null)
     return { error: "No such terminal (it may have closed)." };
+  // Decode BEFORE the preview and the write, so the approval card shows what
+  // will actually be typed and the pty receives a real newline rather than the
+  // two characters an agent may have written for one.
+  const bytes = decodeTerminalEscapes(data);
   // The label lookup runs FIRST either way: a send to a dead pty is an error,
   // not a silent success, whether or not approval is being asked for.
   if (await deps.askFirst()) {
-    const g = await requestTerminalGrant(ptyId, label, previewInput(data));
+    const g = await requestTerminalGrant(ptyId, label, previewInput(bytes));
     if (g.timedOut) return { timedOut: true };
     if (!g.granted) return { denied: true };
   }
-  if (!deps.write(ptyId, data))
+  if (!deps.write(ptyId, bytes))
     return { error: "Terminal is no longer running." };
   return { sent: true };
 }

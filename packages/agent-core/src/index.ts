@@ -79,6 +79,11 @@ export {
   splitReply,
 } from "./atlas/reply";
 export { type ComposerResult, parseComposerOutput } from "./atlas/result";
+export {
+  type AtlasActivity,
+  activityFromLine,
+  splitLines,
+} from "./atlas/runActivity";
 export { seedRoots } from "./atlas/seed";
 export {
   isStale,

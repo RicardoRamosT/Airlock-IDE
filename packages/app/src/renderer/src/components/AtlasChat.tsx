@@ -1,5 +1,6 @@
 import type { Turn } from "@airlock/agent-core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AtlasActivity } from "../../../shared/ipc";
 import { renderBrief } from "../lib/atlasBrief";
 import { formatElapsed } from "../lib/atlasFormat";
 
@@ -47,6 +48,10 @@ export function AtlasChat({
   // Mirrored into a ref because submitText is a useCallback that deliberately
   // depends only on `busy`; adding `attached` would rebuild it on every paste
   // and re-fire the handed-in-question effect that depends on it.
+  // What the running turn is doing. Cleared per send, so an old run's steps
+  // never appear under a new question.
+  const [activity, setActivity] = useState<AtlasActivity[]>([]);
+  const [showActivity, setShowActivity] = useState(false);
   const attachedRef = useRef<string[]>([]);
   attachedRef.current = attached;
   const [stopped, setStopped] = useState(false);
@@ -200,6 +205,7 @@ export function AtlasChat({
       setAttached([]);
       setFailed(null);
       setStopped(false);
+      setActivity([]);
       setBusy(true);
       setTurns((prev) => [...prev, mine]);
       try {
@@ -281,6 +287,14 @@ export function AtlasChat({
       }
     }
   }
+
+  useEffect(() => {
+    // Bounded: a long run can make hundreds of tool calls, and an unbounded
+    // list would grow the DOM without bound inside a 380px popover.
+    return window.airlock?.onAtlasActivity?.((items) => {
+      setActivity((prev) => [...prev, ...items].slice(-200));
+    });
+  }, []);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
@@ -393,18 +407,48 @@ export function AtlasChat({
                 <i />
               </span>
               <span>
-                {elapsed < 3
-                  ? "Reading your portfolio\u2026"
-                  : elapsed < 10
-                    ? "Thinking\u2026"
-                    : "Still thinking\u2026"}
+                {activity.length > 0
+                  ? (activity[activity.length - 1]?.tool ?? "Working")
+                  : elapsed < 3
+                    ? "Reading your portfolio\u2026"
+                    : elapsed < 10
+                      ? "Thinking\u2026"
+                      : "Still thinking\u2026"}
               </span>
+              {activity.length > 0 ? (
+                <button
+                  type="button"
+                  className="atlas-activity-toggle"
+                  aria-expanded={showActivity}
+                  onClick={() => setShowActivity((v) => !v)}
+                >
+                  {showActivity ? "Hide" : `${activity.length} steps`}
+                </button>
+              ) : null}
               {elapsed >= 3 ? (
                 <span className="atlas-thinking-time">
                   {formatElapsed(elapsed)}
                 </span>
               ) : null}
             </div>
+          ) : null}
+          {busy && showActivity && activity.length > 0 ? (
+            <ol className="atlas-activity">
+              {activity.map((a, i) => (
+                <li
+                  // Index-keyed on purpose: this is an append-only log of steps
+                  // in order, never reordered or filtered, and two identical
+                  // Bash calls are legitimately distinct entries.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: append-only log
+                  key={i}
+                >
+                  <span className="atlas-activity-tool">{a.tool}</span>
+                  {a.detail ? (
+                    <span className="atlas-activity-detail">{a.detail}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
           ) : null}
           {failed !== null ? (
             <div className="atlas-turn atlas-turn-error">

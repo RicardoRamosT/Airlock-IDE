@@ -16,6 +16,7 @@ import {
   buildComposerArgs,
   type ComposerResult,
   parseComposerOutput,
+  splitLines,
 } from "@airlock/agent-core";
 import { emitEvent } from "../eventlog/wire";
 
@@ -31,6 +32,9 @@ export type SpawnFn = (
   // deliver its answer.
   signal?: AbortSignal,
   idleMs?: number,
+  // Called with each COMPLETE line of a streamed run, so a caller can report
+  // what the CLI is doing while it is still doing it.
+  onLine?: (line: string) => void,
 ) => Promise<string>;
 
 // AN IDLE DEADLINE, not a total one.
@@ -63,6 +67,7 @@ export function spawnClaude(
   // a streaming format leave this at the default; the brief, which prints only
   // at the end, passes its total budget.
   idleMs: number = SPAWN_IDLE_MS,
+  onLine?: (line: string) => void,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -101,9 +106,16 @@ export function spawnClaude(
     };
     arm();
     child.stdout.setEncoding("utf8");
+    // Complete lines only: a chunk boundary can fall mid-JSON, and handing a
+    // partial line to a parser drops events at random.
+    let pending = "";
     child.stdout.on("data", (chunk: string) => {
       out += chunk;
       beat();
+      if (!onLine) return;
+      const { lines, rest } = splitLines(pending + chunk);
+      pending = rest;
+      for (const line of lines) onLine(line);
     });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {

@@ -11,6 +11,8 @@
 // abort mid-pair (which is how this was found) then leaves neither turn.
 
 import {
+  type AtlasActivity,
+  activityFromLine,
   buildChatArgs,
   buildChatPrompt,
   type CollectDeps,
@@ -47,6 +49,10 @@ export interface ChatDeps {
   // Set when the user presses Escape. Kills the CLI rather than only
   // abandoning the wait.
   signal?: AbortSignal;
+  // Called as the CLI works, so a run in progress can say what it is doing
+  // instead of being a spinner. A long run and a wedged one look identical
+  // otherwise -- which is how a working session was killed at 15 minutes.
+  onActivity?(items: AtlasActivity[]): void;
 }
 
 // A week. 24h made 'what did I do this week' unanswerable by construction.
@@ -123,10 +129,18 @@ export async function sendMessage(
 
   let raw: string;
   try {
+    const report = deps.onActivity;
     raw = await deps.spawn(
       buildChatArgs(deps.roots(), deps.mcp?.() ?? undefined),
       prompt,
       deps.signal,
+      undefined, // streaming: keep the idle deadline
+      report
+        ? (line) => {
+            const items = activityFromLine(line);
+            if (items.length > 0) report(items);
+          }
+        : undefined,
     );
   } catch (e) {
     // A user pressing Escape is not a failure and must not be logged as one --

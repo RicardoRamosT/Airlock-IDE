@@ -13,6 +13,11 @@ afterEach(cleanup);
 
 let refreshCb: (() => void) | null = null;
 
+let activityCbs: ((i: { tool: string; detail: string }[]) => void)[] = [];
+const fireActivity = (items: { tool: string; detail: string }[]) => {
+  for (const cb of [...activityCbs]) cb(items);
+};
+
 const api = {
   onAtlasRefresh: (cb: () => void) => {
     refreshCb = cb;
@@ -28,6 +33,12 @@ const api = {
         pending?: "settled" | "pending" | "unanswered";
       }[],
   ),
+  onAtlasActivity: (cb: (i: { tool: string; detail: string }[]) => void) => {
+    activityCbs.push(cb);
+    return () => {
+      activityCbs = activityCbs.filter((x) => x !== cb);
+    };
+  },
   atlasSend: vi.fn(async (_m: string) => ({
     ok: true as const,
     text: "Work on Revaltone-CRM first.",
@@ -36,6 +47,7 @@ const api = {
 };
 
 beforeEach(() => {
+  activityCbs = [];
   api.atlasTurns.mockClear();
   api.atlasSend.mockClear();
   api.atlasCancel.mockClear();
@@ -358,4 +370,79 @@ it("shows the REAL reason a run failed, not a blanket network excuse", async () 
   expect(screen.queryByText(/could not reach/i)).toBeNull();
   // The question is still recoverable either way.
   expect(screen.getByText(/still here/i)).toBeTruthy();
+});
+
+it("shows what Atlas is DOING while it thinks, on demand", async () => {
+  // A spinner and a timer cannot answer "is it stuck?", which is the only
+  // question a long run raises -- and the run killed at 15 minutes on
+  // 2026-08-31 was working the entire time with no way to see it.
+  const held: { settle?: (v: { ok: true; text: string }) => void } = {};
+  api.atlasSend.mockImplementationOnce(
+    () =>
+      new Promise<{ ok: true; text: string }>((r) => {
+        held.settle = r;
+      }),
+  );
+  render(<AtlasChat />);
+  await waitFor(() => expect(api.atlasTurns).toHaveBeenCalled());
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "go" } });
+  fireEvent.submit(form());
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalled());
+
+  fireActivity([{ tool: "Bash", detail: "git status" }]);
+  fireActivity([{ tool: "Read", detail: "/p/app/src/main.ts" }]);
+
+  // Collapsed by default: a count, and the CURRENT step rather than "Thinking".
+  const toggle = await screen.findByRole("button", { name: /2 steps/ });
+  expect(screen.getByText("Read")).toBeTruthy();
+  expect(screen.queryByText("git status")).toBeNull();
+
+  toggle.click();
+  await waitFor(() => expect(screen.getByText("git status")).toBeTruthy());
+  expect(screen.getByText("/p/app/src/main.ts")).toBeTruthy();
+
+  held.settle?.({ ok: true, text: "done" });
+});
+
+it("does not carry one run's steps into the next question", async () => {
+  // Asserting the step is simply absent would pass for the wrong reason -- the
+  // panel is collapsed by default. So EXPAND it, see the step, then send again
+  // and require it to be gone from an open panel.
+  const held: { settle?: (v: { ok: true; text: string }) => void } = {};
+  api.atlasSend.mockImplementationOnce(
+    () =>
+      new Promise<{ ok: true; text: string }>((r) => {
+        held.settle = r;
+      }),
+  );
+  render(<AtlasChat />);
+  await waitFor(() => expect(api.atlasTurns).toHaveBeenCalled());
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "a" } });
+  fireEvent.submit(form());
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalled());
+  fireActivity([{ tool: "Bash", detail: "stale-step" }]);
+  (await screen.findByRole("button", { name: /1 step/ })).click();
+  await waitFor(() => expect(screen.getByText("stale-step")).toBeTruthy());
+
+  held.settle?.({ ok: true, text: "first done" });
+  await waitFor(() => expect(screen.getByText("first done")).toBeTruthy());
+
+  // Second question, ALSO held open: if it resolved immediately the panel
+  // would unmount because the run ended, and the assertion below would pass
+  // whether or not the steps were actually cleared.
+  const held2: { settle?: (v: { ok: true; text: string }) => void } = {};
+  api.atlasSend.mockImplementationOnce(
+    () =>
+      new Promise<{ ok: true; text: string }>((r) => {
+        held2.settle = r;
+      }),
+  );
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "b" } });
+  fireEvent.submit(form());
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalledTimes(2));
+  // The panel is open and the run is live, so a surviving step WOULD show.
+  fireActivity([{ tool: "Grep", detail: "fresh-step" }]);
+  await waitFor(() => expect(screen.getByText("fresh-step")).toBeTruthy());
+  expect(screen.queryByText("stale-step")).toBeNull();
+  held2.settle?.({ ok: true, text: "second done" });
 });

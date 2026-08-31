@@ -1,6 +1,7 @@
 import type {
   AgentCommandPolicy,
   AnthropicIndicator,
+  AtlasActivity,
   AuditEntry,
   CiRun,
   Container,
@@ -60,7 +61,7 @@ import type { AgentRequest } from "./agentRequests";
 
 // DevServerState re-exported via import type only (erased at build — never a
 // value import; only npm run package catches a violation).
-export type { DevServerState } from "@airlock/agent-core";
+export type { AtlasActivity, DevServerState } from "@airlock/agent-core";
 export type {
   AgentRequest,
   AgentRequestKind,
@@ -1314,6 +1315,8 @@ export interface AirlockApi {
   // Writes a pasted image to disk and returns its absolute path, or null when
   // it is not a supported image. The path is passed back to atlasSend.
   atlasAttach(bytes: Uint8Array, mime: string): Promise<string | null>;
+  // What the running turn is doing, as it does it.
+  onAtlasActivity(cb: (items: AtlasActivity[]) => void): () => void;
   // Stop the in-flight reply (Escape in the chat). Kills the CLI process.
   atlasCancel(): Promise<void>;
   // Open standing concerns, read LIVE rather than baked into the debrief text:

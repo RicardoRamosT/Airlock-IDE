@@ -6,6 +6,7 @@ import type {
   AirlockApi,
   AnthropicStatus,
   AppPrefs,
+  AtlasActivity,
   DevServerState,
   FsChangedEvent,
   LspDiagnostic,
@@ -261,6 +262,7 @@ const api: AirlockApi = {
   atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
   atlasSend: (message: string, attachments?: readonly string[]) =>
     ipcRenderer.invoke("atlas:send", message, attachments ?? []),
+  onAtlasActivity: (cb) => subscribe<AtlasActivity[]>("atlas:activity", cb),
   atlasAttach: (bytes: Uint8Array, mime: string) =>
     // Array.from: a Uint8Array does not survive the structured clone across
     // this bridge in every Electron build, and a plain array always does.

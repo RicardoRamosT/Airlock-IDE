@@ -284,3 +284,27 @@ describe("gatedTerminalInput", () => {
     expect(r).toEqual({ error: "No such terminal (it may have closed)." });
   });
 });
+
+const deps2 = (written: string[]) => ({
+  write: (_id: string, data: string) => {
+    written.push(data);
+    return true;
+  },
+  label: () => "proj",
+  askFirst: async () => true,
+});
+
+it("submits a line an agent escaped as literal text, and previews what it will type", async () => {
+  // `\rATLASPROBE ...` sat unsent at a prompt on 2026-08-31: the agent wrote
+  // the two characters backslash and r, so the pty printed them instead of
+  // submitting. The card must also show the decoded form -- approving bytes
+  // other than the ones displayed is the wrong half to get right.
+  const written: string[] = [];
+  const p = gatedTerminalInput("p7", "git status\\n", deps2(written));
+  await tick();
+  const req = listRequestsForWindow(1)[0];
+  expect(req?.kind).toBe("terminalGrant");
+  resolveTerminalGrant(req?.requestId ?? "", true);
+  expect(await p).toEqual({ sent: true });
+  expect(written).toEqual(["git status\n"]);
+});
