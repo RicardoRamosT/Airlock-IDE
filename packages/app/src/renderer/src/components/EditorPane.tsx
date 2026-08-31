@@ -167,6 +167,12 @@ export function EditorPane({
   const [viewReady, setViewReady] = useState(0);
   const reveal = useApp((s) => s.reveal);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  // The mtime this buffer is based on. Seeded from the read, advanced on every
+  // successful save. The write is refused if the file changed underneath, which
+  // is what stops an 800ms-old buffer landing on top of an edit Claude, a
+  // formatter or `git switch` just made.
+  const baselineRef = useRef(file.mtimeMs);
+  const [conflict, setConflict] = useState(false);
   // Scope model (for the breadcrumb's symbol trail) + the cursor's current
   // line (for picking the enclosing chain out of it). Both are presentation
   // state only -- see the scopes-fetch effect and updateListener below.
@@ -223,6 +229,8 @@ export function EditorPane({
     const host = hostRef.current;
     if (!host) return;
     setSaveState("idle");
+    baselineRef.current = file.mtimeMs;
+    setConflict(false);
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lspTimer: ReturnType<typeof setTimeout> | undefined;
@@ -239,11 +247,28 @@ export function EditorPane({
       if (!dirty) return;
       dirty = false;
       void window.airlock
-        .writeFile(root, relPath, view.state.doc.toString())
-        .then(() => setSaveState("saved"))
-        .catch((err) => {
-          console.error("autosave failed", err);
+        .writeFile(
+          root,
+          relPath,
+          view.state.doc.toString(),
+          baselineRef.current,
+        )
+        .then((r) => {
+          baselineRef.current = r.mtimeMs; // adopt the new baseline
+          setSaveState("saved");
+        })
+        .catch((err: unknown) => {
           dirty = true; // retry on the next edit or flush
+          if (
+            String((err as Error)?.message ?? err).includes("changed on disk")
+          ) {
+            // Not a failure to report as one: the file moved under us and the
+            // user has to choose. Keep the buffer, stop autosaving over it.
+            setConflict(true);
+            setSaveState("conflict");
+            return;
+          }
+          console.error("autosave failed", err);
           setSaveState("unsaved");
         });
     };
@@ -462,7 +487,19 @@ export function EditorPane({
       );
     }
 
+    // Flush on the way OUT of the window as well as on unmount. React's cleanup
+    // does not run when Electron destroys a WebContents, so on window close,
+    // reload and quit the last AUTOSAVE_MS of typing was simply discarded --
+    // silently, because the breadcrumb said "unsaved" in a window that no
+    // longer existed. pagehide fires on teardown; blur covers Cmd-Q and
+    // Cmd-Shift-W, which both take focus away first.
+    const flushOnLeave = () => flush();
+    window.addEventListener("pagehide", flushOnLeave);
+    window.addEventListener("blur", flushOnLeave);
+
     return () => {
+      window.removeEventListener("pagehide", flushOnLeave);
+      window.removeEventListener("blur", flushOnLeave);
       flush(); // flush before the editor goes away (file switch / unmount)
       if (lspTimer) clearTimeout(lspTimer);
       if (scopeTimer) clearTimeout(scopeTimer);
@@ -607,6 +644,65 @@ export function EditorPane({
           view.focus();
         }}
       />
+      {conflict ? (
+        <div className="editor-conflict-bar" role="alert">
+          <span>
+            <strong>{relPath}</strong> changed on disk since you opened it.
+            Saving would overwrite that change.
+          </span>
+          <span className="editor-conflict-actions">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                // Take what is on disk and discard this buffer. Re-reading
+                // through the store remounts the pane with the new content and
+                // the new baseline.
+                void window.airlock
+                  .readFile(root, relPath)
+                  .then((f) => {
+                    const view = viewRef.current;
+                    if (!view) return;
+                    view.dispatch({
+                      changes: {
+                        from: 0,
+                        to: view.state.doc.length,
+                        insert: f.content,
+                      },
+                    });
+                    baselineRef.current = f.mtimeMs;
+                    setConflict(false);
+                    setSaveState("idle");
+                  })
+                  .catch((err) => console.error("reload failed", err));
+              }}
+            >
+              Reload from disk
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                // Deliberate overwrite: no baseline, so the write is not
+                // refused. This is the ONLY path that discards the other
+                // program's change, and it takes a click.
+                const view = viewRef.current;
+                if (!view) return;
+                void window.airlock
+                  .writeFile(root, relPath, view.state.doc.toString())
+                  .then((r) => {
+                    baselineRef.current = r.mtimeMs;
+                    setConflict(false);
+                    setSaveState("saved");
+                  })
+                  .catch((err) => console.error("overwrite failed", err));
+              }}
+            >
+              Keep mine
+            </button>
+          </span>
+        </div>
+      ) : null}
       <div ref={hostRef} className="viewer-host" />
       <StickyScroll
         // viewReady bumps when the view is (re)constructed so the overlay

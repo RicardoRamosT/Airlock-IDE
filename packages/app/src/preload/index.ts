@@ -46,8 +46,8 @@ const api: AirlockApi = {
   dirExists: (path) => ipcRenderer.invoke("fs:dirExists", path),
   hasResumableSession: (root) =>
     ipcRenderer.invoke("claude:hasResumableSession", root),
-  writeFile: (root, relPath, content) =>
-    ipcRenderer.invoke("fs:writeFile", root, relPath, content),
+  writeFile: (root, relPath, content, expectMtimeMs) =>
+    ipcRenderer.invoke("fs:writeFile", root, relPath, content, expectMtimeMs),
   readImageDataUrl: (root, relPath) =>
     ipcRenderer.invoke("fs:readImage", root, relPath),
   readPdfDataUrl: (root, relPath) =>

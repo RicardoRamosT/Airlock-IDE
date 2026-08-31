@@ -1022,7 +1022,13 @@ describe("split preservation: fillActiveTab / replaceActiveProject (PB-H8/H9)", 
 });
 
 describe("editor tabs (unified main pane)", () => {
-  const FILE = { content: "x", truncated: false, binary: false, size: 1 };
+  const FILE = {
+    content: "x",
+    truncated: false,
+    binary: false,
+    size: 1,
+    mtimeMs: 1,
+  };
 
   it("openFile adds an editor tab, focuses it, and shows the editor", () => {
     const id = tabIdAt(0);
@@ -1120,6 +1126,7 @@ describe("editor tabs (unified main pane)", () => {
       truncated: false,
       binary: false,
       size: 1,
+      mtimeMs: 1,
     });
     expect(get().tabState[id]?.current).toEqual({
       kind: "file",
@@ -1147,7 +1154,13 @@ describe("editor tabs (unified main pane)", () => {
 
   it("closing a file that is in a split drops that split", () => {
     const id = tabIdAt(0);
-    const FILE = { content: "x", truncated: false, binary: false, size: 1 };
+    const FILE = {
+      content: "x",
+      truncated: false,
+      binary: false,
+      size: 1,
+      mtimeMs: 1,
+    };
     get().openFile("a.ts", FILE);
     get().openFile("b.ts", FILE);
     get().splitItems(

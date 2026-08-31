@@ -38,7 +38,7 @@ it("'+' focuses a new terminal alone; an existing split is preserved", () => {
   const t1 = get().addTerminal(tabId);
   get().openFile(
     "LAYOUT.md",
-    { content: "# x", truncated: false, binary: false, size: 1 },
+    { content: "# x", truncated: false, binary: false, size: 1, mtimeMs: 1 },
     tabId,
   );
   get().splitItems(
@@ -98,7 +98,7 @@ it("a new terminal tab is appended at the far-right end, after files", () => {
   const t1 = get().addTerminal(tabId);
   get().openFile(
     "a.ts",
-    { content: "x", truncated: false, binary: false, size: 1 },
+    { content: "x", truncated: false, binary: false, size: 1, mtimeMs: 1 },
     tabId,
   );
   expect(get().tabState[tabId]?.mainTabOrder).toEqual([

@@ -7111,3 +7111,28 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg-dim);
   text-align: left;
 }
+
+/* --- editor: file changed on disk --- */
+
+/* Shown INSTEAD of saving, not after. The editor stops autosaving while this
+   is up, so the buffer and the file on disk both survive until the user picks. */
+.editor-conflict-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font-size: 12px;
+}
+.editor-conflict-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.editor-conflict {
+  color: var(--warn, #d29922);
+}

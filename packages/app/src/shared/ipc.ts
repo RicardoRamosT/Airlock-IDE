@@ -889,7 +889,17 @@ export interface AirlockApi {
   hasResumableSession(root: string): Promise<boolean>;
   // Save edited text back to a workspace file (GUI editor autosave). Pane-scoped
   // by root; a USER action, never an MCP tool (the agent stays value-blind).
-  writeFile(root: string, relPath: string, content: string): Promise<void>;
+  // expectMtimeMs is the baseline the caller last read. When given, a write is
+  // REFUSED if the file changed underneath -- that is what stops the editor's
+  // autosave putting a stale buffer over an edit Claude or a formatter made.
+  // Omit it to overwrite deliberately. Returns the new baseline, which a
+  // repeat writer must adopt or its next save refuses itself.
+  writeFile(
+    root: string,
+    relPath: string,
+    content: string,
+    expectMtimeMs?: number,
+  ): Promise<{ mtimeMs: number }>;
   // Read a (raster) image as a data URL for inline preview. Over ~25 MB --
   // { dataUrl: "", tooLarge: true } (the UI offers Open Externally).
   readImageDataUrl(

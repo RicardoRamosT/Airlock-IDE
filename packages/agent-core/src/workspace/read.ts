@@ -6,6 +6,11 @@ export interface FileContent {
   truncated: boolean;
   binary: boolean;
   size: number;
+  // The baseline for a later write. Without it staleness is not expressible,
+  // and the editor's autosave put stale buffers over files that Claude, a
+  // formatter or `git switch` had rewritten. Callers hand this back to
+  // writeWorkspaceFile as expectMtimeMs.
+  mtimeMs: number;
 }
 
 export const MAX_FILE_BYTES = 1_000_000;
@@ -23,7 +28,7 @@ export async function readWorkspaceFile(
   const abs = await resolveWithin(root, relPath);
   const fh = await open(abs, "r");
   try {
-    const { size } = await fh.stat();
+    const { size, mtimeMs } = await fh.stat();
     // Binary probe: a NUL byte in the first 8000 bytes means binary (git's
     // heuristic). Skip the UTF-8 decode so the editor never shows byte-soup.
     const probeLen = Math.min(size, 8000);
@@ -31,7 +36,7 @@ export async function readWorkspaceFile(
       const probe = Buffer.alloc(probeLen);
       await fh.read(probe, 0, probeLen, 0);
       if (probe.includes(0))
-        return { content: "", truncated: false, binary: true, size };
+        return { content: "", truncated: false, binary: true, size, mtimeMs };
     }
     if (size <= MAX_FILE_BYTES) {
       const buf = await fh.readFile();
@@ -40,6 +45,7 @@ export async function readWorkspaceFile(
         truncated: false,
         binary: false,
         size,
+        mtimeMs,
       };
     }
     // NOTE: truncating at a byte boundary can split a multi-byte UTF-8
@@ -52,6 +58,7 @@ export async function readWorkspaceFile(
       truncated: true,
       binary: false,
       size,
+      mtimeMs,
     };
   } finally {
     await fh.close();

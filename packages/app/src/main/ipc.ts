@@ -767,11 +767,20 @@ export function registerIpc(
   );
   ipcMain.handle(
     "fs:writeFile",
-    (e, root: unknown, relPath: unknown, content: unknown) => {
+    (
+      e,
+      root: unknown,
+      relPath: unknown,
+      content: unknown,
+      expectMtimeMs: unknown,
+    ) => {
       if (typeof relPath !== "string" || typeof content !== "string")
         throw new Error("Invalid payload");
       assertNotVault(relPath);
-      return writeWorkspaceFile(resolveRoot(e, root), relPath, content);
+      return writeWorkspaceFile(resolveRoot(e, root), relPath, content, {
+        expectMtimeMs:
+          typeof expectMtimeMs === "number" ? expectMtimeMs : undefined,
+      });
     },
   );
 

@@ -1,6 +1,6 @@
 import type { Scope } from "../lib/editorScopes";
 
-export type SaveState = "idle" | "unsaved" | "saved";
+export type SaveState = "idle" | "unsaved" | "saved" | "conflict";
 
 // Slim VS Code-style bar under the tab: path segments on the left, the symbol
 // trail (from the scope chain at the cursor) next, and save state on the
@@ -57,6 +57,10 @@ export function EditorBreadcrumb({
           </span>
         ) : saveState === "saved" ? (
           <span className="editor-saved">saved</span>
+        ) : saveState === "conflict" ? (
+          <span className="editor-conflict" title="Changed on disk - not saved">
+            changed on disk
+          </span>
         ) : null}
       </div>
     </div>
