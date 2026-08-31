@@ -29,9 +29,9 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "airlock-broker-"));
   store = new Map();
   fake = {
-    set: (s, a, v) => void store.set(`${s}|${a}`, v),
-    get: (s, a) => store.get(`${s}|${a}`) ?? null,
-    delete: (s, a) => store.delete(`${s}|${a}`),
+    set: async (s, a, v) => void store.set(`${s}|${a}`, v),
+    get: async (s, a) => store.get(`${s}|${a}`) ?? null,
+    delete: async (s, a) => store.delete(`${s}|${a}`),
   };
 });
 
@@ -183,7 +183,7 @@ describe("broker", () => {
     // surface it (reject) rather than silently treating the secret as missing.
     const lockedFake: KeychainStore = {
       ...fake,
-      get: () => {
+      get: async () => {
         throw new Error("Platform secure storage failure: keychain is locked");
       },
     };
@@ -199,7 +199,7 @@ describe("broker", () => {
     // The loop must record B as failed and continue to C, not abort.
     const throwOnB: KeychainStore = {
       ...fake,
-      set: (s, a, v) => {
+      set: async (s, a, v) => {
         // Single-item storage: each setSecret rewrites the project's vault
         // blob. Fail the write whose blob first carries key "B" (B's import
         // iteration); the loop must record B as failed and continue to C.
@@ -311,7 +311,7 @@ describe("broker", () => {
     await setSecret(root, "DANGLING", "v", { keychain: fake });
     // Fake whose delete reports failure (e.g. locked store): meta is still
     // removed, but the audit honestly records that the keychain kept the value.
-    const failDelete: KeychainStore = { ...fake, delete: () => false };
+    const failDelete: KeychainStore = { ...fake, delete: async () => false };
     await deleteSecret(root, "DANGLING", { keychain: failDelete });
     expect((await listSecrets(root)).map((m) => m.name)).not.toContain(
       "DANGLING",
@@ -485,13 +485,13 @@ describe("importAllDotEnv", () => {
     const flaky = {
       set: fake.set,
       delete: fake.delete,
-      get: (svc: string, acct: string) => {
+      get: async (svc: string, acct: string) => {
         if (deny) throw new Error("User interaction is not allowed");
         return fake.get(svc, acct);
       },
     };
     const kc = cachingKeychain(flaky);
-    expect(() => kc.get("airlock", `@vault/${id}`)).toThrow(); // the denial
+    await expect(kc.get("airlock", `@vault/${id}`)).rejects.toThrow(); // the denial
     deny = false; // the OS would answer now, but we stay backed off
 
     await expect(setSecret(root, "C", "3", { keychain: kc })).rejects.toThrow(
@@ -512,12 +512,12 @@ describe("importAllDotEnv", () => {
     const kc = cachingKeychain({
       set: fake.set,
       delete: fake.delete,
-      get: (svc: string, acct: string) => {
+      get: async (svc: string, acct: string) => {
         if (deny) throw new Error("User interaction is not allowed");
         return fake.get(svc, acct);
       },
     });
-    expect(() => kc.get("airlock", "warm")).toThrow(); // latch the backoff
+    await expect(kc.get("airlock", "warm")).rejects.toThrow(); // latch the backoff
     deny = false;
     await expect(vaultedSecrets(root, { keychain: kc })).rejects.toThrow(
       /unavailable/i,

@@ -72,9 +72,9 @@ describe("listSecretNames", () => {
     // capture.test.ts in agent-core) -- never touches the real OS keychain.
     const kcStore = new Map<string, string>();
     const fake: KeychainStore = {
-      set: (s, a, v) => void kcStore.set(`${s}|${a}`, v),
-      get: (s, a) => kcStore.get(`${s}|${a}`) ?? null,
-      delete: (s, a) => kcStore.delete(`${s}|${a}`),
+      set: async (s, a, v) => void kcStore.set(`${s}|${a}`, v),
+      get: async (s, a) => kcStore.get(`${s}|${a}`) ?? null,
+      delete: async (s, a) => kcStore.delete(`${s}|${a}`),
     };
     await setSecret(root, "DATABASE_URL", "postgres://dev", {
       keychain: fake,

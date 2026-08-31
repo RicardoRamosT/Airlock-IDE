@@ -77,19 +77,19 @@ async function ensureMigrated(
   keychain: KeychainStore,
 ): Promise<Record<string, string>> {
   const vaultAccount = await vaultAccountFor(root);
-  const raw = keychain.get(SERVICE, vaultAccount);
+  const raw = await keychain.get(SERVICE, vaultAccount);
   if (raw !== null) return parseVault(raw);
   const metas = await readMeta(root);
   const map: Record<string, string> = {};
   for (const m of metas) {
-    const v = keychain.get(SERVICE, await accountFor(root, m.name));
+    const v = await keychain.get(SERVICE, await accountFor(root, m.name));
     if (v !== null) map[m.name] = v;
   }
   if (Object.keys(map).length > 0) {
-    keychain.set(SERVICE, vaultAccount, JSON.stringify(map));
+    await keychain.set(SERVICE, vaultAccount, JSON.stringify(map));
     for (const m of metas) {
       if (m.name in map)
-        keychain.delete(SERVICE, await accountFor(root, m.name));
+        await keychain.delete(SERVICE, await accountFor(root, m.name));
     }
   }
   return map;
@@ -135,7 +135,7 @@ export async function setSecret(
   // the meta is already persisted - an acceptable degrade for the same reason.
   await upsertMeta(root, meta);
   map[name] = value;
-  keychain.set(SERVICE, await vaultAccountFor(root), JSON.stringify(map));
+  await keychain.set(SERVICE, await vaultAccountFor(root), JSON.stringify(map));
   await appendAudit(root, opts.actor ?? "user", "secret.set", {
     name,
     provider: validation.provider,
@@ -162,9 +162,16 @@ export async function deleteSecret(
     delete map[name];
     try {
       if (Object.keys(map).length === 0) {
-        keychainDeleted = keychain.delete(SERVICE, await vaultAccountFor(root));
+        keychainDeleted = await keychain.delete(
+          SERVICE,
+          await vaultAccountFor(root),
+        );
       } else {
-        keychain.set(SERVICE, await vaultAccountFor(root), JSON.stringify(map));
+        await keychain.set(
+          SERVICE,
+          await vaultAccountFor(root),
+          JSON.stringify(map),
+        );
         keychainDeleted = true; // value overwritten out of the blob
       }
     } catch {
@@ -174,7 +181,10 @@ export async function deleteSecret(
     // Not in the vault: a pre-consolidation orphan whose value never migrated
     // (e.g. its original set failed), or already gone. Best-effort legacy
     // delete so an un-migrated value doesn't linger.
-    keychainDeleted = keychain.delete(SERVICE, await accountFor(root, name));
+    keychainDeleted = await keychain.delete(
+      SERVICE,
+      await accountFor(root, name),
+    );
   }
   await removeMeta(root, name);
   await appendAudit(root, opts.actor ?? "user", "secret.delete", {
@@ -277,7 +287,7 @@ export async function setGlobalSecret(
   const keychain = opts.keychain ?? systemKeychain;
   // Same empty/whitespace guard as setSecret (an unredactable value otherwise).
   if (value.trim().length === 0) throw new Error("Empty secret value");
-  keychain.set(SERVICE, globalAccountFor(name), value);
+  await keychain.set(SERVICE, globalAccountFor(name), value);
   if (opts.auditLog) {
     await appendAuditAt(
       opts.auditLog,
@@ -296,7 +306,7 @@ export async function deleteGlobalSecret(
   opts: BrokerOptions & { auditLog?: string } = {},
 ): Promise<void> {
   const keychain = opts.keychain ?? systemKeychain;
-  keychain.delete(SERVICE, globalAccountFor(name));
+  await keychain.delete(SERVICE, globalAccountFor(name));
   if (opts.auditLog) {
     await appendAuditAt(
       opts.auditLog,

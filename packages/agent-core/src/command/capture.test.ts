@@ -22,9 +22,9 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "airlock-capture-"));
   store = new Map();
   fake = {
-    set: (s, a, v) => void store.set(`${s}|${a}`, v),
-    get: (s, a) => store.get(`${s}|${a}`) ?? null,
-    delete: (s, a) => store.delete(`${s}|${a}`),
+    set: async (s, a, v) => void store.set(`${s}|${a}`, v),
+    get: async (s, a) => store.get(`${s}|${a}`) ?? null,
+    delete: async (s, a) => store.delete(`${s}|${a}`),
   };
   clearSessionSecrets();
 });
