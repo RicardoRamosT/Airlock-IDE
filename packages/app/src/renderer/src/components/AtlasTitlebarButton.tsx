@@ -20,14 +20,6 @@ export function AtlasTitlebarButton() {
     disclosure: string;
   } | null>(null);
   const [asked, setAsked] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [history, setHistory] = useState<
-    { session: number; startedAt: number; turns: number; preview: string }[]
-  >([]);
-  const [showHistory, setShowHistory] = useState(false);
-  // Bumping this remounts the chat's fetch, so New chat and Resume both show
-  // their result immediately rather than after the next open.
-  const [reloadKey, setReloadKey] = useState(0);
   const atlas = useApp((st) => st.atlas);
   const setAtlas = useApp((st) => st.setAtlas);
   const panelRef = useRef<HTMLDivElement | null>(null);

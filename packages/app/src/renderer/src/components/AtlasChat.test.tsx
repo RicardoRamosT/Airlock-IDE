@@ -288,3 +288,44 @@ it("does not refetch while THIS window is mid-send", async () => {
   held.settle?.("done");
   await waitFor(() => expect(screen.getByText("done")).toBeTruthy());
 });
+
+it("copies a whole message, markdown source and all", async () => {
+  // The RAW text, not the rendered DOM: Atlas writes markdown and the point of
+  // copying is usually to paste it somewhere that understands it.
+  const written: string[] = [];
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async (t: string) => void written.push(t) },
+  });
+  api.atlasTurns.mockResolvedValueOnce([
+    { role: "atlas", text: "## Heading\n\n- **bold** point" },
+  ]);
+  render(<AtlasChat />);
+  await waitFor(() => expect(screen.getByText("Heading")).toBeTruthy());
+  screen.getByRole("button", { name: /copy/i }).click();
+  await waitFor(() =>
+    expect(written).toEqual(["## Heading\n\n- **bold** point"]),
+  );
+});
+
+it("confirms the copy so the click is not silent", async () => {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async () => {} },
+  });
+  api.atlasTurns.mockResolvedValueOnce([{ role: "atlas", text: "hello" }]);
+  render(<AtlasChat />);
+  await waitFor(() => expect(screen.getByText("hello")).toBeTruthy());
+  screen.getByRole("button", { name: /copy/i }).click();
+  await waitFor(() => expect(screen.getByText(/copied/i)).toBeTruthy());
+});
+
+it("offers copy on the user's own messages too", async () => {
+  api.atlasTurns.mockResolvedValueOnce([
+    { role: "user", text: "my question" },
+    { role: "atlas", text: "the answer" },
+  ]);
+  render(<AtlasChat />);
+  await waitFor(() => expect(screen.getByText("my question")).toBeTruthy());
+  expect(screen.getAllByRole("button", { name: /copy/i })).toHaveLength(2);
+});

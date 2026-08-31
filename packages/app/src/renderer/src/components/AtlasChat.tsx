@@ -47,6 +47,8 @@ export function AtlasChat({
   // Read by the refresh subscriber, which is registered once and would
   // otherwise close over the first render's `busy`.
   const busyRef = useRef(false);
+  // Which message was just copied, so the click is confirmed rather than silent.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const endRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLTextAreaElement | null>(null);
@@ -302,11 +304,28 @@ export function AtlasChat({
             </p>
           ) : (
             turns.map((t) => (
-              <div key={t.key}>
+              <div key={t.key} className="atlas-turn-wrap">
                 <div className={`atlas-turn atlas-turn-${t.role}`}>
                   {/* Atlas writes markdown; the user's text is shown as typed. */}
                   {t.role === "atlas" ? renderBrief(t.text) : t.text}
                 </div>
+                <button
+                  type="button"
+                  className="atlas-copy"
+                  title="Copy this message"
+                  onClick={() => {
+                    // The RAW text, not the rendered DOM. Atlas writes
+                    // markdown and a copy is usually headed somewhere that
+                    // understands it -- copying the rendering would strip the
+                    // headings, bold and code fences back to flat prose.
+                    void navigator.clipboard
+                      ?.writeText(t.text)
+                      .then(() => setCopiedKey(t.key))
+                      .catch((err) => console.error("copy failed", err));
+                  }}
+                >
+                  {copiedKey === t.key ? "Copied" : "Copy"}
+                </button>
                 {/* A question's answer state, which only the STORE knows after a
                     reopen -- `busy` belongs to the renderer that asked, and that
                     renderer is gone. Without this the message came back with no

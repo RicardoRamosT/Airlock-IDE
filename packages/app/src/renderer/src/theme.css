@@ -7177,3 +7177,32 @@ button.docker-row .codicon-chevron-right {
 .atlas-standing-row .atlas-btn {
   flex: 0 0 auto;
 }
+
+/* --- Atlas: copy a message --- */
+
+.atlas-turn-wrap {
+  position: relative;
+}
+/* Hidden until the message is hovered or the button itself is focused, so the
+   transcript stays clean but the control is still keyboard-reachable. */
+.atlas-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  opacity: 0;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-panel);
+  color: var(--fg-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+.atlas-turn-wrap:hover .atlas-copy,
+.atlas-copy:focus-visible {
+  opacity: 1;
+}
+.atlas-copy:hover {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
