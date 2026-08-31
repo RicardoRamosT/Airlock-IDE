@@ -64,21 +64,41 @@ export function decodeTerminalEscapes(data: string): string {
   return out;
 }
 
-// Make a trailing newline actually SUBMIT, wherever it lands.
+// SUBMIT IS A SEPARATE KEYSTROKE, NOT A CHARACTER IN THE PAYLOAD.
 //
-// send_terminal_input's own description offers two things that contradict
-// each other: "type a prompt into a live Claude session" and "include a
-// newline to submit a line". In a raw-mode TUI -- which is what a running
-// Claude is -- LF inserts a newline in the composer and submits nothing.
-// Observed 2026-08-31: Atlas typed `git status` into a Claude session and it
-// sat there unsent.
+// send_terminal_input's description promises "type a prompt into a live Claude
+// session" and "include a newline to submit a line". Both are true of a shell
+// and only the first is true of a TUI.
 //
-// CR is Enter in a raw-mode TUI, and a pty in canonical mode maps CR to NL
-// (termios ICRNL, on by default), so a shell submits on CR too. CR is
-// therefore correct in BOTH destinations where LF is correct in only one.
+// A running Claude reads in raw mode with bracketed paste: a chunk that arrives
+// all at once is PASTED CONTENT, and a carriage return inside pasted content is
+// a line break in the composer, not Enter. So `git status\r` written as one
+// chunk is typed and never sent -- observed twice on 2026-08-31, first with LF
+// and again after converting the trailing LF to CR, which changed nothing
+// because the problem was never the character.
 //
-// Only the LAST newline is converted, so an intentional multi-line paste
-// keeps its interior line breaks and only its submit becomes an Enter.
-export function submitNewline(data: string): string {
-  return data.endsWith("\n") ? `${data.slice(0, -1)}\r` : data;
+// It reached a shell fine both times, because a shell's line discipline submits
+// on CR however it arrives. That difference is exactly what made this look
+// fixed.
+//
+// The renderer already knew: sendOverviewPromptNow writes the prompt, waits, and
+// then sends OVERVIEW_SUBMIT_KEY ("\r") as its own write. This is that, moved
+// to the choke point every agent write passes through.
+export const SUBMIT_KEY = "\r";
+
+// Long enough for the TUI to commit the paste before Enter lands. Matches
+// OVERVIEW_SUBMIT_DELAY_MS in the renderer store, which cannot be imported here
+// (main must not pull renderer code); the two are deliberately the same number.
+export const SUBMIT_DELAY_MS = 120;
+
+// Split a payload into what to TYPE and whether to press Enter afterwards.
+// A payload with no trailing newline was never a submit: the agent is typing
+// without sending, which is a supported thing to do.
+export function splitSubmit(data: string): {
+  body: string;
+  submit: string | null;
+} {
+  const m = /[\r\n]+$/.exec(data);
+  if (m === null) return { body: data, submit: null };
+  return { body: data.slice(0, data.length - m[0].length), submit: SUBMIT_KEY };
 }

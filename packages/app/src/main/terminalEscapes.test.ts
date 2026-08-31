@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeTerminalEscapes, submitNewline } from "./terminalEscapes";
+import { decodeTerminalEscapes, splitSubmit } from "./terminalEscapes";
 
 describe("decodeTerminalEscapes", () => {
   it("submits a line an agent escaped as literal text", () => {
@@ -58,33 +58,49 @@ describe("decodeTerminalEscapes", () => {
   });
 });
 
-describe("submitNewline", () => {
-  it("sends CR so a live Claude session actually submits", () => {
-    // LF in a raw-mode TUI inserts a newline in the composer and submits
-    // nothing -- `git status` sat typed but unsent on 2026-08-31.
-    expect(submitNewline("git status\n")).toBe("git status\r");
-    expect(submitNewline("\n")).toBe("\r");
+describe("splitSubmit", () => {
+  it("separates the text to TYPE from the Enter that sends it", () => {
+    // A running Claude reads with bracketed paste: a carriage return inside one
+    // arriving chunk is a line break in the composer, not Enter. So the submit
+    // has to be its own write -- `git status\r` in one chunk was typed and
+    // never sent, twice, on 2026-08-31.
+    expect(splitSubmit("git status\n")).toEqual({
+      body: "git status",
+      submit: "\r",
+    });
+    expect(splitSubmit("git status\r")).toEqual({
+      body: "git status",
+      submit: "\r",
+    });
   });
 
-  it("leaves interior newlines alone in a multi-line paste", () => {
-    expect(submitNewline("line one\nline two\n")).toBe("line one\nline two\r");
+  it("treats a bare newline as Enter with nothing to type", () => {
+    expect(splitSubmit("\n")).toEqual({ body: "", submit: "\r" });
+  });
+
+  it("keeps interior newlines in the body, stripping only the submit", () => {
+    expect(splitSubmit("line one\nline two\n")).toEqual({
+      body: "line one\nline two",
+      submit: "\r",
+    });
   });
 
   it("does not invent a submit that was not asked for", () => {
-    // No trailing newline means the agent wanted to TYPE without sending.
-    expect(submitNewline("partial")).toBe("partial");
-    expect(submitNewline("")).toBe("");
-    expect(submitNewline("\u0003")).toBe("\u0003"); // Ctrl-C is not a submit
+    // No trailing newline means the agent is typing WITHOUT sending, which the
+    // tool supports on purpose.
+    expect(splitSubmit("partial")).toEqual({ body: "partial", submit: null });
+    expect(splitSubmit("")).toEqual({ body: "", submit: null });
+    expect(splitSubmit("\u0003")).toEqual({ body: "\u0003", submit: null });
   });
 
-  it("leaves an existing CR untouched", () => {
-    expect(submitNewline("already\r")).toBe("already\r");
+  it("collapses a CRLF, so Enter is pressed once", () => {
+    expect(splitSubmit("done\r\n")).toEqual({ body: "done", submit: "\r" });
   });
 
   it("composes with escape decoding, in that order", () => {
-    // An agent writing a literal backslash-n must end up submitting too.
-    expect(submitNewline(decodeTerminalEscapes("git status\\n"))).toBe(
-      "git status\r",
-    );
+    expect(splitSubmit(decodeTerminalEscapes("git status\\n"))).toEqual({
+      body: "git status",
+      submit: "\r",
+    });
   });
 });

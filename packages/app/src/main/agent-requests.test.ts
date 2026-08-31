@@ -228,6 +228,8 @@ describe("gatedTerminalInput", () => {
     },
     label: () => "proj",
     askFirst: async () => askFirst,
+    // Instant: the submit delay is real time in production, not in tests.
+    delay: async () => {},
   });
 
   it("errors when the pty id is unknown", async () => {
@@ -235,6 +237,7 @@ describe("gatedTerminalInput", () => {
       write: () => true,
       label: () => null,
       askFirst: async () => true,
+      delay: async () => {},
     });
     expect(r).toEqual({ error: "No such terminal (it may have closed)." });
   });
@@ -253,9 +256,10 @@ describe("gatedTerminalInput", () => {
     const second = await gatedTerminalInput("p1", "again\n", d);
     expect(second).toEqual({ sent: true });
     expect(listRequestsForWindow(1)).toHaveLength(0);
-    // \r: the trailing newline becomes a CR at the choke point, so the same
-    // bytes submit at a shell prompt and in a raw-mode Claude TUI.
-    expect(written).toEqual(["hi\r", "again\r"]);
+    // TWO writes per send: the text, then Enter on its own. A running Claude
+    // reads with bracketed paste, where a CR inside the same chunk is a line
+    // break in the composer rather than a submit.
+    expect(written).toEqual(["hi", "\r", "again", "\r"]);
   });
 
   it("reports denied without writing", async () => {
@@ -272,7 +276,7 @@ describe("gatedTerminalInput", () => {
     const written: string[] = [];
     const r = await gatedTerminalInput("p2", "ls\n", deps(written, false));
     expect(r).toEqual({ sent: true });
-    expect(written).toEqual(["ls\r"]);
+    expect(written).toEqual(["ls", "\r"]);
     expect(listRequestsForWindow(1)).toHaveLength(0);
   });
 
@@ -283,6 +287,7 @@ describe("gatedTerminalInput", () => {
       write: () => true,
       label: () => null,
       askFirst: async () => false,
+      delay: async () => {},
     });
     expect(r).toEqual({ error: "No such terminal (it may have closed)." });
   });
@@ -295,6 +300,7 @@ const deps2 = (written: string[]) => ({
   },
   label: () => "proj",
   askFirst: async () => true,
+  delay: async () => {},
 });
 
 it("submits a line an agent escaped as literal text, and previews what it will type", async () => {
@@ -309,7 +315,7 @@ it("submits a line an agent escaped as literal text, and previews what it will t
   expect(req?.kind).toBe("terminalGrant");
   resolveTerminalGrant(req?.requestId ?? "", true);
   expect(await p).toEqual({ sent: true });
-  expect(written).toEqual(["git status\r"]);
+  expect(written).toEqual(["git status", "\r"]);
 });
 
 // --- authorship: main stamps it, the model cannot ------------------------
@@ -332,9 +338,10 @@ it("SIGNS AN ATLAS DISPATCH, and shows the signature on the approval card", asyn
   expect((req as { preview?: string }).preview).toContain("Sent by Atlas");
   resolveTerminalGrant(req?.requestId ?? "", true);
   expect(await p).toEqual({ sent: true });
-  expect(written[0]).toBe(
-    `${AGENT_SIGNATURES.atlas} Fix the two defects and commit them separately.\r`,
-  );
+  expect(written).toEqual([
+    `${AGENT_SIGNATURES.atlas} Fix the two defects and commit them separately.`,
+    "\r",
+  ]);
 });
 
 it("leaves Atlas's keystrokes and short answers untouched", async () => {
@@ -348,9 +355,9 @@ it("leaves Atlas's keystrokes and short answers untouched", async () => {
   expect(await gatedTerminalInput("p8", "\u0003", d, "atlas")).toEqual({
     sent: true,
   });
-  // "y" still submits: the trailing newline becomes CR so it works in a TUI as
-  // well as a shell. Unsigned, and otherwise untouched.
-  expect(written).toEqual(["y\r", "\u0003"]);
+  // "y" still submits -- typed, then Enter. Ctrl-C has no submit, so it stays a
+  // single write. Both unsigned, and otherwise untouched.
+  expect(written).toEqual(["y", "\r", "\u0003"]);
 });
 
 it("does not sign a project agent's own input", async () => {
@@ -359,5 +366,5 @@ it("does not sign a project agent's own input", async () => {
   const written: string[] = [];
   const d = { ...deps2(written), askFirst: async () => false };
   await gatedTerminalInput("p8", "Run the tests and fix what fails.\n", d);
-  expect(written).toEqual(["Run the tests and fix what fails.\r"]);
+  expect(written).toEqual(["Run the tests and fix what fails.", "\r"]);
 });

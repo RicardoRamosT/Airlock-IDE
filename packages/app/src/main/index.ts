@@ -276,6 +276,8 @@ function bootstrap(): void {
             label: terminalLabel,
             askFirst: async () =>
               (await loadPrefs(prefsFile)).askBeforeTerminalInput,
+            // Real time here; injected so tests do not wait for it.
+            delay: (ms) => new Promise((r) => setTimeout(r, ms)),
           },
           author,
         ),

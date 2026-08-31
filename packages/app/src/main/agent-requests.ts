@@ -13,7 +13,11 @@ import {
 } from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
 import { type AgentAuthor, signAgentInput } from "./agentAuthor";
-import { decodeTerminalEscapes, submitNewline } from "./terminalEscapes";
+import {
+  decodeTerminalEscapes,
+  SUBMIT_DELAY_MS,
+  splitSubmit,
+} from "./terminalEscapes";
 import { appWindows, isAppWindow, windowForRoot } from "./window";
 
 // MAIN-ONLY registry of agent-initiated requests (request_secret, and
@@ -362,6 +366,8 @@ export interface TerminalInputDeps {
   // types into one is a gate most users do not want. A pref, not a constant,
   // because it IS the gate for anyone who does want it.
   askFirst: () => Promise<boolean>;
+  // Injected so tests do not wait in real time for the submit delay.
+  delay: (ms: number) => Promise<void>;
 }
 
 // A short, single-line echo of the bytes to be typed, for the card. These are
@@ -394,13 +400,7 @@ export async function gatedTerminalInput(
   // Then sign, in the same breath and for the same reason: the card must show
   // the signature that will be typed, not the unsigned text that was asked for.
   //
-  // Then convert a trailing newline to CR, LAST and once: LF in a raw-mode TUI
-  // (a running Claude) inserts a line in the composer and submits nothing, so
-  // the message was typed and never sent. CR is Enter there, and a shell in
-  // canonical mode maps CR to NL, so it submits in both.
-  const bytes = submitNewline(
-    signAgentInput(decodeTerminalEscapes(data), author),
-  );
+  const bytes = signAgentInput(decodeTerminalEscapes(data), author);
   // The label lookup runs FIRST either way: a send to a dead pty is an error,
   // not a silent success, whether or not approval is being asked for.
   if (await deps.askFirst()) {
@@ -408,7 +408,17 @@ export async function gatedTerminalInput(
     if (g.timedOut) return { timedOut: true };
     if (!g.granted) return { denied: true };
   }
-  if (!deps.write(ptyId, bytes))
+  // Type, then press Enter SEPARATELY. A running Claude reads with bracketed
+  // paste, where a carriage return inside one arriving chunk is a line break in
+  // the composer rather than Enter -- so a single write is typed and never
+  // sent. See splitSubmit.
+  const { body, submit } = splitSubmit(bytes);
+  if (body.length > 0 && !deps.write(ptyId, body))
     return { error: "Terminal is no longer running." };
+  if (submit !== null) {
+    await deps.delay(SUBMIT_DELAY_MS);
+    if (!deps.write(ptyId, submit))
+      return { error: "Terminal is no longer running." };
+  }
   return { sent: true };
 }

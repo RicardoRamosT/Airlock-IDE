@@ -511,6 +511,16 @@ user's instruction. Four things make the stamp worth something:
   signature that will be typed, and no call site can skip it. Deliberately not
   asked for in the system prompt: a model can forget, and a signature the sender
   controls is worth nothing to the reader. Same rule as `renderStillOpen`.
+- **Submit is a SEPARATE keystroke.** A running Claude reads with bracketed
+  paste, so a carriage return arriving in the same chunk as the text is a line
+  break in its composer, not Enter — the message is typed and never sent. The
+  send therefore writes the body, waits `SUBMIT_DELAY_MS` (120ms, the same
+  number as the renderer's `OVERVIEW_SUBMIT_DELAY_MS`), then writes `\r` on its
+  own. This bit twice on 2026-08-31: first as a literal `\n`, then again after
+  converting the trailing `\n` to `\r`, which changed nothing because the
+  character was never the problem. It reaches a SHELL either way, since a line
+  discipline submits on CR however it arrives — which is exactly what made the
+  first fix look verified.
 - **A dispatch is a sentence; an answer is a token.** Only a submitted payload of
   ≥ `SIGN_MIN_WORDS` (5) words is signed. Appending anything to `y` or to Ctrl-C is
   corruption, not attribution, and words beat characters because a file path sails
