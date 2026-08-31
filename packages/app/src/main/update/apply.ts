@@ -8,7 +8,9 @@
 //
 // ASCII-only comments (CJS-bundled into Electron main).
 import { execFile as execFileCb, spawn } from "node:child_process";
-import { access, constants, writeFile } from "node:fs/promises";
+import { once } from "node:events";
+import { createWriteStream } from "node:fs";
+import { access, constants, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -31,18 +33,36 @@ async function downloadDmg(url: string): Promise<string> {
     throw new Error(`download ${res.status} ${res.statusText}`);
   const total = Number(res.headers.get("content-length") ?? 0);
   const dest = path.join(tmpdir(), "AirLock-update.dmg");
-  const chunks: Uint8Array[] = [];
+  // STREAM to disk. Accumulating chunks and then Buffer.concat holds the whole
+  // DMG in memory TWICE at the moment of the concat -- ~250MB of main-process
+  // heap for a 124MB image, on the process that also owns every window and pty.
+  // Nothing here needs the bytes in memory; they go straight to a temp file.
   let got = 0;
-  const reader = res.body.getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    got += value.length;
-    if (total > 0)
-      emit({ phase: "downloading", percent: Math.round((got / total) * 100) });
+  const out = createWriteStream(dest);
+  try {
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!out.write(value)) {
+        // Respect backpressure, or a fast link buries the stream's buffer and
+        // we are back to holding the file in memory by another route.
+        await once(out, "drain");
+      }
+      got += value.length;
+      if (total > 0)
+        emit({
+          phase: "downloading",
+          percent: Math.round((got / total) * 100),
+        });
+    }
+    out.end();
+    await once(out, "finish");
+  } catch (e) {
+    out.destroy();
+    await rm(dest, { force: true }).catch(() => {});
+    throw e;
   }
-  await writeFile(dest, Buffer.concat(chunks));
   return dest;
 }
 

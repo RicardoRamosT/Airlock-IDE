@@ -23,7 +23,14 @@ import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 // How long to wait for the server's replies before answering with what we have.
 // A bound matters: a tool that never resolves must not hold the socket open
 // forever (that is the 300s hang this whole change exists to prevent).
-const REPLY_TIMEOUT_MS = 120_000;
+// LONGER THAN THE APPROVAL WINDOW, deliberately. An agent request card
+// (request_secret, a terminal-input grant) legitimately waits up to
+// GRANT_TIMEOUT_MS = 5 minutes for the user to click. At 120s the transport
+// abandoned the reply while the card was still on screen -- the agent was told
+// the call timed out, and then the input was sent anyway when the user
+// approved. A backstop must outlast the longest LEGITIMATE wait, or it fires
+// on correct behaviour.
+const REPLY_TIMEOUT_MS = 360_000;
 
 // Encode a JSON-RPC value to the exact bytes to write.
 //
