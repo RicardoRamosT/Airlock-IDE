@@ -23,6 +23,7 @@
 
 import type { EmitInput } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AgentAuthor } from "../agentAuthor";
 
 // The shape this needs from a server: registerTool, whatever its real generics.
 type Registrar = (
@@ -47,7 +48,16 @@ function isErrorResult(out: unknown): boolean {
 export function withToolLogging(
   mcp: McpServer,
   emit: (input: EmitInput) => void,
+  // WHO called, when main can tell (see ../agentAuthor). Provenance, not an
+  // argument: it is one of a closed set of our own identifiers and can never
+  // carry a credential, so the no-arguments rule above is untouched. Without it
+  // the log cannot distinguish a project's own Claude from Atlas reaching in
+  // from the portfolio -- and Atlas can drive tabs, terminals and dev servers.
+  author: AgentAuthor | null = null,
 ): McpServer {
+  // Omitted entirely rather than logged as null, which would add a key to every
+  // event the log already holds.
+  const detail = author === null ? undefined : { author };
   const inner = mcp.registerTool.bind(mcp) as Registrar;
   const patched: Registrar = (name, config, handler) =>
     inner(name, config, async (...args: unknown[]) => {
@@ -62,6 +72,7 @@ export function withToolLogging(
           actor: "agent",
           outcome: failed ? "error" : "ok",
           durationMs: Date.now() - started,
+          detail,
         });
         return out;
       } catch (e) {
@@ -72,6 +83,7 @@ export function withToolLogging(
           actor: "agent",
           outcome: "error",
           durationMs: Date.now() - started,
+          detail,
           error: { message: e instanceof Error ? e.message : String(e) },
         });
         throw e;

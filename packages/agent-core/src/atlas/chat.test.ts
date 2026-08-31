@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
 import {
+  ATLAS_AUTHOR,
+  ATLAS_AUTHOR_HEADER,
   airlockMcpConfig,
   buildChatArgs,
   buildChatPrompt,
@@ -194,7 +196,12 @@ it("hands Atlas AirLock's own MCP server when one is running", () => {
       airlock: {
         type: "http",
         url: "http://127.0.0.1:4319/mcp",
-        headers: { Authorization: "Bearer tok" },
+        headers: {
+          Authorization: "Bearer tok",
+          // Atlas's identity, so main can stamp its terminal input. See the
+          // authorship test below.
+          "X-Airlock-Author": "atlas",
+        },
       },
     },
   });
@@ -220,4 +227,23 @@ it("omits MCP entirely when the server is not running", () => {
 it("tells Atlas it can drive AirLock", () => {
   expect(CHAT_SYSTEM_PROMPT).toMatch(/AIRLOCK/i);
   expect(CHAT_SYSTEM_PROMPT).toMatch(/open a terminal|project tabs/i);
+});
+
+it("NAMES ATLAS AS THE AUTHOR on its own MCP client", () => {
+  // AirLock stamps Atlas's terminal input with a signature so a project's
+  // Claude does not read a portfolio agent's inference as its user's
+  // instruction. The stamp has to be decided from something Atlas does NOT
+  // control: it supplies tool arguments, never the transport's headers. So the
+  // identity rides here, in the config AirLock writes for it.
+  const cfg = JSON.parse(airlockMcpConfig(4242, "tok")) as {
+    mcpServers: { airlock: { headers: Record<string, string> } };
+  };
+  // The LITERALS are asserted too: with both constants merely imported, an
+  // undefined header name reading an undefined value would have passed this
+  // test while wiring nothing.
+  expect(ATLAS_AUTHOR_HEADER).toBe("X-Airlock-Author");
+  expect(ATLAS_AUTHOR).toBe("atlas");
+  expect(cfg.mcpServers.airlock.headers["X-Airlock-Author"]).toBe("atlas");
+  // Still authorized, obviously.
+  expect(cfg.mcpServers.airlock.headers.Authorization).toBe("Bearer tok");
 });

@@ -259,7 +259,13 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   the session. Returns `{ sent }` on success, or `{ denied }` / `{ timedOut }` / `{ busy }`
   when approval did not complete (and an error if the terminal has closed). You **never** see
   the terminal output or its secret values — this tool only writes; pair it with
-  `get_terminal_tail` to read the result.
+  `get_terminal_tail` to read the result. **A dispatched prompt is signed with its
+  author.** When AirLock knows who is calling (Atlas, from the portfolio agent's own
+  MCP client), a sentence-length submitted payload gets a one-line `#` signature added
+  before its newline, so the session reading it can tell an agent's words from the
+  user's. Keystrokes, short answers and unsubmitted fragments are never touched. You
+  cannot set, suppress or forge the author: it comes from the request, not from these
+  arguments.
 
 ## Driving the IDE - tabs, split, terminals, page-tabs (focused window)
 

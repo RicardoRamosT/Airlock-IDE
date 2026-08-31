@@ -12,6 +12,7 @@ import {
   type TerminalGrantRequest,
 } from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
+import { type AgentAuthor, signAgentInput } from "./agentAuthor";
 import { decodeTerminalEscapes } from "./terminalEscapes";
 import { appWindows, isAppWindow, windowForRoot } from "./window";
 
@@ -377,6 +378,11 @@ export async function gatedTerminalInput(
   ptyId: string,
   data: string,
   deps: TerminalInputDeps,
+  // Who is typing, resolved from the MCP request rather than from the tool
+  // arguments -- see agentAuthor.ts. THE STAMP IS APPLIED HERE, at the choke
+  // point every agent write passes through, so no caller and no model can skip
+  // it. Null for a project's own Claude, which is unsigned today.
+  author: AgentAuthor | null = null,
 ): Promise<TerminalInputResult> {
   const label = deps.label(ptyId);
   if (label === null)
@@ -384,7 +390,10 @@ export async function gatedTerminalInput(
   // Decode BEFORE the preview and the write, so the approval card shows what
   // will actually be typed and the pty receives a real newline rather than the
   // two characters an agent may have written for one.
-  const bytes = decodeTerminalEscapes(data);
+  //
+  // Then sign, in the same breath and for the same reason: the card must show
+  // the signature that will be typed, not the unsigned text that was asked for.
+  const bytes = signAgentInput(decodeTerminalEscapes(data), author);
   // The label lookup runs FIRST either way: a send to a dead pty is an error,
   // not a silent success, whether or not approval is being asked for.
   if (await deps.askFirst()) {

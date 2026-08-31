@@ -486,10 +486,42 @@ learned from trimming it:
 **Every tool call is logged** (`main/mcp/toolLog.ts` decorates `registerTool`
 once in `server.ts`, so a new tool is instrumented without anyone remembering)
 → `read_events` with `category: "tool"`. **Arguments are deliberately NOT
-logged** — only name, outcome, duration: `send_terminal_input` and `run_command`
-can carry a credential, and the name alone answers the usage question. Use this
-data before pruning further; the earlier round had to be argued rather than
-measured.
+logged** — only name, outcome, duration, plus the caller's `author` when there
+is one: `send_terminal_input` and `run_command` can carry a credential, and the
+name alone answers the usage question. The author is provenance, not an
+argument — one of a closed set of our own identifiers (`atlas` today), so it can
+never carry a credential, and without it the log cannot tell a project's own
+Claude from Atlas reaching in from the portfolio. Use this data before pruning
+further; the earlier round had to be argued rather than measured.
+
+**Atlas's outbound words are SIGNED, and main signs them** (`main/agentAuthor.ts`).
+Atlas can type into a terminal where a Claude session is running, it writes in the
+user's imperative register, and what arrives there is indistinguishable from the
+user typing it — so the receiving session read a portfolio agent's inference as its
+user's instruction. Four things make the stamp worth something:
+
+- **Identity comes from the REQUEST, never the arguments.** Atlas's own MCP client
+  config carries `X-Airlock-Author` (`airlockMcpConfig`, agent-core); a project's
+  Claude carries none and is unsigned. A model supplies tool arguments, not
+  transport headers, so Atlas can neither suppress the stamp nor forge the user's
+  voice — and `authorFromHeaders` refuses any author outside the closed set rather
+  than passing a claimed string through to a pty.
+- **Applied at the choke point**, in `gatedTerminalInput`, right after
+  `decodeTerminalEscapes` and BEFORE the preview — so the approval card shows the
+  signature that will be typed, and no call site can skip it. Deliberately not
+  asked for in the system prompt: a model can forget, and a signature the sender
+  controls is worth nothing to the reader. Same rule as `renderStillOpen`.
+- **A dispatch is a sentence; an answer is a token.** Only a submitted payload of
+  ≥ `SIGN_MIN_WORDS` (5) words is signed. Appending anything to `y` or to Ctrl-C is
+  corruption, not attribution, and words beat characters because a file path sails
+  past any character floor. The signature also goes INSIDE the last line, before
+  the submit: after it, a Claude session would receive the signature as a prompt of
+  its own and answer it.
+- **The signature is a `#` comment**, so a signed payload that lands in a SHELL
+  rather than a Claude session is inert instead of a bogus command.
+
+Atlas's system prompt is told the stamp exists (so it writes as one agent
+reporting to another rather than adding its own), but is never relied on for it.
 
 ## Secrets the agent fetches itself
 

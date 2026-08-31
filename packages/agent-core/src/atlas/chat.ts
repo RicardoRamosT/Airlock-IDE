@@ -50,13 +50,27 @@ export const CHAT_DENIED_TOOLS: readonly string[] = [
 // Claude already running in one. --strict-mcp-config stays, so this is the
 // ONLY server it gets -- none of the user's other MCP servers are loaded, and
 // the cost measurement behind that flag still holds.
+// WHO IS CALLING, on a header Atlas cannot reach.
+//
+// AirLock stamps Atlas's terminal input with a signature, so a project's Claude
+// does not read a portfolio agent's inference as an instruction from its user
+// (see main/agentAuthor.ts). That stamp must be decided from something the
+// MODEL does not control: Atlas supplies tool arguments, never its transport's
+// headers, so the identity rides in the config AirLock writes for it. A
+// project's own Claude gets a different config and no author, and is unsigned.
+export const ATLAS_AUTHOR_HEADER = "X-Airlock-Author";
+export const ATLAS_AUTHOR = "atlas";
+
 export function airlockMcpConfig(port: number, token: string): string {
   return JSON.stringify({
     mcpServers: {
       airlock: {
         type: "http",
         url: `http://127.0.0.1:${port}/mcp`,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          [ATLAS_AUTHOR_HEADER]: ATLAS_AUTHOR,
+        },
       },
     },
   });
@@ -108,6 +122,11 @@ export const CHAT_SYSTEM_PROMPT =
   "to a Claude already running in one. Prefer doing work yourself with the " +
   "shell; open a tab when the USER should take it over, or when a project " +
   "needs a Claude session of its own. Say what you opened.\n\n" +
+  "WHEN YOU TYPE INTO A CLAUDE SESSION, AirLock signs it as coming from you -- " +
+  "you cannot suppress that, and you do not need to add a signature yourself. So " +
+  "write as one agent reporting to another, never as the user giving orders: say " +
+  "what you VERIFIED and what you only inferred, and leave the decision to them. " +
+  "The session you are writing to answers to the user, not to you.\n\n" +
   "You CAN read files, search, run shell commands, and search the web. The " +
   "portfolio below is a head start, not a limit: if it does not contain what " +
   "you need -- older history, commit contents, a file, a diff, something " +

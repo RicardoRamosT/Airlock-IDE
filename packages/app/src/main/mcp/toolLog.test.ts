@@ -24,12 +24,16 @@ function fakeServer() {
   return { mcp, tools };
 }
 
-function setup() {
+function setup(author: "atlas" | null = null) {
   const emitted: EmitInput[] = [];
   const { mcp, tools } = fakeServer();
-  const wrapped = withToolLogging(mcp, (e) => {
-    emitted.push(e);
-  });
+  const wrapped = withToolLogging(
+    mcp,
+    (e) => {
+      emitted.push(e);
+    },
+    author,
+  );
   // The SDK's registerTool is generic over a zod input schema; these fixtures
   // are plain handlers, so the cast is confined to this one helper.
   const register = (name: string, handler: (...a: unknown[]) => unknown) =>
@@ -130,5 +134,35 @@ describe("withToolLogging", () => {
     expect((wrapped as unknown as { connect: () => string }).connect()).toBe(
       "connected",
     );
+  });
+});
+
+describe("authorship in the log", () => {
+  it("names Atlas as the author of its own tool calls", async () => {
+    // "His actions" as well as his words: the event log is the only place that
+    // can say a run in a project was driven from the portfolio agent rather
+    // than by the user sitting there.
+    const { register, tools, emitted } = setup("atlas");
+    register("open_tab", async () => ({ ok: true }));
+    await tools[0]?.handler({});
+    expect(emitted[0]?.detail).toEqual({ author: "atlas" });
+  });
+
+  it("adds no detail for an unattributed caller", async () => {
+    // A project's own Claude. An `author: null` key would be noise in every
+    // event the log already holds.
+    const { register, tools, emitted } = setup();
+    register("open_tab", async () => ({ ok: true }));
+    await tools[0]?.handler({});
+    expect(emitted[0]?.detail).toBeUndefined();
+  });
+
+  it("still names the author when the tool throws", async () => {
+    const { register, tools, emitted } = setup("atlas");
+    register("open_tab", async () => {
+      throw new Error("boom");
+    });
+    await expect(tools[0]?.handler({})).rejects.toThrow("boom");
+    expect(emitted[0]?.detail).toMatchObject({ author: "atlas" });
   });
 });

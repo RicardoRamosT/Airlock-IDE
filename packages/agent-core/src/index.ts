@@ -19,6 +19,8 @@ export {
   MAX_PROMPT_CHARS,
 } from "./atlas/brief";
 export {
+  ATLAS_AUTHOR,
+  ATLAS_AUTHOR_HEADER,
   buildChatArgs,
   buildChatPrompt,
   CHAT_ALLOWED_TOOLS,

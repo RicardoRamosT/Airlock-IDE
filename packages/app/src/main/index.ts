@@ -264,13 +264,21 @@ function bootstrap(): void {
       // per-terminal approval card is OPT-IN (askBeforeTerminalInput, off by
       // default); read per send rather than cached so toggling the setting takes
       // effect on the next send instead of the next launch.
-      sendTerminalInput: (id, data) =>
-        gatedTerminalInput(id, data, {
-          write: writeTerminalInput,
-          label: terminalLabel,
-          askFirst: async () =>
-            (await loadPrefs(prefsFile)).askBeforeTerminalInput,
-        }),
+      // The author rides through to the write, where the signature is stamped
+      // (see agentAuthor.ts): Atlas typing into a project's Claude session is
+      // otherwise indistinguishable from the user typing it.
+      sendTerminalInput: (id, data, author) =>
+        gatedTerminalInput(
+          id,
+          data,
+          {
+            write: writeTerminalInput,
+            label: terminalLabel,
+            askFirst: async () =>
+              (await loadPrefs(prefsFile)).askBeforeTerminalInput,
+          },
+          author,
+        ),
       // CI for the focused project's current branch -- what activity_status
       // narrowed to when the Activity panel was deleted. Mirrors the git:ciRun
       // IPC so the agent and the Git section answer from one implementation.

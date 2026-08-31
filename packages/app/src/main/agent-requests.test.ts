@@ -15,6 +15,7 @@ import {
   resolveTerminalGrant,
   setRequestHost,
 } from "./agent-requests";
+import { AGENT_SIGNATURES } from "./agentAuthor";
 
 // Electron is never touched: the registry reaches windows only through this seam,
 // which is the whole point of the RequestHost DI boundary.
@@ -307,4 +308,52 @@ it("submits a line an agent escaped as literal text, and previews what it will t
   resolveTerminalGrant(req?.requestId ?? "", true);
   expect(await p).toEqual({ sent: true });
   expect(written).toEqual(["git status\n"]);
+});
+
+// --- authorship: main stamps it, the model cannot ------------------------
+
+it("SIGNS AN ATLAS DISPATCH, and shows the signature on the approval card", async () => {
+  // Atlas types into a live Claude session in the user's own register, and
+  // what lands there is indistinguishable from the user typing it. The stamp
+  // is applied HERE, on the way to the pty, so Atlas can neither forget it nor
+  // suppress it -- and it goes on before the preview, because approving bytes
+  // other than the ones displayed is the wrong half to get right.
+  const written: string[] = [];
+  const p = gatedTerminalInput(
+    "p8",
+    "Fix the two defects and commit them separately.\n",
+    deps2(written),
+    "atlas",
+  );
+  await tick();
+  const req = listRequestsForWindow(1)[0];
+  expect((req as { preview?: string }).preview).toContain("Sent by Atlas");
+  resolveTerminalGrant(req?.requestId ?? "", true);
+  expect(await p).toEqual({ sent: true });
+  expect(written[0]).toBe(
+    `Fix the two defects and commit them separately. ${AGENT_SIGNATURES.atlas}\n`,
+  );
+});
+
+it("leaves Atlas's keystrokes and short answers untouched", async () => {
+  // Atlas also answers prompts and sends control characters. A signature there
+  // would be corruption, not attribution.
+  const written: string[] = [];
+  const d = { ...deps2(written), askFirst: async () => false };
+  expect(await gatedTerminalInput("p8", "y\n", d, "atlas")).toEqual({
+    sent: true,
+  });
+  expect(await gatedTerminalInput("p8", "\u0003", d, "atlas")).toEqual({
+    sent: true,
+  });
+  expect(written).toEqual(["y\n", "\u0003"]);
+});
+
+it("does not sign a project agent's own input", async () => {
+  // No author -> no stamp. The confusion this addresses is Atlas speaking
+  // across projects in the user's voice.
+  const written: string[] = [];
+  const d = { ...deps2(written), askFirst: async () => false };
+  await gatedTerminalInput("p8", "Run the tests and fix what fails.\n", d);
+  expect(written).toEqual(["Run the tests and fix what fails.\n"]);
 });

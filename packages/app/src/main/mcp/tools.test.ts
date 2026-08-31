@@ -133,6 +133,7 @@ const baseDeps = {
   // grant + write are stubbed so these tests never open a modal or touch a pty.
   // The return is annotated as the full TerminalInputResult so per-test overrides
   // returning a non-sent outcome (e.g. {error}) still spread cleanly over baseDeps.
+  author: null as "atlas" | null,
   sendTerminalInput: vi.fn(
     async (): Promise<TerminalInputResult> => ({ sent: true }),
   ),
@@ -641,9 +642,29 @@ describe("send_terminal_input tool", () => {
       content: [{ text: string }];
       isError?: boolean;
     };
-    expect(sendTerminalInput).toHaveBeenCalledWith("p1", "hi\n");
+    expect(sendTerminalInput).toHaveBeenCalledWith("p1", "hi\n", null);
     expect(res.isError).toBeUndefined();
     expect(JSON.parse(res.content[0].text)).toEqual({ sent: true });
+  });
+
+  it("FORWARDS THE AUTHOR, so the stamp is not the model's to choose", async () => {
+    // The signature is decided from the MCP request's headers, which Atlas
+    // cannot reach, and applied at the write. The tool's only job is to carry
+    // the author through -- it never reads or writes the signature itself.
+    const sendTerminalInput = vi.fn(
+      async (): Promise<TerminalInputResult> => ({ sent: true }),
+    );
+    const tool = getSendTerminalInputTool({
+      ...baseDeps,
+      author: "atlas",
+      sendTerminalInput,
+    });
+    await tool.handler({ terminalId: "p1", data: "Fix it and commit.\n" });
+    expect(sendTerminalInput).toHaveBeenCalledWith(
+      "p1",
+      "Fix it and commit.\n",
+      "atlas",
+    );
   });
 
   it("surfaces an error outcome as isError", async () => {

@@ -40,6 +40,7 @@ import type {
   SessionUsage,
   TerminalInputResult,
 } from "../../shared/ipc";
+import type { AgentAuthor } from "../agentAuthor";
 import { queryEvents } from "../eventlog/wire";
 import { ensureIdentityFor } from "../github/account";
 import * as ide from "../ide-state";
@@ -206,7 +207,12 @@ export interface ToolDeps {
   sendTerminalInput: (
     terminalId: string,
     data: string,
+    author: AgentAuthor | null,
   ) => Promise<TerminalInputResult>;
+  // WHO is calling, resolved from the MCP request's headers (see
+  // ../agentAuthor). Carried through, never interpreted here: this layer is
+  // argument plumbing, and the signature is applied at the write.
+  author: AgentAuthor | null;
   // The focused project's Activity feed (CI/Render/Docker), already filtered of
   // dismissed ids (activityStatus self-filters). Status metadata only -- no
   // secret values, consistent with the other status reads.
@@ -889,14 +895,14 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "send_terminal_input",
     {
       description:
-        'Send input to a RUNNING terminal: type a prompt into a live Claude session, answer an interactive prompt, or send a keystroke. terminalId is the PTY session id -- the `ptyId` from list_tabs (the same id get_terminal_tail takes, NOT the layout id). data is written verbatim: include "\\n" to submit a line, "\\u0003" for Ctrl-C. The FIRST send to a terminal raises a one-time approval prompt in the IDE (a non-blocking card in the corner, not a modal) and waits for the user; once approved, later sends to that terminal proceed without a prompt for the rest of the session. Returns { sent } on success, or { denied } / { timedOut } when approval did not complete. You never see the terminal output or its secret values.',
+        'Send input to a RUNNING terminal: type a prompt into a live Claude session, answer an interactive prompt, or send a keystroke. terminalId is the PTY session id -- the `ptyId` from list_tabs (the same id get_terminal_tail takes, NOT the layout id). data is written verbatim: include "\\n" to submit a line, "\\u0003" for Ctrl-C. The FIRST send to a terminal raises a one-time approval prompt in the IDE (a non-blocking card in the corner, not a modal) and waits for the user; once approved, later sends to that terminal proceed without a prompt for the rest of the session. Returns { sent } on success, or { denied } / { timedOut } when approval did not complete. You never see the terminal output or its secret values. A sentence-length submitted payload is signed with its author when AirLock knows who is calling, so the session reading it can tell an agent from the user; keystrokes and short answers are untouched, and you can neither set nor suppress the author.',
       inputSchema: {
         terminalId: z.string(),
         data: z.string(),
       },
     },
     async ({ terminalId, data }) => {
-      const r = await deps.sendTerminalInput(terminalId, data);
+      const r = await deps.sendTerminalInput(terminalId, data, deps.author);
       return r.error ? err(r.error) : ok(r);
     },
   );

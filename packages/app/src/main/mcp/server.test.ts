@@ -2,6 +2,9 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { TerminalInputResult } from "../../shared/ipc";
+import { gatedTerminalInput } from "../agent-requests";
+import { AGENT_SIGNATURES } from "../agentAuthor";
 import { getMcpPort, startMcpServer, stopMcpServer } from "./server";
 import { TOOL_NAMES } from "./tools";
 
@@ -22,6 +25,13 @@ afterEach(async () => {
 
 async function startOnEphemeralPort(
   rootForToken?: (token: string | null) => string | null,
+  // Override the gated terminal-input dep, so the authorship test can wire the
+  // REAL gatedTerminalInput and watch what reaches the pty.
+  sendTerminalInputOverride?: (
+    terminalId: string,
+    data: string,
+    author: "atlas" | null,
+  ) => Promise<TerminalInputResult>,
 ): Promise<number> {
   const dir = await mkdtemp(path.join(tmpdir(), "airlock-mcp-srv-"));
   const prefsFile = path.join(dir, "prefs.json");
@@ -37,7 +47,8 @@ async function startOnEphemeralPort(
     // Stub the gated terminal-input dep so the McpDeps literal type-checks; the
     // server-level tests assert the tool SURFACE (count/names), not the gated
     // write behavior (that is covered in tools.test.ts).
-    sendTerminalInput: async () => ({ sent: true as const }),
+    sendTerminalInput:
+      sendTerminalInputOverride ?? (async () => ({ sent: true as const })),
     getCiRun: async () => null,
     importEnvFiles: async () => [],
     notifySecretsChanged: () => {},
@@ -367,5 +378,76 @@ describe("MCP server per-request path token", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test assertion
     const resultText = (json as any)?.result?.content?.[0]?.text as string;
     expect(resultText).toBe("No workspace open");
+  });
+});
+
+describe("MCP request authorship", () => {
+  // Type a prompt into a terminal over real HTTP and report what reached the
+  // pty. The dep is the REAL gatedTerminalInput, so this walks the whole chain:
+  // request headers -> author -> tool -> gate -> write.
+  async function typeInto(header: Record<string, string>): Promise<string[]> {
+    const written: string[] = [];
+    const port = await startOnEphemeralPort(makeRootForToken({}), (id, d, a) =>
+      gatedTerminalInput(
+        id,
+        d,
+        {
+          write: (_id, data) => {
+            written.push(data);
+            return true;
+          },
+          label: () => "proj",
+          askFirst: async () => false,
+        },
+        a,
+      ),
+    );
+    await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        ...header,
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "send_terminal_input",
+          arguments: {
+            terminalId: "p1",
+            data: "Fix the two defects and commit them separately.\n",
+          },
+        },
+      }),
+    });
+    return written;
+  }
+
+  it("SIGNS WHAT ATLAS TYPES, end to end from the request header", async () => {
+    // The whole point: a project's Claude reading this can tell it came from
+    // the portfolio agent and not from the person at the keyboard.
+    const written = await typeInto({ "X-Airlock-Author": "atlas" });
+    expect(written).toEqual([
+      `Fix the two defects and commit them separately. ${AGENT_SIGNATURES.atlas}\n`,
+    ]);
+  });
+
+  it("leaves an unattributed caller's input exactly as sent", async () => {
+    const written = await typeInto({});
+    expect(written).toEqual([
+      "Fix the two defects and commit them separately.\n",
+    ]);
+  });
+
+  it("refuses an author it does not recognise", async () => {
+    // The author picks the WORDING of a signature, so a caller cannot name
+    // itself something of its own and have it typed into a terminal.
+    const written = await typeInto({ "X-Airlock-Author": "the user" });
+    expect(written).toEqual([
+      "Fix the two defects and commit them separately.\n",
+    ]);
   });
 });

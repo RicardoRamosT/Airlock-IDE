@@ -37,6 +37,7 @@ import type {
   QuotaStatus,
   SessionUsage,
 } from "../../shared/ipc";
+import { type AgentAuthor, authorFromHeaders } from "../agentAuthor";
 import { emitEvent } from "../eventlog/wire";
 import { githubReadIssueTool } from "../extensions/githubTools";
 import {
@@ -97,6 +98,7 @@ export interface McpDeps {
   sendTerminalInput: (
     terminalId: string,
     data: string,
+    author: AgentAuthor | null,
   ) => Promise<import("../../shared/ipc").TerminalInputResult>;
   getCiRun: (
     root: string | null,
@@ -127,7 +129,13 @@ export interface McpDeps {
 // and registerTools operate on. McpDeps itself no longer carries getWorkspaceRoot
 // because the root is resolved per request from the URL path token, not from
 // focus state.
-type RequestDeps = McpDeps & { getWorkspaceRoot: () => string | null };
+type RequestDeps = McpDeps & {
+  getWorkspaceRoot: () => string | null;
+  // WHO sent this request, from its headers (see ../agentAuthor). Per-request
+  // like the root, and for the same reason: identity belongs to the call, not
+  // to the process.
+  author: AgentAuthor | null;
+};
 
 // Module-level singletons: the listener is process-global and lives across
 // window-close on darwin, only torn down on quit. There is intentionally NO
@@ -165,6 +173,7 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
   const mcp = withToolLogging(
     new McpServer({ name: "airlock", version: "1.0.0" }),
     emitEvent,
+    deps.author,
   );
 
   // Register the v1 read + UI-control tools (see ./tools). Each is a thin
@@ -173,6 +182,7 @@ function createMcpServer(deps: RequestDeps, docs: DocEntry[]): McpServer {
   registerTools(mcp, {
     prefsFile: deps.prefsFile,
     getWorkspaceRoot: deps.getWorkspaceRoot,
+    author: deps.author,
     listExtensions: listExtensionsForAgent,
     getBaseEnv: deps.getBaseEnv,
     requestSecretFromUser: deps.requestSecretFromUser,
@@ -384,7 +394,20 @@ export async function startMcpServer(
             })()
           : null;
         const root = deps.rootForToken(projectToken);
-        const reqDeps: RequestDeps = { ...deps, getWorkspaceRoot: () => root };
+        // Authorship (separate again from both gates): which of OUR agents is
+        // calling. Atlas's own MCP client config carries the header; a
+        // project's Claude carries none and is unattributed. The MODEL cannot
+        // set this -- it supplies tool arguments, not transport headers -- which
+        // is what makes the terminal-input signature worth anything to whoever
+        // reads it.
+        const author = authorFromHeaders(
+          req.headers as unknown as Record<string, unknown>,
+        );
+        const reqDeps: RequestDeps = {
+          ...deps,
+          getWorkspaceRoot: () => root,
+          author,
+        };
 
         // Fresh server + fresh transport PER REQUEST.
         //
