@@ -878,8 +878,15 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
       },
     },
     async ({ terminalId, lines }) => {
+      // NO `if (!root) return err(NO_WORKSPACE)` HERE.
+      //
+      // A null root is not "no workspace open" -- it is Atlas, which is
+      // portfolio-wide and carries no per-project token. This guard made every
+      // call from Atlas fail, so it could open a terminal and type into it but
+      // never read it back. The scoping decision belongs to resolveTailScope,
+      // behind these deps, which handles a null caller root deliberately: a
+      // PROJECT session still reads only its own terminals.
       const root = deps.getWorkspaceRoot();
-      if (!root) return err(NO_WORKSPACE);
       if (!terminalId) return ok(await deps.listTerminals(root));
       const res = await deps.getTerminalTail(terminalId, lines ?? 40, root);
       return "error" in res ? err(res.error) : ok(res);

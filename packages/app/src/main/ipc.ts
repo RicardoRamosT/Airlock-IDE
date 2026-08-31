@@ -3194,12 +3194,23 @@ export async function getTerminalTail(
 export async function listTerminals(
   root: string | null,
 ): Promise<{ id: string; preview: string }[]> {
-  if (!root) return [];
-  const values = await allVaultedValues(root);
+  // A null root is ATLAS, which is portfolio-wide and carries no project token.
+  // It lists every project's terminals; a PROJECT session still lists only its
+  // own. Same rule as resolveTailScope, and for the same reason -- returning []
+  // left Atlas unable to find the terminal it had just opened.
   const out: { id: string; preview: string }[] = [];
+  // Redact against the OWNING project's vault, cached per root so a portfolio
+  // listing does not re-read the keychain once per terminal.
+  const valuesByRoot = new Map<string, string[]>();
   for (const id of sessions.keys()) {
-    // Filter by the caller's project root only (not window focus).
-    if (sessionRoots.get(id) !== root) continue;
+    const owner = sessionRoots.get(id) ?? null;
+    if (owner === null) continue;
+    if (root !== null && owner !== root) continue;
+    let values = valuesByRoot.get(owner);
+    if (values === undefined) {
+      values = await allVaultedValues(owner);
+      valuesByRoot.set(owner, values);
+    }
     const raw = ptyBuffers.get(id) ?? "";
     out.push({ id, preview: redactedPreview(raw, values, PREVIEW_LINES) });
   }

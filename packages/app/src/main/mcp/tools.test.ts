@@ -509,9 +509,16 @@ describe("get_terminal_tail tool", () => {
     expect(tool.config.inputSchema?.lines).toBeDefined();
   });
 
-  it("returns NO_WORKSPACE and calls NEITHER dep with no workspace open", async () => {
-    // baseDeps.getWorkspaceRoot() is null, so the handler must short-circuit
-    // before reaching listTerminals/getTerminalTail (which read PTY buffers).
+  it("PASSES a null root through instead of refusing: that caller is Atlas", async () => {
+    // This test used to assert the opposite -- that a null root short-circuits
+    // to NO_WORKSPACE and touches neither dep. That pinned a real defect as
+    // intended behaviour: a null root is not "no workspace open", it is Atlas,
+    // which is portfolio-wide and carries no per-project token. The guard made
+    // every Atlas call fail, so it could open a terminal and type into it but
+    // never read it back (2026-08-31).
+    //
+    // The scoping decision belongs to resolveTailScope behind these deps, where
+    // a PROJECT session still reads only its own terminals.
     const getTerminalTail = vi.fn(
       async () => ({ tail: "x" }) as { tail: string } | { error: string },
     );
@@ -523,14 +530,16 @@ describe("get_terminal_tail tool", () => {
       getTerminalTail,
       listTerminals,
     });
-    const res = (await tool.handler({})) as {
-      content: [{ text: string }];
+
+    const listing = (await tool.handler({})) as { isError?: boolean };
+    expect(listing.isError).toBeFalsy();
+    expect(listTerminals).toHaveBeenCalledWith(null);
+
+    const one = (await tool.handler({ terminalId: "pty-1" })) as {
       isError?: boolean;
     };
-    expect(res.isError).toBe(true);
-    expect(res.content[0].text).toBe("No workspace open");
-    expect(getTerminalTail).not.toHaveBeenCalled();
-    expect(listTerminals).not.toHaveBeenCalled();
+    expect(one.isError).toBeFalsy();
+    expect(getTerminalTail).toHaveBeenCalledWith("pty-1", 40, null);
   });
 
   it("with a root and NO terminalId, calls listTerminals(root) and returns the list", async () => {

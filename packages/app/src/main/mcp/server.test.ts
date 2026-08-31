@@ -291,9 +291,11 @@ describe("MCP server response framing", () => {
 describe("MCP server per-request path token", () => {
   // Sends a tools/call for list_secret_names (workspace-gated) and returns the
   // parsed tool result (text content string), or throws on a non-200 status.
-  async function callListSecretNames(
+  async function callTool(
     port: number,
     projectToken: string | null,
+    name: string,
+    args: Record<string, unknown> = {},
   ): Promise<string> {
     const urlPath = projectToken ? `/mcp/${projectToken}` : "/mcp";
     const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
@@ -307,7 +309,7 @@ describe("MCP server per-request path token", () => {
         jsonrpc: "2.0",
         id: 1,
         method: "tools/call",
-        params: { name: "list_secret_names", arguments: {} },
+        params: { name, arguments: args },
       }),
     });
     const text = await res.text();
@@ -331,13 +333,35 @@ describe("MCP server per-request path token", () => {
   it("a missing path token (bare /mcp) yields NO_WORKSPACE for a workspace-gated tool", async () => {
     // rootForToken always returns null -> unknown token -> refuse.
     const port = await startOnEphemeralPort(makeRootForToken({}));
-    const text = await callListSecretNames(port, null);
+    const text = await callTool(port, null, "list_secret_names");
     expect(text).toBe("No workspace open");
+  });
+
+  it("get_terminal_tail is NOT workspace-gated: Atlas has no project token", async () => {
+    // The tail handler used to short-circuit on a null root, so every call from
+    // Atlas -- which is portfolio-wide and carries no per-project token --
+    // answered "No workspace open". It could open a terminal and type into it
+    // but never read it back (observed 2026-08-31). The scoping decision
+    // belongs to resolveTailScope behind the deps, not to a guard here.
+    //
+    // This asserts at the MCP SURFACE deliberately: the previous fix corrected
+    // the inner function while this guard kept it unreachable.
+    const port = await startOnEphemeralPort(makeRootForToken({}));
+    const withId = await callTool(port, null, "get_terminal_tail", {
+      terminalId: "pty-1",
+    });
+    expect(withId).not.toBe("No workspace open");
+    const listing = await callTool(port, null, "get_terminal_tail");
+    expect(listing).not.toBe("No workspace open");
   });
 
   it("an unknown path token yields NO_WORKSPACE for a workspace-gated tool", async () => {
     const port = await startOnEphemeralPort(makeRootForToken({}));
-    const text = await callListSecretNames(port, "unknown-token-deadbeef");
+    const text = await callTool(
+      port,
+      "unknown-token-deadbeef",
+      "list_secret_names",
+    );
     expect(text).toBe("No workspace open");
   });
 
@@ -345,7 +369,7 @@ describe("MCP server per-request path token", () => {
     // %ZZ is invalid percent-encoding: decodeURIComponent throws.
     // The server must treat it as a null token (-> NO_WORKSPACE) not a 500.
     const port = await startOnEphemeralPort(makeRootForToken({}));
-    // callListSecretNames builds the URL from the token string; pass the
+    // callTool builds the URL from the token string; pass the
     // raw malformed segment directly via a manual fetch to bypass URL encoding.
     const res = await fetch(`http://127.0.0.1:${port}/mcp/%ZZ`, {
       method: "POST",
