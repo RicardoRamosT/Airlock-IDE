@@ -260,6 +260,7 @@ const api: AirlockApi = {
   atlasMarkRead: (day: string) => ipcRenderer.invoke("atlas:markRead", day),
   atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
   atlasSend: (message: string) => ipcRenderer.invoke("atlas:send", message),
+  atlasCancel: () => ipcRenderer.invoke("atlas:cancel"),
   atlasNewChat: () => ipcRenderer.invoke("atlas:newChat"),
   atlasSessions: () => ipcRenderer.invoke("atlas:sessions"),
   atlasResume: (session: number) => ipcRenderer.invoke("atlas:resume", session),

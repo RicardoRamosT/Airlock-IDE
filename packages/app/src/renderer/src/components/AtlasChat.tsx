@@ -35,7 +35,15 @@ export function AtlasChat({
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [stopped, setStopped] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  // Identifies the in-flight send. Escape bumps it, which is what tells the
+  // awaiting continuation that its result is no longer wanted -- without this a
+  // cancelled call would still land, either appending a reply the user stopped
+  // or claiming a failure that never happened.
+  const sendIdRef = useRef(0);
+  const pendingRef = useRef<{ key: string; text: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -77,6 +85,18 @@ export function AtlasChat({
     endRef.current?.scrollIntoView?.({ block: "end", behavior: "smooth" });
   }, [turns.length, busy]);
 
+  // Grow with the message instead of scrolling sideways, up to a ceiling so the
+  // composer can never swallow the transcript.
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    // Reset first, or the box can only ever GROW: scrollHeight is measured
+    // against the height already applied.
+    el.style.height = "auto";
+    const wanted = draft.length === 0 ? 32 : Math.min(el.scrollHeight, 160);
+    el.style.height = `${Math.max(32, wanted)}px`;
+  }, [draft]);
+
   // A bare "..." says nothing about whether anything is happening. Atlas runs a
   // real subprocess that can take many seconds, so show the stage AND a running
   // clock -- the difference between "working" and "hung" has to be visible.
@@ -95,20 +115,66 @@ export function AtlasChat({
     e.preventDefault();
     const message = draft.trim();
     if (message.length === 0 || busy) return;
+    const id = sendIdRef.current + 1;
+    sendIdRef.current = id;
+    // Show the user's turn immediately; the reply lands when it lands.
+    const mine = withKey({ role: "user", text: message });
+    pendingRef.current = { key: mine.key, text: message };
     setDraft("");
     setFailed(false);
+    setStopped(false);
     setBusy(true);
-    // Show the user's turn immediately; the reply lands when it lands.
-    setTurns((prev) => [...prev, withKey({ role: "user", text: message })]);
+    setTurns((prev) => [...prev, mine]);
     try {
       const reply = await window.airlock?.atlasSend(message);
+      // Cancelled while we waited: whatever came back is not wanted, and a null
+      // from a killed subprocess is not a failure to report.
+      if (sendIdRef.current !== id) return;
       if (reply === null || reply === undefined) setFailed(true);
       else
         setTurns((prev) => [...prev, withKey({ role: "atlas", text: reply })]);
     } catch {
-      setFailed(true);
+      if (sendIdRef.current === id) setFailed(true);
     } finally {
-      setBusy(false);
+      if (sendIdRef.current === id) {
+        pendingRef.current = null;
+        setBusy(false);
+      }
+    }
+  }
+
+  // Escape stops the run. It kills the SUBPROCESS rather than only stopping the
+  // wait: an abandoned `claude` keeps spending quota with nowhere to deliver.
+  function cancel() {
+    if (!busy) return;
+    const p = pendingRef.current;
+    sendIdRef.current += 1; // invalidates the in-flight continuation
+    pendingRef.current = null;
+    void window.airlock?.atlasCancel?.();
+    setBusy(false);
+    setStopped(true);
+    // Hand the message back and drop the optimistic turn. Nothing was stored,
+    // so leaving it in the log would show a question that no longer exists --
+    // and retyping it is exactly what someone stopping a wrong question does
+    // not want to do.
+    if (p) {
+      setDraft(p.text);
+      setTurns((prev) => prev.filter((t) => t.key !== p.key));
+    }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      if (!busy) return; // idle Escape belongs to the host window
+      e.preventDefault();
+      e.stopPropagation(); // stopping a reply must not also close the popover
+      cancel();
+      return;
+    }
+    // Enter sends, Shift+Enter makes a newline. isComposing guards IME input,
+    // where Enter commits a candidate and does not mean "send".
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      void submit(e);
     }
   }
 
@@ -180,13 +246,25 @@ export function AtlasChat({
               Could not reach Claude. Your message is still here; try again.
             </div>
           ) : null}
+          {stopped ? (
+            <div className="atlas-chat-note">
+              Stopped. Your message is back in the box.
+            </div>
+          ) : null}
           <div ref={endRef} />
         </div>
         <form onSubmit={submit} className="atlas-chat-form">
-          <input
+          <textarea
+            ref={boxRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ask, or tell me something..."
+            onKeyDown={onKeyDown}
+            rows={1}
+            placeholder={
+              busy
+                ? "Esc to stop"
+                : "Ask, or tell me something...  (Shift+Enter for a new line)"
+            }
             aria-label="Message Atlas"
           />
         </form>

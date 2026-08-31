@@ -1261,6 +1261,8 @@ export interface AirlockApi {
   atlasMarkRead(day: string): Promise<void>;
   atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
   atlasSend(message: string): Promise<string | null>;
+  // Stop the in-flight reply (Escape in the chat). Kills the CLI process.
+  atlasCancel(): Promise<void>;
   atlasNewChat(): Promise<void>;
   atlasSessions(): Promise<
     { session: number; startedAt: number; turns: number; preview: string }[]

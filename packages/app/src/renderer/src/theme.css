@@ -6582,24 +6582,38 @@ button.docker-row .codicon-chevron-right {
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
 }
-.atlas-chat-form input {
+/* A textarea, not an input: Shift+Enter has to be able to make a newline. It
+   grows with the message (height is set in JS from scrollHeight) up to a
+   ceiling, so a long message never swallows the transcript. */
+.atlas-chat-form textarea {
+  display: block;
   width: 100%;
   box-sizing: border-box;
-  height: 32px;
-  padding: 0 10px;
+  min-height: 32px;
+  max-height: 160px;
+  padding: 7px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--fg);
   font: inherit;
+  line-height: 1.35;
   outline: none;
+  resize: none;
+  overflow-y: auto;
 }
-.atlas-chat-form input:focus {
+.atlas-chat-form textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
-.atlas-chat-form input::placeholder {
+.atlas-chat-form textarea::placeholder {
   color: var(--fg-dim);
+}
+/* The "Stopped." line: an ordinary note, not an error -- the user asked for it. */
+.atlas-chat-note {
+  padding: 4px 2px;
+  color: var(--fg-dim);
+  font-size: 12px;
 }
 
 /* --- the menu bar popover --- */

@@ -40,6 +40,9 @@ export interface ChatDeps {
   mcp?(): { port: number; token: string } | null;
   now(): number;
   tzOffsetMinutes(): number;
+  // Set when the user presses Escape. Kills the CLI rather than only
+  // abandoning the wait.
+  signal?: AbortSignal;
 }
 
 // A week. 24h made 'what did I do this week' unanswerable by construction.
@@ -104,8 +107,11 @@ export async function sendMessage(
     raw = await deps.spawn(
       buildChatArgs(deps.roots(), deps.mcp?.() ?? undefined),
       prompt,
+      deps.signal,
     );
   } catch (e) {
+    // A user pressing Escape is not a failure and must not be logged as one.
+    if (deps.signal?.aborted) return null;
     // Do not swallow it: a silent "Could not reach Claude" is unactionable.
     emitEvent({
       level: "error",

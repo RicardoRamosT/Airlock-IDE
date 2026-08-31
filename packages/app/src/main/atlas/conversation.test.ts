@@ -252,3 +252,31 @@ it("does not let a failed FACT write discard the reply either", async () => {
   };
   expect(await sendMessage(d, "ElArqui is due the 15th")).toBe("Noted.");
 });
+
+it("passes the abort signal to the CLI, so Escape can kill it", async () => {
+  const ac = new AbortController();
+  const spawn = vi.fn(
+    async (_args: string[], _stdin: string, _signal?: AbortSignal) =>
+      reply("hi"),
+  );
+  await sendMessage({ ...deps({ spawn }), signal: ac.signal }, "hello");
+  expect(spawn.mock.calls[0]?.[2]).toBe(ac.signal);
+});
+
+it("treats a cancelled run as a STOP, not a failure", async () => {
+  // Escape is the user getting what they asked for. Logging it as an error
+  // would bury the real ones.
+  const ac = new AbortController();
+  ac.abort();
+  const d = {
+    ...deps({
+      spawn: async () => {
+        throw new Error("atlas: cancelled");
+      },
+    }),
+    signal: ac.signal,
+  };
+  expect(await sendMessage(d, "never mind")).toBeNull();
+  // Nothing was written: no half turn, no stray fact.
+  expect(await d.db.readTurns(10)).toEqual([]);
+});

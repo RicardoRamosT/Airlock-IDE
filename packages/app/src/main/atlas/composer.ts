@@ -19,10 +19,29 @@ import {
 } from "@airlock/agent-core";
 import { emitEvent } from "../eventlog/wire";
 
-export type SpawnFn = (args: string[], stdin: string) => Promise<string>;
+// A deliberate stop, not a failure. Callers use this to keep a user pressing
+// Escape out of the error log.
+export const CANCELLED = "atlas: cancelled";
 
-export function spawnClaude(args: string[], stdin: string): Promise<string> {
+export type SpawnFn = (
+  args: string[],
+  stdin: string,
+  // Stopping a run has to KILL the CLI, not merely stop awaiting it: an
+  // abandoned `claude` keeps working and keeps spending quota with nowhere to
+  // deliver its answer.
+  signal?: AbortSignal,
+) => Promise<string>;
+
+export function spawnClaude(
+  args: string[],
+  stdin: string,
+  signal?: AbortSignal,
+): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error(CANCELLED));
+      return;
+    }
     // stderr is CAPTURED, not ignored. It was ignored, so a failing run gave
     // the user "Could not reach Claude" and left nobody -- including the logs
     // -- any way to find out why.
@@ -44,10 +63,20 @@ export function spawnClaude(args: string[], stdin: string): Promise<string> {
       // Bounded: a runaway process must not grow this without limit.
       if (err.length < 4000) err += chunk;
     });
-    child.on("error", (e) =>
-      reject(new Error(`spawn claude failed: ${e.message}`)),
-    );
+    const onAbort = () => child.kill("SIGTERM");
+    signal?.addEventListener("abort", onAbort, { once: true });
+    child.on("error", (e) => {
+      signal?.removeEventListener("abort", onAbort);
+      reject(new Error(`spawn claude failed: ${e.message}`));
+    });
     child.on("close", (code) => {
+      signal?.removeEventListener("abort", onAbort);
+      // Checked FIRST: a killed run can leave partial JSON on stdout, and
+      // `out.includes("{")` below would happily resolve with that garbage.
+      if (signal?.aborted) {
+        reject(new Error(CANCELLED));
+        return;
+      }
       if (code === 0 || out.includes("{")) {
         resolve(out);
         return;

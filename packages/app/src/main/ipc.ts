@@ -506,6 +506,11 @@ export function sanitizeEventFilter(raw: unknown): EventFilter {
 // ipc.ts holds no module-level mutable state.
 //
 // The Extension Hub inventory, shared with the MCP extension_status tool.
+// The in-flight Atlas chat run, so Escape can kill it. Module scope because
+// there is exactly one chat at a time and the cancel arrives on a different
+// IPC call than the send.
+let atlasChatAbort: AbortController | null = null;
+
 // listExtensions closes over registerIpc's prefs path and poll cache, so it is
 // published here rather than re-implemented; empty until registerIpc has run.
 let listExtensionsImpl:
@@ -1086,19 +1091,35 @@ export function registerIpc(
   ipcMain.handle("atlas:send", async (_e, message: unknown) => {
     if (typeof message !== "string") return null;
     const recents = (await loadPrefs(prefsFile)).recentFolders;
-    return sendMessage(
-      {
-        db: atlasDb(),
-        spawn: spawnClaude,
-        collect: makeCollectDeps(),
-        roots: allOpenRoots,
-        recents: () => recents,
-        mcp: atlasMcp,
-        now: () => Date.now(),
-        tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
-      },
-      message,
-    );
+    // One chat run at a time: a new send supersedes whatever was still going,
+    // so an abandoned CLI can never linger spending quota.
+    atlasChatAbort?.abort();
+    const ac = new AbortController();
+    atlasChatAbort = ac;
+    try {
+      return await sendMessage(
+        {
+          db: atlasDb(),
+          spawn: spawnClaude,
+          collect: makeCollectDeps(),
+          roots: allOpenRoots,
+          recents: () => recents,
+          mcp: atlasMcp,
+          now: () => Date.now(),
+          tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
+          signal: ac.signal,
+        },
+        message,
+      );
+    } finally {
+      // Only clear OUR controller: a newer send may already own the slot.
+      if (atlasChatAbort === ac) atlasChatAbort = null;
+    }
+  });
+  // Escape in the chat. Kills the CLI rather than only abandoning the wait.
+  ipcMain.handle("atlas:cancel", () => {
+    atlasChatAbort?.abort();
+    atlasChatAbort = null;
   });
   // Clears the visible transcript WITHOUT forgetting: facts survive, so Atlas
   // still knows the deadlines and priorities it was told.
