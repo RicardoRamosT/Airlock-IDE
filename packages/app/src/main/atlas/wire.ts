@@ -35,27 +35,39 @@ let composing = false;
 
 // Returns true when a brief was composed and stored.
 export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
-  const now = deps.now();
-  const today = dayKey(now, deps.tzOffsetMinutes());
-  // Hoisted: the store is asynchronous now that it lives in its own process.
-  const lastDay = await deps.db.lastBriefDay();
-
-  if (
-    !shouldCompose({
-      enabled: deps.enabled(),
-      acknowledged: deps.acknowledged(),
-      lastBriefDay: lastDay,
-      today,
-      composing,
-      localHour: new Date(now + deps.tzOffsetMinutes() * 60_000).getUTCHours(),
-      earliestHour: deps.earliestHour(),
-    })
-  ) {
-    return false;
-  }
-
+  // CLAIM THE SLOT SYNCHRONOUSLY, before the first await.
+  //
+  // A lid-open fires browser-window-focus, powerMonitor resume, unlock-screen
+  // and activate at once. Reading `composing` and setting it on either side of
+  // an await lets every one of them pass the check before any sets the flag --
+  // several concurrent Opus composers, each billed, all writing one brief. The
+  // guard was sound while the store was synchronous; the gap opened when the
+  // database moved into its own process and lastBriefDay became a process hop.
+  if (composing) return false;
   composing = true;
   try {
+    const now = deps.now();
+    const today = dayKey(now, deps.tzOffsetMinutes());
+    const lastDay = await deps.db.lastBriefDay();
+
+    if (
+      !shouldCompose({
+        enabled: deps.enabled(),
+        acknowledged: deps.acknowledged(),
+        lastBriefDay: lastDay,
+        today,
+        // We already hold the claim, so from this caller's view nothing else
+        // is composing. The flag above is the real mutual exclusion.
+        composing: false,
+        localHour: new Date(
+          now + deps.tzOffsetMinutes() * 60_000,
+        ).getUTCHours(),
+        earliestHour: deps.earliestHour(),
+      })
+    ) {
+      return false;
+    }
+
     const sinceMs = now - WINDOW_MS;
     const snaps = await refreshPortfolio({
       db: deps.db,

@@ -92,3 +92,42 @@ it("refreshes the portfolio before composing, so the brief is current", async ()
   await maybeCompose(deps({ collect: { ...c, exists } }));
   expect(exists).toHaveBeenCalled();
 });
+
+it("starts ONE composer when several arrival events land together", async () => {
+  // A lid-open fires browser-window-focus, powerMonitor resume, unlock-screen
+  // and activate more or less at once. The guard read `composing` and set it on
+  // either side of an await, so all of them passed the check before any of them
+  // set the flag -- several concurrent Opus composers, each billed, all writing
+  // the same brief.
+  //
+  // The await only appeared when the store moved into its own process; the
+  // guard was sound while lastBriefDay was synchronous.
+  const spawn = vi.fn(async () => okJson);
+  const d = deps({ spawn });
+  const slowDb = {
+    ...d.db,
+    lastBriefDay: async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      return null;
+    },
+  };
+  const shared = { ...d, db: slowDb };
+  const results = await Promise.all([
+    maybeCompose(shared),
+    maybeCompose(shared),
+    maybeCompose(shared),
+    maybeCompose(shared),
+  ]);
+  expect(spawn).toHaveBeenCalledTimes(1);
+  expect(results.filter(Boolean)).toHaveLength(1);
+});
+
+it("releases the guard so a LATER arrival can still compose", async () => {
+  // Claiming the slot before the await must not strand it: an early return
+  // (wrong hour, already composed today) still has to reset the flag.
+  const spawn = vi.fn(async () => okJson);
+  const d = deps({ spawn, enabled: () => false }); // bails after the claim
+  expect(await maybeCompose(d)).toBe(false);
+  // Now allowed: if the guard leaked, this second call would be refused.
+  expect(await maybeCompose({ ...d, enabled: () => true })).toBe(true);
+});

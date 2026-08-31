@@ -72,8 +72,15 @@ async function detach(mountPoint: string): Promise<void> {
 // Re-entrancy guard: only one apply may be in flight. The renderer disables the
 // button while busy, but a second window or an automation caller could fire
 // update:apply again -- two concurrent downloads + relaunch scripts racing on
-// the same bundle is the one path that could corrupt the install. Reset on the
-// reveal/error exits so a retry works; the swap path ends in app.quit().
+// the same bundle is the one path that could corrupt the install.
+//
+// Reset in a FINALLY, not on the individual exits. It used to be cleared in the
+// reveal branch and in the catch, which leaks the guard if the catch itself
+// throws (`await detach()` on a busy mount does exactly that) -- and then
+// updating is wedged for the rest of the session with nothing logged. The swap
+// path also ends here now: it calls app.quit(), but a quit can be VETOED by a
+// before-quit handler, and the old code left the guard latched forever in that
+// case with no way to retry.
 let applying = false;
 
 export async function applyUpdate(): Promise<void> {
@@ -116,7 +123,6 @@ export async function applyUpdate(): Promise<void> {
       if (mountPoint) await detach(mountPoint);
       shell.showItemInFolder(srcApp);
       emit({ phase: "revealed" });
-      applying = false;
       return;
     }
 
@@ -154,11 +160,13 @@ export async function applyUpdate(): Promise<void> {
     emit({ phase: "relaunching" });
     app.quit();
   } catch (e) {
-    if (mountPoint) await detach(mountPoint);
+    // Never let cleanup mask the real failure, or throw out of the catch.
+    if (mountPoint) await detach(mountPoint).catch(() => {});
     emit({
       phase: "error",
       message: e instanceof Error ? e.message : String(e),
     });
+  } finally {
     applying = false;
   }
 }
