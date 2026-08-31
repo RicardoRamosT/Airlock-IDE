@@ -203,14 +203,24 @@ export function AtlasPanel({
         <p className="atlas-note">
           Could not load the debrief. Nothing has been lost -- try reopening.
         </p>
-      ) : brief === null ? (
-        <p className="atlas-note">
-          No debrief yet. Atlas writes one each morning, once you are back at
-          your Mac.
-        </p>
       ) : (
         <>
-          <div className="atlas-brief">{renderBrief(brief.text)}</div>
+          {/* TWO INDEPENDENT READS, TWO INDEPENDENT BRANCHES. Concerns are
+              fetched live -- deliberately, so one that has since resolved
+              stops being shown -- and were then rendered INSIDE the
+              brief !== null branch, which threw that independence away: every
+              morning until the brief was composed, and all day if a compose
+              failed, the whole standing-concerns list was invisible and the
+              forget action with it. A missing debrief is not evidence that
+              nothing is open. */}
+          {brief === null ? (
+            <p className="atlas-note">
+              No debrief yet. Atlas writes one each morning, once you are back
+              at your Mac.
+            </p>
+          ) : (
+            <div className="atlas-brief">{renderBrief(brief.text)}</div>
+          )}
           {concerns !== null && concerns.length > 0 ? (
             <div className="atlas-standing">
               <p className="atlas-standing-head">Still open</p>

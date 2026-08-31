@@ -19,7 +19,14 @@ const api = {
     mode: "subscription" as const,
     lastView: "brief" as "brief" | "chat",
   })),
-  atlasBrief: vi.fn(async () => ({ day: "2026-08-30", text: "YESTERDAY" })),
+  // Return type widened to include null: "no debrief today" is a real state
+  // the panel must render alongside any open concerns.
+  atlasBrief: vi.fn(
+    async (): Promise<{ day: string; text: string } | null> => ({
+      day: "2026-08-30",
+      text: "YESTERDAY",
+    }),
+  ),
   atlasSetView: vi.fn(async (_v: "brief" | "chat") => {}),
   atlasConcerns: vi.fn(async () => [] as unknown[]),
   atlasForget: vi.fn(async (_root: string) => true),
@@ -224,4 +231,30 @@ it("drops the row once main says the project is forgotten", async () => {
 
   fireRefresh(); // atlasConcerns now answers with the default: none
   await waitFor(() => expect(screen.queryByText(/still open/i)).toBeNull());
+});
+
+it("SHOWS STANDING CONCERNS BEFORE THE DAY'S DEBRIEF EXISTS", async () => {
+  // Concerns are read LIVE, precisely so they do not depend on the brief --
+  // and then the JSX hid them inside the `brief !== null` branch. Every
+  // morning until the brief is composed (and all day if a compose fails) the
+  // whole standing-concerns list was invisible, the forget action with it.
+  api.atlasBrief.mockResolvedValueOnce(null);
+  api.atlasConcerns.mockResolvedValueOnce([GONE]);
+  render(<AtlasPanel />);
+
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+  // BOTH, not either: there is genuinely no debrief, and there is genuinely
+  // something open.
+  expect(screen.getByText(/no debrief yet/i)).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: /forget this project/i }),
+  ).toBeTruthy();
+});
+
+it("still says nothing when there is neither a debrief nor a concern", async () => {
+  api.atlasBrief.mockResolvedValueOnce(null);
+  api.atlasConcerns.mockResolvedValueOnce([]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/no debrief yet/i)).toBeTruthy());
+  expect(screen.queryByText(/still open/i)).toBeNull();
 });
