@@ -225,3 +225,30 @@ it("lets Atlas use tools when talking", async () => {
   expect(args).toContain("Bash");
   expect(args).not.toContain("--append-system-prompt");
 });
+
+it("still returns the reply when the store fails, instead of losing it", async () => {
+  // On 2026-08-30 18:51 the database host aborted mid-write. sendMessage threw,
+  // the user saw "Could not reach Claude", and a reply Claude had spent 73
+  // seconds producing was discarded -- while Claude had in fact answered fine.
+  const d = deps();
+  const dead = new Error("atlas db host exited (5)");
+  d.db.appendTurns = async () => {
+    throw dead;
+  };
+  await expect(sendMessage(d, "what should I do?")).resolves.toBe(
+    "Work on Revaltone-CRM first.",
+  );
+});
+
+it("does not let a failed FACT write discard the reply either", async () => {
+  const d = deps({
+    spawn: async () =>
+      reply(
+        `Noted.\n${FACTS_OPEN}\n[{"project":"ElArqui","kind":"deadline","value":"2026-09-15","verbatim":"ElArqui is due the 15th"}]\n${FACTS_CLOSE}`,
+      ),
+  });
+  d.db.writeFacts = async () => {
+    throw new Error("atlas db host exited (5)");
+  };
+  expect(await sendMessage(d, "ElArqui is due the 15th")).toBe("Noted.");
+});

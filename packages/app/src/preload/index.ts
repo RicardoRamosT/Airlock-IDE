@@ -265,6 +265,8 @@ const api: AirlockApi = {
   atlasResume: (session: number) => ipcRenderer.invoke("atlas:resume", session),
   atlasOpenWindow: () => ipcRenderer.invoke("atlas:openWindow"),
   atlasState: () => ipcRenderer.invoke("atlas:state"),
+  atlasSetView: (view: "brief" | "chat") =>
+    ipcRenderer.invoke("atlas:setView", view),
   atlasConsent: () => ipcRenderer.invoke("atlas:consent"),
   onAtlasRefresh: (cb: () => void) => {
     const h = () => cb();

@@ -131,21 +131,47 @@ export async function sendMessage(
 
   const { prose, facts: incoming } = splitReply(result.text);
 
-  await deps.db.appendTurns(
-    [
-      { role: "user", text: message },
-      { role: "atlas", text: prose },
-    ],
-    now,
-  );
-  if (incoming.length > 0) {
-    await deps.db.writeFacts(
-      mergeFacts(facts, incoming, now, (n) => `${now}-${n}`),
+  // THE ANSWER IS NOT LOST IF THE STORE FAILS.
+  //
+  // Persisting can fail on its own now that the database is a separate process
+  // that is allowed to die (see dbHost.ts). It did, on 2026-08-30 at 18:51:
+  // the host aborted while writing, sendMessage threw, and the user was shown
+  // "Could not reach Claude" -- for a reply Claude had spent 73 seconds
+  // producing, which was then discarded. Claude HAD been reached.
+  //
+  // So the reply is returned either way. An unsaved turn means the next turn
+  // will not see it, which is a real but far smaller loss than throwing away
+  // the answer and blaming the wrong component.
+  try {
+    await deps.db.appendTurns(
+      [
+        { role: "user", text: message },
+        { role: "atlas", text: prose },
+      ],
+      now,
     );
+    if (incoming.length > 0) {
+      await deps.db.writeFacts(
+        mergeFacts(facts, incoming, now, (n) => `${now}-${n}`),
+      );
+    }
+    // Only mark the day if a question was actually asked, so a quiet day does
+    // not consume the one question it was entitled to.
+    if (stale) await deps.db.writeAskedDay(today);
+  } catch (e) {
+    emitEvent({
+      level: "error",
+      category: "atlas",
+      op: "atlas.persist",
+      outcome: "error",
+      detail: {
+        reason: e instanceof Error ? e.message : String(e),
+        // So the log says what was lost, not merely that something was.
+        replyChars: prose.length,
+        facts: incoming.length,
+      },
+    });
   }
-  // Only mark the day if a question was actually asked, so a quiet day does
-  // not consume the one question it was entitled to.
-  if (stale) await deps.db.writeAskedDay(today);
 
   return prose;
 }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   AnthropicStatus,
+  AppPrefs,
   ClaudeAutoStart,
   FileContent,
   GitStatus,
@@ -336,24 +337,10 @@ export interface AppState {
   setQuota: (q: QuotaStatus) => void;
   quotaMeterEnabled: boolean;
   setQuotaMeterEnabled: (v: boolean) => void;
-  atlas: {
-    enabled: boolean;
-    acknowledged: boolean;
-    surface: "app" | "both";
-    hour: number;
-    width: number;
-    height: number;
-    lastReadDay: string;
-  };
-  setAtlas: (v: {
-    enabled: boolean;
-    acknowledged: boolean;
-    surface: "app" | "both";
-    hour: number;
-    width: number;
-    height: number;
-    lastReadDay: string;
-  }) => void;
+  // Derived from AppPrefs rather than re-declared: this shape used to be
+  // written out twice here and adding one pref broke four unrelated files.
+  atlas: AppPrefs["atlas"];
+  setAtlas: (v: AppPrefs["atlas"]) => void;
   dockStatusEnabled: boolean;
   setDockStatusEnabled: (v: boolean) => void;
   runAppSkillEnabled: boolean;
@@ -854,6 +841,7 @@ export const useApp = create<AppState>((set) => ({
     width: 380,
     height: 460,
     lastReadDay: "",
+    lastView: "brief",
   },
   setAtlas: (v) => set({ atlas: v }),
   dockStatusEnabled: true,

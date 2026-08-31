@@ -1119,7 +1119,17 @@ export function registerIpc(
       acknowledged: prefs.atlas.acknowledged,
       disclosure: costDisclosure(mode),
       mode,
+      lastView: prefs.atlas.lastView,
     };
+  });
+  // Which half of the panel to reopen on. Persisted rather than held in the
+  // component, because the panel is hosted by four surfaces across three
+  // windows: closing a mid-conversation panel used to reopen on the debrief.
+  ipcMain.handle("atlas:setView", async (_e, view: unknown) => {
+    if (view !== "brief" && view !== "chat") return;
+    const cur = (await loadPrefs(prefsFile)).atlas;
+    if (cur.lastView === view) return; // no write when nothing changed
+    await savePrefs(prefsFile, { atlas: { ...cur, lastView: view } });
   });
   ipcMain.handle("atlas:consent", async () => {
     // Preserve surface and hour: consent only flips acknowledged.

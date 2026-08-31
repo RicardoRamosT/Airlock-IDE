@@ -112,6 +112,7 @@ const DEFAULT_PREFS: AppPrefs = {
     width: 380,
     height: 460,
     lastReadDay: "",
+    lastView: "brief" as const,
   },
   githubAutoSwitch: true,
   runAppSkill: { enabled: true },

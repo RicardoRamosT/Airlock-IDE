@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { renderBrief } from "../lib/atlasBrief";
 import { AtlasChat } from "./AtlasChat";
 import { AtlasConsent } from "./AtlasConsent";
@@ -25,14 +25,21 @@ export function AtlasPanel({
   const [state, setState] = useState<{
     acknowledged: boolean;
     disclosure: string;
+    lastView: "brief" | "chat";
   } | null>(null);
   const [asked, setAsked] = useState(false);
+  // Seeded from the persisted view, not defaulted to the debrief: the panel is
+  // hosted by four surfaces across three windows, so component state meant
+  // closing a mid-conversation panel and reopening it landed back on the
+  // debrief with the chat apparently gone.
   const [showChat, setShowChat] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [history, setHistory] = useState<
     { session: number; startedAt: number; turns: number; preview: string }[]
   >([]);
+
+  const seeded = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -45,6 +52,14 @@ export function AtlasPanel({
           if (!alive) return;
           setState(s);
           setBrief(text);
+          // Only on the FIRST load, tracked by a REF: `load` is also the
+          // refresh handler and closes over its initial state, so testing a
+          // piece of state here would re-seed on every refresh and yank the
+          // user out of the view they had since switched to.
+          if (!seeded.current && s) {
+            seeded.current = true;
+            setShowChat(s.lastView === "chat");
+          }
           setAsked(true);
         })
         .catch(() => {
@@ -121,6 +136,7 @@ export function AtlasPanel({
             setShowHistory(false);
             setShowChat((v) => {
               if (v && brief) onBriefRead?.(brief.day);
+              void window.airlock?.atlasSetView?.(v ? "brief" : "chat");
               return !v;
             });
           }}

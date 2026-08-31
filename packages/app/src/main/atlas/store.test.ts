@@ -273,8 +273,10 @@ it("writes a user turn and its reply as ONE unit, or not at all", () => {
         d,
         [
           { role: "user", text: "what should I do?" },
-          // Forces the SECOND insert to fail, standing in for the abort.
-          { role: "atlas", text: undefined as unknown as string },
+          // Forces the SECOND insert to fail, standing in for the abort. It
+          // is `role` and not `text` because text is now bound as bytes, and
+          // TextEncoder turns undefined into "" rather than failing.
+          { role: undefined as unknown as "atlas", text: "the reply" },
         ],
         1000,
       ),
@@ -283,6 +285,46 @@ it("writes a user turn and its reply as ONE unit, or not at all", () => {
   ).toThrow(/bound to SQLite/);
   // Neither turn survives: no dangling user message.
   expect(readTurns(d, 10)).toEqual([]);
+});
+
+it("stores text as real TEXT even though it is bound as bytes", () => {
+  // Text is bound as a Uint8Array with CAST(? AS TEXT) to keep it out of Node's
+  // Utf8Value, whose capacity assertion aborted the process twice. The stored
+  // value must be indistinguishable from a plain string bind, so this pins the
+  // column TYPE as well as the round-trip.
+  const d = db();
+  appendTurns(d, [{ role: "atlas", text: "hello" }], 1000);
+  const row = d
+    .prepare("SELECT typeof(text) AS ty FROM turn LIMIT 1")
+    .get() as { ty: string };
+  expect(row.ty).toBe("text");
+});
+
+it("round-trips unicode, newlines and quotes through the byte bind", () => {
+  const tricky =
+    'unicode e\u0301n \u4e2d\u6587 \u00b7 emoji \ud83d\ude80\n"quotes"\ttabs';
+  const d = db();
+  appendTurns(d, [{ role: "atlas", text: tricky }], 1000);
+  expect(readTurns(d, 10)[0]?.text).toBe(tricky);
+});
+
+it("round-trips a large reply, the size class that actually crashed", () => {
+  const big = "x".repeat(60_000);
+  const d = db();
+  appendTurns(d, [{ role: "atlas", text: big }], 1000);
+  expect(readTurns(d, 10)[0]?.text).toBe(big);
+});
+
+it("round-trips text through briefs, facts and snapshots too", () => {
+  const d = db();
+  const odd = "caf\u00e9 \u2014 90% \u2713";
+  saveBrief(d, { day: "2026-08-30", text: odd, costUsd: 0, createdAt: 1 });
+  expect(readBrief(d, "2026-08-30")?.text).toBe(odd);
+  writeFacts(d, [aFact({ value: odd, verbatim: odd })]);
+  expect(readFacts(d)[0]?.value).toBe(odd);
+  expect(readFacts(d)[0]?.verbatim).toBe(odd);
+  saveSnapshot(d, "2026-08-30", 0, [snap("/p/caf\u00e9")]);
+  expect(readSnapshot(d, "2026-08-30")?.[0]?.root).toBe("/p/caf\u00e9");
 });
 
 it("commits both turns together on the happy path", () => {

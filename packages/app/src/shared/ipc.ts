@@ -590,6 +590,11 @@ export interface AppPrefs {
     // against the brief's own day; without it "unread" degenerates into "a
     // brief exists" and never clears.
     lastReadDay: string;
+    // Which half of the panel to open on. The panel is hosted by four surfaces
+    // across three windows, so this cannot be component state: closing a
+    // mid-conversation panel reopened it on the debrief, with the chat
+    // apparently gone.
+    lastView: "brief" | "chat";
   };
   // Dock status badge (macOS). OFF by default (opt-in): enabling installs
   // AirLock-labeled Claude Code hooks in ~/.claude/settings.json. App-global.
@@ -1266,7 +1271,9 @@ export interface AirlockApi {
     acknowledged: boolean;
     disclosure: string;
     mode: "api-key" | "auth-token" | "subscription";
+    lastView: "brief" | "chat";
   }>;
+  atlasSetView(view: "brief" | "chat"): Promise<void>;
   atlasConsent(): Promise<void>;
   onAtlasRefresh(cb: () => void): () => void;
   // Per-session usage ledger (persisted; most-recent across launches) for the

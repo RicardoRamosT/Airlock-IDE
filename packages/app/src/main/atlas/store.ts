@@ -87,6 +87,31 @@ export function openAtlasDb(file: string): DatabaseSync {
   return db;
 }
 
+// TEXT IS BOUND AS BYTES, NEVER AS A JS STRING.
+//
+// node:sqlite's BindValue constructs node::Utf8Value for every STRING bind, and
+// that constructor's capacity assertion (util.h:454, "(length + 1) <=
+// capacity()") calls abort(). It has now fired twice on this machine while
+// binding a model reply: once killing AirLock outright (crash report
+// AirLock-2026-08-30-163118) and once killing the database host after that was
+// isolated (AirLock Helper-2026-08-30-185123) -- identical stacks,
+// Run -> BindParams -> BindValue -> Utf8Value -> Assert. The value is not at
+// fault: the reply was 3 KB of well-formed UTF-8, and replaying that exact bind
+// 20000 times reproduces nothing. Node is simply mispredicting a UTF-8 length.
+//
+// A Uint8Array takes BindValue's BLOB branch instead, which never predicts a
+// UTF-8 length, and CAST(? AS TEXT) converts the bytes back using the database
+// encoding. Verified byte-identical to a string bind for ASCII, unicode,
+// newlines/quotes and a 60 KB value, with typeof() still "text" and
+// `WHERE col = ?` against a plain string still matching.
+//
+// Applied to the model- and user-controlled values, which is where it fires.
+// Short internal keys (day keys, roles, op names) still bind as strings.
+const TEXT_ENCODER = new TextEncoder();
+function bytes(s: string): Uint8Array {
+  return TEXT_ENCODER.encode(s);
+}
+
 export function readRegistry(db: DatabaseSync): AtlasProject[] {
   const rows = db
     .prepare(
@@ -144,8 +169,8 @@ export function saveSnapshot(
   roots: readonly RootSnapshot[],
 ): void {
   db.prepare(
-    "INSERT INTO snapshot (day, json) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
-  ).run(day, JSON.stringify({ sinceMs, roots }));
+    "INSERT INTO snapshot (day, json) VALUES (?, CAST(? AS TEXT)) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
+  ).run(day, bytes(JSON.stringify({ sinceMs, roots })));
 }
 
 // null means NO SNAPSHOT WAS EVER TAKEN for this day; [] means one was taken
@@ -204,9 +229,9 @@ export interface StoredBrief {
 
 export function saveBrief(db: DatabaseSync, brief: StoredBrief): void {
   db.prepare(
-    "INSERT INTO brief (day, text, costUsd, createdAt) VALUES (?, ?, ?, ?) " +
+    "INSERT INTO brief (day, text, costUsd, createdAt) VALUES (?, CAST(? AS TEXT), ?, ?) " +
       "ON CONFLICT(day) DO UPDATE SET text = excluded.text, costUsd = excluded.costUsd, createdAt = excluded.createdAt",
-  ).run(brief.day, brief.text, brief.costUsd, brief.createdAt);
+  ).run(brief.day, bytes(brief.text), brief.costUsd, brief.createdAt);
 }
 
 export function readBrief(db: DatabaseSync, day: string): StoredBrief | null {
@@ -260,15 +285,15 @@ export function writeFacts(
   try {
     db.prepare("DELETE FROM fact").run();
     const ins = db.prepare(
-      "INSERT INTO fact (id, project, kind, value, verbatim, saidAt, supersededAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO fact (id, project, kind, value, verbatim, saidAt, supersededAt) VALUES (?, ?, ?, CAST(? AS TEXT), CAST(? AS TEXT), ?, ?)",
     );
     for (const f of facts) {
       ins.run(
         f.id,
         f.project,
         f.kind,
-        f.value,
-        f.verbatim,
+        bytes(f.value),
+        bytes(f.verbatim),
         f.saidAt,
         f.supersededAt,
       );
@@ -310,9 +335,9 @@ export function appendTurns(
   db.exec("BEGIN");
   try {
     const ins = db.prepare(
-      "INSERT INTO turn (role, text, at, session) VALUES (?, ?, ?, ?)",
+      "INSERT INTO turn (role, text, at, session) VALUES (?, CAST(? AS TEXT), ?, ?)",
     );
-    for (const t of turns) ins.run(t.role, t.text, at, session);
+    for (const t of turns) ins.run(t.role, bytes(t.text), at, session);
     db.exec("COMMIT");
   } catch (err) {
     db.exec("ROLLBACK");

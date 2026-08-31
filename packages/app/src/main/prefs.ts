@@ -83,6 +83,7 @@ const DEFAULTS: AppPrefs = {
     width: 380,
     height: 460,
     lastReadDay: "",
+    lastView: "brief",
   },
   dockStatus: { enabled: true },
   runAppSkill: { enabled: true },
@@ -204,11 +205,15 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
   let width = 380;
   let height = 460;
   let lastReadDay = "";
+  // Opening on the debrief is the right FIRST-run default; after that the
+  // panel reopens wherever the user last was.
+  let lastView: "brief" | "chat" = "brief";
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     if (typeof r.enabled === "boolean") enabled = r.enabled;
     if (r.acknowledged === true) acknowledged = true;
     if (r.surface === "both" || r.surface === "app") surface = r.surface;
+    if (r.lastView === "chat" || r.lastView === "brief") lastView = r.lastView;
     if (
       typeof r.hour === "number" &&
       Number.isInteger(r.hour) &&
@@ -226,7 +231,16 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
     }
     if (typeof r.lastReadDay === "string") lastReadDay = r.lastReadDay;
   }
-  return { enabled, acknowledged, surface, hour, width, height, lastReadDay };
+  return {
+    enabled,
+    acknowledged,
+    surface,
+    hour,
+    width,
+    height,
+    lastReadDay,
+    lastView,
+  };
 }
 
 // dockStatus is app-global and ON by default (opt-out). Enabling reconciles the
