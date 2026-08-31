@@ -547,3 +547,18 @@ it("leaves settled turns alone when marking interrupted ones", () => {
   expect(markInterruptedTurns(d)).toBe(0);
   expect(readTurns(d, 10).every((t) => t.pending === "settled")).toBe(true);
 });
+
+it("stores an EMPTY string rather than failing the NOT NULL column", () => {
+  // A zero-length Uint8Array binds as NULL, not as an empty blob, so
+  // CAST(? AS TEXT) produced NULL and the insert threw. Reachable today: a
+  // reply that is only a facts block leaves empty prose, and a fact may carry
+  // an empty verbatim.
+  const d = db();
+  expect(() =>
+    appendTurns(d, [{ role: "atlas", text: "" }], 1000),
+  ).not.toThrow();
+  expect(readTurns(d, 10)[0]?.text).toBe("");
+
+  expect(() => writeFacts(d, [aFact({ verbatim: "" })])).not.toThrow();
+  expect(readFacts(d)[0]?.verbatim).toBe("");
+});

@@ -285,3 +285,60 @@ it("DISCARDS the question on a cancel, because it goes back to the composer", as
   // composer, so keeping it here too would show it in two places at once.
   expect(await d.db.readTurns(10)).toEqual([]);
 });
+
+it("records a concern Atlas raised in its reply", async () => {
+  const d = deps({
+    spawn: async () =>
+      reply(
+        `Found something.\n<<<ATLAS_CONCERNS\n[{"key":"elarqui-ipv6","project":"ElArqui","title":"apex answers on IPv6","detail":"Render is IPv4 only."}]\nATLAS_CONCERNS>>>`,
+      ),
+  });
+  expect(await sendMessage(d, "check ElArqui")).toBe("Found something.");
+  const [c] = await d.db.readConcerns();
+  expect(c).toMatchObject({
+    key: "elarqui-ipv6",
+    source: "atlas",
+    firstValue: null,
+    resolvedAt: null,
+  });
+});
+
+it("keeps the raw block out of what the user reads", async () => {
+  const d = deps({
+    spawn: async () =>
+      reply(
+        `Done.\n<<<ATLAS_CONCERNS\n[{"key":"k","title":"t"}]\nATLAS_CONCERNS>>>`,
+      ),
+  });
+  expect(await sendMessage(d, "hi")).toBe("Done.");
+});
+
+it("cannot close a concern measured from git", async () => {
+  // The boundary: a model saying "no-remote is fixed" would clear a real
+  // warning nothing had fixed. Only the detector can resolve that one.
+  const d = deps({
+    spawn: async () =>
+      reply(
+        `All good.\n<<<ATLAS_CONCERNS\n[{"key":"/p/airlock|no-remote","title":"fine now","resolved":true}]\nATLAS_CONCERNS>>>`,
+      ),
+  });
+  await d.db.writeConcerns([
+    {
+      key: "/p/airlock|no-remote",
+      source: "git",
+      root: "/p/airlock",
+      project: "airlock",
+      title: "no remote",
+      detail: "",
+      firstSeenAt: 1,
+      lastSeenAt: 2,
+      firstValue: 28,
+      lastValue: 44,
+      resolvedAt: null,
+    },
+  ]);
+  await sendMessage(d, "is airlock ok?");
+  const [c] = await d.db.readConcerns();
+  expect(c?.resolvedAt).toBeNull();
+  expect(c?.title).toBe("no remote"); // not reworded either
+});

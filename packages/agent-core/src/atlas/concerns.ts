@@ -266,6 +266,76 @@ export function reconcileConcerns(
   return out;
 }
 
+// A concern Atlas raised in a reply. It supplies its own key and is shown the
+// open ones each run so it can REUSE one rather than mint a duplicate.
+export interface IncomingConcern {
+  key: string;
+  project: string | null;
+  title: string;
+  detail: string;
+  resolved?: boolean;
+}
+
+// Fold concerns Atlas raised into the stored set.
+//
+// THE BOUNDARY THAT MATTERS: Atlas may only create or close concerns of its own
+// source. A git/deadline/blocker concern is derived from a signal, and letting a
+// model declare "no-remote is resolved" would clear a real warning that nothing
+// had fixed. The next refresh would re-raise it, but in the meantime the user
+// would have been told a danger had passed. So a key belonging to a measured
+// concern is ignored outright.
+export function mergeAtlasConcerns(
+  open: readonly Concern[],
+  incoming: readonly IncomingConcern[],
+  now: number,
+): Concern[] {
+  const out = open.map((c) => ({ ...c }));
+  const byKey = new Map(out.map((c) => [c.key, c] as const));
+
+  for (const inc of incoming) {
+    if (!inc.key || inc.key.trim().length === 0) continue;
+    const existing = byKey.get(inc.key);
+
+    if (existing) {
+      if (existing.source !== "atlas") continue; // measured: not Atlas's to touch
+      existing.title = inc.title;
+      existing.detail = inc.detail;
+      if (inc.resolved === true) {
+        existing.resolvedAt = now;
+      } else {
+        // Reopening restarts the age: "how long has this been true" means this
+        // time, matching reconcileConcerns.
+        if (existing.resolvedAt !== null) existing.firstSeenAt = now;
+        existing.resolvedAt = null;
+        existing.lastSeenAt = now;
+      }
+      continue;
+    }
+
+    // Nothing to close that does not exist.
+    if (inc.resolved === true) continue;
+
+    const fresh: Concern = {
+      key: inc.key,
+      source: "atlas",
+      root: null,
+      project: inc.project,
+      title: inc.title,
+      detail: inc.detail,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      // Never a trend: see IncomingConcern.
+      firstValue: null,
+      lastValue: null,
+      resolvedAt: null,
+    };
+    out.push(fresh);
+    byKey.set(fresh.key, fresh);
+  }
+
+  return out;
+}
+
 // Open concerns, worst clock first: a deadline outranks an ageing blocker,
 // which outranks a compounding number. Ties break on age.
 export function openConcerns(all: readonly Concern[]): Concern[] {

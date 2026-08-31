@@ -3,6 +3,7 @@ import type { RootSnapshot } from "./collect";
 import {
   type Concern,
   detectConcerns,
+  mergeAtlasConcerns,
   reconcileConcerns,
   renderStillOpen,
   UNPUSHED_THRESHOLD,
@@ -326,4 +327,120 @@ it("says how many it did not show rather than truncating silently", () => {
   );
   const out = renderStillOpen(many, NOW);
   expect(out).toContain("+4 more");
+});
+
+// --- Atlas-raised ----------------------------------------------------------
+
+it("adds a concern Atlas raised, with age but never a trend", () => {
+  // A model-raised concern cannot be re-measured: a rephrase tomorrow is a
+  // different string. Inventing a trend from two model utterances would be the
+  // confident-wrong-number this whole design exists to avoid.
+  const out = mergeAtlasConcerns(
+    [],
+    [
+      {
+        key: "elarqui-ipv6",
+        project: "ElArqui",
+        title: "apex still answers on IPv6",
+        detail: "Render is IPv4 only.",
+      },
+    ],
+    NOW,
+  );
+  expect(out[0]).toMatchObject({
+    key: "elarqui-ipv6",
+    source: "atlas",
+    root: null,
+    firstSeenAt: NOW,
+    firstValue: null,
+    lastValue: null,
+    resolvedAt: null,
+  });
+});
+
+it("reuses an existing key instead of duplicating, keeping the age", () => {
+  const was = open({ key: "elarqui-ipv6", source: "atlas", root: null });
+  const out = mergeAtlasConcerns(
+    [was],
+    [
+      {
+        key: "elarqui-ipv6",
+        project: "ElArqui",
+        title: "reworded",
+        detail: "d",
+      },
+    ],
+    NOW,
+  );
+  expect(out).toHaveLength(1);
+  expect(out[0]?.firstSeenAt).toBe(was.firstSeenAt); // the history survived
+  expect(out[0]?.title).toBe("reworded");
+});
+
+it("lets Atlas close a concern it raised", () => {
+  const was = open({ key: "elarqui-ipv6", source: "atlas", root: null });
+  const out = mergeAtlasConcerns(
+    [was],
+    [
+      {
+        key: "elarqui-ipv6",
+        project: null,
+        title: "t",
+        detail: "d",
+        resolved: true,
+      },
+    ],
+    NOW,
+  );
+  expect(out[0]?.resolvedAt).toBe(NOW);
+});
+
+it("REFUSES to let Atlas touch a measured concern", () => {
+  // The boundary that matters. git/deadline/blocker concerns are derived from
+  // signals, and a model claiming "no-remote is resolved" would clear a real
+  // warning that nothing had actually fixed -- it would simply be re-raised on
+  // the next refresh, but the user would have been told a danger had passed.
+  const measured = open(); // source: "git"
+  const out = mergeAtlasConcerns(
+    [measured],
+    [
+      {
+        key: measured.key,
+        project: "airlock",
+        title: "actually this is fine",
+        detail: "",
+        resolved: true,
+      },
+    ],
+    NOW,
+  );
+  expect(out).toHaveLength(1);
+  expect(out[0]).toEqual(measured); // untouched, byte for byte
+});
+
+it("ignores a resolve for a concern that does not exist", () => {
+  expect(
+    mergeAtlasConcerns(
+      [],
+      [{ key: "nope", project: null, title: "t", detail: "d", resolved: true }],
+      NOW,
+    ),
+  ).toEqual([]);
+});
+
+it("reopens an Atlas concern with a fresh age", () => {
+  const was = open({
+    key: "k",
+    source: "atlas",
+    root: null,
+    resolvedAt: NOW - DAY,
+    firstSeenAt: NOW - 40 * DAY,
+  });
+  const out = mergeAtlasConcerns(
+    [was],
+    [{ key: "k", project: null, title: "back", detail: "d" }],
+    NOW,
+  );
+  expect(out[0]?.resolvedAt).toBeNull();
+  expect(out[0]?.firstSeenAt).toBe(NOW);
 });

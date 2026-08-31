@@ -15,7 +15,9 @@ import {
   buildChatPrompt,
   type CollectDeps,
   MAX_HISTORY_TURNS,
+  mergeAtlasConcerns,
   mergeFacts,
+  openConcerns,
   parseComposerOutput,
   pickDailyQuestion,
   questionFor,
@@ -88,6 +90,7 @@ export async function sendMessage(
   const today = dayKey(now, deps.tzOffsetMinutes());
 
   const facts = await deps.db.readFacts();
+  const concerns = await deps.db.readConcerns();
   const stale = pickDailyQuestion(
     facts,
     now,
@@ -98,6 +101,11 @@ export async function sendMessage(
     history: await deps.db.readTurns(MAX_HISTORY_TURNS),
     facts,
     snaps: await portfolioFor(deps, today, now),
+    concerns: openConcerns(concerns).map((c) => ({
+      key: c.key,
+      title: c.title,
+      project: c.project,
+    })),
     question: stale ? questionFor(stale, now) : null,
     message,
   });
@@ -148,7 +156,7 @@ export async function sendMessage(
     return null;
   }
 
-  const { prose, facts: incoming } = splitReply(result.text);
+  const { prose, facts: incoming, concerns: raised } = splitReply(result.text);
 
   // THE ANSWER IS NOT LOST IF THE STORE FAILS.
   //
@@ -163,6 +171,11 @@ export async function sendMessage(
   // the answer and blaming the wrong component.
   try {
     await deps.db.completeTurn(seq, prose, now);
+    if (raised.length > 0) {
+      // Atlas may only create or close its OWN concerns; mergeAtlasConcerns
+      // ignores a key belonging to one measured from git or a deadline.
+      await deps.db.writeConcerns(mergeAtlasConcerns(concerns, raised, now));
+    }
     if (incoming.length > 0) {
       await deps.db.writeFacts(
         mergeFacts(facts, incoming, now, (n) => `${now}-${n}`),

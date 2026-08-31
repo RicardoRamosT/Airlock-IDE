@@ -8,7 +8,12 @@
 
 import type { RootSnapshot } from "./collect";
 import { type AtlasFact, liveFacts } from "./facts";
-import { FACTS_CLOSE, FACTS_OPEN } from "./reply";
+import {
+  CONCERNS_CLOSE,
+  CONCERNS_OPEN,
+  FACTS_CLOSE,
+  FACTS_OPEN,
+} from "./reply";
 
 export const CHAT_MODEL = "claude-opus-5";
 
@@ -122,7 +127,20 @@ export const CHAT_SYSTEM_PROMPT =
   '"value":"<short canonical value>","verbatim":"<the user\'s own words>"}]\n' +
   `${FACTS_CLOSE}\n` +
   "Quote the user verbatim; do not paraphrase. Emit the block ONLY when the " +
-  "user actually told you something new. Most turns need no block at all.";
+  "user actually told you something new. Most turns need no block at all.\n\n" +
+  "You also keep a list of STANDING CONCERNS -- things with a consequence and " +
+  "a clock that nobody has decided about. When you find one worth tracking (a " +
+  "domain expiring, a migration half-done, a risk that will bite later), raise " +
+  `it by ending your reply with:\n${CONCERNS_OPEN}\n` +
+  '[{"key":"<stable-slug>","project":"<name or null>","title":"<one line>",' +
+  '"detail":"<what you found>","resolved":false}]\n' +
+  `${CONCERNS_CLOSE}\n` +
+  "REUSE the key of an existing concern shown below rather than inventing a " +
+  "new one -- a new key starts a new history and the age resets to zero. Set " +
+  "resolved:true when you have confirmed one is genuinely fixed. You can only " +
+  "raise or close YOUR OWN concerns; the ones measured from git and from the " +
+  "user's deadlines are not yours to close. Raise a concern rarely: it is for " +
+  "something that will still matter next week.";
 
 export interface Turn {
   role: "user" | "atlas";
@@ -166,6 +184,9 @@ export function buildChatPrompt(input: {
   snaps: readonly RootSnapshot[];
   question: string | null;
   message: string;
+  // Open standing concerns, so Atlas can REUSE a key instead of minting a
+  // duplicate that would restart the age at zero.
+  concerns?: readonly { key: string; title: string; project: string | null }[];
 }): string {
   const parts: string[] = ["PORTFOLIO:", portfolio(input.snaps), ""];
 
@@ -177,6 +198,15 @@ export function buildChatPrompt(input: {
       parts.push(
         `- ${who} ${f.kind}: ${f.value} -- they said: "${f.verbatim}"`,
       );
+    }
+    parts.push("");
+  }
+
+  const openC = input.concerns ?? [];
+  if (openC.length > 0) {
+    parts.push("STANDING CONCERNS YOU ARE ALREADY TRACKING:");
+    for (const c of openC) {
+      parts.push(`- ${c.key}: ${c.project ? `${c.project} - ` : ""}${c.title}`);
     }
     parts.push("");
   }

@@ -46,6 +46,8 @@ export {
   type ConcernSource,
   type DetectedConcern,
   detectConcerns,
+  type IncomingConcern,
+  mergeAtlasConcerns,
   openConcerns,
   reconcileConcerns,
   renderStillOpen,

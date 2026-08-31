@@ -128,8 +128,15 @@ export function openAtlasDb(file: string): DatabaseSync {
 // Applied to the model- and user-controlled values, which is where it fires.
 // Short internal keys (day keys, roles, op names) still bind as strings.
 const TEXT_ENCODER = new TextEncoder();
-function bytes(s: string): Uint8Array {
-  return TEXT_ENCODER.encode(s);
+function bytes(s: string): Uint8Array | string {
+  // AN EMPTY STRING BINDS AS A PLAIN STRING, not as bytes. A zero-length
+  // Uint8Array binds as NULL rather than as an empty blob, so CAST(? AS TEXT)
+  // yields NULL and every NOT NULL column here rejects it -- reachable today
+  // via a reply that is only a facts block (prose is then "") or a fact with an
+  // empty verbatim. The byte path exists to keep a string out of Node's
+  // Utf8Value length prediction, and an empty string has no length to
+  // mispredict, so binding it directly is safe.
+  return s.length === 0 ? "" : TEXT_ENCODER.encode(s);
 }
 
 export function readRegistry(db: DatabaseSync): AtlasProject[] {
