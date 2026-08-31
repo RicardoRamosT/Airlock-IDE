@@ -243,9 +243,24 @@ export function AtlasChat({
             </p>
           ) : (
             turns.map((t) => (
-              <div key={t.key} className={`atlas-turn atlas-turn-${t.role}`}>
-                {/* Atlas writes markdown; the user's text is shown as typed. */}
-                {t.role === "atlas" ? renderBrief(t.text) : t.text}
+              <div key={t.key}>
+                <div className={`atlas-turn atlas-turn-${t.role}`}>
+                  {/* Atlas writes markdown; the user's text is shown as typed. */}
+                  {t.role === "atlas" ? renderBrief(t.text) : t.text}
+                </div>
+                {/* A question's answer state, which only the STORE knows after a
+                    reopen -- `busy` belongs to the renderer that asked, and that
+                    renderer is gone. Without this the message came back with no
+                    sign anything was happening. */}
+                {t.pending === "pending" ? (
+                  <div className="atlas-chat-note">
+                    Atlas is working on this...
+                  </div>
+                ) : t.pending === "unanswered" ? (
+                  <div className="atlas-chat-note">
+                    This was never answered - Atlas was interrupted.
+                  </div>
+                ) : null}
               </div>
             ))
           )}

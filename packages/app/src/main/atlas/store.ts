@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS turn (
   role    TEXT NOT NULL,
   text    TEXT NOT NULL,
   at      INTEGER NOT NULL,
-  session INTEGER NOT NULL DEFAULT 0
+  session INTEGER NOT NULL DEFAULT 0,
+  pending INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS kv (
   k TEXT PRIMARY KEY,
@@ -64,6 +65,11 @@ const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
     table: "turn",
     column: "session",
     ddl: "ALTER TABLE turn ADD COLUMN session INTEGER NOT NULL DEFAULT 0",
+  },
+  {
+    table: "turn",
+    column: "pending",
+    ddl: "ALTER TABLE turn ADD COLUMN pending INTEGER NOT NULL DEFAULT 0",
   },
 ];
 
@@ -345,6 +351,105 @@ export function appendTurns(
   }
 }
 
+// A user turn's answer state. The original design wrote BOTH turns only after
+// the model returned, on the reasoning that "a half-written turn -- a user
+// message with no reply -- would poison the history". That was right about the
+// risk and wrong about the remedy: a bare user turn is only ambiguous because
+// it cannot SAY it is still in flight.
+//
+// The cost of deferring was that an in-flight message existed nowhere but the
+// panel's React state. Closing the panel destroyed it; reopening read the
+// database and found nothing; it reappeared minutes later when the run
+// finished. Reported by the user as "if I talk it is not saved until claude
+// responds".
+export const TURN_SETTLED = 0; // answered, or an ordinary historical turn
+export const TURN_PENDING = 1; // asked, reply in flight
+export const TURN_UNANSWERED = 2; // the reply is never coming
+
+export type TurnState = "settled" | "pending" | "unanswered";
+
+function turnState(v: number): TurnState {
+  if (v === TURN_PENDING) return "pending";
+  if (v === TURN_UNANSWERED) return "unanswered";
+  return "settled";
+}
+
+// Write the user's message NOW, before the model is even spawned, and return
+// its seq so the reply can complete it.
+export function beginTurn(db: DatabaseSync, text: string, at: number): number {
+  db.prepare(
+    "INSERT INTO turn (role, text, at, session, pending) VALUES ('user', CAST(? AS TEXT), ?, ?, ?)",
+  ).run(bytes(text), at, readChatSince(db), TURN_PENDING);
+  const row = db.prepare("SELECT last_insert_rowid() AS seq").get() as {
+    seq: number;
+  };
+  return row.seq;
+}
+
+// The reply landed: append it and settle the question, in ONE transaction so a
+// crash between them cannot leave a reply with no question or the reverse.
+export function completeTurn(
+  db: DatabaseSync,
+  seq: number,
+  reply: string,
+  at: number,
+): void {
+  const session = readChatSince(db);
+  db.exec("BEGIN");
+  try {
+    db.prepare(
+      "INSERT INTO turn (role, text, at, session, pending) VALUES ('atlas', CAST(? AS TEXT), ?, ?, ?)",
+    ).run(bytes(reply), at, session, TURN_SETTLED);
+    db.prepare("UPDATE turn SET pending = ? WHERE seq = ?").run(
+      TURN_SETTLED,
+      seq,
+    );
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+// The run failed. The question was real and stays visible; only its state
+// changes, so the panel stops showing a working indicator for it.
+export function abandonTurn(db: DatabaseSync, seq: number): void {
+  db.prepare("UPDATE turn SET pending = ? WHERE seq = ?").run(
+    TURN_UNANSWERED,
+    seq,
+  );
+}
+
+// The user RETRACTED the question (Escape). Unlike a failure, this one is
+// removed: the renderer hands the message back to the input box, so keeping it
+// in the log too would show the same sentence in two places and make a
+// deliberate retraction look like a lost turn. Nothing was answered and nothing
+// is being hidden -- the text is in the composer, where the user put it.
+export function discardTurn(db: DatabaseSync, seq: number): void {
+  db.prepare("DELETE FROM turn WHERE seq = ? AND pending = ?").run(
+    seq,
+    TURN_PENDING,
+  );
+}
+
+// Called once when the store opens. A turn still PENDING was left that way by a
+// process that no longer exists, so nothing will ever complete it -- without
+// this it would show a working indicator forever.
+export function markInterruptedTurns(db: DatabaseSync): number {
+  const before = (
+    db
+      .prepare("SELECT COUNT(*) AS n FROM turn WHERE pending = ?")
+      .get(TURN_PENDING) as { n: number }
+  ).n;
+  if (before > 0) {
+    db.prepare("UPDATE turn SET pending = ? WHERE pending = ?").run(
+      TURN_UNANSWERED,
+      TURN_PENDING,
+    );
+  }
+  return before;
+}
+
 // The most recent `limit` turns, returned OLDEST FIRST so the caller can append
 // them to a prompt in reading order. Turns older than the conversation
 // boundary are excluded -- that is what "New chat" means.
@@ -352,12 +457,18 @@ export function readTurns(db: DatabaseSync, limit: number): Turn[] {
   const session = readChatSince(db);
   const rows = db
     .prepare(
-      "SELECT role, text FROM turn WHERE session = ? ORDER BY seq DESC LIMIT ?",
+      "SELECT role, text, pending FROM turn WHERE session = ? ORDER BY seq DESC LIMIT ?",
     )
-    .all(session, limit) as { role: string; text: string }[];
-  return rows
-    .reverse()
-    .map((r) => ({ role: r.role as Turn["role"], text: r.text }));
+    .all(session, limit) as {
+    role: string;
+    text: string;
+    pending: number;
+  }[];
+  return rows.reverse().map((r) => ({
+    role: r.role as Turn["role"],
+    text: r.text,
+    pending: turnState(r.pending),
+  }));
 }
 
 export function readAskedDay(db: DatabaseSync): string | null {

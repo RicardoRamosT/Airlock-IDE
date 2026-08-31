@@ -61,8 +61,8 @@ it("records both the user turn and the reply", async () => {
   const d = deps();
   await sendMessage(d, "what should I do?");
   expect(await d.db.readTurns(10)).toEqual([
-    { role: "user", text: "what should I do?" },
-    { role: "atlas", text: "Work on Revaltone-CRM first." },
+    { role: "user", text: "what should I do?", pending: "settled" },
+    { role: "atlas", text: "Work on Revaltone-CRM first.", pending: "settled" },
   ]);
 });
 
@@ -127,14 +127,18 @@ it("does not mark the asked day when nothing was stale", async () => {
   expect(await d.db.readAskedDay()).toBeNull();
 });
 
-it("returns null and records nothing when the CLI fails", async () => {
+it("KEEPS the question, marked unanswered, when the CLI fails", async () => {
   const d = deps({
     spawn: async () => {
       throw new Error("claude: not found");
     },
   });
   expect(await sendMessage(d, "hi")).toBeNull();
-  expect(await d.db.readTurns(10)).toEqual([]);
+  // The question was real and stays visible -- it used to vanish, which is how
+  // an in-flight message disappeared when the panel was closed.
+  expect(await d.db.readTurns(10)).toEqual([
+    { role: "user", text: "hi", pending: "unanswered" },
+  ]);
 });
 
 it("collects the portfolio itself when today has no snapshot yet", async () => {
@@ -263,7 +267,7 @@ it("passes the abort signal to the CLI, so Escape can kill it", async () => {
   expect(spawn.mock.calls[0]?.[2]).toBe(ac.signal);
 });
 
-it("treats a cancelled run as a STOP, not a failure", async () => {
+it("DISCARDS the question on a cancel, because it goes back to the composer", async () => {
   // Escape is the user getting what they asked for. Logging it as an error
   // would bury the real ones.
   const ac = new AbortController();
@@ -277,6 +281,7 @@ it("treats a cancelled run as a STOP, not a failure", async () => {
     signal: ac.signal,
   };
   expect(await sendMessage(d, "never mind")).toBeNull();
-  // Nothing was written: no half turn, no stray fact.
+  // Discarded, not kept as unanswered: the renderer puts the text back in the
+  // composer, so keeping it here too would show it in two places at once.
   expect(await d.db.readTurns(10)).toEqual([]);
 });

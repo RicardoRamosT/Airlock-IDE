@@ -12,7 +12,11 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import {
+  abandonTurn,
   appendTurns,
+  beginTurn,
+  completeTurn,
+  discardTurn,
   lastBriefDay,
   listSessions,
   readAskedDay,
@@ -32,6 +36,10 @@ import {
 } from "./store";
 
 export const DB_OPS = {
+  beginTurn,
+  completeTurn,
+  abandonTurn,
+  discardTurn,
   readRegistry,
   writeRegistry,
   saveSnapshot,

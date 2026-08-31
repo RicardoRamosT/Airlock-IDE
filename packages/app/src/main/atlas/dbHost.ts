@@ -18,7 +18,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import { DB_OPS, type DbRequest, type DbResponse } from "./dbOps";
-import { openAtlasDb } from "./store";
+import { markInterruptedTurns, openAtlasDb } from "./store";
 
 // The database file arrives as argv, so the host never has to know about
 // Electron's app paths -- it is a plain Node program.
@@ -31,6 +31,10 @@ function handle(): DatabaseSync {
       throw new Error("atlas db host started with no database path");
     }
     db = openAtlasDb(file);
+    // Any turn still PENDING was left that way by a process that no longer
+    // exists -- this host is starting, so nothing can complete it. Convert
+    // once, here, rather than leaving a working indicator up forever.
+    markInterruptedTurns(db);
   }
   return db;
 }

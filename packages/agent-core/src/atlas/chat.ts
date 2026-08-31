@@ -127,6 +127,9 @@ export const CHAT_SYSTEM_PROMPT =
 export interface Turn {
   role: "user" | "atlas";
   text: string;
+  // Only meaningful on a user turn: whether its reply ever arrived. Optional so
+  // every existing constructor of a Turn stays valid.
+  pending?: "settled" | "pending" | "unanswered";
 }
 
 function portfolio(snaps: readonly RootSnapshot[]): string {

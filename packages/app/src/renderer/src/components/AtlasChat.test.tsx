@@ -12,7 +12,14 @@ import { AtlasChat } from "./AtlasChat";
 afterEach(cleanup);
 
 const api = {
-  atlasTurns: vi.fn(async () => [] as { role: string; text: string }[]),
+  atlasTurns: vi.fn(
+    async () =>
+      [] as {
+        role: string;
+        text: string;
+        pending?: "settled" | "pending" | "unanswered";
+      }[],
+  ),
   atlasSend: vi.fn(async (_m: string) => "Work on Revaltone-CRM first."),
   atlasCancel: vi.fn(async () => {}),
 };
@@ -189,4 +196,30 @@ it("recovers when a retry succeeds", async () => {
   screen.getByRole("button", { name: /try again/i }).click();
   await waitFor(() => expect(screen.getByText("still here")).toBeTruthy());
   expect(screen.queryByText(/could not load/i)).toBeNull();
+});
+
+it("shows an in-flight question with a working indicator after a reopen", async () => {
+  // The reported bug: close the panel mid-run and the message was gone, because
+  // it lived only in this component's state. It is persisted now, so a reopen
+  // must show it AND show that Atlas is still on it -- `busy` died with the old
+  // renderer, so the indicator has to come from the turn itself.
+  api.atlasTurns.mockResolvedValueOnce([
+    { role: "user", text: "what should I do?", pending: "pending" },
+  ]);
+  render(<AtlasChat />);
+  await waitFor(() =>
+    expect(screen.getByText("what should I do?")).toBeTruthy(),
+  );
+  expect(screen.getByText(/working on this/i)).toBeTruthy();
+});
+
+it("says a question was never answered when the run was interrupted", async () => {
+  // Quitting AirLock mid-reply used to lose the message entirely. Now it says
+  // what happened, which is both true and better than silence.
+  api.atlasTurns.mockResolvedValueOnce([
+    { role: "user", text: "big question", pending: "unanswered" },
+  ]);
+  render(<AtlasChat />);
+  await waitFor(() => expect(screen.getByText("big question")).toBeTruthy());
+  expect(screen.getByText(/never answered|interrupted/i)).toBeTruthy();
 });

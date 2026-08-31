@@ -8,11 +8,15 @@ import type {
 } from "@airlock/agent-core";
 import { expect, it } from "vitest";
 import {
+  abandonTurn,
   appendTurn,
   appendTurns,
+  beginTurn,
+  completeTurn,
   dayKey,
   lastBriefDay,
   listSessions,
+  markInterruptedTurns,
   openAtlasDb,
   readAskedDay,
   readBrief,
@@ -485,4 +489,61 @@ it("MIGRATES a database whose turn table predates the session column", () => {
   // And a third open must not try to add it twice.
   second.close();
   expect(() => openAtlasDb(file).close()).not.toThrow();
+});
+
+it("PERSISTS the user's message before the reply exists", () => {
+  // The bug: both turns were written only after the model returned, so an
+  // in-flight message lived solely as optimistic React state. Closing the panel
+  // destroyed it, reopening read the database and found nothing, and the
+  // message reappeared minutes later when the run finished. The user's own
+  // diagnosis: "if I talk it is not saved until claude responds".
+  const d = db();
+  beginTurn(d, "what should I do?", 1000);
+  const shown = readTurns(d, 10);
+  expect(shown.map((t) => t.text)).toEqual(["what should I do?"]);
+  expect(shown[0]?.pending).toBe("pending");
+});
+
+it("completes the pair atomically when the reply lands", () => {
+  const d = db();
+  const seq = beginTurn(d, "q", 1000);
+  completeTurn(d, seq, "a", 2000);
+  const shown = readTurns(d, 10);
+  expect(shown.map((t) => t.text)).toEqual(["q", "a"]);
+  expect(shown.every((t) => t.pending === "settled")).toBe(true);
+});
+
+it("marks a turn UNANSWERED rather than deleting it when the run fails", () => {
+  // The message was real and the user should still see they asked it.
+  const d = db();
+  const seq = beginTurn(d, "q", 1000);
+  abandonTurn(d, seq);
+  const shown = readTurns(d, 10);
+  expect(shown).toHaveLength(1);
+  expect(shown[0]?.pending).toBe("unanswered");
+});
+
+it("turns a turn left PENDING by a dead process into unanswered on open", () => {
+  // Nothing will ever complete it: the process that spawned the run is gone.
+  // Leaving it "pending" would show a working indicator forever.
+  const d = db();
+  beginTurn(d, "q", 1000);
+  expect(markInterruptedTurns(d)).toBe(1);
+  expect(readTurns(d, 10)[0]?.pending).toBe("unanswered");
+  // Idempotent: a second open has nothing left to convert.
+  expect(markInterruptedTurns(d)).toBe(0);
+});
+
+it("leaves settled turns alone when marking interrupted ones", () => {
+  const d = db();
+  appendTurns(
+    d,
+    [
+      { role: "user", text: "q" },
+      { role: "atlas", text: "a" },
+    ],
+    1000,
+  );
+  expect(markInterruptedTurns(d)).toBe(0);
+  expect(readTurns(d, 10).every((t) => t.pending === "settled")).toBe(true);
 });

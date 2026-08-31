@@ -102,6 +102,11 @@ export async function sendMessage(
     message,
   });
 
+  // Write the question NOW, before the model is spawned. Until this existed the
+  // message lived only as optimistic state in the panel, so closing it mid-run
+  // lost sight of it entirely until the reply landed minutes later.
+  const seq = await deps.db.beginTurn(message, now);
+
   let raw: string;
   try {
     raw = await deps.spawn(
@@ -110,8 +115,15 @@ export async function sendMessage(
       deps.signal,
     );
   } catch (e) {
-    // A user pressing Escape is not a failure and must not be logged as one.
-    if (deps.signal?.aborted) return null;
+    // A user pressing Escape is not a failure and must not be logged as one --
+    // and the renderer hands the message back to the composer, so the pending
+    // turn is DISCARDED rather than kept as unanswered. Keeping it would show
+    // the same sentence in the log and the input box at once.
+    if (deps.signal?.aborted) {
+      await deps.db.discardTurn(seq).catch(() => {});
+      return null;
+    }
+    await deps.db.abandonTurn(seq).catch(() => {});
     // Do not swallow it: a silent "Could not reach Claude" is unactionable.
     emitEvent({
       level: "error",
@@ -125,6 +137,7 @@ export async function sendMessage(
 
   const result = parseComposerOutput(raw);
   if (result === null) {
+    await deps.db.abandonTurn(seq).catch(() => {});
     emitEvent({
       level: "error",
       category: "atlas",
@@ -149,13 +162,7 @@ export async function sendMessage(
   // will not see it, which is a real but far smaller loss than throwing away
   // the answer and blaming the wrong component.
   try {
-    await deps.db.appendTurns(
-      [
-        { role: "user", text: message },
-        { role: "atlas", text: prose },
-      ],
-      now,
-    );
+    await deps.db.completeTurn(seq, prose, now);
     if (incoming.length > 0) {
       await deps.db.writeFacts(
         mergeFacts(facts, incoming, now, (n) => `${now}-${n}`),
