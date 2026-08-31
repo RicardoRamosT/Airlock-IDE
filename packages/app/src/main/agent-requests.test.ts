@@ -214,19 +214,26 @@ describe("resolve", () => {
   });
 });
 
+// Lets the awaited askFirst settle so the approval card has been raised.
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
 describe("gatedTerminalInput", () => {
-  const deps = (written: string[]) => ({
+  // askFirst: true throughout this block -- these cases are ABOUT the card, so
+  // they opt into it explicitly rather than depending on the shipped default.
+  const deps = (written: string[], askFirst = true) => ({
     write: (_id: string, data: string) => {
       written.push(data);
       return true;
     },
     label: () => "proj",
+    askFirst: async () => askFirst,
   });
 
   it("errors when the pty id is unknown", async () => {
     const r = await gatedTerminalInput("gone", "hi", {
       write: () => true,
       label: () => null,
+      askFirst: async () => true,
     });
     expect(r).toEqual({ error: "No such terminal (it may have closed)." });
   });
@@ -235,6 +242,9 @@ describe("gatedTerminalInput", () => {
     const written: string[] = [];
     const d = deps(written);
     const first = gatedTerminalInput("p1", "hi\n", d);
+    // askFirst is awaited before the card is raised, so it does not exist yet
+    // in this synchronous turn.
+    await tick();
     const id = listRequestsForWindow(1)[0]?.requestId ?? "";
     resolveTerminalGrant(id, true);
     expect(await first).toEqual({ sent: true });
@@ -248,9 +258,29 @@ describe("gatedTerminalInput", () => {
   it("reports denied without writing", async () => {
     const written: string[] = [];
     const p = gatedTerminalInput("p9", "rm -rf /\n", deps(written));
+    await tick();
     const id = listRequestsForWindow(1)[0]?.requestId ?? "";
     resolveTerminalGrant(id, false);
     expect(await p).toEqual({ denied: true });
     expect(written).toEqual([]);
+  });
+
+  it("writes with NO card when approval is off, the shipped default", async () => {
+    const written: string[] = [];
+    const r = await gatedTerminalInput("p2", "ls\n", deps(written, false));
+    expect(r).toEqual({ sent: true });
+    expect(written).toEqual(["ls\n"]);
+    expect(listRequestsForWindow(1)).toHaveLength(0);
+  });
+
+  it("still errors on a dead pty when approval is off", async () => {
+    // The label lookup has to run either way: a send to a pty that is gone is
+    // an error, not a silent success that reports { sent: true }.
+    const r = await gatedTerminalInput("gone", "hi", {
+      write: () => true,
+      label: () => null,
+      askFirst: async () => false,
+    });
+    expect(r).toEqual({ error: "No such terminal (it may have closed)." });
   });
 });

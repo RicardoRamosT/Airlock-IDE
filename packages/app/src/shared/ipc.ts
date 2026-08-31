@@ -632,6 +632,11 @@ export interface AppPrefs {
   // no other terminal in the tab holds the auto-Claude claim; blank tabs are
   // always exempt. App-global.
   claudeAutoStart: ClaudeAutoStart;
+  // Raise the one-time approval card before the agent types into a terminal.
+  // OFF by default: the agent already runs commands in the project, so a gate
+  // on typing into a terminal it is already driving is friction for most
+  // people. On for anyone who wants to see and approve each first send.
+  askBeforeTerminalInput: boolean;
   // Start auto-started Claude sessions with --dangerously-skip-permissions.
   // OFF by default. Requested by a user who always runs with the flag and had
   // to /exit the auto-started session and retype the command every time.

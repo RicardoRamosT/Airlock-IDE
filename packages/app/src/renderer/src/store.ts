@@ -387,6 +387,9 @@ export interface AppState {
   // --dangerously-skip-permissions. Off by default.
   claudeSkipPermissions: boolean;
   setClaudeSkipPermissions: (v: boolean) => void;
+  // Opt-in approval card before the agent types into a terminal. Off by default.
+  askBeforeTerminalInput: boolean;
+  setAskBeforeTerminalInput: (v: boolean) => void;
   defaultTerminal: string; // app-global (persisted): "airlock" or a terminal id
   layoutHydrated: boolean; // default false
   restoreSession: boolean; // hydrated from prefs (Task 6); gates persist + restore
@@ -895,6 +898,7 @@ export const useApp = create<AppState>((set) => ({
   extensionsPrefs: {},
   claudeAutoStart: "first",
   claudeSkipPermissions: false,
+  askBeforeTerminalInput: false,
   defaultTerminal: "airlock",
   layoutHydrated: false,
   restoreSession: true,
@@ -1827,6 +1831,8 @@ export const useApp = create<AppState>((set) => ({
   setClaudeAutoStart: (claudeAutoStart) => set({ claudeAutoStart }),
   setClaudeSkipPermissions: (claudeSkipPermissions) =>
     set({ claudeSkipPermissions }),
+  setAskBeforeTerminalInput: (askBeforeTerminalInput) =>
+    set({ askBeforeTerminalInput }),
   setDefaultTerminal: (defaultTerminal) => set({ defaultTerminal }),
   // Launch the external terminal for tabId's project root (no-op if no root).
   openExternalTerminal: (tabId) => {

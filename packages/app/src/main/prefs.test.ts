@@ -36,6 +36,7 @@ describe("app prefs", () => {
       editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
+      askBeforeTerminalInput: false,
       recentFolders: [],
       agentPolicy: {
         network: "allow",
@@ -123,6 +124,7 @@ describe("app prefs", () => {
       editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
+      askBeforeTerminalInput: false,
       recentFolders: [],
       agentPolicy: {
         network: "allow",
@@ -264,6 +266,7 @@ describe("app prefs", () => {
       editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
+      askBeforeTerminalInput: false,
       recentFolders: [],
       agentPolicy: {
         network: "allow",
@@ -319,6 +322,7 @@ describe("app prefs", () => {
       editorFontSize: 13,
       openProjectsAsTabs: true,
       showRunningProcessNotice: true,
+      askBeforeTerminalInput: false,
       recentFolders: [],
       agentPolicy: {
         network: "allow",

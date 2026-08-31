@@ -259,13 +259,17 @@ function bootstrap(): void {
       requestSecretFromUser,
       getTerminalTail,
       listTerminals,
-      // send_terminal_input: gate the agent's bytes behind a one-time per-
-      // terminal user grant (modal), then write them to the live pty. Value-free
-      // outcome only -- never terminal output or a secret value.
+      // send_terminal_input: write the agent's bytes to the live pty. Value-free
+      // outcome only -- never terminal output or a secret value. The one-time
+      // per-terminal approval card is OPT-IN (askBeforeTerminalInput, off by
+      // default); read per send rather than cached so toggling the setting takes
+      // effect on the next send instead of the next launch.
       sendTerminalInput: (id, data) =>
         gatedTerminalInput(id, data, {
           write: writeTerminalInput,
           label: terminalLabel,
+          askFirst: async () =>
+            (await loadPrefs(prefsFile)).askBeforeTerminalInput,
         }),
       // CI for the focused project's current branch -- what activity_status
       // narrowed to when the Activity panel was deleted. Mirrors the git:ciRun

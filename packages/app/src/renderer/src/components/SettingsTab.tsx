@@ -80,6 +80,8 @@ export function SettingsTab() {
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
   const claudeSkipPermissions = useApp((s) => s.claudeSkipPermissions);
   const setClaudeSkipPermissions = useApp((s) => s.setClaudeSkipPermissions);
+  const askBeforeTerminalInput = useApp((s) => s.askBeforeTerminalInput);
+  const setAskBeforeTerminalInput = useApp((s) => s.setAskBeforeTerminalInput);
   const restoreSession = useApp((s) => s.restoreSession);
   const setRestoreSession = useApp((s) => s.setRestoreSession);
   const defaultTerminal = useApp((s) => s.defaultTerminal);
@@ -371,6 +373,34 @@ export function SettingsTab() {
                 running a command. Note that AirLock also injects this project's
                 vaulted secrets into every terminal, so a session started this
                 way has no prompts AND real credentials in its environment.
+              </p>
+              {/* Sits with the permission controls above rather than under
+                  Agent: it is about how much Claude asks, not about the
+                  command policy. */}
+              <div className="settings-row">
+                <label htmlFor="ask-before-terminal-input">
+                  Ask before Claude types into a terminal
+                </label>
+                <input
+                  id="ask-before-terminal-input"
+                  type="checkbox"
+                  checked={askBeforeTerminalInput}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    useApp.getState().setLayoutHydrated(true);
+                    setAskBeforeTerminalInput(v);
+                    void window.airlock.prefsSet({ askBeforeTerminalInput: v });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Off by default: Claude already runs commands in your project, so
+                a prompt before it types into a terminal it is already driving
+                is friction rather than protection. Turn it on to approve the
+                FIRST send to each terminal; approve once and later sends to
+                that terminal go through for the rest of the session. An
+                approval you never answer times out after five minutes and the
+                input is not sent.
               </p>
               {/* Lives here, not under Layout: it is about a terminal session
                   surviving a folder change, not about window arrangement. */}

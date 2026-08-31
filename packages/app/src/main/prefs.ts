@@ -72,6 +72,7 @@ const DEFAULTS: AppPrefs = {
   editorFontSize: 13,
   openProjectsAsTabs: true,
   showRunningProcessNotice: true,
+  askBeforeTerminalInput: false,
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
@@ -371,6 +372,7 @@ function sanitize(raw: unknown): AppPrefs {
       typeof r.showRunningProcessNotice === "boolean"
         ? r.showRunningProcessNotice
         : DEFAULTS.showRunningProcessNotice,
+    askBeforeTerminalInput: r.askBeforeTerminalInput === true,
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),

@@ -355,6 +355,11 @@ export function registerAgentRequestIpc(): void {
 export interface TerminalInputDeps {
   write: (ptyId: string, data: string) => boolean; // false if no live session
   label: (ptyId: string) => string | null; // null if the pty id is unknown
+  // Whether to raise the one-time approval card at all. OFF by default: the
+  // agent already runs commands in these terminals, so prompting before it
+  // types into one is a gate most users do not want. A pref, not a constant,
+  // because it IS the gate for anyone who does want it.
+  askFirst: () => Promise<boolean>;
 }
 
 // A short, single-line echo of the bytes to be typed, for the card. These are
@@ -375,9 +380,13 @@ export async function gatedTerminalInput(
   const label = deps.label(ptyId);
   if (label === null)
     return { error: "No such terminal (it may have closed)." };
-  const g = await requestTerminalGrant(ptyId, label, previewInput(data));
-  if (g.timedOut) return { timedOut: true };
-  if (!g.granted) return { denied: true };
+  // The label lookup runs FIRST either way: a send to a dead pty is an error,
+  // not a silent success, whether or not approval is being asked for.
+  if (await deps.askFirst()) {
+    const g = await requestTerminalGrant(ptyId, label, previewInput(data));
+    if (g.timedOut) return { timedOut: true };
+    if (!g.granted) return { denied: true };
+  }
   if (!deps.write(ptyId, data))
     return { error: "Terminal is no longer running." };
   return { sent: true };
