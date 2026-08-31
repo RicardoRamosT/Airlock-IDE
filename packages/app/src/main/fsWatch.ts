@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import * as watcher from "@parcel/watcher";
 import { BrowserWindow, type WebContents } from "electron";
 
@@ -73,6 +75,42 @@ const IGNORE_GLOBS: string[] = [
   "**/.airlock-order.json.tmp",
 ];
 
+// The dirs worth spending a KERNEL exclusion slot on, heaviest first.
+// FSEventStreamSetExclusionPaths accepts at most 8 paths, so this is a budget,
+// not a list -- the JS-side globs still cover everything else.
+const EXCLUDE_FIRST = [
+  "node_modules",
+  ".git",
+  ".claude",
+  "dist",
+  "out",
+  "build",
+  ".next",
+  "venv",
+] as const;
+const MAX_EXCLUSION_PATHS = 8;
+
+// Absolute ignore paths for @parcel/watcher, which forwards absolute PATHS to
+// the native backend's exclusion list but filters GLOBS in JS. With globs
+// alone the kernel exclusion list is empty, so FSEvents kept delivering every
+// node_modules write for us to throw away -- the event volume this module
+// complains about was partly self-inflicted.
+//
+// Only dirs that actually exist: a non-existent exclusion path wastes one of
+// the eight slots. Pure + injectable so the budget logic is testable.
+export function exclusionPaths(
+  root: string,
+  exists: (p: string) => boolean = existsSync,
+): string[] {
+  const out: string[] = [];
+  for (const dir of EXCLUDE_FIRST) {
+    if (out.length >= MAX_EXCLUSION_PATHS) break;
+    const abs = path.join(root, dir);
+    if (exists(abs)) out.push(abs);
+  }
+  return out;
+}
+
 // Exported for unit tests. True if any path segment is an ignored dep/build/
 // cache dir, or the committed .airlock-order.json (+ its atomic-write temp, so
 // writing it never fires a debounced fs:changed re-list).
@@ -141,7 +179,9 @@ export function syncWindowWatchers(wc: WebContents, roots: string[]): void {
           // the ignore globs, and it collapses a burst into one debounced send.
           if (events.some((ev) => !isIgnored(ev.path))) fire();
         },
-        { ignore: IGNORE_GLOBS },
+        // Absolute paths FIRST so they reach the kernel exclusion list; the
+        // globs behind them still catch nested and later-created dirs.
+        { ignore: [...exclusionPaths(root), ...IGNORE_GLOBS] },
       )
       .catch((err) => {
         console.error(`[fsWatch] subscribe failed for ${root}:`, err);

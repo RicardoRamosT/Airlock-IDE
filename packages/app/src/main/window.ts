@@ -171,6 +171,13 @@ export function windowForRoot(root: string): BrowserWindow | null {
 }
 
 // New Window opens a fresh, no-folder airlock window.
+// Kill every pty a window owns. lazy-require: ipc imports from this module, so
+// a top-level import would be a cycle -- the same reason agent-requests is
+// required lazily in the close handler.
+function reapWindowPtys(windowId: number): void {
+  (require("./ipc") as typeof import("./ipc")).killSessionsForWindow(windowId);
+}
+
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1400,
@@ -208,6 +215,21 @@ export function createWindow(): BrowserWindow {
 
   appWindowIds.add(win.id);
 
+  // A RELOAD and a renderer CRASH both destroy the renderer without firing
+  // "closed", and the replacement cannot re-adopt the old sessions:
+  // takePendingAdopt reads a zustand store the teardown just wiped, so the new
+  // renderer spawns fresh ptys and the previous ones are orphaned -- still
+  // running, invisible, and still reachable by the agent. Reap on both, exactly
+  // as the close path does.
+  win.webContents.on("render-process-gone", () => reapWindowPtys(win.id));
+  win.webContents.on("did-start-navigation", (details) => {
+    // The first load fires this too, harmlessly: a brand-new window owns no
+    // sessions yet. Same-document navigation keeps the renderer, so it must
+    // not reap.
+    if (!details.isMainFrame || details.isSameDocument) return;
+    reapWindowPtys(win.id);
+  });
+
   win.on("focus", () => {
     lastFocusedId = win.id;
     focusOrder = [win.id, ...focusOrder.filter((id) => id !== win.id)];
@@ -225,12 +247,8 @@ export function createWindow(): BrowserWindow {
       require("./agent-requests") as typeof import("./agent-requests")
     ).rerouteRequestsFromClosedWindow(win.id);
     // Reap the shells this window owned. ptyKill lives in a React effect
-    // cleanup, which Electron does NOT run when it destroys a WebContents, so
-    // without this every terminal in a closed window kept running -- a `claude`
-    // mid-turn still editing files, still reachable by the agent, invisible to
-    // the user until Cmd-Q. lazy-require: ipc imports from this module, so a
-    // top-level import would be a cycle (same reason as agent-requests above).
-    (require("./ipc") as typeof import("./ipc")).killSessionsForWindow(win.id);
+    // cleanup, which Electron does NOT run when it destroys a WebContents.
+    reapWindowPtys(win.id);
     // A tab drag started here must not leave the cursor poll running, and an
     // unclaimed torn-off tab must not be kept alive for a dead window.
     stopTabDragFor(win.id);

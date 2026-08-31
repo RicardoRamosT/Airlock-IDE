@@ -82,17 +82,29 @@ export function listeningPorts(): Array<{ pid: number; port: number }> {
   }
 }
 
-export function subtreePids(rootPid: number): Set<number> {
+// One `ps` snapshot, so callers that need several subtrees can take it ONCE.
+// Returns null when the probe fails, which callers treat as "no table".
+export function processTable(): string | null {
   try {
     const r = spawnSync("ps", ["-Ao", "pid=,ppid="], {
       encoding: "utf8",
       timeout: PROBE_TIMEOUT_MS,
       killSignal: "SIGKILL",
     });
-    if (r.error !== undefined || typeof r.stdout !== "string")
-      return new Set([rootPid]);
-    return parsePsSubtree(r.stdout, rootPid);
+    if (r.error !== undefined || typeof r.stdout !== "string") return null;
+    return r.stdout;
   } catch {
-    return new Set([rootPid]);
+    return null;
   }
+}
+
+// `table` lets a caller reuse one snapshot across several terminals. Without it
+// this ran a full `ps` PER TERMINAL -- the Host poll paid for ten of them at
+// once, synchronously, on the main thread.
+export function subtreePids(
+  rootPid: number,
+  table?: string | null,
+): Set<number> {
+  const out = table === undefined ? processTable() : table;
+  return out === null ? new Set([rootPid]) : parsePsSubtree(out, rootPid);
 }

@@ -16,7 +16,7 @@ import {
   writeProjectConfig,
 } from "@airlock/agent-core";
 import type { DevServerStartResult } from "../../shared/ipc";
-import { listeningPorts, subtreePids } from "./discover";
+import { listeningPorts, processTable, subtreePids } from "./discover";
 
 // Dependency seam: injected for production, overridable in tests so the
 // container is unit-testable without pulling electron into vitest.
@@ -92,9 +92,26 @@ function apply(root: string, event: DevServerEvent): DevServerState {
 // Port discovery
 
 const DISCOVER_MS = 1000;
+// Once the port is known, the tick is only doing LIVENESS (has the server
+// died?), which does not need a second's resolution. Backing off cuts the
+// steady-state main-thread cost of a running dev server by 5x -- and this is
+// synchronous lsof + ps on the event loop, so the cost is stalls, not CPU.
+const DISCOVER_SETTLED_MS = 5000;
 
 function startPortDiscovery(root: string, ptyId: string): void {
   stopPortDiscovery(root);
+  // Per-root, and inside the closure on purpose. A module-level slot would be
+  // owned by whichever root started LAST, so with two dev servers running the
+  // first would never slow down.
+  let settled = false;
+  const slowDown = (): void => {
+    if (settled) return;
+    settled = true;
+    const t = pollTimers.get(root);
+    if (t === undefined) return; // discovery already stopped
+    clearInterval(t);
+    pollTimers.set(root, setInterval(tick, DISCOVER_SETTLED_MS));
+  };
   const tick = () => {
     // Lazy-require keeps electron out of the module top-level (same pattern as
     // writeTerminalInput above) so vitest can import this file without mocking.
@@ -106,6 +123,7 @@ function startPortDiscovery(root: string, ptyId: string): void {
     const state = get(root);
     if (port !== null && state.port !== port) {
       apply(root, { type: "port", port });
+      slowDown(); // found it: drop to the liveness cadence
     } else if (state.status === "running" && port === null && pids.size <= 1) {
       // Liveness: once running, a vanished server child (no descendants beyond
       // the shell) AND no port -> dev server stopped (Ctrl-C/crash) while the
@@ -147,9 +165,11 @@ export function detectUnmanaged(
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { terminalPidsForRoot } = require("../ipc") as typeof import("../ipc"); // lazy-require: keep electron/ipc out of the module top-level (same pattern as the poll's ptyPid)
   const managed = rootToPty.get(root) ?? null;
+  // ONE ps for all of them: this used to run a full process scan per terminal.
+  const table = processTable();
   const terminals = terminalPidsForRoot(root)
     .filter((t) => t.ptyId !== managed)
-    .map((t) => ({ ptyId: t.ptyId, pids: subtreePids(t.pid) }));
+    .map((t) => ({ ptyId: t.ptyId, pids: subtreePids(t.pid, table) }));
   return pickUnmanagedServer(terminals, listeningPorts());
 }
 
@@ -164,8 +184,9 @@ export async function hostUnverifiedServers(root: string): Promise<number[]> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { terminalPidsForRoot } = require("../ipc") as typeof import("../ipc");
   const excluded = new Set<number>();
+  const table = processTable(); // one scan, not one per terminal
   for (const t of terminalPidsForRoot(root))
-    for (const p of subtreePids(t.pid)) excluded.add(p);
+    for (const p of subtreePids(t.pid, table)) excluded.add(p);
   const managedPort = get(root).port;
   return pickUnverifiedPorts(
     listeningPorts(),

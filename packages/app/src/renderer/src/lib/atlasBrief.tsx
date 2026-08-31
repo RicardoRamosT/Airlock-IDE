@@ -30,6 +30,19 @@ export function renderBrief(text: string): ReactNode[] {
     const t = line.trim();
     if (t.length === 0) return <div key={k} className="atlas-brief-gap" />;
 
+    // An ATX heading. Atlas writes these unprompted -- "## Two loose ends" --
+    // and without this they rendered as literal hashes in the chat, which is
+    // exactly the raw-markdown leak this module exists to prevent. Any level
+    // renders the same: this is a chat bubble, not a document outline.
+    const atx = /^#{1,6}\s+(.+?)\s*#*$/.exec(t);
+    if (atx) {
+      return (
+        <p key={k} className="atlas-brief-heading">
+          {inline(atx[1] ?? "", k)}
+        </p>
+      );
+    }
+
     // A heading: a whole line that is nothing but bold.
     const heading = /^\*\*(.+)\*\*$/.exec(t);
     if (heading) {
