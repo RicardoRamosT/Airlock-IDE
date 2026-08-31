@@ -94,3 +94,12 @@ it("does not yank the user back on a REFRESH after they switched view", async ()
   // Still in the chat.
   expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy();
 });
+
+it("says the debrief could not be LOADED, not that none exists", async () => {
+  // "No debrief yet. Atlas writes one each morning" is a confident, specific,
+  // wrong claim to make when the read simply failed.
+  api.atlasBrief.mockRejectedValueOnce(new Error("atlas db host exited (5)"));
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/could not load/i)).toBeTruthy());
+  expect(screen.queryByText(/no debrief yet/i)).toBeNull();
+});

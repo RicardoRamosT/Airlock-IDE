@@ -36,6 +36,11 @@ export function AtlasChat({
   const [elapsed, setElapsed] = useState(0);
   const [failed, setFailed] = useState(false);
   const [stopped, setStopped] = useState(false);
+  // The FOURTH state. "Asked and empty" and "asked and it failed" are different
+  // answers, and rendering the empty-conversation prompt for a failed read told
+  // the user their history had been deleted.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const endRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLTextAreaElement | null>(null);
   // Identifies the in-flight send. Escape bumps it, which is what tells the
@@ -55,15 +60,25 @@ export function AtlasChat({
       setFailed(false);
       setAsked(false);
     }
+    if (retryNonce > 0) {
+      // Show the loading state again rather than leaving "could not load" up
+      // while the refetch is in flight. This also makes retryNonce a real
+      // dependency of the effect instead of a bare re-run marker.
+      setLoadFailed(false);
+      setAsked(false);
+    }
     window.airlock
       ?.atlasTurns()
       .then((t) => {
         if (!alive) return;
         setTurns(t.map(withKey));
+        setLoadFailed(false);
         setAsked(true);
       })
       .catch(() => {
-        if (alive) setAsked(true);
+        if (!alive) return;
+        setLoadFailed(true);
+        setAsked(true);
       });
     return () => {
       alive = false;
@@ -71,7 +86,7 @@ export function AtlasChat({
     // Re-runs when the host switches conversation (New chat, or resuming one
     // from History). Without this dep the prop was accepted and ignored, so
     // both buttons appeared to do nothing at all.
-  }, [reloadKey]);
+  }, [reloadKey, retryNonce]);
 
   // Follow the conversation: when a turn arrives, or the reply finishes, put
   // the newest message in view. Keyed on the turn count and the busy flag
@@ -208,7 +223,21 @@ export function AtlasChat({
       {titlebar}
       <div className="atlas-chat">
         <div className="atlas-chat-log">
-          {turns.length === 0 ? (
+          {loadFailed ? (
+            <div className="atlas-chat-empty">
+              <p>
+                Could not load this conversation. Nothing has been deleted -- it
+                is still stored.
+              </p>
+              <button
+                type="button"
+                className="atlas-btn"
+                onClick={() => setRetryNonce((n) => n + 1)}
+              >
+                Try again
+              </button>
+            </div>
+          ) : turns.length === 0 ? (
             <p className="atlas-chat-empty">
               Ask about your projects, or tell me something I should remember.
             </p>

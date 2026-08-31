@@ -167,3 +167,26 @@ it("does nothing on Escape when nothing is in flight", async () => {
   expect(api.atlasCancel).not.toHaveBeenCalled();
   expect(box().value).toBe("keep me");
 });
+
+it("says the transcript could not be LOADED, not that there is none", async () => {
+  // Three states were not enough. A rejected read left turns=[] and rendered
+  // the empty-conversation prompt -- so a database hiccup told the user their
+  // conversation had been deleted. The db is its own process now and is allowed
+  // to die, so this is a state the user will actually meet.
+  api.atlasTurns.mockRejectedValueOnce(new Error("atlas db host exited (5)"));
+  render(<AtlasChat />);
+  await waitFor(() => expect(screen.getByText(/could not load/i)).toBeTruthy());
+  expect(screen.queryByText(/ask about your projects/i)).toBeNull();
+  // And it says the history is still there, because it is.
+  expect(screen.getByText(/nothing has been deleted/i)).toBeTruthy();
+});
+
+it("recovers when a retry succeeds", async () => {
+  api.atlasTurns.mockRejectedValueOnce(new Error("boom"));
+  render(<AtlasChat />);
+  await waitFor(() => expect(screen.getByText(/could not load/i)).toBeTruthy());
+  api.atlasTurns.mockResolvedValueOnce([{ role: "user", text: "still here" }]);
+  screen.getByRole("button", { name: /try again/i }).click();
+  await waitFor(() => expect(screen.getByText("still here")).toBeTruthy());
+  expect(screen.queryByText(/could not load/i)).toBeNull();
+});

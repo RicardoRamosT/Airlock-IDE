@@ -34,6 +34,9 @@ export function AtlasPanel({
   // debrief with the chat apparently gone.
   const [showChat, setShowChat] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // Fourth state: "asked and there is none" is not "asked and it failed".
+  // Saying "No debrief yet" when the read failed is a confident wrong answer.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [history, setHistory] = useState<
     { session: number; startedAt: number; turns: number; preview: string }[]
@@ -60,10 +63,13 @@ export function AtlasPanel({
             seeded.current = true;
             setShowChat(s.lastView === "chat");
           }
+          setLoadFailed(false);
           setAsked(true);
         })
         .catch(() => {
-          if (alive) setAsked(true);
+          if (!alive) return;
+          setLoadFailed(true);
+          setAsked(true);
         });
     };
     load();
@@ -183,6 +189,10 @@ export function AtlasPanel({
         <div className="atlas-pane-chat">
           <AtlasChat chrome={false} reloadKey={reloadKey} />
         </div>
+      ) : loadFailed ? (
+        <p className="atlas-note">
+          Could not load the debrief. Nothing has been lost -- try reopening.
+        </p>
       ) : brief === null ? (
         <p className="atlas-note">
           No debrief yet. Atlas writes one each morning, once you are back at
