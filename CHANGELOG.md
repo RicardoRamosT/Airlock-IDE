@@ -4,7 +4,50 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 
 ## Unreleased
 
+## 0.7.0 - 2026-08-31
+
 ### Fixed
+- **AirLock could close unexpectedly while Atlas was working.** A fault deep
+  inside Node's SQLite binding could terminate the whole application — taking
+  every window, terminal and running Claude session with it. Atlas's storage now
+  runs in its own separate process, so the same fault costs a single failed
+  write and nothing else. The bug is upstream, not AirLock's, but the damage it
+  could do was.
+- **The editor could overwrite a file that changed on disk.** If Claude, a
+  formatter or `git switch` rewrote a file you had open, typing a single
+  character would put your older copy over the top of it about a second later —
+  and report it as saved. The editor now notices and offers to reload or keep
+  your version, and it will not overwrite without you choosing. Saves are also
+  written atomically, so a crash mid-save can no longer leave a source file
+  empty, and the last second of typing is no longer lost when you close a window
+  or quit.
+- **Closing a window left its terminals running.** Every shell in a closed
+  window kept going invisibly — including a Claude session mid-task, still
+  editing files — until you quit AirLock entirely. Reloading a window did the
+  same. They are now shut down with the window that owned them; tearing a tab
+  out into a new window still moves its terminals across alive.
+- **AirLock could replace your Claude Code settings file.** If
+  `~/.claude/settings.json` could not be read — a stray comma is enough —
+  AirLock treated it as absent and wrote its own settings over the top, losing
+  everything else in it. The same flaw could reset your AirLock preferences or a
+  project's configuration, and a declined keychain prompt could overwrite a
+  project's entire secret vault with a single entry. In every case AirLock now
+  refuses to write rather than assuming an unreadable file is an empty one.
+- **The app could freeze for as long as something else took.** Several
+  background checks ran without any time limit, so a slow network drive, an
+  unhealthy Docker daemon or a keychain prompt could stall every window at once
+  — a beachball that looked exactly like a crash. Everything AirLock runs now
+  has a deadline, and the keychain no longer blocks the interface while macOS
+  asks for permission.
+- **File watching could stop silently.** After certain errors AirLock quietly
+  stopped noticing changes on disk in a project, so the file tree drifted out of
+  date with no indication anything was wrong.
+- **Atlas no longer loses a message while it is thinking.** Your question is
+  saved the moment you send it, so closing the panel mid-answer and reopening
+  shows it still in progress instead of appearing to have vanished. If Atlas is
+  interrupted — by a quit, or a failure — it says so rather than silently
+  dropping what you asked.
+
 - **Projects stop fighting over your GitHub account.** Pinning a project to an
   account is supposed to make every push from that repo use it, whatever account
   is active elsewhere. But a pin could go stale without ever saying so: anything
@@ -21,6 +64,13 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
   push running in the background from a different project could go out as the
   wrong user.
 
+- **The dock badge dropped to grey while Claude was still working.** AirLock only
+  learned a session was busy when you submitted a prompt or when a tool call
+  *finished* — but a turn can resume without any prompt being submitted (feeding
+  `!` shell output back into the conversation does exactly that), and if its
+  first move is a long tool call, nothing said "busy" until that call returned.
+  Four straight minutes of real work read as idle. Tool *starts* now count too.
+
 ### Changed
 - **Claude's prompts no longer take over the screen.** When Claude needs a secret
   or asks to type into a terminal, it now appears as a small card in the
@@ -32,6 +82,41 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
   simply refused while the first dialog was open.
 
 ### Added
+- **Atlas: an administrator for everything you are working on.** A new sidebar
+  section — and optionally a macOS menu bar item — that keeps track of your
+  whole portfolio rather than one project. It writes you a debrief when you sit
+  down (once a day, at an hour you choose), and you can talk to it all day about
+  anything: it can read your projects, search the web, run commands, and open
+  tabs or terminals in AirLock for you. It remembers what you tell it —
+  deadlines, priorities, what is parked — in your own words, and asks about
+  something it has believed for a long time rather than letting it quietly rot.
+  Atlas uses your Claude subscription, and it tells you what it will cost before
+  it spends anything.
+- **Atlas keeps a list of what it is still worried about.** Things with a
+  consequence and a clock — a deadline coming up, a blocker that has not moved,
+  commits that exist only on your machine — now appear under "Still open" with
+  how long they have been true and whether the number is growing (`28 → 44`).
+  Previously the debrief was written from scratch each day, so the same warning
+  arrived word for word every morning with no sense that it had been ignored for
+  a week. Each one has a "Look into this" button that hands it to the chat for a
+  proper investigation. Telling Atlas a project is parked quiets its concerns
+  without forgetting them.
+- **Atlas can capture the screen.** Ask it to take a screenshot or record, and
+  it will — useful before a meeting or when you want a record of something.
+  macOS asks for Screen Recording permission the first time. Because AirLock is
+  not yet notarised, that permission is tied to each build's signature, so you
+  may be asked to grant it again after an update.
+- **Copy any message in the Atlas chat.** Hover a message and click Copy. You
+  get the original markdown, so it pastes correctly into anywhere that renders
+  it.
+- **Start auto-started Claude sessions without permission prompts.** A new
+  option under Settings → Claude runs auto-started sessions with
+  `--dangerously-skip-permissions`, for people who always work that way and were
+  having to exit and retype the command in every new terminal. Off by default.
+  Note that AirLock also injects the project's vaulted secrets into every
+  terminal, so a session started this way has both no prompts and real
+  credentials available to it.
+
 - **Claude can now fetch a credential it is not allowed to see.** When a value
   lives in neither `.env` nor the vault but a CLI can produce it, Claude runs the
   fetch and the output goes straight into a session-only store — never into the
@@ -40,14 +125,6 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
   see what went wrong and try again.) Previously the only route was pasting the
   credential into the terminal yourself, which put it in the transcript in
   plaintext.
-
-### Fixed
-- **The dock badge dropped to grey while Claude was still working.** AirLock only
-  learned a session was busy when you submitted a prompt or when a tool call
-  *finished* — but a turn can resume without any prompt being submitted (feeding
-  `!` shell output back into the conversation does exactly that), and if its
-  first move is a long tool call, nothing said "busy" until that call returned.
-  Four straight minutes of real work read as idle. Tool *starts* now count too.
 
 ## 0.6.2
 
