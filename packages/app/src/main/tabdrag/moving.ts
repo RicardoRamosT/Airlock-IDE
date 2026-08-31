@@ -22,6 +22,12 @@ export class MovingSessions {
     return this.ids.delete(id);
   }
 
+  // Non-consuming check. The window-close reaper must ask "is this session
+  // being moved?" without spending the ticket the adopting window still needs.
+  has(id: string): boolean {
+    return this.ids.has(id);
+  }
+
   forget(id: string): void {
     this.ids.delete(id);
   }

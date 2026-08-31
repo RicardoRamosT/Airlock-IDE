@@ -224,6 +224,13 @@ export function createWindow(): BrowserWindow {
     (
       require("./agent-requests") as typeof import("./agent-requests")
     ).rerouteRequestsFromClosedWindow(win.id);
+    // Reap the shells this window owned. ptyKill lives in a React effect
+    // cleanup, which Electron does NOT run when it destroys a WebContents, so
+    // without this every terminal in a closed window kept running -- a `claude`
+    // mid-turn still editing files, still reachable by the agent, invisible to
+    // the user until Cmd-Q. lazy-require: ipc imports from this module, so a
+    // top-level import would be a cycle (same reason as agent-requests above).
+    (require("./ipc") as typeof import("./ipc")).killSessionsForWindow(win.id);
     // A tab drag started here must not leave the cursor poll running, and an
     // unclaimed torn-off tab must not be kept alive for a dead window.
     stopTabDragFor(win.id);

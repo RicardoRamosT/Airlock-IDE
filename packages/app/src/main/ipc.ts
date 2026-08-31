@@ -2903,6 +2903,29 @@ export function registerIpc(
   });
 }
 
+// Every pty owned by a window that has gone away.
+//
+// ptyKill lived ONLY in a React effect cleanup (TerminalPane), and Electron does
+// not run effect cleanups when it destroys a WebContents -- so closing a window
+// left every shell it owned running. A `claude` mid-turn kept working, kept
+// editing files and kept driving MCP with no window showing it, until Cmd-Q.
+// Worse, the orphans stayed agent-reachable: the terminal tools scope by ROOT,
+// not by a live window, so the agent could still list and type into a shell the
+// user could neither see nor close -- with that project's injected secrets in
+// its environment.
+//
+// Sessions marked as MOVING are exempt: tab tear-off deliberately keeps a live
+// pty alive across windows, and reaping here would kill the very session the
+// move exists to preserve. The check is non-consuming -- the adopting window
+// still needs its single-use ticket.
+export function killSessionsForWindow(windowId: number): void {
+  for (const [id, owner] of [...sessionWindows]) {
+    if (owner !== windowId) continue;
+    if (movingSessions.has(id)) continue;
+    sessions.get(id)?.kill();
+  }
+}
+
 export function killAllSessions(): void {
   for (const s of sessions.values()) s.kill();
   sessions.clear();
