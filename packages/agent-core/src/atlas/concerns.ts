@@ -69,6 +69,30 @@ export interface DetectedConcern {
   value: number | null;
 }
 
+// THE KEY FORMAT FOR A VANISHED FOLDER, in one place.
+//
+// A missing folder is the one concern the user can act on by deleting rather
+// than by fixing: the project is gone, so the row and its concern have to be
+// forgettable. That action needs the ROOT, and the only place it is recorded
+// is inside the key -- so the builder and the reader live together here rather
+// than having a surface re-derive the format and drift from it.
+const MISSING_SUFFIX = "|missing";
+
+export function missingConcernKey(root: string): string {
+  return `${root}${MISSING_SUFFIX}`;
+}
+
+// The root a concern says has vanished, or null when it says nothing of the
+// kind. Deliberately strict: the source must be `git` (a MEASURED observation),
+// so a model-raised concern cannot wear the key and hand the user a button that
+// deletes a live project's registry row.
+export function missingRootOf(
+  c: Pick<Concern, "key" | "source" | "root">,
+): string | null {
+  if (c.source !== "git" || c.root === null) return null;
+  return c.key === missingConcernKey(c.root) ? c.root : null;
+}
+
 function name(root: string): string {
   const parts = root.split("/").filter((p) => p.length > 0);
   return parts.length > 0 ? (parts[parts.length - 1] as string) : root;
@@ -114,7 +138,7 @@ export function detectConcerns(
 
     if (s.missing) {
       out.push({
-        key: `${s.root}|missing`,
+        key: missingConcernKey(s.root),
         source: "git",
         root: s.root,
         project,

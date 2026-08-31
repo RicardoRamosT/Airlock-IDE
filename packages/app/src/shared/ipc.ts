@@ -576,6 +576,11 @@ export interface AtlasConcern {
   detail: string;
   ageDays: number;
   trend: { from: number; to: number } | null;
+  // The root to forget, for the ONE concern the user resolves by deleting
+  // rather than by fixing: a folder that is gone from disk. Null for every
+  // other concern, so the surface renders the action from data instead of
+  // re-deriving the key format. Computed main-side, like ageDays and trend.
+  missingRoot: string | null;
 }
 
 export interface AppPrefs {
@@ -1322,6 +1327,10 @@ export interface AirlockApi {
   // Open standing concerns, read LIVE rather than baked into the debrief text:
   // re-reading an old brief must not show concerns that have since resolved.
   atlasConcerns(): Promise<AtlasConcern[]>;
+  // Drop a project from Atlas's registry, delete its concerns, and remove it
+  // from recentFolders -- all three, because any one alone is re-seeded by the
+  // others on the next refresh. Resolves true when a registry row went.
+  atlasForget(root: string): Promise<boolean>;
   // Where the popover's arrow must sit to aim at the tray icon. Sent on every
   // open: the window is clamped to the display, so the offset is not constant.
   onAtlasPointer(cb: (x: number) => void): () => void;

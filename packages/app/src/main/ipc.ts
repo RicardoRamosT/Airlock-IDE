@@ -52,6 +52,7 @@ import {
   listTables,
   MAX_HISTORY_TURNS,
   mergeSectionExtensions,
+  missingRootOf,
   move,
   neonConnectionUri,
   openConcerns,
@@ -260,6 +261,7 @@ import {
   RECENT_CAP,
   sanitizeAgentPolicy,
   savePrefs,
+  withoutRecentFolder,
 } from "./prefs";
 import { getQuota, getUsageLedger } from "./quota/watch";
 import { reconcileQuotaMeter } from "./quota/wire";
@@ -1201,7 +1203,60 @@ export function registerIpc(
         c.firstValue !== c.lastValue
           ? { from: c.firstValue, to: c.lastValue }
           : null,
+      // Derived here, from the stored concern, so no surface has to know the
+      // key format -- and so a model-raised concern cannot mint one.
+      missingRoot: missingRootOf(c),
     }));
+  });
+
+  // FORGET A PROJECT. The counterpart to a registry that never evicts.
+  //
+  // Three stores hold the root and each re-seeds the others, which is why
+  // clearing one by hand has never held: the atlas.db `project` row is
+  // re-created from recentFolders by seedRoots, and its `<root>|missing`
+  // concern is re-detected from the row. So all three go here, in one call --
+  // registry row, concerns, recents entry.
+  //
+  // Recents is written through savePrefs deliberately: the running app holds
+  // prefs in memory and would overwrite an external edit to prefs.json.
+  ipcMain.handle("atlas:forget", async (_e, root: unknown) => {
+    if (typeof root !== "string" || root.trim().length === 0) return false;
+    const gone = await atlasDb().forgetProject(root);
+
+    const prev = await loadPrefs(prefsFile);
+    const recents = withoutRecentFolder(prev.recentFolders, root);
+    if (recents.length !== prev.recentFolders.length) {
+      await savePrefs(prefsFile, { recentFolders: recents });
+      // Open Recent and the dock menu read the same list; leaving them stale
+      // would keep offering a folder that is gone.
+      applyAppMenu(
+        prefsFile,
+        prev.sectionVisibility,
+        recents,
+        prev.openProjectsAsTabs,
+      );
+      applyDockMenu(prev.openProjectsAsTabs, recents);
+    }
+
+    emitEvent({
+      level: "info",
+      category: "atlas",
+      op: "atlas.forget",
+      outcome: "ok",
+      // `gone` says whether a registry row was actually there: a second click,
+      // or a root only recents knew about, is a no-op worth telling apart.
+      detail: { root, removed: gone },
+    });
+
+    // Every surface reloads from the table, including the panel that asked --
+    // getAllWindows, not appWindows: the Atlas popover and chat window are not
+    // app windows.
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+        w.webContents.send("atlas:refresh");
+      }
+    }
+    return gone;
   });
   // Escape in the chat. Kills the CLI rather than only abandoning the wait.
   ipcMain.handle("atlas:cancel", () => {

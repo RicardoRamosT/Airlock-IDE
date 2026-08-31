@@ -4,6 +4,7 @@ import {
   type Concern,
   detectConcerns,
   mergeAtlasConcerns,
+  missingRootOf,
   reconcileConcerns,
   renderStillOpen,
   UNPUSHED_THRESHOLD,
@@ -443,4 +444,35 @@ it("reopens an Atlas concern with a fresh age", () => {
   );
   expect(out[0]?.resolvedAt).toBeNull();
   expect(out[0]?.firstSeenAt).toBe(NOW);
+});
+
+it("names the root a missing-folder concern was derived from", () => {
+  // The forget action needs the ROOT, and only for the one concern a vanished
+  // folder produces. Reading it off the key in the renderer would put the key
+  // format in two places.
+  const [d] = detectConcerns([snap("/p/gone", { missing: true })], [], NOW);
+  expect(missingRootOf(open({ key: d?.key as string, root: "/p/gone" }))).toBe(
+    "/p/gone",
+  );
+});
+
+it("names no root for a concern that is not a missing folder", () => {
+  const [d] = detectConcerns(
+    [snap("/p/a", { upstream: null, ahead: 44 })],
+    [],
+    NOW,
+  );
+  expect(
+    missingRootOf(open({ key: d?.key as string, root: "/p/a" })),
+  ).toBeNull();
+});
+
+it("cannot be spoofed by an Atlas-raised concern wearing the key", () => {
+  // Atlas writes its own keys and must not be able to offer the user a button
+  // that deletes a registry row.
+  expect(
+    missingRootOf(
+      open({ key: "/p/live|missing", root: "/p/live", source: "atlas" }),
+    ),
+  ).toBeNull();
 });

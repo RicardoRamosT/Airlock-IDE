@@ -214,45 +214,73 @@ export function AtlasPanel({
           {concerns !== null && concerns.length > 0 ? (
             <div className="atlas-standing">
               <p className="atlas-standing-head">Still open</p>
-              {concerns.map((c) => (
-                <div key={c.key} className="atlas-standing-row">
-                  <span className="atlas-standing-what">
-                    {c.project ? <strong>{c.project}</strong> : null} {c.title}
-                  </span>
-                  <span className="atlas-standing-age">
-                    {c.ageDays === 0
-                      ? "today"
-                      : c.ageDays === 1
-                        ? "1 day"
-                        : `${c.ageDays} days`}
-                    {c.trend
-                      ? ` \u00b7 ${c.trend.from} \u2192 ${c.trend.to}`
-                      : ""}
-                  </span>
-                  <button
-                    type="button"
-                    className="atlas-btn"
-                    onClick={() => {
-                      // The whole point of tier 2: a concern is an entry point,
-                      // not prose. Carry enough that Atlas knows which one.
-                      setAsk((prev) => ({
-                        n: (prev?.n ?? 0) + 1,
-                        text: `Look into this standing concern: ${
-                          c.project ? `${c.project} - ` : ""
-                        }${c.title}. ${c.detail} It has been open ${c.ageDays} day(s)${
-                          c.trend
-                            ? `, and has gone from ${c.trend.from} to ${c.trend.to}`
-                            : ""
-                        }. Investigate it properly and tell me what to do.`,
-                      }));
-                      setShowChat(true);
-                      void window.airlock?.atlasSetView?.("chat");
-                    }}
-                  >
-                    Look into this
-                  </button>
-                </div>
-              ))}
+              {concerns.map((c) => {
+                // Read ONCE, into a local: TypeScript's narrowing of a
+                // PROPERTY does not survive into the click handler's closure.
+                const gone = c.missingRoot;
+                return (
+                  <div key={c.key} className="atlas-standing-row">
+                    <span className="atlas-standing-what">
+                      {c.project ? <strong>{c.project}</strong> : null}{" "}
+                      {c.title}
+                    </span>
+                    <span className="atlas-standing-age">
+                      {c.ageDays === 0
+                        ? "today"
+                        : c.ageDays === 1
+                          ? "1 day"
+                          : `${c.ageDays} days`}
+                      {c.trend
+                        ? ` \u00b7 ${c.trend.from} \u2192 ${c.trend.to}`
+                        : ""}
+                    </span>
+                    {gone !== null ? (
+                      // A vanished folder is the one concern that cannot be
+                      // fixed, only forgotten -- and it REPLACES "Look into
+                      // this", because there is nothing on disk left to look
+                      // into and the registry never evicts on its own, so
+                      // without this the row is re-raised on every refresh
+                      // forever.
+                      <button
+                        type="button"
+                        className="atlas-btn"
+                        title="Drop it from Atlas's portfolio and from Open Recent. Nothing on disk is touched."
+                        onClick={() => {
+                          // No optimistic removal: main broadcasts atlas:refresh
+                          // once the three writes land, and every surface --
+                          // including this one -- reloads from the table.
+                          void window.airlock?.atlasForget?.(gone);
+                        }}
+                      >
+                        Forget this project
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="atlas-btn"
+                        onClick={() => {
+                          // The whole point of tier 2: a concern is an entry point,
+                          // not prose. Carry enough that Atlas knows which one.
+                          setAsk((prev) => ({
+                            n: (prev?.n ?? 0) + 1,
+                            text: `Look into this standing concern: ${
+                              c.project ? `${c.project} - ` : ""
+                            }${c.title}. ${c.detail} It has been open ${c.ageDays} day(s)${
+                              c.trend
+                                ? `, and has gone from ${c.trend.from} to ${c.trend.to}`
+                                : ""
+                            }. Investigate it properly and tell me what to do.`,
+                          }));
+                          setShowChat(true);
+                          void window.airlock?.atlasSetView?.("chat");
+                        }}
+                      >
+                        Look into this
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </>

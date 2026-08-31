@@ -4,6 +4,7 @@ import path from "node:path";
 import type {
   AtlasFact,
   AtlasProject,
+  Concern,
   RootSnapshot,
 } from "@airlock/agent-core";
 import { expect, it } from "vitest";
@@ -14,12 +15,14 @@ import {
   beginTurn,
   completeTurn,
   dayKey,
+  forgetProject,
   lastBriefDay,
   listSessions,
   markInterruptedTurns,
   openAtlasDb,
   readAskedDay,
   readBrief,
+  readConcerns,
   readFacts,
   readRegistry,
   readSnapshot,
@@ -29,6 +32,7 @@ import {
   saveSnapshot,
   writeAskedDay,
   writeChatSince,
+  writeConcerns,
   writeFacts,
   writeRegistry,
 } from "./store";
@@ -561,4 +565,51 @@ it("stores an EMPTY string rather than failing the NOT NULL column", () => {
 
   expect(() => writeFacts(d, [aFact({ verbatim: "" })])).not.toThrow();
   expect(readFacts(d)[0]?.verbatim).toBe("");
+});
+
+// --- forgetting a project -------------------------------------------------
+
+const conc = (key: string, root: string | null): Concern => ({
+  key,
+  source: "git",
+  root,
+  project: root === null ? null : (root.split("/").pop() as string),
+  title: "folder is gone from disk",
+  detail: "",
+  firstSeenAt: 1000,
+  lastSeenAt: 2000,
+  firstValue: null,
+  lastValue: null,
+  resolvedAt: null,
+});
+
+it("forgets a project: its registry row AND its concerns go together", () => {
+  // Deleting only the row does not hold -- the next refresh re-detects the
+  // concern from the row it re-seeds. Both have to go in one operation.
+  const d = db();
+  writeRegistry(d, [proj("/p/gone"), proj("/p/keep")]);
+  writeConcerns(d, [
+    conc("/p/gone|missing", "/p/gone"),
+    conc("/p/gone|no-remote", "/p/gone"),
+    conc("/p/keep|no-remote", "/p/keep"),
+  ]);
+
+  expect(forgetProject(d, "/p/gone")).toBe(true);
+
+  expect(readRegistry(d).map((p) => p.root)).toEqual(["/p/keep"]);
+  expect(readConcerns(d).map((c) => c.key)).toEqual(["/p/keep|no-remote"]);
+});
+
+it("leaves a portfolio-wide concern alone", () => {
+  // A deadline or blocker has no root, so no root's removal may take it.
+  const d = db();
+  writeRegistry(d, [proj("/p/gone")]);
+  writeConcerns(d, [conc("Muros|deadline", null)]);
+  forgetProject(d, "/p/gone");
+  expect(readConcerns(d)).toHaveLength(1);
+});
+
+it("says so when there was nothing to forget", () => {
+  // The button must be able to tell a real removal from a no-op.
+  expect(forgetProject(db(), "/p/never-known")).toBe(false);
 });

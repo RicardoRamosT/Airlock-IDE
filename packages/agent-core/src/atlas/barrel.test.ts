@@ -8,6 +8,7 @@ it("exposes the Atlas engine through the index barrel", () => {
     "mergeRegistry",
     "applyPresence",
     "seedRoots",
+    "missingRootOf",
     "parseCommitLog",
     "collectRoot",
     "collectAll",

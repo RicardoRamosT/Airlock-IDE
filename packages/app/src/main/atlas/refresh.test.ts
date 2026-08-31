@@ -1,5 +1,6 @@
 import type { CollectDeps } from "@airlock/agent-core";
 import { expect, it } from "vitest";
+import { withoutRecentFolder } from "../prefs";
 import { directDb } from "./dbOps";
 import { type RefreshInput, refreshPortfolio } from "./refresh";
 import { openAtlasDb } from "./store";
@@ -125,4 +126,46 @@ it("resolves the concern once the repository gains a remote", async () => {
   const [c] = await i.db.readConcerns();
   // Kept, not deleted: "was this ever a problem?" has to have an answer.
   expect(c?.resolvedAt).toBe(i.now + 1000);
+});
+
+// --- forgetting, and why it takes both halves ------------------------------
+
+const vanished = (root: string) => deps({ exists: async (r) => r !== root });
+
+it("re-raises the missing concern when only the database row is deleted", async () => {
+  // THIS IS THE DEFECT, in one test: recentFolders re-seeds the root on the
+  // next refresh, so deleting the row alone brings the whole thing back. It
+  // came back twice before the recents half existed.
+  const i = input({
+    recentFolders: ["/p/gone", "/p/a"],
+    openTabRoots: [],
+    deps: vanished("/p/gone"),
+  });
+  await refreshPortfolio(i);
+  await i.db.forgetProject("/p/gone");
+
+  await refreshPortfolio(i);
+  expect((await i.db.readRegistry()).map((p) => p.root)).toContain("/p/gone");
+  expect((await i.db.readConcerns()).map((c) => c.key)).toContain(
+    "/p/gone|missing",
+  );
+});
+
+it("stays forgotten when the recents entry goes with the row", async () => {
+  const i = input({
+    recentFolders: ["/p/gone", "/p/a"],
+    openTabRoots: [],
+    deps: vanished("/p/gone"),
+  });
+  await refreshPortfolio(i);
+  expect((await i.db.readConcerns()).map((c) => c.key)).toContain(
+    "/p/gone|missing",
+  );
+
+  await i.db.forgetProject("/p/gone");
+  const recents = withoutRecentFolder(i.recentFolders, "/p/gone");
+
+  await refreshPortfolio({ ...i, recentFolders: recents });
+  expect((await i.db.readRegistry()).map((p) => p.root)).toEqual(["/p/a"]);
+  expect(await i.db.readConcerns()).toEqual([]);
 });

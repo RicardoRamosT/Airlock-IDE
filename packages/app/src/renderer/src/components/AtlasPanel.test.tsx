@@ -22,6 +22,7 @@ const api = {
   atlasBrief: vi.fn(async () => ({ day: "2026-08-30", text: "YESTERDAY" })),
   atlasSetView: vi.fn(async (_v: "brief" | "chat") => {}),
   atlasConcerns: vi.fn(async () => [] as unknown[]),
+  atlasForget: vi.fn(async (_root: string) => true),
   atlasTurns: vi.fn(async () => [] as { role: string; text: string }[]),
   atlasSend: vi.fn(async (_m: string) => "ok"),
   atlasSessions: vi.fn(async () => []),
@@ -117,6 +118,20 @@ const CONCERN = {
   detail: "airlock has no upstream.",
   ageDays: 6,
   trend: { from: 28, to: 44 },
+  // Not a vanished folder: there is something here to FIX, so nothing to
+  // forget.
+  missingRoot: null,
+};
+
+// A project that was renamed away. Its row cannot be fixed, only forgotten.
+const GONE = {
+  key: "/p/Keyview Track|missing",
+  project: "Keyview Track",
+  title: "folder is gone from disk",
+  detail: "/p/Keyview Track was in the registry but is no longer on disk.",
+  ageDays: 14,
+  trend: null,
+  missingRoot: "/p/Keyview Track",
 };
 
 it("shows a standing concern with its age and trend", async () => {
@@ -170,4 +185,43 @@ it("asks again when you click the SAME concern twice", async () => {
   );
   screen.getByRole("button", { name: /look into this/i }).click();
   await waitFor(() => expect(api.atlasSend).toHaveBeenCalledTimes(2));
+});
+
+it("offers to forget a project whose folder is gone", async () => {
+  // The one concern the user resolves by DELETING rather than by fixing. With
+  // no such action the row is permanent: the registry never evicts, so it is
+  // re-raised on every refresh forever.
+  api.atlasConcerns.mockResolvedValueOnce([GONE]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+
+  // And it replaces "Look into this": there is nothing on disk left to look
+  // into, so that button would spend an Opus run to answer "it is gone".
+  expect(screen.queryByRole("button", { name: /look into this/i })).toBeNull();
+
+  screen.getByRole("button", { name: /forget this project/i }).click();
+  await waitFor(() =>
+    expect(api.atlasForget).toHaveBeenCalledWith("/p/Keyview Track"),
+  );
+});
+
+it("offers no forget button for a concern that can be fixed", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+  expect(screen.queryByRole("button", { name: /forget/i })).toBeNull();
+});
+
+it("drops the row once main says the project is forgotten", async () => {
+  // Main broadcasts atlas:refresh after the write, which is what makes the
+  // removal visible -- and it must reach the panel that asked, not only the
+  // others.
+  api.atlasConcerns.mockResolvedValueOnce([GONE]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+  screen.getByRole("button", { name: /forget this project/i }).click();
+  await waitFor(() => expect(api.atlasForget).toHaveBeenCalled());
+
+  fireRefresh(); // atlasConcerns now answers with the default: none
+  await waitFor(() => expect(screen.queryByText(/still open/i)).toBeNull());
 });

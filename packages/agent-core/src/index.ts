@@ -48,6 +48,8 @@ export {
   detectConcerns,
   type IncomingConcern,
   mergeAtlasConcerns,
+  missingConcernKey,
+  missingRootOf,
   openConcerns,
   reconcileConcerns,
   renderStillOpen,

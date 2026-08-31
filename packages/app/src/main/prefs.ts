@@ -117,6 +117,21 @@ function sanitizeRecentFolders(raw: unknown): string[] {
   return out;
 }
 
+// Drop one folder from the recents list.
+//
+// The list only ever grew a promotion path (recordAndOpen puts the opened
+// folder first); nothing removed an entry. That is what made a deleted project
+// permanent: Atlas seeds its registry from recents, so a root deleted from the
+// registry was re-seeded on the next refresh and its "folder is gone from
+// disk" concern re-raised, twice over. Returns a fresh array; a root that is
+// not there is not an error.
+export function withoutRecentFolder(
+  recents: readonly string[],
+  root: string,
+): string[] {
+  return recents.filter((p) => p !== root);
+}
+
 // Allowlist per key: only a real boolean overrides the default; unknown keys
 // (and a non-object) are dropped. Always returns a COMPLETE map.
 function sanitizeSectionVisibility(raw: unknown): SectionVisibility {

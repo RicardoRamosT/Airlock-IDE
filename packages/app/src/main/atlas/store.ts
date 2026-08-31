@@ -185,6 +185,41 @@ export function writeRegistry(
   }
 }
 
+// FORGET A PROJECT: the registry row and everything derived from it, at once.
+//
+// The registry never evicts (see registry.ts) because a root falling out of
+// AirLock's capped recents must not fall out of the portfolio. That is right
+// for a project that still exists, and wrong for one the user has renamed or
+// deleted: the row survives, the presence check flags it missing, and the
+// portfolio raises `<root>|missing` again on every refresh forever.
+//
+// Both halves go in ONE transaction because removing either alone does not
+// hold. Delete the concern and the next refresh re-detects it from the row;
+// delete the row and the stale concern stays on screen with nothing left to
+// re-measure it, so reconcileConcerns can never resolve it either (an
+// uncovered root is deliberately left untouched).
+//
+// Concerns are removed BY ROOT, so the project's other concerns (no-remote,
+// unpushed) go with it, while a portfolio-wide one -- a deadline or a blocker,
+// whose root is null -- is untouched.
+//
+// Returns whether a registry row actually went, so a caller can tell a real
+// removal from a no-op. The match is exact: the root reaches here from the
+// registry or from a concern derived from it, both of which hold the very
+// string the seed produced.
+export function forgetProject(db: DatabaseSync, root: string): boolean {
+  db.exec("BEGIN");
+  try {
+    const gone = db.prepare("DELETE FROM project WHERE root = ?").run(root);
+    db.prepare("DELETE FROM concern WHERE root = ?").run(root);
+    db.exec("COMMIT");
+    return Number(gone.changes) > 0;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
 // The window is stored WITH the snapshot. Without it, a snapshot collected over
 // 24 hours was indistinguishable from one collected over a week, so the chat
 // reused the daily snapshot and reported "1 commit" as a week's work. The
