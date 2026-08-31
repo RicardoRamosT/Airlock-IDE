@@ -492,6 +492,15 @@ export interface AppInfo {
   mcpPort: number | null;
 }
 
+// The licence documents the About tab can open. A KIND, never a path: the
+// renderer names one of these and main resolves it against the app's own
+// resources, so the channel cannot be used to open an arbitrary file.
+export type LicenseDocKind =
+  | "license" // PolyForm Strict 1.0.0, the default grant
+  | "commercial" // how to get the commercial grant
+  | "electron" // Electron's MIT notice
+  | "chromium"; // the Chromium third-party notices Electron embeds
+
 // IPC-safe projection of agent-core's ExternalTerminal (which carries a non-serializable launch fn).
 export interface ExternalTerminalInfo {
   id: string;
@@ -1338,6 +1347,7 @@ export interface AirlockApi {
   anthropicStatusGet(): Promise<AnthropicStatus | null>;
   onAnthropicStatusChanged(cb: (s: AnthropicStatus) => void): () => void;
   appInfo(): Promise<AppInfo>;
+  openLicenseDoc(kind: LicenseDocKind): Promise<boolean>;
   updateGet(): Promise<UpdateStatus | null>;
   onUpdateChanged(cb: (s: UpdateStatus) => void): () => void;
   updateApply(): Promise<void>;

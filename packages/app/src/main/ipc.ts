@@ -216,6 +216,7 @@ import {
   optedInExtensions,
   relevanceContextFor,
 } from "./integrations/relevance";
+import { licenseDocPath } from "./licenseDocs";
 import {
   lspCompletion,
   lspDefinition,
@@ -1211,6 +1212,22 @@ export function registerIpc(
     version: app.getVersion(),
     mcpPort: getMcpPort(),
   }));
+
+  // Open one of the shipped licence documents in the user's default handler.
+  // The renderer passes a KIND; licenseDocPath allow-lists it, so no path from
+  // the renderer is ever joined. Returns whether it opened, so the About tab
+  // can say so rather than appearing to do nothing.
+  ipcMain.handle("app:openLicenseDoc", async (_e, kind: unknown) => {
+    const file = licenseDocPath(kind, {
+      packaged: app.isPackaged,
+      resourcesDir: process.resourcesPath,
+      // Dev only: from out/main back to the repo root.
+      repoRoot: path.join(__dirname, "../../../.."),
+    });
+    if (file === null) return false;
+    const err = await shell.openPath(file);
+    return err === "";
+  });
   ipcMain.handle("update:get", () => getUpdate());
   ipcMain.handle("update:apply", () => applyUpdate());
 

@@ -341,5 +341,10 @@ Copyright © 2026 Ricardo Ramos Treviño.
 
 Same source either way; only the grant differs.
 
-Third-party dependencies are used under their own permissive licenses
-(MIT/BSD/ISC/Apache and similar); their notices ship with the packaged app.
+Third-party dependencies are used under their own permissive licences (MIT, ISC,
+BSD and Apache-2.0), each package carrying its own notice inside the app, with
+Electron's and Chromium's notices shipped alongside them. All four documents,
+plus this licence and the commercial one, are readable from **Settings → About**
+in the app itself. Icons are
+[@vscode/codicons](https://github.com/microsoft/vscode-codicons), used under
+CC BY 4.0.

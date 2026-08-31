@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type {
   AppInfo,
+  LicenseDocKind,
   UpdateProgress,
   UpdateStatus,
 } from "../../../shared/ipc";
@@ -38,6 +39,10 @@ export function AboutSection() {
 
   const openReleaseNotes = () => {
     if (update?.htmlUrl) window.open(update.htmlUrl, "_blank", "noopener");
+  };
+
+  const openDoc = (kind: LicenseDocKind) => () => {
+    void window.airlock.openLicenseDoc(kind).catch(() => {});
   };
 
   return (
@@ -97,6 +102,64 @@ export function AboutSection() {
           You're on the latest version (v{update.currentVersion}).
         </div>
       )}
+
+      {/* The licence has to be readable from inside the app, not only from the
+          repo: PolyForm Strict makes agreeing to the terms a condition of the
+          grant, and the commercial licence is something a user at a company has
+          to be able to discover. Both documents ship in the bundle. */}
+      <div className="settings-sublabel">Licence</div>
+      <div className="settings-row">
+        <span>Default grant</span>
+        <span className="settings-value">PolyForm Strict 1.0.0</span>
+      </div>
+      <p className="settings-note">
+        Free for any noncommercial purpose: personal study, hobby projects,
+        research, and use by charities, schools, public research bodies and
+        government. Commercial use, including a developer at a company running
+        AirLock on that company's code, needs a separate licence. Modification
+        and redistribution are not permitted under either grant.
+      </p>
+      <div className="settings-row">
+        <button
+          type="button"
+          className="settings-btn"
+          onClick={openDoc("license")}
+        >
+          Read the licence
+        </button>
+        <button
+          type="button"
+          className="settings-btn settings-btn--ghost"
+          onClick={openDoc("commercial")}
+        >
+          Commercial use
+        </button>
+      </div>
+
+      <div className="settings-sublabel">Third-party notices</div>
+      <p className="settings-note">
+        AirLock bundles Electron and Chromium, whose notices ship with the app,
+        and its npm dependencies under their own permissive licences (MIT, ISC,
+        BSD and Apache-2.0), each package carrying its own licence file. Icons
+        are <span className="settings-value">@vscode/codicons</span>, used under
+        CC BY 4.0.
+      </p>
+      <div className="settings-row">
+        <button
+          type="button"
+          className="settings-btn settings-btn--ghost"
+          onClick={openDoc("electron")}
+        >
+          Electron
+        </button>
+        <button
+          type="button"
+          className="settings-btn settings-btn--ghost"
+          onClick={openDoc("chromium")}
+        >
+          Chromium
+        </button>
+      </div>
     </section>
   );
 }

@@ -4,6 +4,16 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 
 ## Unreleased
 
+### Fixed
+- **The licence now ships with the app.** AirLock is free for noncommercial use
+  and needs a paid licence at a company, but neither document was in the
+  installed app: they existed only in the repository, so anyone who installed
+  from the DMG had no copy of the terms and no way to find out that a commercial
+  licence exists. Both are now in the bundle and readable from Settings → About.
+- **Electron's and Chromium's notices ship too.** Chromium's licence requires its
+  notice travel with anything built on it, and the macOS build was leaving both
+  files behind. They are in the bundle now, alongside a credit for the icon set.
+
 ## 0.7.0
 
 ### Added

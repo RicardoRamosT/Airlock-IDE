@@ -40,6 +40,22 @@
     ],
     "extraResources": [
       {
+        "from": "../../LICENSE.md",
+        "to": "LICENSE.md"
+      },
+      {
+        "from": "../../COMMERCIAL.md",
+        "to": "COMMERCIAL.md"
+      },
+      {
+        "from": "../../node_modules/electron/dist/LICENSE",
+        "to": "third-party/electron-LICENSE.txt"
+      },
+      {
+        "from": "../../node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "third-party/LICENSES.chromium.html"
+      },
+      {
         "from": "resources/mcp-docs",
         "to": "mcp-docs"
       },
