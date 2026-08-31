@@ -86,4 +86,48 @@ describe("secrets meta index", () => {
     const s = await stat(path.join(root, ".airlock", "secrets.json"));
     expect(s.mode & 0o777).toBe(0o600);
   });
+
+  it("survives concurrent upserts without a torn index", async () => {
+    // The temp file used to be a FIXED `${file}.tmp`, shared by every writer, so
+    // two overlapping upserts could interleave into it and the rename would
+    // publish a torn result -- which readMeta THROWS on, wedging every secret
+    // operation in that project. Each write now uses a unique temp name.
+    //
+    // It also caught a bigger bug than the temp name: with no serialization at
+    // all, 20 concurrent upserts each read the SAME empty baseline and the last
+    // rename won -- ONE name survived out of 20. Importing a .env upserts every
+    // name at once, so this was the ordinary path, not a corner case.
+    const now = new Date().toISOString();
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        upsertMeta(root, {
+          name: `S${i}`,
+          provider: null,
+          valid: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ),
+    );
+    const out = await readMeta(root); // throws if the JSON is torn
+    expect(out.map((m) => m.name).sort()).toEqual(
+      Array.from({ length: 20 }, (_, i) => `S${i}`).sort(),
+    );
+  });
+
+  it("leaves no temp file behind after a write", async () => {
+    const now = new Date().toISOString();
+    await upsertMeta(root, {
+      name: "A",
+      provider: null,
+      valid: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const { readdir } = await import("node:fs/promises");
+    const left = (await readdir(path.join(root, ".airlock"))).filter((n) =>
+      n.endsWith(".tmp"),
+    );
+    expect(left).toEqual([]);
+  });
 });

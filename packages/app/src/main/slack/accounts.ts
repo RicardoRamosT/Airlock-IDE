@@ -12,7 +12,7 @@
 //
 // ASCII-only comments: this module is CJS-bundled into the Electron main
 // process and Electron's cjs_lexer crashes on multibyte characters.
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   deleteGlobalSecret,
@@ -64,11 +64,28 @@ async function readRegistry(): Promise<SlackWorkspaceRef[]> {
   return [];
 }
 
+let registryTmpSeq = 0;
+const nextRegistryTmpId = () =>
+  `${Date.now().toString(36)}${(registryTmpSeq++).toString(36)}`;
+
 async function writeRegistry(refs: SlackWorkspaceRef[]): Promise<void> {
-  await writeFile(registryFile(), `${JSON.stringify(refs, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  // temp+rename, not a bare writeFile. A bare write is O_TRUNC: a crash between
+  // the truncate and the write leaves an EMPTY registry, and the loader reads an
+  // empty file as "no workspaces" -- so the next add writes a one-element array
+  // and the rest of the pool is gone. The temp name is unique per write so two
+  // concurrent writers cannot interleave into one file.
+  const file = registryFile();
+  const tmp = `${file}.${process.pid}.${nextRegistryTmpId()}.tmp`;
+  try {
+    await writeFile(tmp, `${JSON.stringify(refs, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await rename(tmp, file);
+  } catch (e) {
+    await rm(tmp, { force: true }).catch(() => {});
+    throw e;
+  }
 }
 
 export async function listSlackWorkspaces(): Promise<SlackWorkspaceRef[]> {

@@ -6,7 +6,7 @@
 //
 // SECURITY: keys never leave main; listNeonAccounts/resolve* return refs/ids
 // only. The pure logic is unit-tested in agent-core; this IO edge is thin.
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   deleteGlobalSecret,
@@ -46,11 +46,28 @@ async function readRegistry(): Promise<NeonAccountRef[]> {
   return [];
 }
 
+let registryTmpSeq = 0;
+const nextRegistryTmpId = () =>
+  `${Date.now().toString(36)}${(registryTmpSeq++).toString(36)}`;
+
 async function writeRegistry(refs: NeonAccountRef[]): Promise<void> {
-  await writeFile(registryFile(), `${JSON.stringify(refs, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  // temp+rename, not a bare writeFile. A bare write is O_TRUNC: a crash between
+  // the truncate and the write leaves an EMPTY registry, and the loader reads an
+  // empty file as "no accounts" -- so the next add writes a one-element array
+  // and the rest of the pool is gone. The temp name is unique per write so two
+  // concurrent writers cannot interleave into one file.
+  const file = registryFile();
+  const tmp = `${file}.${process.pid}.${nextRegistryTmpId()}.tmp`;
+  try {
+    await writeFile(tmp, `${JSON.stringify(refs, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await rename(tmp, file);
+  } catch (e) {
+    await rm(tmp, { force: true }).catch(() => {});
+    throw e;
+  }
 }
 
 // Identify the account a key belongs to, for the pool. A personal key resolves
