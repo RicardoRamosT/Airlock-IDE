@@ -16,8 +16,14 @@ import { useApp } from "../store";
 // Two rules this file must not break:
 //  - NEVER auto-dismiss. A normal toast fades; a pending request must not, or the
 //    agent waits on something the user never saw.
-//  - An EXPIRED card changes state visibly instead of vanishing, so the user can
-//    tell why Claude gave up rather than finding a silent dead end.
+//  - An expired SECRET card changes state visibly instead of vanishing, so the
+//    user can tell why Claude gave up rather than finding a silent dead end.
+//    This is deliberately NOT the rule for every kind: a terminal grant is
+//    pruned on expiry (AGENT_REQUEST_POLICY.terminalGrant.actionableAfterExpiry
+//    is false), because the send already returned timedOut and approving later
+//    authorises nothing. Stating the rule as if it were universal, which this
+//    comment used to do, reads as a bug in the grant path rather than the
+//    documented asymmetry it is.
 export function AgentRequestStack() {
   const requests = useAgentRequests();
   const { stack, overflow } = partitionRequests(requests);

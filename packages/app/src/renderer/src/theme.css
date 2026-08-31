@@ -6319,13 +6319,23 @@ button.docker-row .codicon-chevron-right {
 /* --- Agent request cards -------------------------------------------------
    Non-blocking prompts from the AGENT, bottom-right above the status bar.
    A dialog the user did not open must not seize the window, so there is no
-   backdrop and nothing here takes focus. z-index sits above the panes but
-   BELOW .modal-backdrop (50+), so a user-opened dialog still wins. */
+   backdrop and nothing here takes focus.
+
+   THE Z-SCALE, since a wrong guess here makes a card invisible rather than
+   merely ugly (write the real numbers, not a range -- the previous comment
+   claimed .modal-backdrop was "50+" when it is 10, and the next surface to
+   land in the gap was .titlebar-atlas-panel at 46, which hid these cards):
+     20/21  .popover, .context-menu, .submenu
+     46     .titlebar-atlas-panel  (resizable: max-height is overridden to
+            none further down, so a tall panel reaches this corner)
+     47     .agent-request-stack, .titlebar-bell-panel  -- ABOVE the Atlas
+            panel, or the card it is announcing cannot be seen or clicked
+     50/51  .palette-backdrop, .palette, .search-panel, .editor-context-menu */
 .agent-request-stack {
   position: fixed;
   right: 12px;
   bottom: 34px; /* clears the 22px status bar + breathing room */
-  z-index: 40;
+  z-index: 47;
   display: flex;
   flex-direction: column-reverse; /* newest nearest the corner */
   gap: var(--sb-gap);
@@ -6470,7 +6480,10 @@ button.docker-row .codicon-chevron-right {
   border-radius: 6px;
   padding: 8px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-  z-index: 45;
+  /* 47, with .agent-request-stack: the bell is where a dismissed card goes, so
+     it has to clear .titlebar-atlas-panel (46) for the same reason the stack
+     does. Both hang off the titlebar and never overlap each other. */
+  z-index: 47;
 }
 
 /* ---------------------------------------------------------------------------

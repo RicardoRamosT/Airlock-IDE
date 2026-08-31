@@ -12,7 +12,7 @@ import {
   type TerminalGrantRequest,
 } from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
-import { appWindows, windowForRoot } from "./window";
+import { appWindows, isAppWindow, windowForRoot } from "./window";
 
 // MAIN-ONLY registry of agent-initiated requests (request_secret, and
 // send_terminal_input's grant). MAIN OWNS THE STATE and the renderer renders a
@@ -48,12 +48,24 @@ export interface RequestHost {
   send(windowId: number, requests: AgentRequest[]): void;
 }
 
-const electronHost: RequestHost = {
+// Exported for its OWN test. The fake host used by the rest of the suite
+// replaces this wholesale, so every branch below was previously unexercised --
+// which is exactly how the focused-window bug survived.
+export const electronHost: RequestHost = {
   windowIds: () => appWindows().map((w) => w.id),
   pickWindow: (root) => {
+    // The focused window must be an APP window. Atlas's chat window and the
+    // tray popover are real BrowserWindows that never enter appWindowIds, and
+    // they outlive their own close (the handler hides rather than destroys), so
+    // getFocusedWindow can hand back a window that mounts no AgentRequestStack
+    // and that broadcast() -- which iterates appWindows() -- never sends to.
+    // Targeting one puts the card in no window at all: not the stack, not the
+    // bell, invisible everywhere until it expires. See the same trap documented
+    // in window.ts, which is why isAppWindow exists.
+    const focused = BrowserWindow.getFocusedWindow();
     const win =
       (root ? windowForRoot(root) : null) ??
-      BrowserWindow.getFocusedWindow() ??
+      (focused && isAppWindow(focused.id) ? focused : null) ??
       appWindows()[0] ??
       null;
     return win ? win.id : null;
