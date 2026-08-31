@@ -13,7 +13,7 @@ import type {
 } from "../shared/ipc";
 import { openAtlasWindow } from "./atlas/trayWindow";
 import { BUILTIN_SECTIONS, loadPrefs, savePrefs } from "./prefs";
-import { createWindow } from "./window";
+import { appWindows, createWindow } from "./window";
 
 export const SECTION_LABELS: Record<BuiltinSection, string> = {
   files: "Files",
@@ -71,9 +71,7 @@ export function recentSubmenuItems(
 // Push a File-menu command to the renderer. Targets the focused window, falling
 // back to the first window, and never sends to a destroyed webContents.
 function pushMenuAction(action: MenuAction): void {
-  const wc = (
-    BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-  )?.webContents;
+  const wc = (BrowserWindow.getFocusedWindow() ?? appWindows()[0])?.webContents;
   if (wc && !wc.isDestroyed()) wc.send("menu:action", action);
 }
 
@@ -81,8 +79,7 @@ function pushMenuAction(action: MenuAction): void {
 // windows mode: a separate window. createWindow opens with a blank tab.
 function newTabOrWindow(openProjectsAsTabs: boolean): void {
   if (openProjectsAsTabs) {
-    const win =
-      BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const win = BrowserWindow.getFocusedWindow() ?? appWindows()[0];
     if (win && !win.isDestroyed()) {
       win.focus();
       win.webContents.send("menu:action", { type: "new-tab" });
@@ -219,8 +216,7 @@ export function applyAppMenu(
 // openPickedFolder opens it as a tab / fills a blank tab / replaces per mode).
 // If no window is open, create one and open the folder once it has loaded.
 function openRecentFromDock(path: string, _openProjectsAsTabs: boolean): void {
-  const existing =
-    BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const existing = BrowserWindow.getFocusedWindow() ?? appWindows()[0];
   if (existing && !existing.isDestroyed()) {
     existing.focus();
     existing.webContents.send("menu:action", { type: "open-recent", path });

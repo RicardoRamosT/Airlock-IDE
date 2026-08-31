@@ -9,12 +9,13 @@
 // ASCII-only comments (CJS-bundled into Electron main).
 import { BrowserWindow, screen } from "electron";
 import type { DropTarget, MovingTab, TabDragHover } from "../../shared/ipc";
-import { createWindowForAdopt, windowBoxesFrontMostFirst } from "../window";
 import {
-  hideCursorHint,
-  isCursorHintWindow,
-  showCursorHint,
-} from "./cursorHint";
+  appWindows,
+  createWindowForAdopt,
+  isAppWindow,
+  windowBoxesFrontMostFirst,
+} from "../window";
+import { hideCursorHint, showCursorHint } from "./cursorHint";
 import type { MovingSessions } from "./moving";
 import { resolveDropTarget, sameTarget } from "./target";
 
@@ -73,8 +74,8 @@ export function forgetWindow(windowId: number): void {
 }
 
 function broadcast(h: TabDragHover): void {
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (isCursorHintWindow(w.id)) continue; // the drag label has no listener
+  // App windows only: the drag label and Atlas's windows have no listener.
+  for (const w of appWindows()) {
     if (!w.webContents.isDestroyed()) w.webContents.send("tabdrag:hover", h);
   }
 }
@@ -176,7 +177,14 @@ export function endTabDrag(
 
   if (target.kind === "merge") {
     const win = BrowserWindow.fromId(target.windowId);
-    if (win && !win.isDestroyed()) {
+    // isAppWindow as well as alive: a merge target must be able to ADOPT. Only
+    // app windows run the tab store that listens for "tabdrag:adopt", so
+    // sending to anything else drops the tab into a renderer that ignores it
+    // while the source still removes it -- the tab, its project and its live
+    // terminals simply vanish. windowBoxesFrontMostFirst already filters to app
+    // windows, so this is belt-and-braces for any future path that builds a
+    // merge target another way.
+    if (win && !win.isDestroyed() && isAppWindow(win.id)) {
       win.webContents.send("tabdrag:adopt", payload);
       win.focus();
       return target;

@@ -12,7 +12,7 @@ import {
   type TerminalGrantRequest,
 } from "../shared/agentRequests";
 import type { TerminalInputResult } from "../shared/ipc";
-import { windowForRoot } from "./window";
+import { appWindows, windowForRoot } from "./window";
 
 // MAIN-ONLY registry of agent-initiated requests (request_secret, and
 // send_terminal_input's grant). MAIN OWNS THE STATE and the renderer renders a
@@ -49,12 +49,12 @@ export interface RequestHost {
 }
 
 const electronHost: RequestHost = {
-  windowIds: () => BrowserWindow.getAllWindows().map((w) => w.id),
+  windowIds: () => appWindows().map((w) => w.id),
   pickWindow: (root) => {
     const win =
       (root ? windowForRoot(root) : null) ??
       BrowserWindow.getFocusedWindow() ??
-      BrowserWindow.getAllWindows()[0] ??
+      appWindows()[0] ??
       null;
     return win ? win.id : null;
   },

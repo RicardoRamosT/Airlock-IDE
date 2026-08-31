@@ -8,7 +8,6 @@ import { BrowserWindow, screen, type WebContents } from "electron";
 import type { MovingTab } from "../shared/ipc";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
-import { isCursorHintWindow } from "./tabdrag/cursorHint";
 import type { WindowBox } from "./tabdrag/target";
 import {
   forgetWindow,
@@ -112,6 +111,34 @@ export function lastFocusedRoot(): string | null {
 // including a blank-tab one -- so this resolves a live window by last-focused id,
 // then the OS-focused window, then any open window, regardless of an open root.
 // Returns null only when no airlock window exists.
+// Every window createWindow() makes -- i.e. every window that hosts the IDE
+// renderer and can own tabs, terminals and menu actions. Auxiliary windows are
+// deliberately absent: the tab-drag cursor label, and Atlas's chat window and
+// menu-bar popover.
+//
+// This is a REGISTRY, not a blacklist, and the difference is the whole point.
+// isCursorHintWindow had to be remembered at every "pick a window" site, and it
+// was applied at three of them while six others picked getAllWindows()[0]
+// blind. Atlas's chat window is the case that proved the shape wrong: its close
+// handler preventDefaults and hides (so a mid-answer close never loses the
+// reply), which means it stays in getAllWindows() forever and those six sites
+// silently started choosing an invisible window -- the dock icon stopped
+// creating a window, menu actions went to a renderer with no listener, and a
+// torn-off tab could be dropped into a window with no tab store at all.
+const appWindowIds = new Set<number>();
+
+export function isAppWindow(id: number): boolean {
+  return appWindowIds.has(id);
+}
+
+// Live app windows, in Electron's order. Every caller that needs "a window to
+// act on" must use this rather than BrowserWindow.getAllWindows().
+export function appWindows(): BrowserWindow[] {
+  return BrowserWindow.getAllWindows().filter(
+    (w) => !w.isDestroyed() && appWindowIds.has(w.id),
+  );
+}
+
 export function lastFocusedWindow(): BrowserWindow | null {
   if (lastFocusedId !== null) {
     const win = BrowserWindow.fromId(lastFocusedId);
@@ -119,13 +146,9 @@ export function lastFocusedWindow(): BrowserWindow | null {
   }
   const focused = BrowserWindow.getFocusedWindow();
   if (focused && !focused.isDestroyed()) return focused;
-  // Skip the cursor drag label: it is a BrowserWindow but not an app window, and
-  // handing it to the IDE-control commands would target a tooltip.
-  return (
-    BrowserWindow.getAllWindows().find(
-      (w) => !w.isDestroyed() && !isCursorHintWindow(w.id),
-    ) ?? null
-  );
+  // App windows only: handing an IDE-control command to the drag label or to a
+  // hidden Atlas window would target something with no listener.
+  return appWindows()[0] ?? null;
 }
 
 // The window currently showing `root` (active-tab match first, else any window
@@ -183,11 +206,14 @@ export function createWindow(): BrowserWindow {
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (e) => e.preventDefault());
 
+  appWindowIds.add(win.id);
+
   win.on("focus", () => {
     lastFocusedId = win.id;
     focusOrder = [win.id, ...focusOrder.filter((id) => id !== win.id)];
   });
   win.on("closed", () => {
+    appWindowIds.delete(win.id);
     workspaceRoots.delete(win.id);
     windowRoots.delete(win.id);
     focusOrder = focusOrder.filter((id) => id !== win.id);
@@ -205,10 +231,10 @@ export function createWindow(): BrowserWindow {
     disposeWindowWatchers(win.id);
     syncLspServers(allOpenRoots());
     if (lastFocusedId === win.id) {
+      // appWindows(), not getAllWindows(): re-seeding onto a hidden Atlas
+      // window points every IDE-control command at it.
       lastFocusedId =
-        BrowserWindow.getFocusedWindow()?.id ??
-        BrowserWindow.getAllWindows()[0]?.id ??
-        null;
+        BrowserWindow.getFocusedWindow()?.id ?? appWindows()[0]?.id ?? null;
     }
   });
 
@@ -225,10 +251,10 @@ export function createWindow(): BrowserWindow {
 // (e.g. one just created) sort last.
 export function windowBoxesFrontMostFirst(): WindowBox[] {
   const live = new Map<number, BrowserWindow>();
-  for (const w of BrowserWindow.getAllWindows()) {
-    // Skip the drag label that follows the cursor: it is a BrowserWindow, so it
-    // would otherwise be a droppable target and could swallow its own drag.
-    if (w.isDestroyed() || isCursorHintWindow(w.id)) continue;
+  // App windows only. A drop box must be a window that can actually ADOPT a
+  // tab: the drag label would swallow its own drag, and a hidden Atlas window
+  // would accept the tab into a renderer with no tab store, destroying it.
+  for (const w of appWindows()) {
     live.set(w.id, w);
   }
   const ordered: BrowserWindow[] = [];

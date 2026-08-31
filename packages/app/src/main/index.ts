@@ -66,7 +66,7 @@ import { reconcileQuotaMeter } from "./quota/wire";
 import { reconcileRunSkill } from "./runskill/wire";
 import { reconcileSelfVerify } from "./selfverify/wire";
 import { startUpdateCheck, stopUpdateCheck } from "./update/check";
-import { allOpenRoots, createWindow } from "./window";
+import { allOpenRoots, appWindows, createWindow } from "./window";
 
 app.setName("AirLock");
 // The display name is "AirLock", but keep userData (prefs.json + the persisted
@@ -84,7 +84,9 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    const win = BrowserWindow.getAllWindows()[0];
+    // appWindows(): focusing a hidden Atlas window would make a relaunch
+    // from Finder appear to do nothing at all.
+    const win = appWindows()[0];
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
@@ -356,7 +358,8 @@ function bootstrap(): void {
   // app is ready"). The initial window is created in whenReady() above, so a
   // pre-ready activate safely no-ops here.
   app.on("activate", () => {
-    if (app.isReady() && BrowserWindow.getAllWindows().length === 0)
-      createWindow();
+    // appWindows(): a hidden Atlas window used to make this believe the app
+    // still had a window, so clicking the dock icon created nothing.
+    if (app.isReady() && appWindows().length === 0) createWindow();
   });
 }
