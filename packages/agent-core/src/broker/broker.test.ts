@@ -15,8 +15,10 @@ import {
   listSecrets,
   setGlobalSecret,
   setSecret,
+  vaultedSecrets,
 } from "./broker";
 import type { KeychainStore } from "./keychain";
+import { cachingKeychain } from "./keychain";
 import { upsertMeta } from "./meta";
 
 let root: string;
@@ -462,5 +464,63 @@ describe("importAllDotEnv", () => {
     });
     expect(results[0]?.error).toBeTruthy();
     expect(results[0]?.result).toBeUndefined();
+  });
+
+  it("does not overwrite the vault when the keychain has backed off", async () => {
+    // The scenario, end to end: the user denies ONE keychain prompt (a sidebar
+    // poll, an inject -- anything). cachingKeychain latches. Later, setSecret
+    // runs: ensureMigrated read the latched null as "no vault yet", built an
+    // empty map, and wrote a ONE-KEY blob over every secret in the project.
+    //
+    // The first denial always threw; only the reads AFTER it lied, which is why
+    // this needs a prior read to reproduce.
+    await setSecret(root, "A", "1", { keychain: fake });
+    await setSecret(root, "B", "2", { keychain: fake });
+    const id = await projectIdFor(root);
+    const before = store.get(`airlock|@vault/${id}`);
+    expect(before).toContain("A");
+    expect(before).toContain("B");
+
+    let deny = true;
+    const flaky = {
+      set: fake.set,
+      delete: fake.delete,
+      get: (svc: string, acct: string) => {
+        if (deny) throw new Error("User interaction is not allowed");
+        return fake.get(svc, acct);
+      },
+    };
+    const kc = cachingKeychain(flaky);
+    expect(() => kc.get("airlock", `@vault/${id}`)).toThrow(); // the denial
+    deny = false; // the OS would answer now, but we stay backed off
+
+    await expect(setSecret(root, "C", "3", { keychain: kc })).rejects.toThrow(
+      /unavailable/i,
+    );
+    // A and B are still there, and C was not written over them.
+    expect(store.get(`airlock|@vault/${id}`)).toBe(before);
+  });
+
+  it("vaultedSecrets REJECTS on an unavailable keychain, so gates fail closed", async () => {
+    // scanStaged (the git_commit leak gate) and the terminal-tail redactor both
+    // build their known-value list from this. If it answered [] when the
+    // keychain was merely unreadable, both would conclude "no secrets exist"
+    // and wave a real credential through. There is no catch between here and
+    // those callers, so rejecting is what makes them fail CLOSED.
+    await setSecret(root, "A", "1", { keychain: fake });
+    let deny = true;
+    const kc = cachingKeychain({
+      set: fake.set,
+      delete: fake.delete,
+      get: (svc: string, acct: string) => {
+        if (deny) throw new Error("User interaction is not allowed");
+        return fake.get(svc, acct);
+      },
+    });
+    expect(() => kc.get("airlock", "warm")).toThrow(); // latch the backoff
+    deny = false;
+    await expect(vaultedSecrets(root, { keychain: kc })).rejects.toThrow(
+      /unavailable/i,
+    );
   });
 });

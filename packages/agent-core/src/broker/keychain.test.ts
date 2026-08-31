@@ -72,8 +72,11 @@ describe("cachingKeychain", () => {
     setThrow(new Error("User interaction is not allowed / access denied"));
     expect(() => kc.get("airlock", "proj:A")).toThrow(/denied/i); // first read rethrows
     setThrow(null); // even though the keychain would now answer...
-    expect(kc.get("airlock", "proj:A")).toBeNull(); // ...we backed off — no prompt
-    expect(kc.get("airlock", "proj:B")).toBeNull(); // backoff covers every account
+    // ...we stay backed off -- but we say so rather than answering "null",
+    // which a caller cannot tell from "no such entry". Returning null here let
+    // setSecret overwrite a project's whole vault with a single key.
+    expect(() => kc.get("airlock", "proj:A")).toThrow(/unavailable/i);
+    expect(() => kc.get("airlock", "proj:B")).toThrow(/unavailable/i);
     expect(calls.get).toBe(1); // only the first (throwing) read ever hit the OS
   });
 
@@ -82,6 +85,7 @@ describe("cachingKeychain", () => {
     const kc = cachingKeychain(inner);
     setThrow(new Error("keychain is locked"));
     expect(() => kc.get("airlock", "proj:A")).toThrow();
+    expect(() => kc.get("airlock", "proj:A")).toThrow(/unavailable/i); // latched
     setThrow(null);
     kc.set("airlock", "proj:A", "v"); // a successful write re-enables reads
     expect(kc.get("airlock", "proj:A")).toBe("v"); // from cache populated by set
