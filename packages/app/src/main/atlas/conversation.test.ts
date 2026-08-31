@@ -1,6 +1,7 @@
 import type { CollectDeps } from "@airlock/agent-core";
 import { FACTS_CLOSE, FACTS_OPEN } from "@airlock/agent-core";
 import { expect, it, vi } from "vitest";
+import { activityReporter } from "./activityBridge";
 import { type ChatDeps, sendMessage } from "./conversation";
 import { directDb } from "./dbOps";
 import { openAtlasDb } from "./store";
@@ -34,8 +35,39 @@ const deps = (over: Partial<ChatDeps> = {}): ChatDeps => ({
   recents: () => [],
   now: () => Date.UTC(2026, 7, 30, 18, 0, 0),
   tzOffsetMinutes: () => -360,
+  onActivity: () => {},
   ...over,
 });
+
+// A spawn that streams NDJSON events before it answers, as the CLI does under
+// --output-format stream-json.
+const streaming =
+  (lines: readonly string[]) =>
+  async (
+    _args: string[],
+    _stdin: string,
+    _signal?: AbortSignal,
+    _idleMs?: number,
+    onLine?: (line: string) => void,
+  ) => {
+    for (const l of lines) onLine?.(l);
+    return reply("done");
+  };
+
+const toolUse = (name: string, input: Record<string, unknown>) =>
+  JSON.stringify({
+    type: "assistant",
+    message: { content: [{ type: "tool_use", name, input }] },
+  });
+
+const fakeWindow = () => {
+  const send = vi.fn();
+  return {
+    isDestroyed: () => false,
+    webContents: { isDestroyed: () => false, send },
+    send,
+  };
+};
 
 it("returns the prose reply", async () => {
   const out = await sendMessage(deps(), "what should I do?");
@@ -353,4 +385,39 @@ it("cannot close a concern measured from git", async () => {
   const [c] = await d.db.readConcerns();
   expect(c?.resolvedAt).toBeNull();
   expect(c?.title).toBe("no remote"); // not reworded either
+});
+
+// --- what the run is doing, all the way to a window -----------------------
+
+it("REPORTS EACH STREAMED TOOL CALL TO THE WINDOWS", async () => {
+  // The defect: both ends of this were wired and the middle was not. The
+  // preload subscribed, the panel listened, sendMessage accepted an onActivity
+  // -- and no caller passed one, so a 12-tool-call run rendered only
+  // "Still thinking...". This walks the whole path: a streamed line, parsed,
+  // reported, delivered on the channel the preload subscribes to.
+  const w = fakeWindow();
+  const d = deps({
+    spawn: streaming([
+      toolUse("Bash", { command: "npm test" }),
+      toolUse("mcp__airlock__open_tab", { path: "/p/airlock" }),
+    ]),
+    onActivity: activityReporter(() => [w]),
+  });
+
+  await sendMessage(d, "check airlock");
+
+  expect(w.send.mock.calls).toEqual([
+    ["atlas:activity", [{ tool: "Bash", detail: "npm test" }]],
+    ["atlas:activity", [{ tool: "open_tab", detail: "/p/airlock" }]],
+  ]);
+});
+
+it("reports nothing for a stream that carries no tool call", async () => {
+  const w = fakeWindow();
+  const d = deps({
+    spawn: streaming(['{"type":"system","subtype":"init"}', "not json at all"]),
+    onActivity: activityReporter(() => [w]),
+  });
+  await sendMessage(d, "hi");
+  expect(w.send).not.toHaveBeenCalled();
 });

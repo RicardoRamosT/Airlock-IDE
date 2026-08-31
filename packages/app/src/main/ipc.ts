@@ -133,6 +133,7 @@ import {
 } from "./agent-requests";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
+import { activityReporter } from "./atlas/activityBridge";
 import {
   attachmentsDir,
   describeAttachments,
@@ -1164,6 +1165,14 @@ export function registerIpc(
             now: () => Date.now(),
             tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
             signal: ac.signal,
+            // What the run is DOING, while it does it. Without this the whole
+            // activity path was dead from end to end: a twelve-tool-call run
+            // rendered "Still thinking..." and nothing else, which is how a
+            // working session came to be killed for looking wedged.
+            //
+            // getAllWindows, like the refresh broadcast below: the Atlas
+            // popover and chat window are NOT app windows.
+            onActivity: activityReporter(() => BrowserWindow.getAllWindows()),
           },
           message,
           files,

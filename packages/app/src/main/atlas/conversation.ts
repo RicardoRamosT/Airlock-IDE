@@ -52,7 +52,14 @@ export interface ChatDeps {
   // Called as the CLI works, so a run in progress can say what it is doing
   // instead of being a spinner. A long run and a wedged one look identical
   // otherwise -- which is how a working session was killed at 15 minutes.
-  onActivity?(items: AtlasActivity[]): void;
+  //
+  // REQUIRED, not optional. It was optional, and the one production caller
+  // simply never passed it: the callback was consumed here, the channel was
+  // subscribed in the preload and the panel listened, and the whole path was
+  // dead because the middle was absent. A required dep makes that omission a
+  // build error instead of a silent spinner. A caller that genuinely wants no
+  // reporting has to say so.
+  onActivity(items: AtlasActivity[]): void;
 }
 
 // A week. 24h made 'what did I do this week' unanswerable by construction.
@@ -129,18 +136,15 @@ export async function sendMessage(
 
   let raw: string;
   try {
-    const report = deps.onActivity;
     raw = await deps.spawn(
       buildChatArgs(deps.roots(), deps.mcp?.() ?? undefined),
       prompt,
       deps.signal,
       undefined, // streaming: keep the idle deadline
-      report
-        ? (line) => {
-            const items = activityFromLine(line);
-            if (items.length > 0) report(items);
-          }
-        : undefined,
+      (line) => {
+        const items = activityFromLine(line);
+        if (items.length > 0) deps.onActivity(items);
+      },
     );
   } catch (e) {
     // A user pressing Escape is not a failure and must not be logged as one --
