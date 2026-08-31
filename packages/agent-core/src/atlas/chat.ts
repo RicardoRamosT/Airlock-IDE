@@ -68,8 +68,16 @@ export function buildChatArgs(
 ): string[] {
   return [
     "-p",
+    // STREAMING, unlike the brief. A chat turn can legitimately run for many
+    // minutes of tool work, and with the single-object format the process is
+    // silent throughout -- indistinguishable from a wedged one, which is how a
+    // working run came to be killed at the 15-minute mark on 2026-08-31. Each
+    // streamed event resets the idle deadline in composer.ts; parseComposerOutput
+    // reads the reply from the final `type: "result"` line.
     "--output-format",
-    "json",
+    "stream-json",
+    // stream-json requires --verbose in print mode; without it the CLI refuses.
+    "--verbose",
     "--model",
     CHAT_MODEL,
     "--system-prompt",

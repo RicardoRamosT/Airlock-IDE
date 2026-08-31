@@ -1,6 +1,6 @@
 import { COMPOSER_MODEL } from "@airlock/agent-core";
 import { expect, it, vi } from "vitest";
-import { runComposer } from "./composer";
+import { runComposer, SPAWN_TIMEOUT_MS } from "./composer";
 
 const okJson = JSON.stringify({
   type: "result",
@@ -44,4 +44,20 @@ it("returns null when the CLI fails, leaving any previous brief intact", async (
 
 it("returns null on unparseable output rather than throwing", async () => {
   expect(await runComposer(async () => "garbage", "hi")).toBeNull();
+});
+
+it("gives the brief a TOTAL budget, not the chat's idle one", async () => {
+  // The brief runs --output-format json, which prints nothing until it is
+  // finished. Inheriting the chat's idle deadline would make every brief look
+  // wedged and get it killed partway through -- the same class of bug as the
+  // 15-minute wall clock this replaced, just pointed at the other path.
+  const spawn = vi.fn(async () => okJson);
+  await runComposer(spawn, "prompt");
+  const call = spawn.mock.calls[0] as unknown as [
+    string[],
+    string,
+    AbortSignal | undefined,
+    number | undefined,
+  ];
+  expect(call[3]).toBe(SPAWN_TIMEOUT_MS);
 });

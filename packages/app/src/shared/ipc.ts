@@ -487,6 +487,10 @@ export type UpdateProgress =
 
 // At-a-glance app info for the Settings → About tab. Read-only; never carries
 // the MCP bearer token (only the loopback port, which is not a secret).
+export type AtlasSendResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string };
+
 export interface AppInfo {
   version: string;
   mcpPort: number | null;
@@ -1299,7 +1303,17 @@ export interface AirlockApi {
   atlasBrief(): Promise<{ day: string; text: string } | null>;
   atlasMarkRead(day: string): Promise<void>;
   atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
-  atlasSend(message: string): Promise<string | null>;
+  // null means CANCELLED (the user stopped it). A failure comes back as
+  // { ok: false, error } carrying the real reason, because "Could not reach
+  // Claude" was shown for every failure -- including runs where Claude was
+  // reached and worked for fifteen minutes before being stopped.
+  atlasSend(
+    message: string,
+    attachments?: readonly string[],
+  ): Promise<AtlasSendResult | null>;
+  // Writes a pasted image to disk and returns its absolute path, or null when
+  // it is not a supported image. The path is passed back to atlasSend.
+  atlasAttach(bytes: Uint8Array, mime: string): Promise<string | null>;
   // Stop the in-flight reply (Escape in the chat). Kills the CLI process.
   atlasCancel(): Promise<void>;
   // Open standing concerns, read LIVE rather than baked into the debrief text:

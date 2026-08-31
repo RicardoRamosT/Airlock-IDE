@@ -39,7 +39,7 @@ const deps = (over: Partial<ChatDeps> = {}): ChatDeps => ({
 
 it("returns the prose reply", async () => {
   const out = await sendMessage(deps(), "what should I do?");
-  expect(out).toBe("Work on Revaltone-CRM first.");
+  expect(out).toEqual({ ok: true, text: "Work on Revaltone-CRM first." });
 });
 
 it("uses Opus, not the Sonnet the debrief uses", async () => {
@@ -74,8 +74,8 @@ it("persists a fact the reply captured, and never shows the block", async () => 
       ),
   });
   const out = await sendMessage(d, "Muros is due the 15th");
-  expect(out).toBe("Noted.");
-  expect(out).not.toContain("{");
+  expect(out).toEqual({ ok: true, text: "Noted." });
+  expect(JSON.stringify(out)).not.toContain("facts");
   const facts = await d.db.readFacts();
   expect(facts).toHaveLength(1);
   expect(facts[0]).toMatchObject({
@@ -133,7 +133,12 @@ it("KEEPS the question, marked unanswered, when the CLI fails", async () => {
       throw new Error("claude: not found");
     },
   });
-  expect(await sendMessage(d, "hi")).toBeNull();
+  // The REASON now reaches the caller, not just the event log: the card used
+  // to say "Could not reach Claude" for every failure, including this one.
+  expect(await sendMessage(d, "hi")).toEqual({
+    ok: false,
+    error: "claude: not found",
+  });
   // The question was real and stays visible -- it used to vanish, which is how
   // an in-flight message disappeared when the panel was closed.
   expect(await d.db.readTurns(10)).toEqual([
@@ -173,7 +178,7 @@ it("still answers when collection throws, rather than failing the turn", async (
       },
     },
   });
-  expect(await sendMessage(d, "hi")).toBe("ok");
+  expect(await sendMessage(d, "hi")).toEqual({ ok: true, text: "ok" });
 });
 
 it("seeds from recentFolders too, not only open windows", async () => {
@@ -239,9 +244,10 @@ it("still returns the reply when the store fails, instead of losing it", async (
   d.db.appendTurns = async () => {
     throw dead;
   };
-  await expect(sendMessage(d, "what should I do?")).resolves.toBe(
-    "Work on Revaltone-CRM first.",
-  );
+  await expect(sendMessage(d, "what should I do?")).resolves.toEqual({
+    ok: true,
+    text: "Work on Revaltone-CRM first.",
+  });
 });
 
 it("does not let a failed FACT write discard the reply either", async () => {
@@ -254,7 +260,10 @@ it("does not let a failed FACT write discard the reply either", async () => {
   d.db.writeFacts = async () => {
     throw new Error("atlas db host exited (5)");
   };
-  expect(await sendMessage(d, "ElArqui is due the 15th")).toBe("Noted.");
+  expect(await sendMessage(d, "ElArqui is due the 15th")).toEqual({
+    ok: true,
+    text: "Noted.",
+  });
 });
 
 it("passes the abort signal to the CLI, so Escape can kill it", async () => {
@@ -293,7 +302,10 @@ it("records a concern Atlas raised in its reply", async () => {
         `Found something.\n<<<ATLAS_CONCERNS\n[{"key":"elarqui-ipv6","project":"ElArqui","title":"apex answers on IPv6","detail":"Render is IPv4 only."}]\nATLAS_CONCERNS>>>`,
       ),
   });
-  expect(await sendMessage(d, "check ElArqui")).toBe("Found something.");
+  expect(await sendMessage(d, "check ElArqui")).toEqual({
+    ok: true,
+    text: "Found something.",
+  });
   const [c] = await d.db.readConcerns();
   expect(c).toMatchObject({
     key: "elarqui-ipv6",
@@ -310,7 +322,7 @@ it("keeps the raw block out of what the user reads", async () => {
         `Done.\n<<<ATLAS_CONCERNS\n[{"key":"k","title":"t"}]\nATLAS_CONCERNS>>>`,
       ),
   });
-  expect(await sendMessage(d, "hi")).toBe("Done.");
+  expect(await sendMessage(d, "hi")).toEqual({ ok: true, text: "Done." });
 });
 
 it("cannot close a concern measured from git", async () => {

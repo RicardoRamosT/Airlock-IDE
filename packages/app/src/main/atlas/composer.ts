@@ -30,20 +30,39 @@ export type SpawnFn = (
   // abandoned `claude` keeps working and keeps spending quota with nowhere to
   // deliver its answer.
   signal?: AbortSignal,
+  idleMs?: number,
 ) => Promise<string>;
 
-// A DEADLINE, generous on purpose. Real Atlas runs are slow -- one measured at
-// 303 seconds doing genuine tool work -- so this must never fire on legitimate
-// work. But without any bound a CLI that wedges (a dropped connection it keeps
-// retrying) leaves Atlas "thinking" forever, which is exactly what the user
-// cannot distinguish from a loop. Escape already kills a run; this is what
-// ends one nobody is watching.
+// AN IDLE DEADLINE, not a total one.
+//
+// This was 15 minutes of WALL CLOCK, and on 2026-08-31 it killed a run that was
+// working the whole time: Atlas spent the full quarter hour driving a real
+// multi-step task, got SIGKILLed, and the turn was abandoned -- every minute of
+// it thrown away. A total cap cannot tell a long job from a stuck one, so it has
+// to be set either too low to finish real work or too high to catch a wedge.
+//
+// What actually distinguishes them is OUTPUT. `--output-format stream-json`
+// emits an event per step (estimated_tokens deltas arrive continuously, verified
+// against the CLI on 2026-08-31), so a live run is never quiet for long and a
+// wedged one -- a dropped connection it keeps retrying -- is quiet immediately.
+// The timer therefore resets on every chunk, and only silence ends a run.
+//
+// The brief composer still uses --output-format json, which prints once at the
+// end, so it would trip an idle timer instantly. It passes its own total budget
+// instead; see idleMs below.
+export const SPAWN_IDLE_MS = 5 * 60 * 1000;
+
+// The old total cap, kept ONLY for the non-streaming brief path.
 export const SPAWN_TIMEOUT_MS = 15 * 60 * 1000;
 
 export function spawnClaude(
   args: string[],
   stdin: string,
   signal?: AbortSignal,
+  // How long the CLI may be SILENT before it is treated as wedged. Callers on
+  // a streaming format leave this at the default; the brief, which prints only
+  // at the end, passes its total budget.
+  idleMs: number = SPAWN_IDLE_MS,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -62,23 +81,40 @@ export function spawnClaude(
     });
     let out = "";
     let err = "";
+    // Declared BEFORE the stream handlers that call it: `const` is in a
+    // temporal dead zone until its initialiser runs, and a handler referencing
+    // it earlier only works by accident of event timing.
+    let timedOut = false;
+    let deadline: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      deadline = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGKILL");
+      }, idleMs);
+      deadline.unref?.(); // never hold up quitting
+    };
+    // Every chunk proves the run is alive, so the clock starts over. Cheap
+    // enough per chunk: one clearTimeout plus one setTimeout.
+    const beat = () => {
+      clearTimeout(deadline);
+      arm();
+    };
+    arm();
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       out += chunk;
+      beat();
     });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
       // Bounded: a runaway process must not grow this without limit.
       if (err.length < 4000) err += chunk;
+      // Reset on stderr too: a run that is only logging warnings is still a
+      // run, and killing it would be the same mistake in a new place.
+      beat();
     });
     const onAbort = () => child.kill("SIGTERM");
     signal?.addEventListener("abort", onAbort, { once: true });
-    let timedOut = false;
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, SPAWN_TIMEOUT_MS);
-    deadline.unref?.(); // never hold up quitting
     child.on("error", (e) => {
       clearTimeout(deadline);
       signal?.removeEventListener("abort", onAbort);
@@ -92,7 +128,7 @@ export function spawnClaude(
       if (timedOut) {
         reject(
           new Error(
-            `claude did not finish within ${Math.round(SPAWN_TIMEOUT_MS / 60000)} minutes and was stopped`,
+            `claude produced no output for ${Math.round(idleMs / 60000)} minutes and was stopped`,
           ),
         );
         return;
@@ -126,7 +162,15 @@ export async function runComposer(
   model?: string,
 ): Promise<ComposerResult | null> {
   try {
-    const raw = await spawnFn(buildComposerArgs(model), prompt);
+    // --output-format json emits nothing until it is done, so "idle" and
+    // "total" are the same thing here: pass the old 15-minute budget rather
+    // than let it inherit the streaming default and die at 5.
+    const raw = await spawnFn(
+      buildComposerArgs(model),
+      prompt,
+      undefined,
+      SPAWN_TIMEOUT_MS,
+    );
     const parsed = parseComposerOutput(raw);
     if (parsed === null) {
       emitEvent({

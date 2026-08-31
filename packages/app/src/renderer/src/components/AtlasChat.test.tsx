@@ -28,7 +28,10 @@ const api = {
         pending?: "settled" | "pending" | "unanswered";
       }[],
   ),
-  atlasSend: vi.fn(async (_m: string) => "Work on Revaltone-CRM first."),
+  atlasSend: vi.fn(async (_m: string) => ({
+    ok: true as const,
+    text: "Work on Revaltone-CRM first.",
+  })),
   atlasCancel: vi.fn(async () => {}),
 };
 
@@ -37,7 +40,10 @@ beforeEach(() => {
   api.atlasSend.mockClear();
   api.atlasCancel.mockClear();
   api.atlasTurns.mockResolvedValue([]);
-  api.atlasSend.mockResolvedValue("Work on Revaltone-CRM first.");
+  api.atlasSend.mockResolvedValue({
+    ok: true as const,
+    text: "Work on Revaltone-CRM first.",
+  });
   (window as unknown as { airlock: unknown }).airlock = api;
 });
 
@@ -78,7 +84,7 @@ it("sends a message and appends both turns", async () => {
     expect(screen.getByText("Work on Revaltone-CRM first.")).toBeTruthy(),
   );
   expect(screen.getByText("what should I do?")).toBeTruthy();
-  expect(api.atlasSend).toHaveBeenCalledWith("what should I do?");
+  expect(api.atlasSend).toHaveBeenCalledWith("what should I do?", []);
 });
 
 it("does not send an empty message", async () => {
@@ -90,7 +96,10 @@ it("does not send an empty message", async () => {
 });
 
 it("shows an error line and keeps the user's turn when the send fails", async () => {
-  api.atlasSend.mockResolvedValueOnce(null as unknown as string);
+  // null is the CANCELLED/unreachable case, which keeps the generic sentence.
+  api.atlasSend.mockResolvedValueOnce(
+    null as unknown as { ok: true; text: string },
+  );
   render(<AtlasChat />);
   await waitFor(() => expect(api.atlasTurns).toHaveBeenCalled());
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "hi" } });
@@ -138,17 +147,17 @@ it("sends on a plain Enter", async () => {
   await waitFor(() => expect(api.atlasTurns).toHaveBeenCalled());
   fireEvent.change(box(), { target: { value: "hi" } });
   fireEvent.keyDown(box(), { key: "Enter" });
-  await waitFor(() => expect(api.atlasSend).toHaveBeenCalledWith("hi"));
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalledWith("hi", []));
 });
 
 it("STOPS an in-flight reply on Escape and hands the message back", async () => {
   // A wrong question should not cost a full Opus run. Escape has to kill the
   // subprocess, not merely stop waiting for it -- otherwise it keeps burning
   // quota with nowhere to deliver.
-  const held: { settle?: (v: string) => void } = {};
+  const held: { settle?: (v: { ok: true; text: string }) => void } = {};
   api.atlasSend.mockImplementationOnce(
     () =>
-      new Promise<string>((r) => {
+      new Promise<{ ok: true; text: string }>((r) => {
         held.settle = r;
       }),
   );
@@ -167,7 +176,7 @@ it("STOPS an in-flight reply on Escape and hands the message back", async () => 
 
   // A late result from the killed call must not then claim a failure, nor
   // append a reply the user stopped.
-  held.settle?.("a reply nobody wants");
+  held.settle?.({ ok: true, text: "a reply nobody wants" });
   await waitFor(() =>
     expect(screen.queryByText(/could not reach/i)).toBeNull(),
   );
@@ -268,10 +277,10 @@ it("does not refetch while THIS window is mid-send", async () => {
   // would race that append and could show the reply twice.
   // An object holder, not a `let`: TypeScript narrows a `let` assigned only
   // inside a callback to `null` at the call site.
-  const held: { settle?: (v: string) => void } = {};
+  const held: { settle?: (v: { ok: true; text: string }) => void } = {};
   api.atlasSend.mockImplementationOnce(
     () =>
-      new Promise<string>((r) => {
+      new Promise<{ ok: true; text: string }>((r) => {
         held.settle = r;
       }),
   );
@@ -285,7 +294,7 @@ it("does not refetch while THIS window is mid-send", async () => {
   await new Promise((r) => setTimeout(r, 20));
   expect(api.atlasTurns).toHaveBeenCalledTimes(1); // no refetch while busy
 
-  held.settle?.("done");
+  held.settle?.({ ok: true, text: "done" });
   await waitFor(() => expect(screen.getByText("done")).toBeTruthy());
 });
 
@@ -328,4 +337,25 @@ it("offers copy on the user's own messages too", async () => {
   render(<AtlasChat />);
   await waitFor(() => expect(screen.getByText("my question")).toBeTruthy());
   expect(screen.getAllByRole("button", { name: /copy/i })).toHaveLength(2);
+});
+
+it("shows the REAL reason a run failed, not a blanket network excuse", async () => {
+  // On 2026-08-31 a run was killed after fifteen minutes of genuine work and
+  // the card said "Could not reach Claude". Claude had been reached and had
+  // worked the whole time; main knew exactly why and kept it to the event log,
+  // so the only way to find out was to go read the log.
+  api.atlasSend.mockResolvedValueOnce({
+    ok: false,
+    error: "claude produced no output for 5 minutes and was stopped",
+  } as unknown as { ok: true; text: string });
+  render(<AtlasChat />);
+  await waitFor(() => expect(api.atlasTurns).toHaveBeenCalled());
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "hi" } });
+  fireEvent.submit(form());
+  await waitFor(() =>
+    expect(screen.getByText(/produced no output for 5 minutes/i)).toBeTruthy(),
+  );
+  expect(screen.queryByText(/could not reach/i)).toBeNull();
+  // The question is still recoverable either way.
+  expect(screen.getByText(/still here/i)).toBeTruthy();
 });

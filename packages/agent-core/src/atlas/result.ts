@@ -10,9 +10,32 @@ export interface ComposerResult {
   durationMs: number;
 }
 
-// The CLI prints one JSON object. Scan from the first '{' so a stray stdout
-// line cannot break the parse.
+// TWO output formats reach this parser, and it accepts both.
+//
+// `--output-format json` (the daily brief) prints ONE object at the end.
+// `--output-format stream-json` (the chat) prints NDJSON: a line per event,
+// the last of which is `{"type":"result",...}` carrying the very same fields.
+// The chat streams because a silent process cannot be told apart from a wedged
+// one -- see the idle deadline in composer.ts.
+//
+// Try NDJSON first: a stream ends with the result line, and slicing from the
+// FIRST '{' to EOF (which is what the single-object path does) would hand
+// JSON.parse a whole concatenated stream and fail.
 function extractJson(raw: string): unknown {
+  const lines = raw.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = (lines[i] ?? "").trim();
+    if (line.length === 0 || !line.startsWith("{")) continue;
+    try {
+      const d = JSON.parse(line) as Record<string, unknown>;
+      // Only the result event carries the reply; ignore assistant/system lines.
+      if (d.type === "result") return d;
+    } catch {
+      // Not a complete JSON line (a truncated stream, say). Keep scanning up.
+    }
+  }
+  // Single-object form. Scan from the first '{' so a stray stdout line -- a
+  // shell notice, a warning -- cannot break the parse.
   const start = raw.indexOf("{");
   if (start < 0) return null;
   try {

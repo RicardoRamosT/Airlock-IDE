@@ -132,6 +132,11 @@ import {
 } from "./agent-requests";
 import { stampAirlockEnv } from "./airlockEnv";
 import { getAnthropicStatus } from "./anthropicStatus/watch";
+import {
+  attachmentsDir,
+  describeAttachments,
+  saveAttachment,
+} from "./atlas/attachments";
 import { spawnClaude } from "./atlas/composer";
 import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
@@ -1105,46 +1110,80 @@ export function registerIpc(
   // Recents are the strongest seed for the portfolio, so read them fresh on
   // every send: a project opened a minute ago must be visible without a
   // restart. Passing [] here is what made Atlas report an empty portfolio.
-  ipcMain.handle("atlas:send", async (_e, message: unknown) => {
-    if (typeof message !== "string") return null;
-    const recents = (await loadPrefs(prefsFile)).recentFolders;
-    // One chat run at a time: a new send supersedes whatever was still going,
-    // so an abandoned CLI can never linger spending quota.
-    atlasChatAbort?.abort();
-    const ac = new AbortController();
-    atlasChatAbort = ac;
-    try {
-      return await sendMessage(
-        {
-          db: atlasDb(),
-          spawn: spawnClaude,
-          collect: makeCollectDeps(),
-          roots: allOpenRoots,
-          recents: () => recents,
-          mcp: atlasMcp,
-          now: () => Date.now(),
-          tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
-          signal: ac.signal,
-        },
-        message,
-      );
-    } finally {
-      // Only clear OUR controller: a newer send may already own the slot.
-      if (atlasChatAbort === ac) atlasChatAbort = null;
-      // Tell EVERY window the turn settled. A panel that loaded the question
-      // while it was pending has no other way to find out -- it made no call,
-      // so no promise resolves in it, and it would sit on "Atlas is working on
-      // this..." over a reply already in the database.
-      //
-      // getAllWindows, deliberately, not appWindows: the Atlas popover and chat
-      // window are NOT app windows and are exactly who needs this.
-      for (const w of BrowserWindow.getAllWindows()) {
-        if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-          w.webContents.send("atlas:refresh");
+  // A pasted image becomes a FILE, because `claude -p` takes a text prompt and
+  // there is nowhere to put bytes. Returns the path, which the renderer folds
+  // into the message it sends.
+  ipcMain.handle(
+    "atlas:attach",
+    async (_e, data: unknown, mime: unknown): Promise<string | null> => {
+      if (!(data instanceof Uint8Array) && !Array.isArray(data)) return null;
+      const bytes = data instanceof Uint8Array ? data : Uint8Array.from(data);
+      try {
+        return saveAttachment(
+          attachmentsDir(app.getPath("userData")),
+          bytes,
+          mime,
+        );
+      } catch {
+        // A failed write must not break the paste; the user simply gets no chip.
+        return null;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    "atlas:send",
+    async (_e, message: unknown, attachments: unknown) => {
+      if (typeof message !== "string") return null;
+      const files = Array.isArray(attachments)
+        ? attachments.filter((a): a is string => typeof a === "string")
+        : [];
+      const recents = (await loadPrefs(prefsFile)).recentFolders;
+      // One chat run at a time: a new send supersedes whatever was still going,
+      // so an abandoned CLI can never linger spending quota.
+      atlasChatAbort?.abort();
+      const ac = new AbortController();
+      atlasChatAbort = ac;
+      try {
+        return await sendMessage(
+          {
+            db: atlasDb(),
+            spawn: spawnClaude,
+            collect: makeCollectDeps(),
+            // The attachments directory rides along as an --add-dir so a pasted
+            // screenshot is EXPLICITLY readable, rather than relying on it
+            // happening to sit under the process cwd.
+            roots: () => [
+              ...allOpenRoots(),
+              attachmentsDir(app.getPath("userData")),
+            ],
+            recents: () => recents,
+            mcp: atlasMcp,
+            now: () => Date.now(),
+            tzOffsetMinutes: () => -new Date().getTimezoneOffset(),
+            signal: ac.signal,
+          },
+          message,
+          files,
+        );
+      } finally {
+        // Only clear OUR controller: a newer send may already own the slot.
+        if (atlasChatAbort === ac) atlasChatAbort = null;
+        // Tell EVERY window the turn settled. A panel that loaded the question
+        // while it was pending has no other way to find out -- it made no call,
+        // so no promise resolves in it, and it would sit on "Atlas is working on
+        // this..." over a reply already in the database.
+        //
+        // getAllWindows, deliberately, not appWindows: the Atlas popover and chat
+        // window are NOT app windows and are exactly who needs this.
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+            w.webContents.send("atlas:refresh");
+          }
         }
       }
-    }
-  });
+    },
+  );
   // Live, not from the stored brief: a concern that has since resolved must
   // stop being shown, including when an older debrief is on screen.
   ipcMain.handle("atlas:concerns", async () => {

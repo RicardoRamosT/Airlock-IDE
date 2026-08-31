@@ -24,7 +24,9 @@ import {
   type RootSnapshot,
   splitReply,
 } from "@airlock/agent-core";
+import type { AtlasSendResult } from "../../shared/ipc";
 import { emitEvent } from "../eventlog/wire";
+import { describeAttachments } from "./attachments";
 import type { SpawnFn } from "./composer";
 import type { AtlasDb } from "./dbOps";
 import { refreshPortfolio } from "./refresh";
@@ -85,7 +87,11 @@ async function portfolioFor(
 export async function sendMessage(
   deps: ChatDeps,
   message: string,
-): Promise<string | null> {
+  // Absolute paths to images the user pasted. They are announced in the PROMPT
+  // only -- the turn stored in the transcript keeps the user's own words, so
+  // reopening a conversation does not show it full of file paths.
+  attachments: readonly string[] = [],
+): Promise<AtlasSendResult | null> {
   const now = deps.now();
   const today = dayKey(now, deps.tzOffsetMinutes());
 
@@ -107,7 +113,7 @@ export async function sendMessage(
       project: c.project,
     })),
     question: stale ? questionFor(stale, now) : null,
-    message,
+    message: message + describeAttachments(attachments),
   });
 
   // Write the question NOW, before the model is spawned. Until this existed the
@@ -133,14 +139,18 @@ export async function sendMessage(
     }
     await deps.db.abandonTurn(seq).catch(() => {});
     // Do not swallow it: a silent "Could not reach Claude" is unactionable.
+    // The SAME reason goes to the log and to the user. It used to go only to
+    // the log, so the card blamed the network for a run that had been reached
+    // and had worked for fifteen minutes.
+    const reason = e instanceof Error ? e.message : String(e);
     emitEvent({
       level: "error",
       category: "atlas",
       op: "atlas.chat",
       outcome: "error",
-      detail: { reason: e instanceof Error ? e.message : String(e) },
+      detail: { reason },
     });
-    return null;
+    return { ok: false, error: reason };
   }
 
   const result = parseComposerOutput(raw);
@@ -153,7 +163,10 @@ export async function sendMessage(
       outcome: "error",
       detail: { reason: "unparseable output", head: raw.slice(0, 300) },
     });
-    return null;
+    return {
+      ok: false,
+      error: "Claude replied, but Atlas could not read the reply.",
+    };
   }
 
   const { prose, facts: incoming, concerns: raised } = splitReply(result.text);
@@ -199,5 +212,5 @@ export async function sendMessage(
     });
   }
 
-  return prose;
+  return { ok: true, text: prose };
 }

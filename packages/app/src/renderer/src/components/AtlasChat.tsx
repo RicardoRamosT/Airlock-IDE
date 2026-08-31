@@ -38,7 +38,17 @@ export function AtlasChat({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [failed, setFailed] = useState(false);
+  // The REASON, not a boolean: main knows exactly why a run ended and used
+  // to keep it to itself. null = no failure.
+  const [failed, setFailed] = useState<string | null>(null);
+  // Images pasted into the box, not yet sent. Paths, not bytes: main has
+  // already written the file, so this survives a re-render for free.
+  const [attached, setAttached] = useState<string[]>([]);
+  // Mirrored into a ref because submitText is a useCallback that deliberately
+  // depends only on `busy`; adding `attached` would rebuild it on every paste
+  // and re-fire the handed-in-question effect that depends on it.
+  const attachedRef = useRef<string[]>([]);
+  attachedRef.current = attached;
   const [stopped, setStopped] = useState(false);
   // The FOURTH state. "Asked and empty" and "asked and it failed" are different
   // answers, and rendering the empty-conversation prompt for a failed read told
@@ -66,7 +76,7 @@ export function AtlasChat({
     // previous conversation does not linger on screen while the new one loads.
     if (reloadKey > 0) {
       setTurns([]);
-      setFailed(false);
+      setFailed(null);
       setAsked(false);
     }
     if (retryNonce > 0) {
@@ -171,30 +181,42 @@ export function AtlasChat({
   const submitText = useCallback(
     async (raw: string) => {
       const message = raw.trim();
-      if (message.length === 0 || busy) return;
+      // An image on its own is a complete message ("what is wrong here?" is
+      // often the screenshot), so attachments alone may be sent.
+      const files = attachedRef.current;
+      if ((message.length === 0 && files.length === 0) || busy) return;
       const id = sendIdRef.current + 1;
       sendIdRef.current = id;
       // Show the user's turn immediately; the reply lands when it lands.
-      const mine = withKey({ role: "user", text: message });
-      pendingRef.current = { key: mine.key, text: message };
+      const shown =
+        message.length > 0
+          ? message
+          : files.length === 1
+            ? "(screenshot)"
+            : `(${files.length} screenshots)`;
+      const mine = withKey({ role: "user", text: shown });
+      pendingRef.current = { key: mine.key, text: shown };
       setDraft("");
-      setFailed(false);
+      setAttached([]);
+      setFailed(null);
       setStopped(false);
       setBusy(true);
       setTurns((prev) => [...prev, mine]);
       try {
-        const reply = await window.airlock?.atlasSend(message);
+        const reply = await window.airlock?.atlasSend(message, files);
         // Cancelled while we waited: whatever came back is not wanted, and a
         // null from a killed subprocess is not a failure to report.
         if (sendIdRef.current !== id) return;
-        if (reply === null || reply === undefined) setFailed(true);
+        if (reply === null || reply === undefined)
+          setFailed("Could not reach Claude.");
+        else if (!reply.ok) setFailed(reply.error);
         else
           setTurns((prev) => [
             ...prev,
-            withKey({ role: "atlas", text: reply }),
+            withKey({ role: "atlas", text: reply.text }),
           ]);
       } catch {
-        if (sendIdRef.current === id) setFailed(true);
+        if (sendIdRef.current === id) setFailed("Could not reach Claude.");
       } finally {
         if (sendIdRef.current === id) {
           pendingRef.current = null;
@@ -238,6 +260,27 @@ export function AtlasChat({
     // real trigger; the dependency is declared rather than suppressed so the
     // rule keeps working for the next person to touch this.
   }, [ask, submitText]);
+
+  // Cmd+V of a screenshot. `claude -p` takes text, so the bytes go to a file
+  // main owns and the path rides along with the message; Atlas opens it with
+  // Read. Non-image pastes fall through untouched to the normal text paste.
+  async function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((i) => i.kind === "file" && i.type.startsWith("image/"))
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (files.length === 0) return;
+    e.preventDefault();
+    for (const f of files) {
+      try {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        const path = await window.airlock?.atlasAttach(buf, f.type);
+        if (path) setAttached((prev) => [...prev, path]);
+      } catch {
+        // A failed attach must not eat the paste or break the box.
+      }
+    }
+  }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
@@ -363,9 +406,9 @@ export function AtlasChat({
               ) : null}
             </div>
           ) : null}
-          {failed ? (
+          {failed !== null ? (
             <div className="atlas-turn atlas-turn-error">
-              Could not reach Claude. Your message is still here; try again.
+              {failed} Your message is still here; try again.
             </div>
           ) : null}
           {stopped ? (
@@ -375,8 +418,28 @@ export function AtlasChat({
           ) : null}
           <div ref={endRef} />
         </div>
+        {attached.length > 0 ? (
+          <div className="atlas-attachments">
+            {attached.map((p) => (
+              <span key={p} className="atlas-attachment">
+                <i className="codicon codicon-device-camera" />
+                Screenshot
+                <button
+                  type="button"
+                  aria-label="Remove screenshot"
+                  onClick={() =>
+                    setAttached((prev) => prev.filter((x) => x !== p))
+                  }
+                >
+                  <i className="codicon codicon-close" />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
         <form onSubmit={submit} className="atlas-chat-form">
           <textarea
+            onPaste={onPaste}
             ref={boxRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
