@@ -42,6 +42,15 @@ export {
   COMPOSER_SYSTEM_PROMPT,
 } from "./atlas/compose";
 export {
+  type Concern,
+  type ConcernSource,
+  type DetectedConcern,
+  detectConcerns,
+  openConcerns,
+  reconcileConcerns,
+  renderStillOpen,
+} from "./atlas/concerns";
+export {
   type CredentialMode,
   costDisclosure,
   detectCredentialMode,

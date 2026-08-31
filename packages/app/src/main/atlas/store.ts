@@ -10,6 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   AtlasFact,
   AtlasProject,
+  Concern,
   RootSnapshot,
   Turn,
 } from "@airlock/agent-core";
@@ -48,6 +49,19 @@ CREATE TABLE IF NOT EXISTS turn (
   at      INTEGER NOT NULL,
   session INTEGER NOT NULL DEFAULT 0,
   pending INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS concern (
+  key         TEXT PRIMARY KEY,
+  source      TEXT NOT NULL,
+  root        TEXT,
+  project     TEXT,
+  title       TEXT NOT NULL,
+  detail      TEXT NOT NULL,
+  firstSeenAt INTEGER NOT NULL,
+  lastSeenAt  INTEGER NOT NULL,
+  firstValue  INTEGER,
+  lastValue   INTEGER,
+  resolvedAt  INTEGER
 );
 CREATE TABLE IF NOT EXISTS kv (
   k TEXT PRIMARY KEY,
@@ -302,6 +316,50 @@ export function writeFacts(
         bytes(f.verbatim),
         f.saidAt,
         f.supersededAt,
+      );
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export function readConcerns(db: DatabaseSync): Concern[] {
+  return db
+    .prepare(
+      "SELECT key, source, root, project, title, detail, firstSeenAt, lastSeenAt, firstValue, lastValue, resolvedAt FROM concern ORDER BY firstSeenAt, key",
+    )
+    .all() as unknown as Concern[];
+}
+
+// Wholesale replace, like the registry and the facts: reconcileConcerns always
+// produces the COMPLETE list, so a partial write could resurrect a concern the
+// reconcile had just resolved.
+export function writeConcerns(
+  db: DatabaseSync,
+  concerns: readonly Concern[],
+): void {
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM concern").run();
+    const ins = db.prepare(
+      "INSERT INTO concern (key, source, root, project, title, detail, firstSeenAt, lastSeenAt, firstValue, lastValue, resolvedAt) " +
+        "VALUES (CAST(? AS TEXT), ?, ?, ?, CAST(? AS TEXT), CAST(? AS TEXT), ?, ?, ?, ?, ?)",
+    );
+    for (const c of concerns) {
+      ins.run(
+        bytes(c.key),
+        c.source,
+        c.root,
+        c.project,
+        bytes(c.title),
+        bytes(c.detail),
+        c.firstSeenAt,
+        c.lastSeenAt,
+        c.firstValue,
+        c.lastValue,
+        c.resolvedAt,
       );
     }
     db.exec("COMMIT");

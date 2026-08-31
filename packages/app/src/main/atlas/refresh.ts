@@ -9,8 +9,10 @@ import {
   applyPresence,
   type CollectDeps,
   collectAll,
+  detectConcerns,
   mergeRegistry,
   type RootSnapshot,
+  reconcileConcerns,
   seedRoots,
 } from "@airlock/agent-core";
 import type { AtlasDb } from "./dbOps";
@@ -44,6 +46,24 @@ export async function refreshPortfolio(
 
   const present = new Set(snaps.filter((s) => !s.missing).map((s) => s.root));
   await db.writeRegistry(applyPresence(merged, present, now));
+
+  // Standing concerns, folded in here because this is the one place that is
+  // already free: pure detection over data just collected, no model call. Tier
+  // 1 is always-on precisely because it costs nothing.
+  //
+  // coveredRoots is EVERY root the collector produced a snapshot for, missing
+  // ones included -- a missing folder is a successful observation. A root that
+  // errored yields no snapshot and so is absent here, which is what stops its
+  // concerns being silently resolved.
+  const coveredRoots = new Set(snaps.map((s) => s.root));
+  await db.writeConcerns(
+    reconcileConcerns(
+      await db.readConcerns(),
+      detectConcerns(snaps, await db.readFacts(), now),
+      coveredRoots,
+      now,
+    ),
+  );
   await db.saveSnapshot(
     dayKey(now, input.tzOffsetMinutes),
     input.sinceMs,

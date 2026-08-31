@@ -74,3 +74,55 @@ it("returns an empty snapshot for a first-run user with no history", async () =>
   expect(out).toEqual([]);
   expect(await i.db.readSnapshot("2026-08-30")).toEqual([]);
 });
+
+it("accumulates a concern's history across refreshes", async () => {
+  // The end-to-end proof of the feature: run twice with the number growing and
+  // the stored concern must remember where it started. This is what turns
+  // "airlock has no remote" -- said identically for six days -- into
+  // "6 days, 28 -> 44".
+  const noRemote = (ahead: number) =>
+    deps({
+      status: async () => ({
+        branch: { head: "main", upstream: null, ahead, behind: 0 },
+        staged: [],
+        unstaged: [],
+        untracked: [],
+      }),
+    });
+  const i = input({ recentFolders: ["/p/airlock"], openTabRoots: [] });
+
+  await refreshPortfolio({ ...i, deps: noRemote(28) });
+  await refreshPortfolio({
+    ...i,
+    deps: noRemote(44),
+    now: i.now + 6 * 24 * 60 * 60 * 1000,
+  });
+
+  const [c] = await i.db.readConcerns();
+  expect(c?.key).toBe("/p/airlock|no-remote");
+  expect(c?.firstValue).toBe(28);
+  expect(c?.lastValue).toBe(44);
+  expect(c?.firstSeenAt).toBe(i.now); // the age survived the second run
+  expect(c?.resolvedAt).toBeNull();
+});
+
+it("resolves the concern once the repository gains a remote", async () => {
+  const i = input({ recentFolders: ["/p/airlock"], openTabRoots: [] });
+  await refreshPortfolio({
+    ...i,
+    deps: deps({
+      status: async () => ({
+        branch: { head: "main", upstream: null, ahead: 5, behind: 0 },
+        staged: [],
+        unstaged: [],
+        untracked: [],
+      }),
+    }),
+  });
+  expect((await i.db.readConcerns())[0]?.resolvedAt).toBeNull();
+
+  await refreshPortfolio({ ...i, now: i.now + 1000 }); // default deps have an upstream
+  const [c] = await i.db.readConcerns();
+  // Kept, not deleted: "was this ever a problem?" has to have an answer.
+  expect(c?.resolvedAt).toBe(i.now + 1000);
+});

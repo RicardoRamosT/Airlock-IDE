@@ -8,6 +8,7 @@
 import {
   buildBriefPrompt,
   type CollectDeps,
+  renderStillOpen,
   shouldCompose,
 } from "@airlock/agent-core";
 import { runComposer, type SpawnFn } from "./composer";
@@ -87,9 +88,16 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
     // arrival tries again.
     if (result === null) return false;
 
+    // STILL OPEN is appended by CODE, after the model's text and never inside
+    // the prompt. If the model wrote it, it could paraphrase an age, drop a
+    // line or round 44 to "over forty" -- and the whole value of this section
+    // is that its figures are measured.
+    const standing = renderStillOpen(await deps.db.readConcerns(), now);
+    const text = standing ? `${result.text}\n\n${standing}` : result.text;
+
     await deps.db.saveBrief({
       day: today,
-      text: result.text,
+      text,
       costUsd: result.costUsd,
       createdAt: now,
     });

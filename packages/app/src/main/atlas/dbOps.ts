@@ -22,6 +22,7 @@ import {
   readAskedDay,
   readBrief,
   readChatSince,
+  readConcerns,
   readFacts,
   readRegistry,
   readSnapshot,
@@ -31,11 +32,14 @@ import {
   saveSnapshot,
   writeAskedDay,
   writeChatSince,
+  writeConcerns,
   writeFacts,
   writeRegistry,
 } from "./store";
 
 export const DB_OPS = {
+  readConcerns,
+  writeConcerns,
   beginTurn,
   completeTurn,
   abandonTurn,
