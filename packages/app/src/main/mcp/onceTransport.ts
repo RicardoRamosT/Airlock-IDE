@@ -35,7 +35,41 @@ export function encodeJson(value: unknown): Buffer {
   const json = JSON.stringify(value);
   const buf = Buffer.from(json, "utf8");
   if (buf.toString("utf8") === json) return buf;
-  return Buffer.concat(Array.from(json, (ch) => Buffer.from(ch, "utf8")));
+  return encodeChunked(json);
+}
+
+// Chunk size for the fallback. Small enough that a bad region costs little,
+// large enough that a big payload is thousands of allocations, not millions.
+const ENCODE_CHUNK = 4096;
+
+// The fallback, exported so it can be tested directly: the fast path above
+// succeeds on most machines, so a test that only calls encodeJson never
+// exercises this at all.
+//
+// It used to be `Array.from(json, ch => Buffer.from(ch, "utf8"))` -- ONE Buffer
+// per character. read_events with no limit returns the whole event log (5.5MB
+// in one real install), so a single tool call could push millions of
+// allocations through the main process, which is the uncatchable-abort class
+// this app has already been killed by once. Now only a chunk that actually
+// round-trips wrong is split per character.
+export function encodeChunked(json: string): Buffer {
+  const parts: Buffer[] = [];
+  let i = 0;
+  while (i < json.length) {
+    let end = Math.min(i + ENCODE_CHUNK, json.length);
+    // Never cut a surrogate PAIR: each half would encode as U+FFFD and
+    // silently corrupt the reply. Push the high surrogate to the next chunk.
+    if (end < json.length) {
+      const c = json.charCodeAt(end - 1);
+      if (c >= 0xd800 && c <= 0xdbff) end -= 1;
+    }
+    const slice = json.slice(i, end);
+    const b = Buffer.from(slice, "utf8");
+    if (b.toString("utf8") === slice) parts.push(b);
+    else for (const ch of slice) parts.push(Buffer.from(ch, "utf8"));
+    i = end;
+  }
+  return Buffer.concat(parts);
 }
 
 // A JSON-RPC message earns a reply only if it carries an id: notifications do

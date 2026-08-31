@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { encodeJson, expectedReplies, OnceTransport } from "./onceTransport";
+import {
+  encodeChunked,
+  encodeJson,
+  expectedReplies,
+  OnceTransport,
+} from "./onceTransport";
 
 describe("encodeJson", () => {
   it("encodes ASCII exactly", () => {
@@ -133,4 +138,41 @@ describe("OnceTransport", () => {
       t.handle({ jsonrpc: "2.0", id: 1, method: "ping" }, 20),
     ).resolves.toEqual([]);
   });
+});
+
+it("encodes a multi-megabyte payload without a per-character fallback", () => {
+  // The fallback allocated ONE Buffer per character. read_events with no limit
+  // returns the whole event log (5.5MB in one real install), so a single tool
+  // call could put millions of allocations through the main process -- the same
+  // uncatchable-abort class that has already killed this app once.
+  // Exercise the FALLBACK directly: encodeJson's fast path succeeds on most
+  // machines, so calling it would never reach the code under test.
+  const json = JSON.stringify({ text: "x".repeat(4_000_000) });
+  const t0 = Date.now();
+  const out = encodeChunked(json);
+  expect(out.toString("utf8")).toBe(json);
+  expect(Date.now() - t0).toBeLessThan(4000);
+});
+
+it("never splits a surrogate pair across a chunk boundary", () => {
+  // Chunking a JS string at arbitrary indices can cut an emoji in half, and each
+  // half then encodes as U+FFFD -- silent corruption of the reply.
+  // The prefix is `{"s":"` (6 chars), so pad 4089 puts the HIGH surrogate at
+  // index 4095 -- the last char of the first chunk. Sweep around it rather
+  // than guessing, or the test silently never splits anything.
+  for (let pad = 4080; pad < 4100; pad++) {
+    const json = JSON.stringify({ s: `${"a".repeat(pad)}\u{1F680}tail` });
+    expect(encodeChunked(json).toString("utf8")).toBe(json);
+  }
+});
+
+it("round-trips ordinary and unicode payloads unchanged", () => {
+  for (const v of [
+    { a: 1 },
+    { s: "plain" },
+    { s: "caf\u00e9 \u4e2d\u6587 \u00b7 \u{1F680}" },
+    [1, "two", null],
+  ]) {
+    expect(JSON.parse(encodeJson(v).toString("utf8"))).toEqual(v);
+  }
 });

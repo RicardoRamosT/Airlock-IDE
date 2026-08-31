@@ -308,6 +308,14 @@ const NO_WORKSPACE = "No workspace open";
 
 // Exported so tools.events.test.ts can unit-test the mapping without standing
 // up the MCP server. Delegates entirely to queryEvents; no business logic here.
+// A tool result goes straight into the model's context, so an uncapped query is
+// not a nicety. `limit` was optional with no default and no ceiling, and
+// filterEvents applies no cap when it is absent -- so read_events with no
+// arguments returned the ENTIRE log (5.5MB in one real install), JSON-encoded,
+// through the MCP transport and into the conversation.
+export const EVENTS_DEFAULT_LIMIT = 200;
+export const EVENTS_MAX_LIMIT = 2000;
+
 export async function eventsToolHandler(args: {
   level?: string;
   category?: string;
@@ -316,7 +324,14 @@ export async function eventsToolHandler(args: {
   since?: string;
   limit?: number;
 }): Promise<{ content: [{ type: "text"; text: string }] }> {
-  const events = await queryEvents(args as Parameters<typeof queryEvents>[0]);
+  const limit = Math.min(
+    Math.max(1, args.limit ?? EVENTS_DEFAULT_LIMIT),
+    EVENTS_MAX_LIMIT,
+  );
+  const events = await queryEvents({
+    ...args,
+    limit,
+  } as Parameters<typeof queryEvents>[0]);
   return { content: [{ type: "text" as const, text: JSON.stringify(events) }] };
 }
 
@@ -479,7 +494,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "read_events",
     {
       description:
-        "Query AirLock's debugging event log (lifecycle, integration calls, agent commands, IPC, errors). Secret-free. Filters: level (min), category, op (prefix), project, since (ISO), limit (last N).",
+        "Query AirLock's debugging event log (lifecycle, integration calls, agent commands, IPC, errors). Secret-free. Filters: level (min), category, op (prefix), project, since (ISO), limit (last N, default 200, max 2000).",
       inputSchema: {
         level: z.enum(["debug", "info", "warn", "error"]).optional(),
         category: z.string().optional(),
