@@ -37,15 +37,33 @@ export function trayTitle(hasUnread: boolean): string {
 // the icon and read as unconnected.
 export const POINTER_INSET = 22;
 
+// How close the pointer may get to a rounded corner before it stops looking
+// attached to the bubble.
+const POINTER_EDGE_MARGIN = 10;
+
+// Where to put the popover, AND where the pointer must sit inside it.
+//
+// pointerX is not always POINTER_INSET. The window's x is clamped to the
+// display, so a WIDE panel (the popover is user-resizable) near either edge
+// gets pushed sideways -- and the arrow, drawn at a fixed inset, then aimed at
+// empty menu bar instead of the icon. The renderer positions it from this.
 export function popoverBounds(
   trayBounds: { x: number; y: number; width: number },
   display: { x: number; width: number },
   size: { width: number; height: number },
-): { x: number; y: number } {
-  const wanted = Math.round(
-    trayBounds.x + trayBounds.width / 2 - POINTER_INSET,
-  );
+): { x: number; y: number; pointerX: number } {
+  const iconCenter = trayBounds.x + trayBounds.width / 2;
+  const wanted = Math.round(iconCenter - POINTER_INSET);
   const min = display.x;
   const max = display.x + display.width - size.width;
-  return { x: Math.min(Math.max(wanted, min), max), y: trayBounds.y };
+  // max < min when the panel is wider than the display; prefer the left edge
+  // over the negative x that clamping in the other order produces.
+  const x = max < min ? min : Math.min(Math.max(wanted, min), max);
+  const pointerX = Math.round(
+    Math.min(
+      Math.max(iconCenter - x, POINTER_EDGE_MARGIN),
+      Math.max(POINTER_EDGE_MARGIN, size.width - POINTER_EDGE_MARGIN),
+    ),
+  );
+  return { x, y: trayBounds.y, pointerX };
 }

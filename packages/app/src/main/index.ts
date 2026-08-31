@@ -25,6 +25,7 @@ import {
 import { setAtlasMcp } from "./atlas/mcpEndpoint";
 import { startAtlasArrival } from "./atlas/start";
 import {
+  atlasJustInteracted,
   onAtlasPanelResize,
   setAtlasPanelSize,
   startAtlasTray,
@@ -358,8 +359,17 @@ function bootstrap(): void {
   // app is ready"). The initial window is created in whenReady() above, so a
   // pre-ready activate safely no-ops here.
   app.on("activate", () => {
+    if (!app.isReady()) return;
     // appWindows(): a hidden Atlas window used to make this believe the app
     // still had a window, so clicking the dock icon created nothing.
-    if (app.isReady() && appWindows().length === 0) createWindow();
+    if (appWindows().length > 0) return;
+    // ...but not every activation is a request for the IDE. Clicking the tray
+    // icon and dismissing the popover BOTH activate the app, and "activate"
+    // cannot tell those from a dock click -- so using Atlas from the menu bar
+    // with AirLock closed made an AirLock window appear uninvited. Someone
+    // running Atlas on its own must be able to open and close it without
+    // summoning the IDE.
+    if (atlasJustInteracted()) return;
+    createWindow();
   });
 }

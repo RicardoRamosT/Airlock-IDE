@@ -261,6 +261,11 @@ const api: AirlockApi = {
   atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
   atlasSend: (message: string) => ipcRenderer.invoke("atlas:send", message),
   atlasCancel: () => ipcRenderer.invoke("atlas:cancel"),
+  onAtlasPointer: (cb) => {
+    const h = (_e: unknown, x: number) => cb(x);
+    ipcRenderer.on("atlas:pointer", h);
+    return () => ipcRenderer.removeListener("atlas:pointer", h);
+  },
   atlasNewChat: () => ipcRenderer.invoke("atlas:newChat"),
   atlasSessions: () => ipcRenderer.invoke("atlas:sessions"),
   atlasResume: (session: number) => ipcRenderer.invoke("atlas:resume", session),

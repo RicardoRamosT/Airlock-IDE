@@ -1273,6 +1273,9 @@ export interface AirlockApi {
   atlasSend(message: string): Promise<string | null>;
   // Stop the in-flight reply (Escape in the chat). Kills the CLI process.
   atlasCancel(): Promise<void>;
+  // Where the popover's arrow must sit to aim at the tray icon. Sent on every
+  // open: the window is clamped to the display, so the offset is not constant.
+  onAtlasPointer(cb: (x: number) => void): () => void;
   atlasNewChat(): Promise<void>;
   atlasSessions(): Promise<
     { session: number; startedAt: number; turns: number; preview: string }[]

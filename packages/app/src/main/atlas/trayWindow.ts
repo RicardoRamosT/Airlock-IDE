@@ -68,7 +68,10 @@ function buildPopover(size: { width: number; height: number }): BrowserWindow {
       hash: "atlas",
     });
   // A popover closes when you click away, like every other menu bar panel.
-  win.on("blur", () => win.hide());
+  win.on("blur", () => {
+    noteAtlasInteraction();
+    win.hide();
+  });
   win.on("resized", () => {
     // getSize() is number[]; noUncheckedIndexedAccess makes each element
     // possibly-undefined, so fall back rather than assert.
@@ -79,8 +82,24 @@ function buildPopover(size: { width: number; height: number }): BrowserWindow {
   return win;
 }
 
+// Clicking the tray icon ACTIVATES the app, and so does dismissing the popover.
+// app.on("activate") cannot tell that apart from a dock click, and it creates an
+// IDE window when none are open -- so using Atlas from the menu bar with AirLock
+// closed made an AirLock window appear. Stamping the interaction lets the
+// activate handler ignore the one it just caused.
+let lastAtlasInteractionAt = 0;
+
+export function noteAtlasInteraction(): void {
+  lastAtlasInteractionAt = Date.now();
+}
+
+export function atlasJustInteracted(withinMs = 1000): boolean {
+  return Date.now() - lastAtlasInteractionAt < withinMs;
+}
+
 function toggle(): void {
   if (!tray) return;
+  noteAtlasInteraction();
   if (!popover) popover = buildPopover(panelSize);
   if (popover.isVisible()) {
     popover.hide();
@@ -90,6 +109,10 @@ function toggle(): void {
   const display = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
   const at = popoverBounds(b, display, panelSize);
   popover.setPosition(at.x, at.y, false);
+  // Where the arrow must sit INSIDE the bubble to still aim at the icon. The
+  // CSS cannot know: the window's x is clamped to the display, so a wide panel
+  // near an edge is pushed sideways and a fixed inset points at nothing.
+  popover.webContents.send("atlas:pointer", at.pointerX);
   // Re-fetch on every open. The popover used to read the brief once on mount,
   // so a debrief composed afterwards showed as "No debrief yet" forever.
   popover.webContents.send("atlas:refresh");
