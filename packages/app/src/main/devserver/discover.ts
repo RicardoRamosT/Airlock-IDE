@@ -52,11 +52,29 @@ export function parsePsSubtree(out: string, rootPid: number): Set<number> {
 }
 
 // Impure wrappers (thin; not unit-tested). Best-effort: missing/erroring tool -> empty.
+//
+// These run SYNCHRONOUSLY on the Electron main thread, on a 1Hz timer for as
+// long as a managed dev server is running. Everything main owns is stalled for
+// their duration: pty output delivery to every terminal in every window, all
+// IPC, the MCP HTTP server, the LSP pumps. Steady-state that is ~25ms/second
+// per dev server -- tolerable. The danger is the TAIL: with no timeout, a
+// single `lsof` blocked in the kernel on a hung SMB/sshfs/VPN mount freezes the
+// whole app indefinitely, which the user experiences as a beachball
+// indistinguishable from a crash, recoverable only by Force Quit.
+const PROBE_TIMEOUT_MS = 2000;
 export function listeningPorts(): Array<{ pid: number; port: number }> {
   try {
-    const r = spawnSync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-FpPn"], {
-      encoding: "utf8",
-    });
+    // -b avoids the kernel calls that can block on a stale mount; the timeout
+    // is the backstop for everything -b does not cover.
+    const r = spawnSync(
+      "lsof",
+      ["-b", "-nP", "-iTCP", "-sTCP:LISTEN", "-FpPn"],
+      {
+        encoding: "utf8",
+        timeout: PROBE_TIMEOUT_MS,
+        killSignal: "SIGKILL",
+      },
+    );
     if (r.error !== undefined || typeof r.stdout !== "string") return [];
     return parseLsofPorts(r.stdout);
   } catch {
@@ -66,7 +84,11 @@ export function listeningPorts(): Array<{ pid: number; port: number }> {
 
 export function subtreePids(rootPid: number): Set<number> {
   try {
-    const r = spawnSync("ps", ["-Ao", "pid=,ppid="], { encoding: "utf8" });
+    const r = spawnSync("ps", ["-Ao", "pid=,ppid="], {
+      encoding: "utf8",
+      timeout: PROBE_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    });
     if (r.error !== undefined || typeof r.stdout !== "string")
       return new Set([rootPid]);
     return parsePsSubtree(r.stdout, rootPid);

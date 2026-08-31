@@ -16,8 +16,19 @@ export interface Container {
 
 export type DockerRunner = (args: string[]) => Promise<string>;
 
+// maxBuffer was set and `timeout` was not, which is the wrong half: a bounded
+// buffer stops a chatty command, a deadline stops a WEDGED one. `docker` talks
+// to a daemon over a socket and hangs indefinitely when that daemon is
+// unhealthy -- and the extensions surfaces poll it, so one sick daemon meant an
+// unbounded pile of stuck children and never-settling promises.
+const DOCKER_TIMEOUT_MS = 10_000;
+
 const realDocker: DockerRunner = async (args) => {
-  const { stdout } = await exec("docker", args, { maxBuffer: 8 * 1024 * 1024 });
+  const { stdout } = await exec("docker", args, {
+    maxBuffer: 8 * 1024 * 1024,
+    timeout: DOCKER_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  });
   return stdout;
 };
 

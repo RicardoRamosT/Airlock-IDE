@@ -401,7 +401,13 @@ function assertNotVault(relPath: string): void {
 function ptyHasChild(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
-    const r = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" });
+    // Bounded: this is synchronous on the main thread, so an unbounded pgrep
+    // would freeze every window.
+    const r = spawnSync("pgrep", ["-P", String(pid)], {
+      encoding: "utf8",
+      timeout: 2000,
+      killSignal: "SIGKILL",
+    });
     if (r.error) return false;
     return r.status === 0 && (r.stdout ?? "").trim().length > 0;
   } catch {

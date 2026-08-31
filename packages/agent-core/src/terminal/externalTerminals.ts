@@ -108,7 +108,13 @@ export function parseInstalled(
 // DI-able mdfind runner (mirrors docker.ts's DockerRunner). Real one shells out.
 export type MdfindRunner = (args: string[]) => Promise<string>;
 const realMdfind: MdfindRunner = async (args) => {
-  const { stdout } = await exec("mdfind", args, { maxBuffer: 1 * 1024 * 1024 });
+  // mdfind blocks on a busy or rebuilding Spotlight index, and this runs one
+  // query PER known terminal, so an unbounded call stalls the whole probe.
+  const { stdout } = await exec("mdfind", args, {
+    maxBuffer: 1 * 1024 * 1024,
+    timeout: 5000,
+    killSignal: "SIGKILL",
+  });
   return stdout;
 };
 

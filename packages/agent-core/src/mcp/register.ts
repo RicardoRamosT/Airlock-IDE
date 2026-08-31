@@ -33,6 +33,10 @@ const realClaude: ClaudeRunner = async (args, cwd) => {
   const { stdout } = await exec("claude", args, {
     cwd,
     maxBuffer: 4 * 1024 * 1024,
+    // Bounded like every other child: a hung CLI must not leave registration
+    // waiting forever with a stuck process behind it.
+    timeout: 30_000,
+    killSignal: "SIGKILL",
   });
   return stdout;
 };
