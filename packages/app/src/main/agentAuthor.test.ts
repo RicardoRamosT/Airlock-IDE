@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   AGENT_SIGNATURES,
@@ -15,17 +16,45 @@ describe("signAgentInput", () => {
     // it would arrive as a second prompt of its own, and the receiving Claude
     // would answer the signature.
     expect(sign("Fix the two defects and commit them separately.\n")).toBe(
-      `Fix the two defects and commit them separately. ${SIG}\n`,
+      `${SIG} Fix the two defects and commit them separately.\n`,
     );
   });
 
-  it("is inert in a shell, because it is a comment", () => {
-    // A signed payload can land in a shell rather than a Claude session. As a
-    // `#` comment the command still runs and the signature does not.
-    expect(SIG.startsWith("#")).toBe(true);
-    expect(sign("git commit -m 'fix the atlas activity wiring'\n")).toContain(
-      " #",
-    );
+  it("is inert in a REAL shell, run rather than asserted", () => {
+    // This test used to assert `SIG.startsWith("#")` and call that inert. It is
+    // not: zsh leaves INTERACTIVE_COMMENTS off by default, so every signed
+    // command died with `zsh: parse error near #` (2026-08-31). Claiming shell
+    // behaviour without executing a shell is what let that ship, so this runs
+    // one -- in both zsh and bash, with -f/--norc so a user's config cannot
+    // make it pass.
+    const payload = sign("echo running the tests and report\n").trimEnd();
+    for (const [shell, noRc] of [
+      ["zsh", "-f"],
+      ["bash", "--norc"],
+    ] as const) {
+      const r = spawnSync(shell, [noRc, "-c", payload], { encoding: "utf8" });
+      expect(`${shell}: ${r.stderr}`).not.toMatch(/parse error|syntax error/i);
+      expect(`${shell}: ${r.status}`).toBe(`${shell}: 0`);
+    }
+  });
+
+  it("does not swallow the command it prefixes", () => {
+    // Inert must not mean inert for the payload too: the signature runs, then
+    // the real command runs.
+    const payload = sign(
+      "echo the-command-still-ran and more words\n",
+    ).trimEnd();
+    const r = spawnSync("zsh", ["-f", "-c", payload], { encoding: "utf8" });
+    expect(r.stdout).toContain("the-command-still-ran");
+  });
+
+  it("carries no character a shell would expand", () => {
+    // Single-quoted, and the wording is apostrophe-free so it can stay that
+    // way. A stray apostrophe would end the quoting and change what runs.
+    expect(SIG).not.toContain("`");
+    expect(SIG).not.toContain("$");
+    expect(SIG).not.toContain("!");
+    expect(SIG.split("'").length - 1).toBe(2); // exactly the opening and closing quote
   });
 
   it("leaves a keystroke alone", () => {
@@ -55,7 +84,7 @@ describe("signAgentInput", () => {
   it("signs the last line of a multi-line dispatch, once", () => {
     const out = sign("Two defects.\nFix both and commit them separately.\n");
     expect(out).toBe(
-      `Two defects.\nFix both and commit them separately. ${SIG}\n`,
+      `Two defects.\n${SIG} Fix both and commit them separately.\n`,
     );
     expect(out.split(SIG)).toHaveLength(2);
   });
@@ -79,7 +108,7 @@ describe("signAgentInput", () => {
 
   it("preserves a CRLF submit", () => {
     expect(sign("Fix the two defects and commit them.\r\n")).toBe(
-      `Fix the two defects and commit them. ${SIG}\r\n`,
+      `${SIG} Fix the two defects and commit them.\r\n`,
     );
   });
 });

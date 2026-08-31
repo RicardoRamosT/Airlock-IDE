@@ -517,8 +517,18 @@ user's instruction. Four things make the stamp worth something:
   past any character floor. The signature also goes INSIDE the last line, before
   the submit: after it, a Claude session would receive the signature as a prompt of
   its own and answer it.
-- **The signature is a `#` comment**, so a signed payload that lands in a SHELL
-  rather than a Claude session is inert instead of a bogus command.
+- **The signature is a `:` null command PREFIXING the last line**, so a signed
+  payload that lands in a SHELL rather than a Claude session runs a no-op and
+  then the real command. It was a `#` comment until 2026-08-31 on the theory
+  that a comment is inert — but **zsh leaves `INTERACTIVE_COMMENTS` off by
+  default** (`zsh -f -i` confirms it), and zsh is macOS's shell, so every signed
+  command died with `zsh: parse error near '#'` and Atlas could not run anything
+  at a prompt. It PREFIXES rather than trails because `; :` is a parse error
+  after a payload ending in `&`. Single-quoted, and **the wording must stay
+  apostrophe-free** so the quoting cannot be broken. `agentAuthor.test.ts` now
+  proves inertness by running `zsh -f` and `bash --norc` rather than asserting
+  it — the previous test asserted `startsWith("#")` and called that inert, which
+  is exactly how this shipped.
 
 Atlas's system prompt is told the stamp exists (so it writes as one agent
 reporting to another rather than adding its own), but is never relied on for it.

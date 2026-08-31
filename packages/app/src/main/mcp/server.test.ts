@@ -431,14 +431,16 @@ describe("MCP request authorship", () => {
     // the portfolio agent and not from the person at the keyboard.
     const written = await typeInto({ "X-Airlock-Author": "atlas" });
     expect(written).toEqual([
-      `Fix the two defects and commit them separately. ${AGENT_SIGNATURES.atlas}\n`,
+      `${AGENT_SIGNATURES.atlas} Fix the two defects and commit them separately.\r`,
     ]);
   });
 
   it("leaves an unattributed caller's input exactly as sent", async () => {
     const written = await typeInto({});
+    // \r, not \n: the trailing newline becomes a CR so it submits in a raw-mode
+    // Claude TUI as well as at a shell prompt. Unsigned is still unsigned.
     expect(written).toEqual([
-      "Fix the two defects and commit them separately.\n",
+      "Fix the two defects and commit them separately.\r",
     ]);
   });
 
@@ -447,7 +449,7 @@ describe("MCP request authorship", () => {
     // itself something of its own and have it typed into a terminal.
     const written = await typeInto({ "X-Airlock-Author": "the user" });
     expect(written).toEqual([
-      "Fix the two defects and commit them separately.\n",
+      "Fix the two defects and commit them separately.\r",
     ]);
   });
 });

@@ -253,7 +253,9 @@ describe("gatedTerminalInput", () => {
     const second = await gatedTerminalInput("p1", "again\n", d);
     expect(second).toEqual({ sent: true });
     expect(listRequestsForWindow(1)).toHaveLength(0);
-    expect(written).toEqual(["hi\n", "again\n"]);
+    // \r: the trailing newline becomes a CR at the choke point, so the same
+    // bytes submit at a shell prompt and in a raw-mode Claude TUI.
+    expect(written).toEqual(["hi\r", "again\r"]);
   });
 
   it("reports denied without writing", async () => {
@@ -270,7 +272,7 @@ describe("gatedTerminalInput", () => {
     const written: string[] = [];
     const r = await gatedTerminalInput("p2", "ls\n", deps(written, false));
     expect(r).toEqual({ sent: true });
-    expect(written).toEqual(["ls\n"]);
+    expect(written).toEqual(["ls\r"]);
     expect(listRequestsForWindow(1)).toHaveLength(0);
   });
 
@@ -307,7 +309,7 @@ it("submits a line an agent escaped as literal text, and previews what it will t
   expect(req?.kind).toBe("terminalGrant");
   resolveTerminalGrant(req?.requestId ?? "", true);
   expect(await p).toEqual({ sent: true });
-  expect(written).toEqual(["git status\n"]);
+  expect(written).toEqual(["git status\r"]);
 });
 
 // --- authorship: main stamps it, the model cannot ------------------------
@@ -331,7 +333,7 @@ it("SIGNS AN ATLAS DISPATCH, and shows the signature on the approval card", asyn
   resolveTerminalGrant(req?.requestId ?? "", true);
   expect(await p).toEqual({ sent: true });
   expect(written[0]).toBe(
-    `Fix the two defects and commit them separately. ${AGENT_SIGNATURES.atlas}\n`,
+    `${AGENT_SIGNATURES.atlas} Fix the two defects and commit them separately.\r`,
   );
 });
 
@@ -346,7 +348,9 @@ it("leaves Atlas's keystrokes and short answers untouched", async () => {
   expect(await gatedTerminalInput("p8", "\u0003", d, "atlas")).toEqual({
     sent: true,
   });
-  expect(written).toEqual(["y\n", "\u0003"]);
+  // "y" still submits: the trailing newline becomes CR so it works in a TUI as
+  // well as a shell. Unsigned, and otherwise untouched.
+  expect(written).toEqual(["y\r", "\u0003"]);
 });
 
 it("does not sign a project agent's own input", async () => {
@@ -355,5 +359,5 @@ it("does not sign a project agent's own input", async () => {
   const written: string[] = [];
   const d = { ...deps2(written), askFirst: async () => false };
   await gatedTerminalInput("p8", "Run the tests and fix what fails.\n", d);
-  expect(written).toEqual(["Run the tests and fix what fails.\n"]);
+  expect(written).toEqual(["Run the tests and fix what fails.\r"]);
 });

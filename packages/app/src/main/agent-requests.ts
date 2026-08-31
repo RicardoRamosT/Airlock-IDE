@@ -393,7 +393,14 @@ export async function gatedTerminalInput(
   //
   // Then sign, in the same breath and for the same reason: the card must show
   // the signature that will be typed, not the unsigned text that was asked for.
-  const bytes = signAgentInput(decodeTerminalEscapes(data), author);
+  //
+  // Then convert a trailing newline to CR, LAST and once: LF in a raw-mode TUI
+  // (a running Claude) inserts a line in the composer and submits nothing, so
+  // the message was typed and never sent. CR is Enter there, and a shell in
+  // canonical mode maps CR to NL, so it submits in both.
+  const bytes = submitNewline(
+    signAgentInput(decodeTerminalEscapes(data), author),
+  );
   // The label lookup runs FIRST either way: a send to a dead pty is an error,
   // not a silent success, whether or not approval is being asked for.
   if (await deps.askFirst()) {

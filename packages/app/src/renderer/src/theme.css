@@ -7274,6 +7274,11 @@ button.docker-row .codicon-chevron-right {
   list-style: none;
   margin: 4px 0 0;
   padding: 6px 8px;
+  /* .atlas-chat-log is a COLUMN flex container, so this list is a flex item and
+     shrinks by default. With a full transcript above it that squeezed the panel
+     to a sliver showing half of one row -- the steps were rendered and still
+     unreadable. It scrolls internally, so it must keep its own height. */
+  flex: 0 0 auto;
   max-height: 220px;
   overflow-y: auto;
   border: 1px solid var(--border);
@@ -7297,7 +7302,15 @@ button.docker-row .codicon-chevron-right {
   min-width: 0;
   color: var(--fg-dim);
   font-family: var(--font-mono, monospace);
-  white-space: nowrap;
+  /* Two lines, not one: a single clipped line of a long argument (a tool-select
+     list, a piped command) shows a prefix that identifies nothing. Wrapping
+     anywhere, because these are paths and commands with no spaces to break on. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+.atlas-activity li {
+  align-items: flex-start;
 }

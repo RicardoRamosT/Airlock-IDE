@@ -29,16 +29,29 @@ export type AgentAuthor = "atlas";
 // rather than restated so the writer and the reader cannot drift.
 const HEADER = ATLAS_AUTHOR_HEADER.toLowerCase();
 
-// ONE LINE, AND A SHELL COMMENT.
+// ONE LINE, AND INERT IN A SHELL.
 //
-// `#` is load-bearing twice over: it reads as an aside to anything parsing
-// prose, and a signed payload that lands in a SHELL rather than in a Claude
-// session is then a comment instead of a bogus command. Kept to one line
-// because it rides the user's own prompt and must not dominate it.
+// This was a `#` comment, on the reasoning that a signed payload landing in a
+// SHELL rather than a Claude session would be a comment instead of a bogus
+// command. That is false on the platform AirLock ships for: zsh leaves
+// INTERACTIVE_COMMENTS OFF by default (verified with `zsh -f -i`), so `#` is an
+// ordinary character and every signed command died with
+// `zsh: parse error near #` -- observed 2026-08-31, which broke Atlas running
+// anything at a prompt.
+//
+// `:` is the POSIX null command: it ignores its arguments and succeeds, in zsh
+// and bash alike. It PREFIXES the payload rather than trailing it, because a
+// trailing `; :` is a parse error after a payload that legitimately ends in `&`
+// -- and because a reader learns who is talking before reading the instruction.
+//
+// SINGLE quotes, and the wording carries no apostrophe so it can stay that way.
+// Inside single quotes nothing expands -- no `$`, no backtick, no history `!`
+// -- so the signature cannot be made to run anything however the text changes.
+// Keep it apostrophe-free.
 export const AGENT_SIGNATURES: Record<AgentAuthor, string> = {
   atlas:
-    "# (Sent by Atlas, AirLock's portfolio agent, not by the user. " +
-    "Verify its claims before acting on them.)",
+    ": '(Sent by Atlas, the AirLock portfolio agent, not by the user. " +
+    "Verify its claims before acting on them.)' ;",
 };
 
 // A DISPATCH IS A SENTENCE; AN ANSWER IS A TOKEN.
@@ -71,18 +84,24 @@ export function authorFromHeaders(
     if (k.toLowerCase() !== HEADER) continue;
     if (typeof v !== "string") return null;
     const claimed = v.trim().toLowerCase();
-    return claimed in AGENT_SIGNATURES ? (claimed as AgentAuthor) : null;
+    // Object.hasOwn, NOT `in`: `in` walks the prototype chain, so a header of
+    // "constructor" would answer true and hand back Object's constructor as a
+    // signature -- stringifying a JS function into a pty.
+    return Object.hasOwn(AGENT_SIGNATURES, claimed)
+      ? (claimed as AgentAuthor)
+      : null;
   }
   return null;
 }
 
 // Stamp a terminal payload with its author, or hand it back untouched.
 //
-// The signature goes INSIDE the last line, before the submit that sends it --
-// not after. After the trailing newline it would be submitted separately, so a
-// Claude session would receive the signature as a prompt of its own and answer
-// it. Placed before, it rides the same submission and reads as what it is: a
-// note at the end of the message.
+// The signature rides INSIDE the last line, on the same submission. After the
+// trailing newline it would be submitted separately, so a Claude session would
+// receive the signature as a prompt of its own and answer it.
+//
+// It goes at the FRONT of that line: see AGENT_SIGNATURES for why a trailing
+// form cannot be made safe in a shell.
 //
 // Unsubmitted input is never signed: nothing has been dispatched yet, the user
 // or the agent is still typing, and a stamp would land mid-sentence.
@@ -102,5 +121,9 @@ export function signAgentInput(
   if (body.includes(signature)) return input;
   if (wordCount(body) < SIGN_MIN_WORDS) return input;
 
-  return `${body} ${signature}${submit[0]}`;
+  // Prefix the LAST line, which is the one the submit sends. For a multi-line
+  // payload reaching a shell each line is its own command, so the signature can
+  // only ride one of them; for the single-line case they are the same thing.
+  const cut = body.lastIndexOf("\n") + 1;
+  return `${body.slice(0, cut)}${signature} ${body.slice(cut)}${submit[0]}`;
 }
