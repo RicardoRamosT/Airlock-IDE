@@ -5,7 +5,12 @@ import { AtlasPanel } from "./AtlasPanel";
 
 afterEach(cleanup);
 
-let refreshCb: (() => void) | null = null;
+// A LIST, not one slot: AtlasPanel and the AtlasChat it hosts both subscribe,
+// and a single slot silently modelled only whichever mounted last.
+let refreshCbs: (() => void)[] = [];
+const fireRefresh = () => {
+  for (const cb of [...refreshCbs]) cb();
+};
 
 const api = {
   atlasState: vi.fn(async () => ({
@@ -22,15 +27,15 @@ const api = {
   atlasSessions: vi.fn(async () => []),
   atlasNewChat: vi.fn(async () => {}),
   onAtlasRefresh: (cb: () => void) => {
-    refreshCb = cb;
+    refreshCbs.push(cb);
     return () => {
-      refreshCb = null;
+      refreshCbs = refreshCbs.filter((x) => x !== cb);
     };
   },
 };
 
 beforeEach(() => {
-  refreshCb = null;
+  refreshCbs = [];
   for (const fn of Object.values(api)) {
     if (typeof fn === "function" && "mockClear" in fn) fn.mockClear();
   }
@@ -90,7 +95,7 @@ it("does not yank the user back on a REFRESH after they switched view", async ()
 
   // A refresh arrives (a new debrief composed, say) while the stored pref still
   // says "brief" because the write is async.
-  refreshCb?.();
+  fireRefresh();
   await waitFor(() => expect(api.atlasState).toHaveBeenCalledTimes(2));
   // Still in the chat.
   expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy();

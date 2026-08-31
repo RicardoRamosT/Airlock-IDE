@@ -32,6 +32,14 @@ export type SpawnFn = (
   signal?: AbortSignal,
 ) => Promise<string>;
 
+// A DEADLINE, generous on purpose. Real Atlas runs are slow -- one measured at
+// 303 seconds doing genuine tool work -- so this must never fire on legitimate
+// work. But without any bound a CLI that wedges (a dropped connection it keeps
+// retrying) leaves Atlas "thinking" forever, which is exactly what the user
+// cannot distinguish from a loop. Escape already kills a run; this is what
+// ends one nobody is watching.
+export const SPAWN_TIMEOUT_MS = 15 * 60 * 1000;
+
 export function spawnClaude(
   args: string[],
   stdin: string,
@@ -65,12 +73,30 @@ export function spawnClaude(
     });
     const onAbort = () => child.kill("SIGTERM");
     signal?.addEventListener("abort", onAbort, { once: true });
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, SPAWN_TIMEOUT_MS);
+    deadline.unref?.(); // never hold up quitting
     child.on("error", (e) => {
+      clearTimeout(deadline);
       signal?.removeEventListener("abort", onAbort);
       reject(new Error(`spawn claude failed: ${e.message}`));
     });
     child.on("close", (code) => {
+      clearTimeout(deadline);
       signal?.removeEventListener("abort", onAbort);
+      // Checked with the abort, and for the same reason: a killed run can leave
+      // partial JSON on stdout that the fallback below would happily accept.
+      if (timedOut) {
+        reject(
+          new Error(
+            `claude did not finish within ${Math.round(SPAWN_TIMEOUT_MS / 60000)} minutes and was stopped`,
+          ),
+        );
+        return;
+      }
       // Checked FIRST: a killed run can leave partial JSON on stdout, and
       // `out.includes("{")` below would happily resolve with that garbage.
       if (signal?.aborted) {

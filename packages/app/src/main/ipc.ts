@@ -1130,6 +1130,18 @@ export function registerIpc(
     } finally {
       // Only clear OUR controller: a newer send may already own the slot.
       if (atlasChatAbort === ac) atlasChatAbort = null;
+      // Tell EVERY window the turn settled. A panel that loaded the question
+      // while it was pending has no other way to find out -- it made no call,
+      // so no promise resolves in it, and it would sit on "Atlas is working on
+      // this..." over a reply already in the database.
+      //
+      // getAllWindows, deliberately, not appWindows: the Atlas popover and chat
+      // window are NOT app windows and are exactly who needs this.
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+          w.webContents.send("atlas:refresh");
+        }
+      }
     }
   });
   // Live, not from the stored brief: a concern that has since resolved must

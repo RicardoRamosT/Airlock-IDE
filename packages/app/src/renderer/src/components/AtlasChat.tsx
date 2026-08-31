@@ -44,6 +44,9 @@ export function AtlasChat({
   // answers, and rendering the empty-conversation prompt for a failed read told
   // the user their history had been deleted.
   const [loadFailed, setLoadFailed] = useState(false);
+  // Read by the refresh subscriber, which is registered once and would
+  // otherwise close over the first render's `busy`.
+  const busyRef = useRef(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const endRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLTextAreaElement | null>(null);
@@ -92,6 +95,27 @@ export function AtlasChat({
     // both buttons appeared to do nothing at all.
   }, [reloadKey, retryNonce]);
 
+  // Refetch when main says a run finished ANYWHERE.
+  //
+  // A panel that loaded a PENDING turn had no way to learn it had settled: it
+  // was not the renderer that made the call, so no promise resolved here, and
+  // atlas:refresh only fired when the popover opened. The result was "Atlas is
+  // working on this..." left up permanently over a reply that had landed
+  // minutes earlier and was sitting in the database.
+  //
+  // Skipped while THIS window is busy: it appends its own reply optimistically
+  // when the call resolves, and refetching under that would race the append and
+  // could show the reply twice.
+  useEffect(() => {
+    const off = window.airlock?.onAtlasRefresh?.(() => {
+      if (busyRef.current) return;
+      setRetryNonce((n) => n + 1);
+    });
+    return () => {
+      if (typeof off === "function") off();
+    };
+  }, []);
+
   // Follow the conversation: when a turn arrives, or the reply finishes, put
   // the newest message in view. Keyed on the turn count and the busy flag
   // rather than every render, so it does not fight the user scrolling back
@@ -119,6 +143,10 @@ export function AtlasChat({
   // A bare "..." says nothing about whether anything is happening. Atlas runs a
   // real subprocess that can take many seconds, so show the stage AND a running
   // clock -- the difference between "working" and "hung" has to be visible.
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
   useEffect(() => {
     if (!busy) return;
     setElapsed(0);

@@ -11,7 +11,15 @@ import { AtlasChat } from "./AtlasChat";
 
 afterEach(cleanup);
 
+let refreshCb: (() => void) | null = null;
+
 const api = {
+  onAtlasRefresh: (cb: () => void) => {
+    refreshCb = cb;
+    return () => {
+      refreshCb = null;
+    };
+  },
   atlasTurns: vi.fn(
     async () =>
       [] as {
@@ -222,4 +230,61 @@ it("says a question was never answered when the run was interrupted", async () =
   render(<AtlasChat />);
   await waitFor(() => expect(screen.getByText("big question")).toBeTruthy());
   expect(screen.getByText(/never answered|interrupted/i)).toBeTruthy();
+});
+
+it("clears a stale working indicator when the run finishes elsewhere", async () => {
+  // The bug, reported with a screenshot: a panel that loaded a PENDING turn
+  // showed "Atlas is working on this..." forever. The reply had landed minutes
+  // earlier and was in the database -- but nothing told this renderer, because
+  // it was not the one that made the call and atlas:refresh only fired when the
+  // popover opened.
+  api.atlasTurns.mockResolvedValueOnce([
+    { role: "user", text: "is it ready?", pending: "pending" },
+  ]);
+  render(<AtlasChat />);
+  await waitFor(() =>
+    expect(screen.getByText(/working on this/i)).toBeTruthy(),
+  );
+
+  // The run completes in whichever window asked; main tells everyone.
+  api.atlasTurns.mockResolvedValueOnce([
+    { role: "user", text: "is it ready?", pending: "settled" },
+    {
+      role: "atlas",
+      text: "Verified at c857937, clean tree.",
+      pending: "settled",
+    },
+  ]);
+  refreshCb?.();
+
+  await waitFor(() =>
+    expect(screen.getByText(/Verified at c857937/)).toBeTruthy(),
+  );
+  expect(screen.queryByText(/working on this/i)).toBeNull();
+});
+
+it("does not refetch while THIS window is mid-send", async () => {
+  // The asking window appends its own reply optimistically. Refetching under it
+  // would race that append and could show the reply twice.
+  // An object holder, not a `let`: TypeScript narrows a `let` assigned only
+  // inside a callback to `null` at the call site.
+  const held: { settle?: (v: string) => void } = {};
+  api.atlasSend.mockImplementationOnce(
+    () =>
+      new Promise<string>((r) => {
+        held.settle = r;
+      }),
+  );
+  render(<AtlasChat />);
+  await waitFor(() => expect(api.atlasTurns).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "q" } });
+  fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalled());
+
+  refreshCb?.();
+  await new Promise((r) => setTimeout(r, 20));
+  expect(api.atlasTurns).toHaveBeenCalledTimes(1); // no refetch while busy
+
+  held.settle?.("done");
+  await waitFor(() => expect(screen.getByText("done")).toBeTruthy());
 });
