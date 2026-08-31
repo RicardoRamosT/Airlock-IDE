@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -662,5 +662,40 @@ describe("publicPrefs", () => {
     const pub = publicPrefs(prefs);
     expect(pub).not.toHaveProperty("installSalt");
     expect(pub.theme).toBe("dark");
+  });
+
+  it("REFUSES to save when prefs.json exists but cannot be read", async () => {
+    // savePrefs is a read-modify-write onto loadPrefs, which returned DEFAULTS
+    // for ANY read failure -- so one unreadable prefs.json meant the next save
+    // (recentFolders and window size are written constantly) silently reset
+    // every preference, including installSalt and the MCP token.
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await mkdir(file); // a directory: readFile gives EISDIR, not ENOENT
+    // Assert the REASON: a bare .rejects.toThrow() also passes because rename
+    // onto a directory fails anyway, which would make this test vacuous.
+    await expect(savePrefs(file, { theme: "light" })).rejects.toThrow(
+      /could not be read/,
+    );
+  });
+
+  it("keeps the original bytes when prefs.json is malformed, then saves", async () => {
+    // Malformed IS recoverable: the bytes can still be read, so preserve them
+    // beside the file the way .airlock/config.json already does, rather than
+    // discarding the user's settings silently.
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    const original = '{"theme":"light", oops}';
+    await writeFile(file, original, "utf8");
+    await savePrefs(file, { sidebarWidth: 300 });
+    expect(await readFile(`${file}.corrupt`, "utf8")).toBe(original);
+    expect((await loadPrefs(file)).sidebarWidth).toBe(300);
+  });
+
+  it("saves normally when the file is simply absent", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await savePrefs(file, { theme: "light" });
+    expect((await loadPrefs(file)).theme).toBe("light");
   });
 });

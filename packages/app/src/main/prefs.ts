@@ -415,18 +415,46 @@ export function publicPrefs(p: AppPrefs): AppPrefs {
   return rest as AppPrefs;
 }
 
-export async function loadPrefs(file: string): Promise<AppPrefs> {
+// The three outcomes a prefs read can have, kept distinct because savePrefs
+// MERGES ITS PATCH ONTO THIS AND WRITES IT BACK. Collapsing them is how a
+// single unreadable prefs.json silently reset every preference the user had:
+// recentFolders and the window size are saved constantly, so the reset landed
+// within seconds and took installSalt and the MCP token with it.
+export class PrefsUnreadableError extends Error {}
+
+async function readPrefsBaseline(
+  file: string,
+): Promise<{ prefs: AppPrefs; corruptText?: string }> {
   let text: string;
   try {
     text = await readFile(file, "utf8");
-  } catch {
-    return { ...DEFAULTS }; // absent -> defaults (normal first run)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      return { prefs: { ...DEFAULTS } }; // absent -> defaults (normal first run)
+    }
+    // Present but unreadable (EACCES, EISDIR, EIO). The bytes cannot even be
+    // preserved, so refusing is the only move that does not destroy them.
+    throw new PrefsUnreadableError(
+      `${file} exists but could not be read: ${(e as Error).message}`,
+    );
   }
   try {
-    return sanitize(JSON.parse(text));
+    return { prefs: sanitize(JSON.parse(text)) };
   } catch {
-    // Malformed prefs must never break startup; warn and use defaults.
+    // Malformed IS recoverable -- the bytes are in hand. Warn, fall back to
+    // defaults for reading, and hand the original text to the writer so it can
+    // be preserved beside the file (the same contract .airlock/config.json has).
     console.warn("[airlock] prefs.json malformed, using defaults");
+    return { prefs: { ...DEFAULTS }, corruptText: text };
+  }
+}
+
+// Readers degrade to defaults on ANY failure -- a broken prefs file must never
+// stop the app from starting. Only the WRITE path is strict.
+export async function loadPrefs(file: string): Promise<AppPrefs> {
+  try {
+    return (await readPrefsBaseline(file)).prefs;
+  } catch {
     return { ...DEFAULTS };
   }
 }
@@ -462,7 +490,19 @@ async function savePrefsNow(
   file: string,
   patch: Partial<AppPrefs>,
 ): Promise<AppPrefs> {
-  const next = sanitize({ ...(await loadPrefs(file)), ...patch });
+  // Strict on purpose: this is a read-modify-write, so an unreadable baseline
+  // throws rather than silently becoming DEFAULTS + patch.
+  const { prefs, corruptText } = await readPrefsBaseline(file);
+  if (corruptText !== undefined) {
+    // Keep the user's original bytes before overwriting them with defaults.
+    // Best-effort: failing to save the copy must not block the write, or an
+    // unwritable directory would wedge every preference change.
+    await writeFile(`${file}.corrupt`, corruptText, {
+      encoding: "utf8",
+      mode: 0o600,
+    }).catch(() => {});
+  }
+  const next = sanitize({ ...prefs, ...patch });
   await mkdir(path.dirname(file), { recursive: true });
   // Unique tmp per write so two serialized (or stray concurrent) writers never
   // share one temp file. (audit PB-H13)

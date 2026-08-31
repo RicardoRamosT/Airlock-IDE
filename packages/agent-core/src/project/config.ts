@@ -39,16 +39,24 @@ function configFile(root: string): string {
 // emptied Slack allow-list and a forgotten devCommand.
 async function loadProjectConfig(
   root: string,
-): Promise<{ cfg: ProjectConfig; corruptText?: string }> {
+): Promise<{ cfg: ProjectConfig; corruptText?: string; unreadable?: Error }> {
   // Distinguish an absent file (normal: return defaults silently) from a
   // malformed file (a user typo: still return defaults, but warn so the
   // ignored config is not silently hidden).
   let text: string;
   try {
     text = await readFile(configFile(root), "utf8");
-  } catch {
-    // Read failure (ENOENT or otherwise) means no usable config - defaults.
-    return { cfg: { ...DEFAULTS } };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      return { cfg: { ...DEFAULTS } }; // absent -> defaults (normal)
+    }
+    // Present but unreadable (EACCES, EISDIR, EIO). This used to collapse into
+    // "no usable config", and because writeConfigNow merges its patch onto the
+    // result, the next write persisted DEFAULTS over a real config -- taking
+    // the GitHub account pin, devCommand and the Slack channel allow-list with
+    // it. Unlike the malformed case below the bytes cannot be preserved, so
+    // readers degrade to defaults and the WRITER refuses.
+    return { cfg: { ...DEFAULTS }, unreadable: e as Error };
   }
   try {
     return {
@@ -110,7 +118,13 @@ async function writeConfigNow(
   root: string,
   patch: ConfigPatch,
 ): Promise<ProjectConfig> {
-  const { cfg, corruptText } = await loadProjectConfig(root);
+  const { cfg, corruptText, unreadable } = await loadProjectConfig(root);
+  if (unreadable !== undefined) {
+    // Refuse rather than write defaults over a config we could not read.
+    throw new Error(
+      `${configFile(root)} exists but could not be read: ${unreadable.message}`,
+    );
+  }
   if (corruptText !== undefined) {
     // The file would not parse, so `cfg` is DEFAULTS and this write is about to
     // replace the user's real settings with defaults+patch. Keep the original

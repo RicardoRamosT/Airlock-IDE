@@ -34,10 +34,44 @@ interface Bookkeeping {
   prior: StatusLine | null;
 }
 
+// Returns null ONLY when the file does not exist. A file that EXISTS but cannot
+// be read or parsed THROWS.
+//
+// This distinction is load-bearing because every caller writes the file back.
+// Flattening "unreadable" to "absent" meant `readJson(...) ?? {}` produced an
+// empty object, and the install then replaced the user's entire
+// ~/.claude/settings.json -- model, permissions, env, hooks, everything -- with
+// AirLock's one key. A single trailing comma in a file AirLock does not own was
+// enough. Failing loudly instead leaves the feature uninstalled until the file
+// is readable, which is the strictly better outcome; the reconcile callers
+// already catch and log.
 async function readJson(file: string): Promise<Record<string, unknown> | null> {
+  let raw: string;
   try {
-    return JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    raw = await readFile(file, "utf8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
   } catch {
+    throw new Error(
+      `${file} exists but is not valid JSON; refusing to overwrite it`,
+    );
+  }
+}
+
+// Uninstall only. Nothing of ours can be removed from a file we cannot read,
+// and refusing to finish would strand the feature "installed" forever -- so the
+// unreadable case degrades to "there is nothing to remove" and is logged.
+async function readJsonForRemoval(
+  file: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return await readJson(file);
+  } catch (e) {
+    console.warn(`[airlock] cannot read ${file} while uninstalling:`, e);
     return null;
   }
 }
@@ -134,10 +168,10 @@ export async function installQuotaStatusLine(p: QuotaPaths): Promise<void> {
 }
 
 export async function uninstallQuotaStatusLine(p: QuotaPaths): Promise<void> {
-  const book = (await readJson(
+  const book = (await readJsonForRemoval(
     p.bookkeepingPath,
   )) as unknown as Bookkeeping | null;
-  const settings = (await readJson(p.settingsPath)) ?? {};
+  const settings = (await readJsonForRemoval(p.settingsPath)) ?? {};
   const current = settings.statusLine as StatusLine;
   // Only touch statusLine if it is still ours -- never clobber a value the user
   // set after we installed.

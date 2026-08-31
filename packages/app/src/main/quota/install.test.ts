@@ -133,3 +133,42 @@ it("isQuotaInstalled tracks the install/uninstall lifecycle", async () => {
   await uninstallQuotaStatusLine(paths);
   expect(await isQuotaInstalled(paths)).toBe(false);
 });
+
+it("REFUSES to install over a settings.json it cannot parse", async () => {
+  // The user's ~/.claude/settings.json is theirs and Claude Code depends on it.
+  // readJson used to flatten every failure to null, `?? {}` turned that into an
+  // empty object, and the install then wrote the whole file back -- so a single
+  // trailing comma cost the user every setting they had.
+  const mine = '{"model":"opus","permissions":{"allow":["Bash"]},}'; // trailing comma
+  await writeFile(paths.settingsPath, mine, "utf8");
+  await expect(installQuotaStatusLine(paths)).rejects.toThrow(/JSON/i);
+  // Untouched, byte for byte.
+  expect(await readFile(paths.settingsPath, "utf8")).toBe(mine);
+});
+
+it("still installs normally when the file is simply absent", async () => {
+  // ENOENT is the ordinary first-run case and must stay non-fatal.
+  await installQuotaStatusLine(paths);
+  const s = await readJson(paths.settingsPath);
+  expect(s.statusLine.type).toBe("command");
+});
+
+it("preserves every unrelated key in a settings.json it CAN parse", async () => {
+  await writeFile(
+    paths.settingsPath,
+    JSON.stringify({ model: "opus", env: { A: "1" }, hooks: { Stop: [] } }),
+    "utf8",
+  );
+  await installQuotaStatusLine(paths);
+  const s = await readJson(paths.settingsPath);
+  expect(s.model).toBe("opus");
+  expect(s.env).toEqual({ A: "1" });
+  expect(s.hooks).toEqual({ Stop: [] });
+});
+
+it("uninstall does not throw on an unparseable settings.json", async () => {
+  // Nothing of ours can be removed from a file we cannot read, but refusing to
+  // finish would strand the feature "installed" forever.
+  await writeFile(paths.settingsPath, "{not json", "utf8");
+  await expect(uninstallQuotaStatusLine(paths)).resolves.toBeUndefined();
+});

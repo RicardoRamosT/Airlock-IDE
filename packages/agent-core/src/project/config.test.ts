@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -257,4 +257,24 @@ it("evaluates a function patch against the extension's post-predecessor state", 
     workspace: { id: "T1" },
     channels: ["C1"],
   });
+});
+
+it("REFUSES to write over a config it could not read", async () => {
+  // The read-failure branch used to collapse into "no usable config", and
+  // writeProjectConfig merges its patch onto that -- so one unreadable
+  // .airlock/config.json meant the next write persisted DEFAULTS over the real
+  // one, dropping the GitHub account pin, devCommand and the Slack allow-list.
+  const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+  await mkdir(path.join(root, ".airlock"), { recursive: true });
+  // A directory where the file should be: readFile gives EISDIR, not ENOENT.
+  await mkdir(path.join(root, ".airlock", "config.json"));
+  await expect(
+    writeProjectConfig(root, { devCommand: "npm run dev" }),
+  ).rejects.toThrow(/could not be read/);
+});
+
+it("still treats an ABSENT config as a normal first write", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "airlock-cfg-"));
+  const cfg = await writeProjectConfig(root, { devCommand: "npm run dev" });
+  expect(cfg.devCommand).toBe("npm run dev");
 });
