@@ -80,24 +80,23 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
       sinceMs,
     });
 
+    // Open concerns ride the PROMPT as read-only context, so the model can
+    // reference one in TODAY when it bears on the day's work. It is told not to
+    // restate the list: the panel renders that itself, live from the table.
+    const standing = renderStillOpen(await deps.db.readConcerns(), now);
     const result = await runComposer(
       deps.spawn,
-      buildBriefPrompt(snaps, sinceMs, now),
+      standing
+        ? `${buildBriefPrompt(snaps, sinceMs, now)}\n\n${standing}\n(These are already shown to the user separately. Do not list them again; mention one only if it bears on today.)`
+        : buildBriefPrompt(snaps, sinceMs, now),
     );
     // A failed compose stores nothing, so the day is not consumed and the next
     // arrival tries again.
     if (result === null) return false;
 
-    // STILL OPEN is appended by CODE, after the model's text and never inside
-    // the prompt. If the model wrote it, it could paraphrase an age, drop a
-    // line or round 44 to "over forty" -- and the whole value of this section
-    // is that its figures are measured.
-    const standing = renderStillOpen(await deps.db.readConcerns(), now);
-    const text = standing ? `${result.text}\n\n${standing}` : result.text;
-
     await deps.db.saveBrief({
       day: today,
-      text,
+      text: result.text,
       costUsd: result.costUsd,
       createdAt: now,
     });

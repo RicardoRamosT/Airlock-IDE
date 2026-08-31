@@ -1,5 +1,5 @@
 import type { Turn } from "@airlock/agent-core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { renderBrief } from "../lib/atlasBrief";
 import { formatElapsed } from "../lib/atlasFormat";
 
@@ -25,9 +25,13 @@ function withKey(t: Turn): Shown {
 export function AtlasChat({
   chrome = true,
   reloadKey = 0,
+  ask = null,
 }: {
   chrome?: boolean;
   reloadKey?: number;
+  // A question handed in from outside -- "look into this concern". The nonce is
+  // what makes asking about the SAME concern twice send twice.
+  ask?: { text: string; n: number } | null;
 } = {}) {
   const [turns, setTurns] = useState<Shown[]>([]);
   const [asked, setAsked] = useState(false);
@@ -128,35 +132,48 @@ export function AtlasChat({
 
   async function submit(e: { preventDefault: () => void }) {
     e.preventDefault();
-    const message = draft.trim();
-    if (message.length === 0 || busy) return;
-    const id = sendIdRef.current + 1;
-    sendIdRef.current = id;
-    // Show the user's turn immediately; the reply lands when it lands.
-    const mine = withKey({ role: "user", text: message });
-    pendingRef.current = { key: mine.key, text: message };
-    setDraft("");
-    setFailed(false);
-    setStopped(false);
-    setBusy(true);
-    setTurns((prev) => [...prev, mine]);
-    try {
-      const reply = await window.airlock?.atlasSend(message);
-      // Cancelled while we waited: whatever came back is not wanted, and a null
-      // from a killed subprocess is not a failure to report.
-      if (sendIdRef.current !== id) return;
-      if (reply === null || reply === undefined) setFailed(true);
-      else
-        setTurns((prev) => [...prev, withKey({ role: "atlas", text: reply })]);
-    } catch {
-      if (sendIdRef.current === id) setFailed(true);
-    } finally {
-      if (sendIdRef.current === id) {
-        pendingRef.current = null;
-        setBusy(false);
-      }
-    }
+    await submitText(draft);
   }
+
+  // useCallback so the handed-in-question effect below can depend on it
+  // honestly. `busy` is the only reactive value it reads; the setters and refs
+  // are stable.
+  const submitText = useCallback(
+    async (raw: string) => {
+      const message = raw.trim();
+      if (message.length === 0 || busy) return;
+      const id = sendIdRef.current + 1;
+      sendIdRef.current = id;
+      // Show the user's turn immediately; the reply lands when it lands.
+      const mine = withKey({ role: "user", text: message });
+      pendingRef.current = { key: mine.key, text: message };
+      setDraft("");
+      setFailed(false);
+      setStopped(false);
+      setBusy(true);
+      setTurns((prev) => [...prev, mine]);
+      try {
+        const reply = await window.airlock?.atlasSend(message);
+        // Cancelled while we waited: whatever came back is not wanted, and a
+        // null from a killed subprocess is not a failure to report.
+        if (sendIdRef.current !== id) return;
+        if (reply === null || reply === undefined) setFailed(true);
+        else
+          setTurns((prev) => [
+            ...prev,
+            withKey({ role: "atlas", text: reply }),
+          ]);
+      } catch {
+        if (sendIdRef.current === id) setFailed(true);
+      } finally {
+        if (sendIdRef.current === id) {
+          pendingRef.current = null;
+          setBusy(false);
+        }
+      }
+    },
+    [busy],
+  );
 
   // Escape stops the run. It kills the SUBPROCESS rather than only stopping the
   // wait: an abandoned `claude` keeps spending quota with nowhere to deliver.
@@ -177,6 +194,20 @@ export function AtlasChat({
       setTurns((prev) => prev.filter((t) => t.key !== p.key));
     }
   }
+
+  // Send a handed-in question once per nonce. Keyed on the nonce alone: the
+  // text may repeat, and re-sending because a parent re-rendered would fire a
+  // second Opus run the user never asked for.
+  const askedRef = useRef(0);
+  useEffect(() => {
+    if (!ask || ask.n === askedRef.current) return;
+    askedRef.current = ask.n;
+    void submitText(ask.text);
+    // submitText is redeclared every render, so this effect re-runs often --
+    // which is harmless, because askedRef makes it idempotent. The nonce is the
+    // real trigger; the dependency is declared rather than suppressed so the
+    // rule keeps working for the next person to touch this.
+  }, [ask, submitText]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {

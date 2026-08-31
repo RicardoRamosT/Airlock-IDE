@@ -261,6 +261,7 @@ const api: AirlockApi = {
   atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
   atlasSend: (message: string) => ipcRenderer.invoke("atlas:send", message),
   atlasCancel: () => ipcRenderer.invoke("atlas:cancel"),
+  atlasConcerns: () => ipcRenderer.invoke("atlas:concerns"),
   onAtlasPointer: (cb) => {
     const h = (_e: unknown, x: number) => cb(x);
     ipcRenderer.on("atlas:pointer", h);

@@ -7136,3 +7136,44 @@ button.docker-row .codicon-chevron-right {
 .editor-conflict {
   color: var(--warn, #d29922);
 }
+
+/* --- Atlas: standing concerns --- */
+
+/* Rendered from the concern table, not from the debrief text, so a resolved
+   concern disappears even while an older brief is on screen. */
+.atlas-standing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.atlas-standing-head {
+  margin: 0 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+.atlas-standing-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+}
+.atlas-standing-what {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* The history, which is the whole point of the section: quieter than the
+   concern itself, but never hidden. */
+.atlas-standing-age {
+  flex: 0 0 auto;
+  color: var(--fg-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.atlas-standing-row .atlas-btn {
+  flex: 0 0 auto;
+}

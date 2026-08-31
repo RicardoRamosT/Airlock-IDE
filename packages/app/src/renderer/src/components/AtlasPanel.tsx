@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { AtlasConcern } from "../../../shared/ipc";
 import { renderBrief } from "../lib/atlasBrief";
 import { AtlasChat } from "./AtlasChat";
 import { AtlasConsent } from "./AtlasConsent";
@@ -37,6 +38,13 @@ export function AtlasPanel({
   // Fourth state: "asked and there is none" is not "asked and it failed".
   // Saying "No debrief yet" when the read failed is a confident wrong answer.
   const [loadFailed, setLoadFailed] = useState(false);
+  // Read LIVE rather than from the debrief text: a concern that has since
+  // resolved must stop being shown, including while an older brief is on
+  // screen. null = not asked yet, [] = asked and none.
+  const [concerns, setConcerns] = useState<AtlasConcern[] | null>(null);
+  // The concern handed to the chat, and a nonce so asking about the SAME one
+  // twice still sends twice.
+  const [ask, setAsk] = useState<{ text: string; n: number } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [history, setHistory] = useState<
     { session: number; startedAt: number; turns: number; preview: string }[]
@@ -50,8 +58,10 @@ export function AtlasPanel({
       Promise.all([
         window.airlock?.atlasState() ?? null,
         window.airlock?.atlasBrief() ?? null,
+        window.airlock?.atlasConcerns?.() ?? [],
       ])
-        .then(([s, text]) => {
+        .then(([s, text, open]) => {
+          if (alive) setConcerns(open ?? []);
           if (!alive) return;
           setState(s);
           setBrief(text);
@@ -187,7 +197,7 @@ export function AtlasPanel({
         </div>
       ) : showChat ? (
         <div className="atlas-pane-chat">
-          <AtlasChat chrome={false} reloadKey={reloadKey} />
+          <AtlasChat chrome={false} reloadKey={reloadKey} ask={ask} />
         </div>
       ) : loadFailed ? (
         <p className="atlas-note">
@@ -199,7 +209,53 @@ export function AtlasPanel({
           your Mac.
         </p>
       ) : (
-        <div className="atlas-brief">{renderBrief(brief.text)}</div>
+        <>
+          <div className="atlas-brief">{renderBrief(brief.text)}</div>
+          {concerns !== null && concerns.length > 0 ? (
+            <div className="atlas-standing">
+              <p className="atlas-standing-head">Still open</p>
+              {concerns.map((c) => (
+                <div key={c.key} className="atlas-standing-row">
+                  <span className="atlas-standing-what">
+                    {c.project ? <strong>{c.project}</strong> : null} {c.title}
+                  </span>
+                  <span className="atlas-standing-age">
+                    {c.ageDays === 0
+                      ? "today"
+                      : c.ageDays === 1
+                        ? "1 day"
+                        : `${c.ageDays} days`}
+                    {c.trend
+                      ? ` \u00b7 ${c.trend.from} \u2192 ${c.trend.to}`
+                      : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="atlas-btn"
+                    onClick={() => {
+                      // The whole point of tier 2: a concern is an entry point,
+                      // not prose. Carry enough that Atlas knows which one.
+                      setAsk((prev) => ({
+                        n: (prev?.n ?? 0) + 1,
+                        text: `Look into this standing concern: ${
+                          c.project ? `${c.project} - ` : ""
+                        }${c.title}. ${c.detail} It has been open ${c.ageDays} day(s)${
+                          c.trend
+                            ? `, and has gone from ${c.trend.from} to ${c.trend.to}`
+                            : ""
+                        }. Investigate it properly and tell me what to do.`,
+                      }));
+                      setShowChat(true);
+                      void window.airlock?.atlasSetView?.("chat");
+                    }}
+                  >
+                    Look into this
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </>
       )}
     </>
   );

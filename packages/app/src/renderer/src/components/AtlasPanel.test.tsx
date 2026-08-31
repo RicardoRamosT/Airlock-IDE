@@ -16,6 +16,7 @@ const api = {
   })),
   atlasBrief: vi.fn(async () => ({ day: "2026-08-30", text: "YESTERDAY" })),
   atlasSetView: vi.fn(async (_v: "brief" | "chat") => {}),
+  atlasConcerns: vi.fn(async () => [] as unknown[]),
   atlasTurns: vi.fn(async () => [] as { role: string; text: string }[]),
   atlasSend: vi.fn(async (_m: string) => "ok"),
   atlasSessions: vi.fn(async () => []),
@@ -102,4 +103,66 @@ it("says the debrief could not be LOADED, not that none exists", async () => {
   render(<AtlasPanel />);
   await waitFor(() => expect(screen.getByText(/could not load/i)).toBeTruthy());
   expect(screen.queryByText(/no debrief yet/i)).toBeNull();
+});
+
+const CONCERN = {
+  key: "/p/airlock|no-remote",
+  project: "airlock",
+  title: "no remote",
+  detail: "airlock has no upstream.",
+  ageDays: 6,
+  trend: { from: 28, to: 44 },
+};
+
+it("shows a standing concern with its age and trend", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+  expect(screen.getByText(/airlock/)).toBeTruthy();
+  expect(screen.getByText(/6 days/)).toBeTruthy();
+  expect(screen.getByText(/28/)).toBeTruthy();
+});
+
+it("shows nothing at all when no concern is open", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(api.atlasConcerns).toHaveBeenCalled());
+  expect(screen.queryByText(/still open/i)).toBeNull();
+});
+
+it("hands a concern to the chat when you ask it to look into one", async () => {
+  // Tier 2: the concern is an ENTRY POINT, not prose. Clicking must switch to
+  // the chat and carry enough context that Atlas knows which one was meant.
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+  screen.getByRole("button", { name: /look into this/i }).click();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy(),
+  );
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalled());
+  const sent = String(api.atlasSend.mock.calls[0]?.[0] ?? "");
+  expect(sent).toContain("no remote");
+  expect(sent).toContain("airlock");
+});
+
+it("asks again when you click the SAME concern twice", async () => {
+  // The handed-in question is keyed on a nonce, not its text. Keying on text
+  // would silently swallow the second click; keying on the object identity
+  // would fire an extra Opus run on any parent re-render.
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN]);
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
+  screen.getByRole("button", { name: /look into this/i }).click();
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalledTimes(1));
+
+  // Back to the debrief, then ask about the same one again.
+  screen.getByRole("button", { name: "Debrief" }).click();
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: /look into this/i }),
+    ).toBeTruthy(),
+  );
+  screen.getByRole("button", { name: /look into this/i }).click();
+  await waitFor(() => expect(api.atlasSend).toHaveBeenCalledTimes(2));
 });

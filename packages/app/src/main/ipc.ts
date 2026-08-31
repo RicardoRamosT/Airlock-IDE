@@ -54,6 +54,7 @@ import {
   mergeSectionExtensions,
   move,
   neonConnectionUri,
+  openConcerns,
   type PtySession,
   parseAccount,
   parseConnString,
@@ -1130,6 +1131,25 @@ export function registerIpc(
       // Only clear OUR controller: a newer send may already own the slot.
       if (atlasChatAbort === ac) atlasChatAbort = null;
     }
+  });
+  // Live, not from the stored brief: a concern that has since resolved must
+  // stop being shown, including when an older debrief is on screen.
+  ipcMain.handle("atlas:concerns", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    return openConcerns(await atlasDb().readConcerns()).map((c) => ({
+      key: c.key,
+      project: c.project,
+      title: c.title,
+      detail: c.detail,
+      ageDays: Math.max(0, Math.floor((now - c.firstSeenAt) / day)),
+      trend:
+        c.firstValue !== null &&
+        c.lastValue !== null &&
+        c.firstValue !== c.lastValue
+          ? { from: c.firstValue, to: c.lastValue }
+          : null,
+    }));
   });
   // Escape in the chat. Kills the CLI rather than only abandoning the wait.
   ipcMain.handle("atlas:cancel", () => {

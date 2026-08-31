@@ -553,6 +553,17 @@ export interface SessionSnapshot {
  * and the keychain. Defined here as the single source of truth so both the
  * main-process store (prefs.ts) and the renderer (via AirlockApi) share it.
  */
+// One standing concern, as the renderer needs it. `ageDays` and `trend` are
+// computed main-side so no surface can disagree about the history.
+export interface AtlasConcern {
+  key: string;
+  project: string | null;
+  title: string;
+  detail: string;
+  ageDays: number;
+  trend: { from: number; to: number } | null;
+}
+
 export interface AppPrefs {
   sidebarVisible: boolean;
   sidebarPosition: "left" | "right";
@@ -1277,6 +1288,9 @@ export interface AirlockApi {
   atlasSend(message: string): Promise<string | null>;
   // Stop the in-flight reply (Escape in the chat). Kills the CLI process.
   atlasCancel(): Promise<void>;
+  // Open standing concerns, read LIVE rather than baked into the debrief text:
+  // re-reading an old brief must not show concerns that have since resolved.
+  atlasConcerns(): Promise<AtlasConcern[]>;
   // Where the popover's arrow must sit to aim at the tray icon. Sent on every
   // open: the window is clamped to the display, so the offset is not constant.
   onAtlasPointer(cb: (x: number) => void): () => void;
