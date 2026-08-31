@@ -23,7 +23,7 @@ import {
   hasReadyIndicator,
   hasWorkingIndicator,
 } from "../lib/workingIndicator";
-import { CLAUDE_AUTO_COMMAND, useApp } from "../store";
+import { claudeAutoCommand, useApp } from "../store";
 
 // xterm has no CSS-variable hook, so its palette must be supplied as a literal
 // object. Mirror the two app palettes (theme.css :root / [data-theme=light]):
@@ -411,7 +411,10 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         if (queued) {
           window.airlock.ptyInput(id, queued);
         } else if (useApp.getState().claudeAutoDecision(terminalId)) {
-          window.airlock.ptyInput(id, CLAUDE_AUTO_COMMAND);
+          window.airlock.ptyInput(
+            id,
+            claudeAutoCommand(useApp.getState().claudeSkipPermissions),
+          );
         }
       })
       .catch((err) => {

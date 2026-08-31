@@ -612,6 +612,10 @@ export interface AppPrefs {
   // no other terminal in the tab holds the auto-Claude claim; blank tabs are
   // always exempt. App-global.
   claudeAutoStart: ClaudeAutoStart;
+  // Start auto-started Claude sessions with --dangerously-skip-permissions.
+  // OFF by default. Requested by a user who always runs with the flag and had
+  // to /exit the auto-started session and retype the command every time.
+  claudeSkipPermissions: boolean;
   // Auto-switch the machine's active gh account to a NON-PINNED project's
   // detected account on focus (default on). Pinned projects are unaffected
   // (they carry their own per-repo credential helper). App-global.

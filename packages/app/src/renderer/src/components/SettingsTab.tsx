@@ -78,6 +78,8 @@ export function SettingsTab() {
   const setSelfVerifyEnabled = useApp((s) => s.setSelfVerifyEnabled);
   const claudeAutoStart = useApp((s) => s.claudeAutoStart);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
+  const claudeSkipPermissions = useApp((s) => s.claudeSkipPermissions);
+  const setClaudeSkipPermissions = useApp((s) => s.setClaudeSkipPermissions);
   const restoreSession = useApp((s) => s.restoreSession);
   const setRestoreSession = useApp((s) => s.setRestoreSession);
   const defaultTerminal = useApp((s) => s.defaultTerminal);
@@ -344,6 +346,31 @@ export function SettingsTab() {
                 "First terminal per tab" starts one session per project; extra
                 terminals open as plain shells. Blank tabs are never
                 auto-started.
+              </p>
+              {/* A modifier of the setting above, so it sits with it rather
+                  than in its own group. */}
+              <div className="settings-row">
+                <label htmlFor="claude-skip-permissions">
+                  Skip permission prompts
+                </label>
+                <input
+                  id="claude-skip-permissions"
+                  type="checkbox"
+                  checked={claudeSkipPermissions}
+                  disabled={claudeAutoStart === "off"}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    setClaudeSkipPermissions(v);
+                    void window.airlock.prefsSet({ claudeSkipPermissions: v });
+                  }}
+                />
+              </div>
+              <p className="settings-note">
+                Starts auto-started sessions with
+                `--dangerously-skip-permissions`, so Claude never asks before
+                running a command. Note that AirLock also injects this project's
+                vaulted secrets into every terminal, so a session started this
+                way has no prompts AND real credentials in its environment.
               </p>
               {/* Lives here, not under Layout: it is about a terminal session
                   surviving a folder change, not about window arrangement. */}

@@ -98,8 +98,24 @@ export const EMPTY_TAB_TERMINALS: TabTerminals = {
 // FOR THE claude PROCESS ONLY via `env -u`: the keys stay in the shell for the
 // project's own commands; only claude falls back to the subscription. Still run
 // inside the shell so exiting claude returns to the prompt.
-export const CLAUDE_AUTO_COMMAND =
-  "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude\n";
+const CLAUDE_ENV_STRIP = "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN";
+
+// `--dangerously-skip-permissions` turns off Claude Code's own permission
+// prompts. Opt-in, off by default, and worth one note: AirLock injects the
+// project's VAULTED SECRETS into every terminal at pty:create, so a
+// skip-permissions Claude started here has both no prompts and real
+// credentials in its environment -- a wider blast radius than the same flag in
+// a plain terminal.
+export const SKIP_PERMISSIONS_FLAG = "--dangerously-skip-permissions";
+
+function claudeCommand(args: string, skipPermissions: boolean): string {
+  const flag = skipPermissions ? ` ${SKIP_PERMISSIONS_FLAG}` : "";
+  return `${CLAUDE_ENV_STRIP} claude${args}${flag}\n`;
+}
+
+export function claudeAutoCommand(skipPermissions: boolean): string {
+  return claudeCommand("", skipPermissions);
+}
 
 // Auto-submit into Claude's TUI: the prompt is written as one paste, then a
 // SEPARATE Enter keystroke a beat later. Enter in a raw-mode TUI is "\r" (not
@@ -110,8 +126,9 @@ export const OVERVIEW_SUBMIT_DELAY_MS = 120;
 
 // Resume a project's most recent Claude conversation (session restore). Same
 // shape + auth env-strip as CLAUDE_AUTO_COMMAND -- typed into the restored tab.
-export const CLAUDE_CONTINUE_COMMAND =
-  "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude --continue\n";
+export function claudeContinueCommand(skipPermissions: boolean): string {
+  return claudeCommand(" --continue", skipPermissions);
+}
 
 // The full non-terminal per-project state for ONE tab. `tabState` keeps one of
 // these for EVERY tab (the source of truth); the top-level per-project fields
@@ -366,6 +383,10 @@ export interface AppState {
   // AppPrefs.extensions. app-global (persisted). Keyed by integration id.
   extensionsPrefs: Record<string, { enabled?: boolean; pinned?: boolean }>;
   claudeAutoStart: ClaudeAutoStart; // app-global (persisted): auto-run claude in new project terminals
+  // app-global (persisted): start those sessions with
+  // --dangerously-skip-permissions. Off by default.
+  claudeSkipPermissions: boolean;
+  setClaudeSkipPermissions: (v: boolean) => void;
   defaultTerminal: string; // app-global (persisted): "airlock" or a terminal id
   layoutHydrated: boolean; // default false
   restoreSession: boolean; // hydrated from prefs (Task 6); gates persist + restore
@@ -873,6 +894,7 @@ export const useApp = create<AppState>((set) => ({
   activeView: "files",
   extensionsPrefs: {},
   claudeAutoStart: "first",
+  claudeSkipPermissions: false,
   defaultTerminal: "airlock",
   layoutHydrated: false,
   restoreSession: true,
@@ -1491,7 +1513,7 @@ export const useApp = create<AppState>((set) => ({
     set((st) => ({
       pendingTerminalCommands: {
         ...st.pendingTerminalCommands,
-        [newId]: CLAUDE_AUTO_COMMAND,
+        [newId]: claudeAutoCommand(s.claudeSkipPermissions),
       },
     }));
     s.switchTab(tid);
@@ -1803,6 +1825,8 @@ export const useApp = create<AppState>((set) => ({
       },
     })),
   setClaudeAutoStart: (claudeAutoStart) => set({ claudeAutoStart }),
+  setClaudeSkipPermissions: (claudeSkipPermissions) =>
+    set({ claudeSkipPermissions }),
   setDefaultTerminal: (defaultTerminal) => set({ defaultTerminal }),
   // Launch the external terminal for tabId's project root (no-op if no root).
   openExternalTerminal: (tabId) => {

@@ -16,6 +16,7 @@ export function usePrefs(): void {
   const setSectionVisibility = useApp((s) => s.setSectionVisibility);
   const setActiveView = useApp((s) => s.setActiveView);
   const setClaudeAutoStart = useApp((s) => s.setClaudeAutoStart);
+  const setClaudeSkipPermissions = useApp((s) => s.setClaudeSkipPermissions);
   const setRestoreSession = useApp((s) => s.setRestoreSession);
   const setDefaultTerminal = useApp((s) => s.setDefaultTerminal);
   const setQuotaMeterEnabled = useApp((s) => s.setQuotaMeterEnabled);
@@ -49,6 +50,7 @@ export function usePrefs(): void {
         setSectionVisibility(p.sectionVisibility);
         setActiveView(p.activeView);
         setClaudeAutoStart(p.claudeAutoStart);
+        setClaudeSkipPermissions(p.claudeSkipPermissions);
         setRestoreSession(p.restoreSession);
         setDefaultTerminal(p.defaultTerminal);
         setQuotaMeterEnabled(p.quotaMeter.enabled);
@@ -76,6 +78,7 @@ export function usePrefs(): void {
     setSectionVisibility,
     setActiveView,
     setClaudeAutoStart,
+    setClaudeSkipPermissions,
     setRestoreSession,
     setDefaultTerminal,
     setQuotaMeterEnabled,
@@ -115,6 +118,7 @@ export function usePrefs(): void {
       s.setSectionVisibility(p.sectionVisibility);
       s.setActiveView(p.activeView);
       s.setClaudeAutoStart(p.claudeAutoStart);
+      s.setClaudeSkipPermissions(p.claudeSkipPermissions);
       s.setRestoreSession(p.restoreSession);
       s.setDefaultTerminal(p.defaultTerminal);
       s.setQuotaMeterEnabled(p.quotaMeter.enabled);

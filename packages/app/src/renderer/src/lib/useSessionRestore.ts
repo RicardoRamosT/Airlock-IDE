@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { CLAUDE_AUTO_COMMAND, CLAUDE_CONTINUE_COMMAND, useApp } from "../store";
+import { claudeAutoCommand, claudeContinueCommand, useApp } from "../store";
 import { planRestore } from "./sessionRestore";
 
 // On startup: read the snapshot and (if enabled) reopen the projects, restore
@@ -110,7 +110,8 @@ export function useSessionRestore(): void {
       ? window.airlock.hasResumableSession(root).catch(() => false)
       : Promise.resolve(false);
     void decide.then((has) => {
-      const cmd = has ? CLAUDE_CONTINUE_COMMAND : CLAUDE_AUTO_COMMAND;
+      const skip = useApp.getState().claudeSkipPermissions;
+      const cmd = has ? claudeContinueCommand(skip) : claudeAutoCommand(skip);
       resumeCmd.current.set(activeTabId, cmd);
       resolving.current.delete(activeTabId);
       // If the pty is already live, inject now; otherwise the next tabTerminals

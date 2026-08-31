@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { TERMINAL_DISPLAY_NAMES } from "../../../shared/ipc";
 import {
-  CLAUDE_AUTO_COMMAND,
+  claudeAutoCommand,
   EMPTY_TAB_TERMINALS,
   isVisibleTab,
   useApp,
@@ -108,7 +108,10 @@ export function ProjectTerminals({ tabId }: { tabId: string }) {
   };
   const startClaudeHere = () => {
     if (noticeTerminal?.ptyId) {
-      window.airlock.ptyInput(noticeTerminal.ptyId, CLAUDE_AUTO_COMMAND);
+      window.airlock.ptyInput(
+        noticeTerminal.ptyId,
+        claudeAutoCommand(useApp.getState().claudeSkipPermissions),
+      );
     }
     useApp.getState().setRunningNotice(null);
   };

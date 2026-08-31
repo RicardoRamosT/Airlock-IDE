@@ -90,6 +90,7 @@ const DEFAULTS: AppPrefs = {
   selfVerify: { enabled: false },
   eventLog: { enabled: true, minLevel: "debug" as Level },
   claudeAutoStart: "first",
+  claudeSkipPermissions: false,
   githubAutoSwitch: true,
   defaultTerminal: "airlock",
   restoreSession: true,
@@ -379,6 +380,9 @@ function sanitize(raw: unknown): AppPrefs {
     runAppSkill: sanitizeRunAppSkill(r.runAppSkill),
     selfVerify: sanitizeSelfVerify(r.selfVerify),
     eventLog: sanitizeEventLog(r.eventLog),
+    // Off unless explicitly true: a partial or hand-edited prefs file must not
+    // silently turn permission prompts off.
+    claudeSkipPermissions: r.claudeSkipPermissions === true,
     claudeAutoStart: CLAUDE_AUTO_MODES.includes(
       r.claudeAutoStart as ClaudeAutoStart,
     )

@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { restartActiveTerminal } from "./lib/restartActiveTerminal";
 import { buildSessionSnapshot } from "./lib/sessionSnapshot";
 import {
-  CLAUDE_AUTO_COMMAND,
-  CLAUDE_CONTINUE_COMMAND,
+  claudeAutoCommand,
+  claudeContinueCommand,
   type DbView,
+  SKIP_PERMISSIONS_FLAG,
   type TabTerminals,
   useApp,
 } from "./store";
@@ -1393,7 +1394,7 @@ it("showing another IDE page replaces the Overview", () => {
 // --- Lazy-resume primitives (session restore) -------------------------------
 
 it("CLAUDE_CONTINUE_COMMAND resumes the project's last chat", () => {
-  expect(CLAUDE_CONTINUE_COMMAND).toBe(
+  expect(claudeContinueCommand(false)).toBe(
     "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude --continue\n",
   );
 });
@@ -1459,7 +1460,7 @@ it("resume claims claudeAutoId so hadClaude survives the NEXT restart (regressio
 
   // Run the focus-gated resume effect's body (useSessionRestore effect 2).
   expect(
-    useApp.getState().sendToClaudeTerminal(CLAUDE_CONTINUE_COMMAND, "tp"),
+    useApp.getState().sendToClaudeTerminal(claudeContinueCommand(false), "tp"),
   ).toBe(true);
   useApp.getState().consumePendingResume("tp");
   useApp.getState().adoptResumedClaude("tp");
@@ -1476,12 +1477,52 @@ it("auto + resume claude commands strip Anthropic API auth so claude uses claude
   // A project that injects its own ANTHROPIC_API_KEY/AUTH_TOKEN must still let
   // AirLock's auto-claude fall back to the claude.ai subscription -- strip the
   // keys for the claude process only (env -u), leaving them in the shell.
-  for (const cmd of [CLAUDE_AUTO_COMMAND, CLAUDE_CONTINUE_COMMAND]) {
+  for (const cmd of [claudeAutoCommand(false), claudeContinueCommand(false)]) {
     expect(cmd).toContain("env -u ANTHROPIC_API_KEY");
     expect(cmd).toContain("ANTHROPIC_AUTH_TOKEN");
     expect(cmd.trimEnd().endsWith("claude") || cmd.includes("claude ")).toBe(
       true,
     );
   }
-  expect(CLAUDE_CONTINUE_COMMAND).toContain("--continue");
+  expect(claudeContinueCommand(false)).toContain("--continue");
+});
+
+describe("claude auto-start command", () => {
+  it("starts a plain claude by default", () => {
+    expect(claudeAutoCommand(false)).toBe(
+      "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude\n",
+    );
+    expect(claudeAutoCommand(false)).not.toContain(SKIP_PERMISSIONS_FLAG);
+  });
+
+  it("appends the skip-permissions flag when the pref is on", () => {
+    // Requested by a user who always runs with the flag and had to /exit the
+    // auto-started session and retype the command every time.
+    expect(claudeAutoCommand(true)).toBe(
+      "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude --dangerously-skip-permissions\n",
+    );
+  });
+
+  it("applies to a RESUMED session too, not just a fresh one", () => {
+    // Session restore types --continue; forgetting it here would fix the
+    // papercut on a new terminal and leave it on every restored one.
+    expect(claudeContinueCommand(true)).toBe(
+      "env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN claude --continue --dangerously-skip-permissions\n",
+    );
+    expect(claudeContinueCommand(false)).not.toContain(SKIP_PERMISSIONS_FLAG);
+  });
+
+  it("keeps the auth env-strip in every form", () => {
+    // The strip is what makes claude fall back to the subscription while the
+    // shell keeps the keys for the project's own commands.
+    for (const cmd of [
+      claudeAutoCommand(false),
+      claudeAutoCommand(true),
+      claudeContinueCommand(false),
+      claudeContinueCommand(true),
+    ]) {
+      expect(cmd).toContain("env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN");
+      expect(cmd.endsWith("\n")).toBe(true);
+    }
+  });
 });
