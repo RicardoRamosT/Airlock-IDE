@@ -24,7 +24,6 @@ export const SECTION_LABELS: Record<BuiltinSection, string> = {
   extensions: "Extensions",
   audit: "Audit",
   events: "Events",
-  atlas: "Atlas",
 };
 
 // Label for any section id. Built-ins come from the map above; an extension

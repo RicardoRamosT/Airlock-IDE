@@ -26,7 +26,6 @@ export const BUILTIN_SECTION_META: SectionMeta[] = [
   { id: "host", label: "Host", icon: "globe", group: "core" },
   { id: "audit", label: "Audit", icon: "shield", group: "core" },
   { id: "events", label: "Events", icon: "list-flat", group: "core" },
-  { id: "atlas", label: "Atlas", icon: "sparkle", group: "core" },
   // LAST, and in the extensions group: the hub leads everything
   // extension-related, below the rail divider.
   {

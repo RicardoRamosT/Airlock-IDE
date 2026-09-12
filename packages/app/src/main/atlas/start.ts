@@ -12,14 +12,13 @@ import { allOpenRoots } from "../window";
 import { spawnClaude } from "./composer";
 import { atlasDb } from "./db";
 import { makeCollectDeps } from "./runners";
-import { setUnread } from "./trayWindow";
 import { maybeCompose } from "./wire";
 
 export function startAtlasArrival(prefsFile: string): void {
   const onArrival = () => {
     void (async () => {
       const prefs = await loadPrefs(prefsFile);
-      const composed = await maybeCompose({
+      await maybeCompose({
         db: atlasDb(),
         collect: makeCollectDeps(),
         spawn: spawnClaude,
@@ -30,9 +29,7 @@ export function startAtlasArrival(prefsFile: string): void {
         enabled: () => prefs.atlas.enabled,
         acknowledged: () => prefs.atlas.acknowledged,
         earliestHour: () => prefs.atlas.hour,
-        onBriefReady: () => setUnread(true),
       });
-      if (composed) setUnread(true);
     })();
   };
 

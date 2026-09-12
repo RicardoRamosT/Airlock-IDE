@@ -27,7 +27,6 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
-        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -115,7 +114,6 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
-        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -257,7 +255,6 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
-        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -313,7 +310,6 @@ describe("app prefs", () => {
         extensions: true,
         audit: true,
         events: true,
-        atlas: true,
       },
       activeView: "files",
       claudeAutoStart: "first",
@@ -396,7 +392,6 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
-      atlas: true,
     });
   });
 
@@ -416,7 +411,6 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
-      atlas: true,
     });
     expect((await loadPrefs(file)).sectionVisibility).toEqual({
       files: true,
@@ -427,7 +421,6 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
-      atlas: true,
     });
   });
 
@@ -444,7 +437,6 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
-      atlas: true,
     });
   });
 
@@ -464,7 +456,6 @@ describe("app prefs", () => {
       extensions: true,
       audit: true,
       events: true,
-      atlas: true,
     });
   });
 });

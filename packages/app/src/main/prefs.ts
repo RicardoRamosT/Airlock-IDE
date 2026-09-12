@@ -52,7 +52,6 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   extensions: true,
   audit: true,
   events: true,
-  atlas: true,
 };
 
 // Persisted sidebar width clamp. Lenient bounds (the renderer's resizer commits

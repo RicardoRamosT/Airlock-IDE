@@ -3,7 +3,6 @@ import { sidebarViewFor } from "../lib/extensionViews";
 import { useProjectTab } from "../lib/projectPane";
 import { effectiveView, parseExtSection } from "../lib/sections";
 import { useApp } from "../store";
-import { AtlasSection } from "./AtlasSection";
 import { AuditSection } from "./AuditSection";
 import { DatabasesSection } from "./DatabasesSection";
 import { EventsSection } from "./EventsSection";
@@ -49,7 +48,6 @@ export function Sidebar() {
   else if (view === "host") body = <LocalHostSection />;
   else if (view === "audit") body = <AuditSection />;
   else if (view === "events") body = <EventsSection />;
-  else if (view === "atlas") body = <AtlasSection />;
   else {
     // An ext:<id> view: its registered component, else the generic resource
     // list -- so an extension with no bespoke UI still gets a usable section.
