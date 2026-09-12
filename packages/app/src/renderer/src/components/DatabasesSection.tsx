@@ -177,12 +177,17 @@ export function DatabasesSection() {
           : neonConnected
             ? "connected"
             : "not connected",
+      tone: neonConnected === null ? "unknown" : neonConnected ? "ok" : "off",
       // Provider-level connect (rule 2): is the Neon EXTENSION signed in --
       // distinct from connecting to a specific instance, which Neon has none
       // of here (its branches/databases live in its own section).
       ...(neonConnected === false
         ? {
             connect: {
+              // Names the PROVIDER on purpose. Rule 2: connecting the Neon
+              // extension is a different act from connecting an instance, and
+              // a bare "Connect" here would read as the instance-level verb
+              // used one row below.
               label: "Connect Neon",
               onClick: () => useApp.getState().setActiveView("ext:neon"),
             },
@@ -200,6 +205,9 @@ export function DatabasesSection() {
           : dockerDbs.length === 0
             ? "no database containers"
             : `${dockerDbs.length} database container${dockerDbs.length === 1 ? "" : "s"}`,
+      tone:
+        dockerDbs === null ? "unknown" : dockerDbs.length > 0 ? "ok" : "off",
+      ...(dockerDbs ? { count: dockerDbs.length } : {}),
       instances: (dockerDbs ?? []).map((d) => ({
         key: d.id,
         label: d.name,
@@ -241,9 +249,28 @@ export function DatabasesSection() {
               : snowflake.status === "unauthed"
                 ? "not signed in"
                 : `${snowflake.resources.length} warehouse${snowflake.resources.length === 1 ? "" : "s"}`,
+      tone:
+        snowflake === null
+          ? "unknown"
+          : snowflake.status === "ready"
+            ? "ok"
+            : snowflake.status === "unauthed"
+              ? "warn"
+              : "off",
+      ...(snowflake?.status === "ready"
+        ? { count: snowflake.resources.length }
+        : {}),
       instances: [],
     },
   ];
+
+  // The old note was UNCONDITIONAL, so "No databases yet" rendered directly
+  // above three live Postgres containers -- a false sentence, and exactly the
+  // failure router rule 1 exists to prevent. It is now a last line, shown only
+  // when the manual list AND every provider are genuinely empty.
+  const nothingAnywhere =
+    dbs.length === 0 &&
+    providers.every((p) => p.instances.length === 0 && !p.count);
 
   return (
     <div className="databases">
@@ -254,7 +281,7 @@ export function DatabasesSection() {
           onClick={() => setModal("add-database")}
           title="Add a database by pasting a Postgres connection string"
         >
-          + Add database
+          + Add
         </button>
         <button
           type="button"
@@ -266,79 +293,78 @@ export function DatabasesSection() {
           ↻ Refresh
         </button>
       </div>
-      {dbs.length === 0 ? (
+      {dbs.map((d) => {
+        const state = pings[d.id] ?? "checking";
+        const dotClass =
+          state === "ok"
+            ? "status-dot on"
+            : state === "fail"
+              ? "status-dot fail"
+              : "status-dot";
+        const open = !!expanded[d.id];
+        return (
+          <div key={d.id} className="db-entry">
+            <div className="db-entry-head">
+              <button
+                type="button"
+                className="db-row"
+                onClick={() => void toggle(d.id)}
+                disabled={busy}
+                title={d.redacted}
+              >
+                <i
+                  className={`codicon codicon-chevron-${open ? "down" : "right"}`}
+                />
+                <span className={dotClass} />
+                <span className="db-name">{d.id}</span>
+                <span className="db-host">{d.host}</span>
+              </button>
+              <button
+                type="button"
+                className="row-action reveal"
+                onClick={() => void removeDb(d.id)}
+                disabled={busy}
+                title="Remove this database (deletes its stored connection string)"
+              >
+                <i className="codicon codicon-trash" />
+              </button>
+            </div>
+            {open && (
+              <div className="db-tables">
+                {tables[d.id]?.length === 0 ? (
+                  <div className="section-note">no tables</div>
+                ) : (
+                  tables[d.id]?.map((t) => (
+                    <button
+                      key={`${t.schema}.${t.name}`}
+                      type="button"
+                      className="db-table-row"
+                      onClick={() => openTable(d.id, t)}
+                      disabled={busy}
+                      title={`Browse ${t.schema}.${t.name}`}
+                    >
+                      <i className="codicon codicon-table" />
+                      <span className="db-table-name">
+                        {t.schema}.{t.name}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <ProviderRows rows={providers} />
+      {nothingAnywhere && (
         <button
           type="button"
           className="section-empty"
           onClick={() => setModal("add-database")}
         >
-          No databases yet — click to add one with a connection string.
+          No databases yet.
         </button>
-      ) : (
-        dbs.map((d) => {
-          const state = pings[d.id] ?? "checking";
-          const dotClass =
-            state === "ok"
-              ? "status-dot on"
-              : state === "fail"
-                ? "status-dot fail"
-                : "status-dot";
-          const open = !!expanded[d.id];
-          return (
-            <div key={d.id} className="db-entry">
-              <div className="db-entry-head">
-                <button
-                  type="button"
-                  className="db-row"
-                  onClick={() => void toggle(d.id)}
-                  disabled={busy}
-                  title={d.redacted}
-                >
-                  <i
-                    className={`codicon codicon-chevron-${open ? "down" : "right"}`}
-                  />
-                  <span className={dotClass} />
-                  <span className="db-name">{d.id}</span>
-                  <span className="db-host">{d.host}</span>
-                </button>
-                <button
-                  type="button"
-                  className="row-action reveal"
-                  onClick={() => void removeDb(d.id)}
-                  disabled={busy}
-                  title="Remove this database (deletes its stored connection string)"
-                >
-                  <i className="codicon codicon-trash" />
-                </button>
-              </div>
-              {open && (
-                <div className="db-tables">
-                  {tables[d.id]?.length === 0 ? (
-                    <div className="section-note">no tables</div>
-                  ) : (
-                    tables[d.id]?.map((t) => (
-                      <button
-                        key={`${t.schema}.${t.name}`}
-                        type="button"
-                        className="db-table-row"
-                        onClick={() => openTable(d.id, t)}
-                        disabled={busy}
-                        title={`Browse ${t.schema}.${t.name}`}
-                      >
-                        <i className="codicon codicon-table" />
-                        <span className="db-table-name">
-                          {t.schema}.{t.name}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })
       )}
-      <ProviderRows rows={providers} />
     </div>
   );
 }

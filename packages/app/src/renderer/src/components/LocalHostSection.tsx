@@ -276,6 +276,8 @@ export function LocalHostSection() {
           : services.length === 0
             ? "not connected"
             : `${services.length} service${services.length === 1 ? "" : "s"}`,
+      tone: services === null ? "unknown" : services.length > 0 ? "ok" : "off",
+      ...(services ? { count: services.length } : {}),
       instances: (services ?? []).map((s) => ({
         key: s.id,
         label: s.name,
@@ -308,6 +310,15 @@ export function LocalHostSection() {
               : azure.status === "unauthed"
                 ? "not signed in"
                 : `${azure.resources.length} web app${azure.resources.length === 1 ? "" : "s"}`,
+      tone:
+        azure === null
+          ? "unknown"
+          : azure.status === "ready"
+            ? "ok"
+            : azure.status === "unauthed"
+              ? "warn"
+              : "off",
+      ...(azure?.status === "ready" ? { count: azure.resources.length } : {}),
       instances: [],
     },
   ];
