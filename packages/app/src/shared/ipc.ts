@@ -1180,7 +1180,13 @@ export interface AirlockApi {
     scoped?: boolean,
   ): Promise<SteadyIntegration | null>;
   extensionsResourcesFor(id: string): Promise<IntegrationItem[]>;
-  extensionsList(): Promise<ExtensionSummary[]>;
+  // `root` names the project the answer is ABOUT. It is optional only for
+  // callers that genuinely mean "whatever is focused" (the MCP layer); a
+  // renderer surface must pass the root it is rendering for. switchTab tells
+  // main the active root fire-and-forget, so a project-scoped question that
+  // relied on main's copy would race that message and get the PREVIOUS
+  // project's answer -- the same reason dbList takes a root.
+  extensionsList(root?: string | null): Promise<ExtensionSummary[]>;
   // The explicit per-project opt-in that overrides a manifest's `relevance`
   // heuristic, so an extension can be used in a project that shows none of its
   // declared signals. Writes ProjectConfig.extensions.<id>.useHere.
