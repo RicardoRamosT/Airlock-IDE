@@ -51,7 +51,7 @@ export function useSyncSectionMeta(): void {
     let cancelled = false;
     const load = () =>
       void window.airlock
-        .extensionsList()
+        .extensionsList(root)
         .then((all) => {
           if (cancelled) return;
           // One answer, shared: the rail filters on it here and the

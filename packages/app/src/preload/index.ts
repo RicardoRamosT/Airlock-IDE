@@ -170,7 +170,8 @@ const api: AirlockApi = {
     ipcRenderer.invoke("integrations:resources", id, scoped),
   extensionsResourcesFor: (id: string) =>
     ipcRenderer.invoke("extensions:resourcesFor", id),
-  extensionsList: () => ipcRenderer.invoke("extensions:list"),
+  extensionsList: (root?: string | null) =>
+    ipcRenderer.invoke("extensions:list", root),
   extensionsResources: () => ipcRenderer.invoke("extensions:resources"),
   slackAllowedChannels: (root: string) =>
     ipcRenderer.invoke("slack:allowedChannels", root),

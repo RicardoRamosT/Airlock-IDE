@@ -2474,7 +2474,29 @@ export function registerIpc(
     },
   );
 
-  ipcMain.handle("extensions:list", (e) => listExtensions(rootForEvent(e)));
+  // An explicit root wins over this window's active root: the renderer knows
+  // which project it is rendering BEFORE main has been told, and waiting for
+  // main to catch up is a race. rootForEvent remains the fallback for callers
+  // that mean "the focused project" (the MCP layer), and null means
+  // account-wide.
+  // Three distinct cases, deliberately not collapsed:
+  //   a string   -> that project, whatever main currently thinks is focused
+  //   null       -> account-wide, asked for explicitly (a blank tab)
+  //   undefined  -> "the focused project", for callers with no root of their
+  //                 own (the MCP layer)
+  // The renderer knows which project it is rendering BEFORE main has been told
+  // -- switchTab sends workspace:setActive fire-and-forget -- so a
+  // project-scoped question that leant on main's copy would race that message
+  // and get the PREVIOUS project's answer. Same reason dbList takes a root.
+  ipcMain.handle("extensions:list", (e, root?: unknown) =>
+    listExtensions(
+      root === undefined
+        ? rootForEvent(e)
+        : typeof root === "string"
+          ? root
+          : null,
+    ),
+  );
   // Hand the same inventory to the MCP layer. registerIpc runs once at startup,
   // well before any per-request MCP server is built, so the holder is always
   // populated by the time a tool can call it.
