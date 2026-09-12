@@ -6,6 +6,7 @@ import type {
   RenderServiceStatus,
   SteadyIntegration,
 } from "../../../shared/ipc";
+import { keepRelevant } from "../lib/extensionRelevance";
 import { startFocusPolling } from "../lib/focusPolling";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
@@ -52,6 +53,7 @@ export function LocalHostSection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const hostRefreshNonce = useApp((s) => s.hostRefreshNonce);
+  const relevantExtensions = useApp((s) => s.relevantExtensions);
   const switchTab = useApp((s) => s.switchTab);
   const setActiveTerminal = useApp((s) => s.setActiveTerminal);
 
@@ -681,7 +683,7 @@ export function LocalHostSection() {
   return (
     <>
       {devServerPanel()}
-      <ProviderRows rows={providers} />
+      <ProviderRows rows={keepRelevant(providers, relevantExtensions)} />
     </>
   );
 }

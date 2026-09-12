@@ -1,30 +1,69 @@
 // packages/app/src/main/integrations/relevance.test.ts
 import { describe, expect, it, vi } from "vitest";
-import { optedInExtensions, relevanceContextFor } from "./relevance";
+import {
+  boundExtensions,
+  optedInExtensions,
+  type RelevanceReaders,
+  relevanceContextFor,
+} from "./relevance";
+
+// Every reader defaults to "nothing here"; a test overrides only the one it
+// is about, so adding a sixth signal later does not rewrite every case.
+const readers = (over: Partial<RelevanceReaders> = {}): RelevanceReaders => ({
+  secretNames: async () => [],
+  rootFiles: async () => [],
+  optedIn: async () => [],
+  gitRemoteHost: async () => null,
+  connectedHere: async () => [],
+  ...over,
+});
 
 describe("relevanceContextFor", () => {
   it("gathers vaulted secret NAMES and the root listing", async () => {
     const ctx = await relevanceContextFor(
       "/repo",
-      async () => ["DATABASE_URL", "STRIPE_SECRET_KEY"],
-      async () => ["package.json", "azure.yaml"],
-      async () => ["snowflake"],
+      readers({
+        secretNames: async () => ["DATABASE_URL", "STRIPE_SECRET_KEY"],
+        rootFiles: async () => ["package.json", "azure.yaml"],
+        optedIn: async () => ["snowflake"],
+        gitRemoteHost: async () => "github.com",
+        connectedHere: async () => ["slack"],
+      }),
     );
     expect(ctx).toEqual({
       secretNames: ["DATABASE_URL", "STRIPE_SECRET_KEY"],
       rootFiles: ["package.json", "azure.yaml"],
+      gitRemoteHost: "github.com",
+      connectedHere: ["slack"],
       optedIn: ["snowflake"],
     });
   });
 
-  it("passes the root through to both readers", async () => {
-    const names = vi.fn(async () => []);
-    const files = vi.fn(async () => []);
-    const opted = vi.fn(async () => []);
-    await relevanceContextFor("/repo", names, files, opted);
-    expect(names).toHaveBeenCalledWith("/repo");
-    expect(files).toHaveBeenCalledWith("/repo");
-    expect(opted).toHaveBeenCalledWith("/repo");
+  it("passes the root through to every reader", async () => {
+    const spies = {
+      secretNames: vi.fn(async () => []),
+      rootFiles: vi.fn(async () => []),
+      optedIn: vi.fn(async () => []),
+      gitRemoteHost: vi.fn(async () => null),
+      connectedHere: vi.fn(async () => []),
+    };
+    await relevanceContextFor("/repo", spies);
+    for (const fn of Object.values(spies))
+      expect(fn).toHaveBeenCalledWith("/repo");
+  });
+
+  // A project need not be a git repo, and a git failure is not evidence the
+  // project is irrelevant -- it just means that ONE signal is unavailable.
+  it("degrades to no git signal when there is no remote", async () => {
+    const ctx = await relevanceContextFor(
+      "/repo",
+      readers({
+        gitRemoteHost: async () => {
+          throw new Error("not a git repository");
+        },
+      }),
+    );
+    expect(ctx.gitRemoteHost).toBeNull();
   });
 
   // An unreadable root (deleted, or a permissions error) must not reject: the
@@ -34,15 +73,18 @@ describe("relevanceContextFor", () => {
   it("degrades to no file signal when the root cannot be read", async () => {
     const ctx = await relevanceContextFor(
       "/gone",
-      async () => ["AZURE_CLIENT_ID"],
-      async () => {
-        throw new Error("ENOENT");
-      },
-      async () => [],
+      readers({
+        secretNames: async () => ["AZURE_CLIENT_ID"],
+        rootFiles: async () => {
+          throw new Error("ENOENT");
+        },
+      }),
     );
     expect(ctx).toEqual({
       secretNames: ["AZURE_CLIENT_ID"],
       rootFiles: [],
+      gitRemoteHost: null,
+      connectedHere: [],
       optedIn: [],
     });
   });
@@ -54,11 +96,11 @@ describe("relevanceContextFor", () => {
     await expect(
       relevanceContextFor(
         "/repo",
-        async () => {
-          throw new Error("keychain locked");
-        },
-        async () => [],
-        async () => [],
+        readers({
+          secretNames: async () => {
+            throw new Error("keychain locked");
+          },
+        }),
       ),
     ).rejects.toThrow("keychain locked");
   });
@@ -88,5 +130,35 @@ describe("optedInExtensions", () => {
 
   it("is empty for a project with no extensions map at all", () => {
     expect(optedInExtensions(undefined)).toEqual([]);
+  });
+});
+
+// Being bound here is the only signal an identity can ever have: nothing in a
+// repo says "this project uses Slack".
+describe("boundExtensions", () => {
+  it("lists an extension with a verified workspace binding", () => {
+    expect(
+      boundExtensions({
+        slack: { workspace: { id: "T123", name: "Airlock" } },
+        azure: { useHere: true },
+      }),
+    ).toEqual(["slack"]);
+  });
+
+  it("ignores a pin with no verified id behind it", () => {
+    // workspacePin is what the user REQUESTED; only the verified id counts.
+    expect(
+      boundExtensions({ slack: { workspacePin: "airlock", workspace: {} } }),
+    ).toEqual([]);
+  });
+
+  it("accepts a plain connected flag", () => {
+    expect(boundExtensions({ github: { connected: true } })).toEqual([
+      "github",
+    ]);
+  });
+
+  it("is empty for a project with no extensions map at all", () => {
+    expect(boundExtensions(undefined)).toEqual([]);
   });
 });

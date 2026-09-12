@@ -67,6 +67,9 @@ export type Surface = "activity" | { view: string };
 export interface RelevanceSpec {
   envPrefix?: string;
   files?: string[];
+  // The project's git origin points at this host (e.g. "github.com"). A repo
+  // hosted on GitLab should not surface GitHub.
+  gitRemoteHost?: string;
 }
 
 export interface IntegrationManifest {

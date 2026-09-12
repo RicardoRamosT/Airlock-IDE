@@ -648,9 +648,37 @@ manifest exercising it — `engine.test.ts` covers it with a LOCAL fixture
 belonged anyway. Of the spec's three pilots, gcloud Cloud Run never shipped and
 Snowflake remains.
 
-**Rail policy: extension icons are always shown, enabled or not** — a user
-cannot enable what they cannot see. The rail scrolls, and right-click → Hide is
-the escape valve. This overrides manifest `relevance` gating for the ICON only.
+**Rail policy: the sidebar shows what THIS PROJECT uses.** An extension whose
+signal does not fire here, and that you have not turned on here, is not on the
+rail and not a row in Databases/Host. This REVERSES the old "extension icons are
+always shown, enabled or not — a user cannot enable what they cannot see" rule,
+which the Extensions hub now discharges: the hub is always on the rail and lists
+every extension whatever its state, so the discoverability the old rule
+protected no longer depends on a per-product icon. Right-click → Hide is still
+the manual escape valve, and **"Use it here" (`useHere`) is the override when a
+signal guesses wrong** — checked first, and there is still no opt-OUT.
+
+`relevant = you said so, OR a signal matches, OR it is connected here.` The
+third clause is load-bearing: nothing in a repo says "this project uses Slack",
+so an identity's only possible signal is being bound to the project. An empty
+`relevance: {}` therefore means "gated, with no automatic signal", which is NOT
+the same as no spec at all (always relevant). Signals live on the registries —
+`SECTION_EXTENSIONS` (Docker's compose files, Render's `render.yaml`, Neon's
+`NEON_*`), `CONNECTED_EXTENSIONS` (GitHub's `gitRemoteHost`), and the manifests
+(Snowflake, Azure). Snowflake and Azure declare theirs on the MANIFEST only —
+they are also section descriptors, and `mergeSectionExtensions` lets the
+manifest row win, so a second copy would be a second answer.
+
+**One answer, three surfaces.** `projectUse` is computed main-side by
+`projectUseOf` and ships on every `ExtensionSummary`, so the rail, the provider
+rows and the hub's per-project toggle cannot disagree. The renderer reads it
+through `isRelevantHere`/`keepRelevant` (`lib/extensionRelevance.ts`).
+**`undefined` means NOT ASKED YET and must SHOW** — no project focused, or an
+extension with no spec — and `relevantExtensions: null` in the store means the
+same; filtering on either would blank Databases and Host for the first second of
+every launch. `useSyncSectionMeta` re-loads on the focused root, not just on
+mount and window focus, or the previous project's icons linger.
+
 Order below the divider is hub → connected → section, each alphabetical by name,
 so an icon sits in the same place in every project (`composeSectionMeta`). Note
 this differs from `providersFor`'s registry order, which drives a different

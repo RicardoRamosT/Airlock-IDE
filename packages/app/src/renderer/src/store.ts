@@ -383,6 +383,11 @@ export interface AppState {
   // the sidebar and buildCommands all read ONE composed list rather than three
   // copies that can disagree.
   sectionMeta: SectionMeta[];
+  // Extension ids relevant to the FOCUSED project, or null for NOT ASKED YET
+  // (startup, or no project focused). Null must render as "show everything":
+  // an empty array would blank Databases and Host for the first second.
+  relevantExtensions: string[] | null;
+  setRelevantExtensions: (ids: string[] | null) => void;
   setSectionMeta: (m: SectionMeta[]) => void;
   activeView: Section; // app-global (persisted): which section the sidebar shows (activity bar)
   // Extension Hub per-integration prefs (enabled/pinned), hydrated from
@@ -894,6 +899,8 @@ export const useApp = create<AppState>((set) => ({
   setUpdateProgress: (p) => set({ updateProgress: p }),
   sectionMeta: BUILTIN_SECTION_META,
   setSectionMeta: (m) => set({ sectionMeta: m }),
+  relevantExtensions: null,
+  setRelevantExtensions: (relevantExtensions) => set({ relevantExtensions }),
   sectionVisibility: {
     files: true,
     secrets: true,

@@ -5,6 +5,7 @@ import type {
   DbTable,
   SteadyIntegration,
 } from "../../../shared/ipc";
+import { keepRelevant } from "../lib/extensionRelevance";
 import { useProjectTab } from "../lib/projectPane";
 import { useApp } from "../store";
 import { Loading } from "./Loading";
@@ -28,6 +29,7 @@ export function DatabasesSection() {
   const tabId = useProjectTab();
   const root = useApp((s) => s.tabState[tabId]?.root ?? null);
   const setModal = useApp((s) => s.setModal);
+  const relevantExtensions = useApp((s) => s.relevantExtensions);
   const dbRefreshNonce = useApp((s) => s.dbRefreshNonce);
   // null = NOT ASKED YET, distinct from [] ("asked, and there are none"). The
   // three provider probes below already used null for this; the vaulted-DB list
@@ -268,9 +270,12 @@ export function DatabasesSection() {
   // above three live Postgres containers -- a false sentence, and exactly the
   // failure router rule 1 exists to prevent. It is now a last line, shown only
   // when the manual list AND every provider are genuinely empty.
+  // Only the providers this project actually uses. Same set the rail filters
+  // on, read from the store rather than re-derived here.
+  const shown = keepRelevant(providers, relevantExtensions);
   const nothingAnywhere =
     dbs.length === 0 &&
-    providers.every((p) => p.instances.length === 0 && !p.count);
+    shown.every((p) => p.instances.length === 0 && !p.count);
 
   return (
     <div className="databases">
@@ -355,7 +360,7 @@ export function DatabasesSection() {
           </div>
         );
       })}
-      <ProviderRows rows={providers} />
+      <ProviderRows rows={shown} />
       {nothingAnywhere && (
         <button
           type="button"

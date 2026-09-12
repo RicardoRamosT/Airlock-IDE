@@ -31,6 +31,7 @@ import {
   ensureAirlockDir,
   filterDangerousEnv,
   getGlobalSecret,
+  getOrigin,
   getSecretValue,
   ghAccounts,
   gitFetch,
@@ -59,6 +60,7 @@ import {
   type PtySession,
   parseAccount,
   parseConnString,
+  parseRemote,
   parseWorkspaceInput,
   patchProjectExtension,
   pingDb,
@@ -220,6 +222,7 @@ import {
   sectionExtensionStatuses,
 } from "./ide-state";
 import {
+  boundExtensions,
   optedInExtensions,
   relevanceContextFor,
 } from "./integrations/relevance";
@@ -311,12 +314,19 @@ const steadyCache: SteadyCache = {};
 // integrations:resources go through this, so the two cannot answer "does this
 // project use Azure?" differently.
 const projectRelevance = (root: string) =>
-  relevanceContextFor(
-    root,
-    async (r) => (await listSecrets(r)).map((m) => m.name),
-    readdir,
-    async (r) => optedInExtensions((await readProjectConfig(r)).extensions),
-  );
+  relevanceContextFor(root, {
+    secretNames: async (r) => (await listSecrets(r)).map((m) => m.name),
+    rootFiles: readdir,
+    optedIn: async (r) =>
+      optedInExtensions((await readProjectConfig(r)).extensions),
+    // The host of origin, so a repo on GitLab does not surface GitHub.
+    gitRemoteHost: async (r) => {
+      const url = await getOrigin(r);
+      return url ? (parseRemote(url)?.host ?? null) : null;
+    },
+    connectedHere: async (r) =>
+      boundExtensions((await readProjectConfig(r)).extensions),
+  });
 
 // Per-manifest detect-status cache for the Extension Hub list (extensions:list),
 // throttled to each manifest's poll.everyMs so opening the Hub view doesn't

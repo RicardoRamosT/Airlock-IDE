@@ -7,7 +7,7 @@
 import type { ExtensionAction } from "./actions";
 import type { DetectStatus, RelevanceContext } from "./engine";
 import { isRelevant, steadyView } from "./engine";
-import type { IntegrationManifest } from "./manifest";
+import type { IntegrationManifest, RelevanceSpec } from "./manifest";
 import type { SectionExtensionDescriptor } from "./sectionExtensions";
 
 // One row in the Extension Hub. Superset of DetectStatus so future Tier-2
@@ -130,8 +130,8 @@ export function buildExtensionSummaries(
 // present the override is not what is keeping it on -- removing it would
 // change nothing. Reporting "optedIn" there would put a live switch in front
 // of a decision the user cannot actually make.
-function projectUseOf(
-  m: IntegrationManifest,
+export function projectUseOf(
+  m: { id: string; relevance?: RelevanceSpec },
   relevance: RelevanceContext | null,
 ): ExtensionSummary["projectUse"] | null {
   if (!m.relevance || !relevance) return null;
@@ -178,25 +178,30 @@ export function sectionExtensionSummaries(
   descriptors: SectionExtensionDescriptor[],
   prefs: ExtPrefs,
   statuses: Record<string, ExtensionSummary["status"]> = {},
+  relevance: RelevanceContext | null = null,
 ): ExtensionSummary[] {
-  return descriptors.map((d) => ({
-    id: d.id,
-    name: d.name,
-    icon: d.icon,
-    tier: "section" as const,
-    category: d.contributesTo,
-    // A REAL status, probed by the caller. This used to be a hardcoded "ready",
-    // which forced every hub surface to special-case tier === "section" -- and
-    // produced a bucket called "Has its own section", which says nothing a user
-    // cares about (all of them have one). Each of these three already had a
-    // probe in main: Docker's daemon, Neon's account, Render's API key. An
-    // unprobed id reads "absent" rather than claiming a connection.
-    status: statuses[d.id] ?? "absent",
-    enabled: isEnabled(prefs, d.id),
-    pinned: prefs[d.id]?.pinned === true,
-    hasConfig: false,
-    authKind: "token" as const,
-  }));
+  return descriptors.map((d) => {
+    const use = projectUseOf(d, relevance);
+    return {
+      id: d.id,
+      name: d.name,
+      icon: d.icon,
+      tier: "section" as const,
+      category: d.contributesTo,
+      // A REAL status, probed by the caller. This used to be a hardcoded "ready",
+      // which forced every hub surface to special-case tier === "section" -- and
+      // produced a bucket called "Has its own section", which says nothing a user
+      // cares about (all of them have one). Each of these three already had a
+      // probe in main: Docker's daemon, Neon's account, Render's API key. An
+      // unprobed id reads "absent" rather than claiming a connection.
+      status: statuses[d.id] ?? "absent",
+      enabled: isEnabled(prefs, d.id),
+      pinned: prefs[d.id]?.pinned === true,
+      hasConfig: false,
+      authKind: "token" as const,
+      ...(use ? { projectUse: use } : {}),
+    };
+  });
 }
 
 // Fold section-extension rows into the Tier-1 manifest list, so an id present
