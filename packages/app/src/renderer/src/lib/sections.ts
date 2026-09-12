@@ -9,23 +9,6 @@ export interface SectionMeta {
   // where a user looks for anything extension-related. Provenance is still
   // recoverable from the id via parseExtSection.
   group: "core" | "extensions";
-  // Keep the section reachable, but off the rail.
-  //
-  // A product you provision (Neon, Docker, Render, Snowflake, Azure) used to
-  // occupy THREE surfaces: its own rail icon + section, a row inside
-  // Databases/Host via SECTION_EXTENSIONS.contributesTo, and an entry in the
-  // Extensions hub. Five products, fifteen row-appearances -- which is what
-  // made the rail read as clutter and the app as disorganised.
-  //
-  // The two surfaces that survive have distinct jobs: Databases/Host is where
-  // you WORK (what can I query, what is running), the hub is where you MANAGE
-  // (install, connect, per-project opt-in). The third had no job of its own,
-  // so it loses its icon -- but NOT its section, which carries real UI the
-  // hub's six-slot detail pane does not replace (NeonSection alone is 471
-  // lines of branch browser). It stays a DESTINATION: the provider row's
-  // arrow, the hub's "Open <name>", and the command palette all still reach
-  // it. effectiveView still treats it as a known view.
-  railHidden?: boolean;
 }
 
 // The built-in Extensions hub. Lives in the extensions rail group and leads it.
@@ -78,15 +61,12 @@ export function composeSectionMeta(
   sectionExts: ExtMeta[] = [],
 ): SectionMeta[] {
   const byName = (a: ExtMeta, b: ExtMeta) => a.name.localeCompare(b.name);
-  const toMeta =
-    (railHidden: boolean) =>
-    (e: ExtMeta): SectionMeta => ({
-      id: extSectionId(e.id) as Section,
-      label: e.name,
-      icon: e.icon ?? "extensions",
-      group: "extensions" as const,
-      ...(railHidden ? { railHidden: true } : {}),
-    });
+  const toMeta = (e: ExtMeta): SectionMeta => ({
+    id: extSectionId(e.id) as Section,
+    label: e.name,
+    icon: e.icon ?? "extensions",
+    group: "extensions" as const,
+  });
   // Deduped by id, keeping the FIRST occurrence. The caller selects the two
   // lists with different filters (`tier === "connected"` and `hasSection`), and
   // a connected extension now satisfies BOTH -- it owns a rail area, which is
@@ -96,12 +76,14 @@ export function composeSectionMeta(
   const seen = new Set<string>();
   return [
     ...BUILTIN_SECTION_META,
-    // Connected extensions (Slack, GitHub) KEEP their icon: an identity is
-    // reusable across projects and has no home in Databases/Host.
-    ...[...connected].sort(byName).map(toMeta(false)),
-    // Section extensions do not: they already appear as a provider row in the
-    // section they contribute to, and again in the hub.
-    ...[...sectionExts].sort(byName).map(toMeta(true)),
+    ...[...connected].sort(byName).map(toMeta),
+    // Section extensions get an icon again. They briefly did not -- five
+    // products across three surfaces was the clutter -- but RELEVANCE is the
+    // right instrument for that, and hiding them wholesale was a blunt stand-in
+    // for it. The caller passes only the extensions this project uses, so a
+    // project gains an icon for Docker exactly when it has a Dockerfile, and
+    // airlock gains none at all.
+    ...[...sectionExts].sort(byName).map(toMeta),
   ].filter((m) => {
     if (seen.has(m.id)) return false;
     seen.add(m.id);

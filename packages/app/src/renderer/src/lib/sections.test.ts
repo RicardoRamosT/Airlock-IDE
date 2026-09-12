@@ -104,37 +104,41 @@ describe("rail groups", () => {
   });
 });
 
-describe("railHidden", () => {
-  it("keeps a connected extension on the rail", () => {
-    // An identity (Slack, GitHub) is reused across projects and has no home in
-    // Databases or Host, so it keeps its icon.
-    const [slack] = composeSectionMeta([{ id: "slack", name: "Slack" }]).slice(
-      -1,
-    );
-    expect(slack?.railHidden).toBeUndefined();
+describe("the rail is composed from what this project uses", () => {
+  it("gives a section extension an icon again", () => {
+    // These briefly had none -- five products across three surfaces was the
+    // clutter -- but RELEVANCE is the instrument for that, and hiding them
+    // wholesale was a blunt stand-in. The CALLER passes only what the project
+    // uses, so the rail is per-project without being a fixed list.
+    const meta = composeSectionMeta([], [{ id: "docker", name: "Docker" }]);
+    const docker = meta.find((m) => m.id === "ext:docker");
+    expect(docker).toEqual({
+      id: "ext:docker",
+      label: "Docker",
+      icon: "extensions",
+      group: "extensions",
+    });
   });
 
-  it("takes a section extension OFF the rail without unmaking the section", () => {
-    // It already appears as a provider row in the section it contributes to,
-    // and again in the hub. Three surfaces for one product is the clutter.
+  it("shows nothing extra for a project that uses nothing", () => {
+    // airlock: no Dockerfile, no render.yaml, no NEON_ anything.
+    expect(composeSectionMeta([], [])).toEqual(BUILTIN_SECTION_META);
+  });
+
+  it("is a KNOWN view, so the provider arrow and the hub still land", () => {
     const meta = composeSectionMeta([], [{ id: "neon", name: "Neon" }]);
-    const neon = meta.find((m) => m.id === "ext:neon");
-    expect(neon?.railHidden).toBe(true);
-    // ...but it is still a KNOWN view, so the provider row's arrow and the
-    // hub's "Open Neon" still land somewhere rather than bouncing to Files.
     const vis = Object.fromEntries(meta.map((m) => [m.id, true]));
     expect(effectiveView("ext:neon", vis, meta)).toBe("ext:neon");
   });
 
-  it("lets a connected extension that also owns a section keep its icon", () => {
-    // Slack satisfies BOTH lists; the connected entry wins the dedup, so it
-    // must not inherit railHidden from the section-extension pass.
+  it("lets a connected extension that also owns a section appear once", () => {
+    // Slack satisfies BOTH lists; the connected entry wins the dedup so it
+    // keeps its position among the connected icons.
     const meta = composeSectionMeta(
       [{ id: "slack", name: "Slack" }],
       [{ id: "slack", name: "Slack" }],
     );
     expect(meta.filter((m) => m.id === "ext:slack")).toHaveLength(1);
-    expect(meta.find((m) => m.id === "ext:slack")?.railHidden).toBeUndefined();
   });
 });
 
