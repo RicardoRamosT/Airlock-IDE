@@ -59,7 +59,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${splitShowing ? " bound" : ""}`}>
       {meta ? (
         <>
           <div className="sidebar-view-header">
