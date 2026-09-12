@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   CONNECTED_EXTENSIONS,
   connectedSummary,
+  GITHUB_DESCRIPTOR,
   SLACK_DESCRIPTOR,
   slackScopes,
 } from "./connected";
 
 describe("connectedSummary", () => {
   it("maps a connected descriptor + status + prefs to a Tier-2 summary", () => {
-    const s = connectedSummary(SLACK_DESCRIPTOR, "connected", {
-      slack: { pinned: true },
-    });
+    const s = connectedSummary(
+      SLACK_DESCRIPTOR,
+      "connected",
+      { slack: { pinned: true } },
+      null,
+    );
     expect(s.id).toBe("slack");
     expect(s.tier).toBe("connected");
     expect(s.status).toBe("connected");
@@ -23,16 +27,19 @@ describe("connectedSummary", () => {
   });
 
   it("reports unauthed when not connected", () => {
-    const s = connectedSummary(SLACK_DESCRIPTOR, "unauthed", {});
+    const s = connectedSummary(SLACK_DESCRIPTOR, "unauthed", {}, null);
     expect(s.status).toBe("unauthed");
     expect(s.enabled).toBe(true);
     expect(s.pinned).toBe(false);
   });
 
   it("disabled overrides the connection status", () => {
-    const s = connectedSummary(SLACK_DESCRIPTOR, "connected", {
-      slack: { enabled: false },
-    });
+    const s = connectedSummary(
+      SLACK_DESCRIPTOR,
+      "connected",
+      { slack: { enabled: false } },
+      null,
+    );
     expect(s.status).toBe("disabled");
     expect(s.enabled).toBe(false);
   });
@@ -89,13 +96,66 @@ describe("slackScopes covers file access", () => {
 // without it the hub's Slack pane had no way back to Slack's own sidebar area,
 // breaking the every-row-links-onward rule.
 it("marks a connected extension as owning a rail area", () => {
-  expect(connectedSummary(SLACK_DESCRIPTOR, "connected", {}).hasSection).toBe(
-    true,
-  );
+  expect(
+    connectedSummary(SLACK_DESCRIPTOR, "connected", {}, null).hasSection,
+  ).toBe(true);
 });
 
 it("marks it even while unauthed -- the area exists either way", () => {
-  expect(connectedSummary(SLACK_DESCRIPTOR, "unauthed", {}).hasSection).toBe(
-    true,
+  expect(
+    connectedSummary(SLACK_DESCRIPTOR, "unauthed", {}, null).hasSection,
+  ).toBe(true);
+});
+
+// Slack has no file signal -- being bound to the project is the only one it can
+// ever have. `relevance: {}` means "gated, no automatic signal", which is NOT
+// the same as declaring none at all.
+it("hides an identity that is not bound to this project", () => {
+  const s = connectedSummary(
+    SLACK_DESCRIPTOR,
+    "unauthed",
+    {},
+    {
+      secretNames: [],
+      rootFiles: [],
+      gitRemoteHost: null,
+      connectedHere: [],
+      optedIn: [],
+    },
   );
+  expect(s.projectUse).toBe("none");
+});
+
+it("shows it once a workspace is bound here", () => {
+  const s = connectedSummary(
+    SLACK_DESCRIPTOR,
+    "connected",
+    {},
+    {
+      secretNames: [],
+      rootFiles: [],
+      gitRemoteHost: null,
+      connectedHere: ["slack"],
+      optedIn: [],
+    },
+  );
+  expect(s.projectUse).toBe("signal");
+});
+
+it("shows GitHub for a github.com origin and not for another host", () => {
+  const ctx = (host: string | null) => ({
+    secretNames: [],
+    rootFiles: [],
+    gitRemoteHost: host,
+    connectedHere: [],
+    optedIn: [],
+  });
+  expect(
+    connectedSummary(GITHUB_DESCRIPTOR, "connected", {}, ctx("github.com"))
+      .projectUse,
+  ).toBe("signal");
+  expect(
+    connectedSummary(GITHUB_DESCRIPTOR, "connected", {}, ctx("gitlab.com"))
+      .projectUse,
+  ).toBe("none");
 });

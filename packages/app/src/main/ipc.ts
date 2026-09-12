@@ -2429,7 +2429,7 @@ export function registerIpc(
           root && provider
             ? await provider.status(root).catch((): ConnectedStatus => "error")
             : "unauthed";
-        const summary = connectedSummary(d, status, ext);
+        const summary = connectedSummary(d, status, ext, relevance);
         const account =
           status === "connected"
             ? workspaceAccountName(projExts?.[d.id])
@@ -2450,6 +2450,7 @@ export function registerIpc(
           SECTION_EXTENSIONS,
           ext,
           await sectionExtensionStatuses(root),
+          relevance,
         ),
       ),
       ...connected,
