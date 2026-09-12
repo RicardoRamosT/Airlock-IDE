@@ -2218,6 +2218,19 @@ body.resizing-col {
   flex: 1;
   min-height: 0;
 }
+
+/* A readable column instead of the full workspace width.
+   Settings > Appearance was two radio buttons in a 1430px-wide card inside a
+   1700px pane; the Extensions detail pane was six slots hugging the left edge
+   of a 1360x1050 void. The scroll containers keep their overflow -- only the
+   CONTENT is constrained, so wide tables still scroll inside their own box. */
+.settings-content > *,
+.ext-page-detail > * {
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+
 /* Back bar for a chip-less sub-page (Overview with project-tabs off). Fixed
    height — override the flex:1 that .app-page > * gives every child. */
 .app-page-bar {
@@ -2306,6 +2319,11 @@ body.resizing-col {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px 14px;
+  /* Usage earns more width than a form -- it is a data table -- but is still
+     bounded, so it stops running to the far edge of a wide window. */
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
 }
 
 .usage-section h3 {
@@ -3474,6 +3492,19 @@ body.resizing-col {
 /* The one phrase in the confirm that must not be skimmed past. */
 .modal-warn {
   color: #d29922;
+}
+
+/* A SNAPSHOT column sitting among cumulative ones. The rule is the cheapest
+   way to stop "803.8k" and "15h 00m" reading as two totals of the same kind. */
+.usage-table .usage-snapshot {
+  border-right: 1px solid var(--border);
+  padding-right: 10px;
+}
+.usage-table th .th-qual {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
 }
 
 .inject-toggle:hover {
