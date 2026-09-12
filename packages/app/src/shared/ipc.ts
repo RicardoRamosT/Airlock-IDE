@@ -379,6 +379,26 @@ export type MenuAction =
  * not project content: both can be open at once, at most one is SHOWN.
  */
 export type AppPage = "settings" | "usage" | "extensions";
+// Every IDE page-tab, in strip order. THE enumeration: openAppPages(), the
+// titlebar's strip test and the MCP layout snapshot all derive from this. They
+// used to hand-enumerate, and "extensions" was added to two of the three -- so
+// the hub rendered in the strip while reporting itself closed.
+export const APP_PAGES: readonly AppPage[] = [
+  "settings",
+  "usage",
+  "extensions",
+];
+
+// Sidebar width bounds. ONE source: the renderer's drag/keyboard resizer and
+// main's prefs sanitiser both read these. They used to disagree -- renderer
+// [160, 600], prefs [120, 1000] -- so a prefs file could legitimately carry a
+// width no drag could ever produce and no CSS was designed for.
+export const SIDEBAR_WIDTH_DEFAULT = 230;
+export const SIDEBAR_WIDTH_MIN = 160;
+export const SIDEBAR_WIDTH_MAX = 600;
+// Drag narrower than this and the sidebar COLLAPSES rather than clamping, so
+// the handle doubles as a hide gesture. Below MIN by design.
+export const SIDEBAR_COLLAPSE_AT = 120;
 
 /**
  * An IDE-control command dispatched main -> renderer over the agent:command

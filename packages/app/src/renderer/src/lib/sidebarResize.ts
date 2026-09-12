@@ -1,12 +1,20 @@
+import {
+  SIDEBAR_COLLAPSE_AT,
+  SIDEBAR_WIDTH_DEFAULT,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
+} from "../../../shared/ipc";
+
 // Pure geometry for the draggable sidebar splitter. No DOM/IPC -- the component
 // feeds it the drag delta and gets back the clamped width (or a collapse signal).
 
-export const SIDEBAR_DEFAULT = 230; // matches the original fixed column width
-export const SIDEBAR_MIN = 160;
-export const SIDEBAR_MAX = 600;
-// Drag the divider so the sidebar would be narrower than this -> collapse (hide)
-// it instead of clamping to MIN, so the handle doubles as a collapse gesture.
-export const SIDEBAR_COLLAPSE_AT = 120;
+// Re-exported under the renderer's shorter names; the values live in
+// shared/ipc.ts so main's prefs sanitiser clamps to the SAME interval this
+// resizer can produce.
+export const SIDEBAR_DEFAULT = SIDEBAR_WIDTH_DEFAULT;
+export const SIDEBAR_MIN = SIDEBAR_WIDTH_MIN;
+export const SIDEBAR_MAX = SIDEBAR_WIDTH_MAX;
+export { SIDEBAR_COLLAPSE_AT };
 
 // Given the width at drag-start, the horizontal mouse delta, and which side the
 // sidebar is docked, return the next width and whether to collapse. For a LEFT

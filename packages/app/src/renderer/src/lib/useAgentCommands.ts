@@ -5,6 +5,7 @@ import type {
   TabsSnapshot,
 } from "../../../shared/ipc";
 import { useApp } from "../store";
+import { openAppPages } from "./appPages";
 import { startManagedDevTerminal } from "./devServer";
 import { primaryConnectAction, runExtensionAction } from "./extensionActions";
 
@@ -46,10 +47,7 @@ function buildSnapshot(): TabsSnapshot {
     })),
     split,
     appPages: {
-      open: [
-        ...(s.settingsTabOpen ? (["settings"] as const) : []),
-        ...(s.usageTabOpen ? (["usage"] as const) : []),
-      ],
+      open: openAppPages(s),
       // The Overview page is per-project (not an MCP-openable global page like
       // Settings/Usage), so report it as "no app-page shown" to the agent surface.
       shown: s.appPage === "overview" ? null : s.appPage,

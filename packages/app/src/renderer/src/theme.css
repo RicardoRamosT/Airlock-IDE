@@ -1202,6 +1202,9 @@ body,
 .section-toolbar {
   display: flex;
   gap: var(--sb-gap);
+  /* The ROW wraps, never the label. A narrow sidebar moves a button to a
+     second line at full width; it never squeezes one into an unreadable box. */
+  flex-wrap: wrap;
   margin-bottom: var(--sb-block-gap);
 }
 
@@ -3381,7 +3384,18 @@ body.resizing-col {
 /* Toolbar buttons share width equally. Declared after base .btn so specificity
    ascends (avoids noDescendingSpecificity). */
 .section-toolbar .btn {
-  flex: 1;
+  /* NOT `flex: 1` (= 1 1 0%): that forced every button to an identical width
+     regardless of label, and .btn has a fixed height with no white-space rule,
+     so the longest label wrapped inside a box that could not grow -- "Push 12",
+     "Import .env", "+ Add database" all did.
+     `min-width: min(max-content, 100%)` means a button never shrinks below its
+     own label (it wraps to the next line instead) and only ellipsises in the
+     one case where a single label is wider than the whole row. */
+  flex: 1 1 auto;
+  min-width: min(max-content, 100%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inject-toggle {
