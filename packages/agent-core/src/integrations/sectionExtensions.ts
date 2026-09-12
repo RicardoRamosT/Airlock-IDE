@@ -42,7 +42,7 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     description: "Serverless Postgres: projects, branches and databases.",
     // A vaulted NEON_* key. Connecting Neon here also counts (connectedHere),
     // which covers the common case without a file signal existing at all.
-    relevance: { envPrefix: "NEON_" },
+    relevance: { tech: ["neon"] },
   },
   {
     id: "docker",
@@ -52,16 +52,7 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     description: "Local containers, including the databases you run in them.",
     // Docker is MACHINE-wide: without this, a project with no container of its
     // own still listed whatever happened to be running for some other project.
-    relevance: {
-      files: [
-        "Dockerfile",
-        "docker-compose.yml",
-        "docker-compose.yaml",
-        "compose.yml",
-        "compose.yaml",
-        ".dockerignore",
-      ],
-    },
+    relevance: { tech: ["docker"] },
   },
   {
     id: "render",
@@ -69,7 +60,7 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     icon: "render",
     contributesTo: "host",
     description: "Deployed services and their latest deploys.",
-    relevance: { files: ["render.yaml", "render.json"] },
+    relevance: { tech: ["render"] },
   },
   {
     id: "snowflake",

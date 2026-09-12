@@ -420,6 +420,7 @@ describe("isRelevant", () => {
       isRelevant(base, {
         secretNames: [],
         rootFiles: [],
+        tech: [],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: [],
@@ -427,12 +428,15 @@ describe("isRelevant", () => {
     ).toBe(true);
   });
 
-  it("is relevant when a vaulted secret name matches the env prefix", () => {
-    const m = { ...base, relevance: { envPrefix: "AZURE_" } };
+  // The catalog is what turns an AZURE_* secret, an @azure/* dependency or an
+  // azure.yaml into the id "azure"; this only has to honour the id.
+  it("is relevant when the detected tech includes a declared id", () => {
+    const m = { ...base, relevance: { tech: ["azure"] } };
     expect(
       isRelevant(m, {
         secretNames: ["DATABASE_URL", "AZURE_STORAGE_KEY"],
         rootFiles: [],
+        tech: ["azure", "typescript"],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: [],
@@ -440,12 +444,13 @@ describe("isRelevant", () => {
     ).toBe(true);
   });
 
-  it("is relevant when the project root contains a declared file", () => {
-    const m = { ...base, relevance: { files: ["azure.yaml", ".azure"] } };
+  it("is relevant when ANY of several declared ids is detected", () => {
+    const m = { ...base, relevance: { tech: ["docker", "render"] } };
     expect(
       isRelevant(m, {
         secretNames: [],
-        rootFiles: ["src", "azure.yaml"],
+        rootFiles: ["src"],
+        tech: ["render"],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: [],
@@ -453,15 +458,16 @@ describe("isRelevant", () => {
     ).toBe(true);
   });
 
-  it("is NOT relevant when neither the env prefix nor any file matches", () => {
+  it("is NOT relevant when the detected tech does not include it", () => {
     const m = {
       ...base,
-      relevance: { envPrefix: "AZURE_", files: ["azure.yaml"] },
+      relevance: { tech: ["azure"] },
     };
     expect(
       isRelevant(m, {
         secretNames: ["DATABASE_URL"],
         rootFiles: ["src", "package.json"],
+        tech: [],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: [],
@@ -476,12 +482,13 @@ describe("isRelevant", () => {
   it("is relevant when the project explicitly opted in, with no signal at all", () => {
     const m = {
       ...base,
-      relevance: { envPrefix: "AZURE_", files: ["azure.yaml"] },
+      relevance: { tech: ["azure"] },
     };
     expect(
       isRelevant(m, {
         secretNames: ["DATABASE_URL"],
         rootFiles: ["src", "package.json"],
+        tech: [],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: ["az"],
@@ -490,11 +497,12 @@ describe("isRelevant", () => {
   });
 
   it("matches the opt-in by manifest id, so one extension's opt-in does not carry another", () => {
-    const m = { ...base, relevance: { envPrefix: "AZURE_" } };
+    const m = { ...base, relevance: { tech: ["azure"] } };
     expect(
       isRelevant(m, {
         secretNames: [],
         rootFiles: [],
+        tech: [],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: ["snowflake"],
@@ -505,11 +513,12 @@ describe("isRelevant", () => {
   // There is deliberately no opt-OUT: an opted-in list that does not name the
   // manifest leaves the signal in charge, it does not veto it.
   it("still answers from the signal for a manifest not named in the opt-in list", () => {
-    const m = { ...base, relevance: { envPrefix: "AZURE_" } };
+    const m = { ...base, relevance: { tech: ["azure"] } };
     expect(
       isRelevant(m, {
         secretNames: ["AZURE_STORAGE_KEY"],
         rootFiles: [],
+        tech: ["azure"],
         gitRemoteHost: null,
         connectedHere: [],
         optedIn: ["snowflake"],
@@ -560,7 +569,7 @@ describe("SteadyIntegration.status: irrelevant", () => {
     id: "azureish",
     name: "Azureish",
     surface: { view: "host" },
-    relevance: { envPrefix: "AZURE_", files: ["azure.yaml"] },
+    relevance: { tech: ["azure"] },
     detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
     poll: { everyMs: 30000, cli: { cmd: "az", args: ["webapp", "list"] } },
     map: {
@@ -587,10 +596,7 @@ describe("SteadyIntegration.status: irrelevant", () => {
     const run: CliRunner = async (_c, args) =>
       args[0] === "account" ? "" : JSON.stringify([]);
     const value = await steadyIntegrationFor(azureish, null, 1000, {}, run);
-    expect(value.relevance).toEqual({
-      envPrefix: "AZURE_",
-      files: ["azure.yaml"],
-    });
+    expect(value.relevance).toEqual({ tech: ["azure"] });
   });
 
   it("omits relevance for an account-global manifest, which has no spec", async () => {

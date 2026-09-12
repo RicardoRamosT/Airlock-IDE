@@ -410,6 +410,11 @@ export {
   writeProjectConfig,
 } from "./project/config";
 export { projectIdFor } from "./project/id";
+export {
+  CONFIG_CATALOG,
+  LOCKFILE_CATALOG,
+  MANIFEST_CATALOG,
+} from "./project-profile/catalog";
 export { buildProfile, type DetectInputs } from "./project-profile/detect";
 export type {
   ProjectArea,

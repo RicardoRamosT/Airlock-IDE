@@ -37,6 +37,18 @@ export const DEP_CATALOG: Record<string, CatalogEntry> = {
     category: "build",
   },
   prisma: { id: "prisma", name: "Prisma", category: "orm" },
+  "@azure/identity": { id: "azure", name: "Azure", category: "hosting" },
+  "@azure/storage-blob": { id: "azure", name: "Azure", category: "hosting" },
+  "@azure/app-configuration": {
+    id: "azure",
+    name: "Azure",
+    category: "hosting",
+  },
+  "snowflake-sdk": {
+    id: "snowflake",
+    name: "Snowflake",
+    category: "database",
+  },
   "drizzle-orm": { id: "drizzle", name: "Drizzle", category: "orm" },
   "@neondatabase/serverless": { id: "neon", name: "Neon", category: "backend" },
   "@supabase/supabase-js": {
@@ -66,7 +78,10 @@ export const CONFIG_CATALOG: Record<string, CatalogEntry> = {
   "fly.toml": { id: "flydotio", name: "Fly.io", category: "hosting" },
   Dockerfile: { id: "docker", name: "Docker", category: "infra" },
   "docker-compose.yml": { id: "docker", name: "Docker", category: "infra" },
+  "docker-compose.yaml": { id: "docker", name: "Docker", category: "infra" },
+  "compose.yml": { id: "docker", name: "Docker", category: "infra" },
   "compose.yaml": { id: "docker", name: "Docker", category: "infra" },
+  "azure.yaml": { id: "azure", name: "Azure", category: "hosting" },
   "biome.json": { id: "biome", name: "Biome", category: "build" },
 };
 
@@ -95,6 +110,14 @@ export const SECRET_CATALOG: Array<{ test: RegExp; entry: CatalogEntry }> = [
     entry: { id: "stripe", name: "Stripe", category: "payments" },
   },
   { test: /^NEON_/, entry: { id: "neon", name: "Neon", category: "backend" } },
+  {
+    test: /^AZURE_/,
+    entry: { id: "azure", name: "Azure", category: "hosting" },
+  },
+  {
+    test: /^SNOWFLAKE_/,
+    entry: { id: "snowflake", name: "Snowflake", category: "database" },
+  },
   {
     test: /^SUPABASE_/,
     entry: { id: "supabase", name: "Supabase", category: "backend" },

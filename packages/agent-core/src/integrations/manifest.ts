@@ -65,10 +65,19 @@ export type Surface = "activity" | { view: string };
 // root contains one of `files`. No relevance spec => always shown (a genuinely
 // account-global integration). See isRelevant in engine.ts.
 export interface RelevanceSpec {
-  envPrefix?: string;
-  files?: string[];
+  // Tech ids from the SHARED project-profile catalog (project-profile/
+  // catalog.ts) -- the same detector Overview and project_info use, which
+  // reads dependencies, lockfiles, config files, manifests and secret NAMES.
+  //
+  // This replaced a per-manifest `envPrefix` + `files` pair. Those were a
+  // second, weaker detector living beside the real one: a hand-written
+  // shortlist of filenames that missed a Render project with no render.yaml
+  // and a Neon project using @neondatabase/serverless. A signal the catalog
+  // does not know belongs IN the catalog, where every surface benefits.
+  tech?: string[];
   // The project's git origin points at this host (e.g. "github.com"). A repo
-  // hosted on GitLab should not surface GitHub.
+  // hosted on GitLab should not surface GitHub. Not a catalog concept -- the
+  // profile describes the code, not where it is hosted.
   gitRemoteHost?: string;
 }
 

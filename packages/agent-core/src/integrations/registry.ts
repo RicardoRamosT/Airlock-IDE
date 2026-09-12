@@ -10,7 +10,7 @@ export const SNOWFLAKE: IntegrationManifest = {
   icon: "database",
   surface: { view: "databases" },
   // Account-wide CLI: only surface in projects that use Snowflake.
-  relevance: { envPrefix: "SNOWFLAKE_" },
+  relevance: { tech: ["snowflake"] },
   detect: { authCheck: { cmd: "snow", args: ["connection", "test"] } },
   poll: {
     everyMs: 30000,
@@ -53,10 +53,7 @@ export const AZURE: IntegrationManifest = {
   surface: { view: "host" },
   // `az webapp list` is account-wide, so only surface Azure in projects that
   // use it: a vaulted AZURE_* secret, or an Azure Developer CLI config in root.
-  relevance: {
-    envPrefix: "AZURE_",
-    files: ["azure.yaml", "azure.yml", ".azure"],
-  },
+  relevance: { tech: ["azure"] },
   detect: { authCheck: { cmd: "az", args: ["account", "show"] } },
   // `az account show` emits { name: "<subscription>", user: {...}, ... }; the
   // subscription is the useful "where you're connected" label for the Hub row.

@@ -250,7 +250,7 @@ import {
   removeNeonAccount,
   resolveProjectAccountId,
 } from "./neon/accounts";
-import { gatherProfile } from "./overview/gather";
+import { gatherProfile, projectProfile } from "./overview/gather";
 import { MAX_ENTRIES } from "./overview/journal";
 import {
   addNoteEntry,
@@ -326,6 +326,14 @@ const projectRelevance = (root: string) =>
     },
     connectedHere: async (r) =>
       boundExtensions((await readProjectConfig(r)).extensions),
+    // ONE detector. projectProfile is the same 80-entry catalog pass behind
+    // the Overview and project_info, so the sidebar cannot disagree with them
+    // about what a project uses. Both techs and services: Docker is filed as
+    // "infra" (a tech), Neon and Render as services.
+    tech: async (r) => {
+      const p = await projectProfile(r);
+      return [...p.techs, ...p.services].map((t) => t.id);
+    },
   });
 
 // Per-manifest detect-status cache for the Extension Hub list (extensions:list),

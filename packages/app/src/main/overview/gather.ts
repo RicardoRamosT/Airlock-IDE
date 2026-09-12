@@ -1,35 +1,27 @@
 import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { buildProfile, type DetectInputs } from "@airlock/agent-core";
+import {
+  buildProfile,
+  CONFIG_CATALOG,
+  type DetectInputs,
+  LOCKFILE_CATALOG,
+  MANIFEST_CATALOG,
+  type ProjectProfile,
+} from "@airlock/agent-core";
 import type { OverviewResult } from "../../shared/ipc";
 import { listSecretNames } from "../ide-state";
 import { readRecentJournal } from "./journalStore";
 import { languageBreakdown } from "./languages";
 
-const CONFIG_FILES = [
-  "wrangler.toml",
-  "vercel.json",
-  "render.yaml",
-  "netlify.toml",
-  "fly.toml",
-  "Dockerfile",
-  "docker-compose.yml",
-  "compose.yaml",
-  "biome.json",
-];
-const MANIFESTS = [
-  "pyproject.toml",
-  "requirements.txt",
-  "Cargo.toml",
-  "go.mod",
-];
-const LOCKFILES = [
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "yarn.lock",
-  "bun.lockb",
-];
+// DERIVED from the catalogs, never re-typed. These used to be hand-written
+// copies of the catalog keys, so a catalog entry for a file nobody probed
+// simply never fired -- and they had already drifted apart
+// (docker-compose.yaml, compose.yml, azure.yaml were all in one and not the
+// other). Now adding a catalog entry is enough.
+const CONFIG_FILES = Object.keys(CONFIG_CATALOG);
+const MANIFESTS = Object.keys(MANIFEST_CATALOG);
+const LOCKFILES = Object.keys(LOCKFILE_CATALOG);
 const IGNORED_DIRS = new Set([
   "node_modules",
   ".git",
@@ -152,7 +144,14 @@ async function readReadme(root: string): Promise<string | null> {
   return null;
 }
 
-export async function gatherProfile(root: string): Promise<OverviewResult> {
+// The detected tech/services for a root, on its own.
+//
+// Extracted so per-project RELEVANCE reads the SAME detector the Overview and
+// project_info read -- an 80-entry catalog over dependencies, lockfiles, config
+// files, manifests and secret NAMES -- instead of a second, weaker list of
+// filenames hand-written beside it. One answer to "what does this project
+// use?", or the sidebar and the Overview eventually disagree about it.
+export async function projectProfile(root: string): Promise<ProjectProfile> {
   const pkg = await readPkg(root);
   const [configFiles, otherManifests, lockfiles, secretMetas, entries] =
     await Promise.all([
@@ -189,7 +188,11 @@ export async function gatherProfile(root: string): Promise<OverviewResult> {
     integrationsDetected: [], // v1
     generatedAt: Date.now(),
   };
-  const profile = buildProfile(detectInputs);
+  return buildProfile(detectInputs);
+}
+
+export async function gatherProfile(root: string): Promise<OverviewResult> {
+  const profile = await projectProfile(root);
 
   // The committed summary (hidden dir, so read it directly).
   let summary: string | null = null;

@@ -662,12 +662,40 @@ signal guesses wrong** — checked first, and there is still no opt-OUT.
 third clause is load-bearing: nothing in a repo says "this project uses Slack",
 so an identity's only possible signal is being bound to the project. An empty
 `relevance: {}` therefore means "gated, with no automatic signal", which is NOT
-the same as no spec at all (always relevant). Signals live on the registries —
-`SECTION_EXTENSIONS` (Docker's compose files, Render's `render.yaml`, Neon's
-`NEON_*`), `CONNECTED_EXTENSIONS` (GitHub's `gitRemoteHost`), and the manifests
-(Snowflake, Azure). Snowflake and Azure declare theirs on the MANIFEST only —
-they are also section descriptors, and `mergeSectionExtensions` lets the
-manifest row win, so a second copy would be a second answer.
+the same as no spec at all (always relevant).
+
+**The signal is a tech id from the SHARED catalog** (`project-profile/
+catalog.ts`) — the same ~80-entry detector behind the Overview and
+`project_info`, reading dependencies, lockfiles, config files, manifests and
+secret NAMES. `relevance: { tech: ["docker"] }`, not a list of filenames.
+
+This replaced a per-manifest `envPrefix` + `files` pair, and the replacement is
+the whole point: those were a SECOND, WEAKER DETECTOR living beside the real
+one. A hand-written shortlist missed a Render project with no `render.yaml` and
+a Neon project using `@neondatabase/serverless` — which is exactly what made the
+feature read as hardcoded to the one person using it. **A signal the catalog
+does not know belongs IN the catalog**, where the Overview and `project_info`
+get it too; that is how Azure and Snowflake entries got there. The one
+non-catalog signal is `gitRemoteHost` (GitHub), because the profile describes
+the code, not where it is hosted.
+
+`gather.ts` derives its probe lists from `Object.keys(CONFIG_CATALOG)` and
+friends rather than re-typing them. They HAD drifted — `docker-compose.yaml`,
+`compose.yml` and `azure.yaml` were in one and not the other — and a catalog
+entry for a file nobody probes never fires.
+
+Snowflake and Azure declare their spec on the MANIFEST only — they are also
+section descriptors, and `mergeSectionExtensions` lets the manifest row win, so
+a second copy would be a second answer. (A probe that iterates the raw
+registries instead of the merged rows will wrongly show them relevant
+everywhere; check the merged output.)
+
+**`relevance` was shipped once as a DEFAULTED parameter** on
+`sectionExtensionSummaries`/`connectedSummary`, so neither production call site
+passed it, `projectUse` was never computed, and every extension read as
+relevant — the feature was inert with all tests green. Both are REQUIRED now. A
+default is a new input that nothing forces you to wire, and the compiler is the
+only thing that reliably enumerates call sites.
 
 **One answer, three surfaces.** `projectUse` is computed main-side by
 `projectUseOf` and ships on every `ExtensionSummary`, so the rail, the provider

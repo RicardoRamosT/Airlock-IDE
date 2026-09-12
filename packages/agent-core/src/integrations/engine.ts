@@ -100,6 +100,8 @@ export function steadyView(m: IntegrationManifest): string | null {
 export interface RelevanceContext {
   secretNames: string[];
   rootFiles: string[];
+  // Tech ids detected by the shared project-profile catalog.
+  tech: string[];
   // The host of the project's git origin ("github.com"), or null.
   gitRemoteHost: string | null;
   // Extension ids already bound to THIS project (a vaulted token, a pinned
@@ -147,9 +149,7 @@ export function isRelevant(
   // Slack", so an empty spec (`relevance: {}`) means exactly "gated, with no
   // automatic signal" rather than "always on".
   if (ctx.connectedHere.includes(m.id)) return true;
-  const prefix = r.envPrefix;
-  if (prefix && ctx.secretNames.some((n) => n.startsWith(prefix))) return true;
-  if (r.files?.some((f) => ctx.rootFiles.includes(f))) return true;
+  if (r.tech?.some((t) => ctx.tech.includes(t))) return true;
   if (r.gitRemoteHost && ctx.gitRemoteHost === r.gitRemoteHost) return true;
   return false;
 }

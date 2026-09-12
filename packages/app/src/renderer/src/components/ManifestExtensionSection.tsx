@@ -32,19 +32,24 @@ import { ResourceRow } from "./ResourceRow";
 // signed in (unauthed) / its resources, however many that is (ready) -- never
 // a bare empty state.
 
-// What would make this project relevant, in the manifest's own terms. Derived
-// from the `relevance` spec rather than hardcoded per extension, so Snowflake
-// (which declares an env prefix and NO files) does not get told to add a file
-// that would mean nothing. Typed off SteadyIntegration so no agent-core import
-// is needed here -- the renderer must never value-import that package, and a
-// type-only import is easy to convert by accident.
+// What would make this project relevant.
+//
+// This used to recite the manifest's own filename/env-prefix list ("Add
+// azure.yaml to the project root"), which was accurate only because the signal
+// WAS that shortlist. Detection now runs through the shared project-profile
+// catalog -- dependencies, lockfiles, config files, manifests and secret names
+// -- so there is no single file to name, and naming one would be misleading:
+// an @azure/identity dependency counts just as much.
+//
+// So the hint says what is true (nothing here looks like it) and points at the
+// override, which is the actual way out and is rendered right beneath it.
+// Typed off SteadyIntegration so no agent-core import is needed here -- the
+// renderer must never value-import that package.
 export function relevanceHint(r: SteadyIntegration["relevance"]): string {
-  const file = r?.files?.[0];
-  const prefix = r?.envPrefix;
-  if (file && prefix)
-    return `Add ${file} to the project root, or vault a secret starting with ${prefix}.`;
-  if (file) return `Add ${file} to the project root.`;
-  if (prefix) return `Vault a secret starting with ${prefix}.`;
+  if (r?.gitRemoteHost)
+    return `Its signal is a ${r.gitRemoteHost} origin, which this repo does not have.`;
+  if (r?.tech?.length)
+    return "Nothing in this project's dependencies, config or vaulted secret names looks like it.";
   // Unreachable via the handler: only a manifest WITH a relevance spec can be
   // irrelevant. Kept so a future spec shape cannot render an empty line.
   return "It has no project signal configured.";
