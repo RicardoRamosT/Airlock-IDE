@@ -1820,7 +1820,13 @@ export const useApp = create<AppState>((set) => ({
   },
 
   // --- App-global setters ---
-  setSidebarVisible: (sidebarVisible) => set({ sidebarVisible }),
+  // Any DELIBERATE show/hide cancels the "a page took your sidebar" debt.
+  // Without this, a sidebar the user closed by hand while a page was open --
+  // or one force-opened by the hub's "Open <name>" -- was still owed back, so
+  // closing the page later forced it on them anyway. openAppPage sets the flag
+  // by writing state directly, so it is not clobbered by its own collapse.
+  setSidebarVisible: (sidebarVisible) =>
+    set({ sidebarVisible, pageHidSidebar: false }),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
   setSidebarPosition: (sidebarPosition) => set({ sidebarPosition }),
   toggleSidebarPosition: () =>

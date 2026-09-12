@@ -87,3 +87,19 @@ describe("an IDE page reclaims the sidebar, whatever opened it", () => {
     expect(useApp.getState().sidebarVisible).toBe(false);
   });
 });
+
+it("a sidebar the user closed by hand is not forced back when a page closes", () => {
+  // openExtensionSection and the layout toggle both go through
+  // setSidebarVisible; either one means the user has expressed a preference,
+  // so the page no longer owes them anything.
+  useApp.setState({ sidebarVisible: true, pageHidSidebar: false });
+  useApp.getState().openAppPage("extensions");
+  expect(useApp.getState().pageHidSidebar).toBe(true);
+  // The user re-opens it themselves (e.g. the hub's "Open Docker")...
+  useApp.getState().setSidebarVisible(true);
+  expect(useApp.getState().pageHidSidebar).toBe(false);
+  // ...then closes it again, deliberately.
+  useApp.getState().setSidebarVisible(false);
+  useApp.getState().closeAppPage("extensions");
+  expect(useApp.getState().sidebarVisible).toBe(false);
+});
