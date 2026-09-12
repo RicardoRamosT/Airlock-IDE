@@ -178,7 +178,13 @@ export function sectionExtensionSummaries(
   descriptors: SectionExtensionDescriptor[],
   prefs: ExtPrefs,
   statuses: Record<string, ExtensionSummary["status"]> = {},
-  relevance: RelevanceContext | null = null,
+  // REQUIRED on purpose. This first shipped with `= null`, so neither
+  // production call site passed it, projectUse was never computed for a
+  // section extension, and every one of them read as relevant -- the whole
+  // feature was inert with all tests green. A default turns a new input into
+  // one nothing makes you wire; the compiler is the only thing that reliably
+  // enumerates call sites.
+  relevance: RelevanceContext | null,
 ): ExtensionSummary[] {
   return descriptors.map((d) => {
     const use = projectUseOf(d, relevance);

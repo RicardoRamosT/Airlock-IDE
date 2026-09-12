@@ -95,7 +95,9 @@ export function connectedSummary(
   d: ConnectedExtensionDescriptor,
   status: ConnectedStatus,
   prefs: ExtPrefs,
-  relevance: RelevanceContext | null = null,
+  // REQUIRED -- see the note on sectionExtensionSummaries. Defaulting this is
+  // what made per-project relevance a no-op for Slack and GitHub.
+  relevance: RelevanceContext | null,
 ): ExtensionSummary {
   const enabled = prefs[d.id]?.enabled !== false;
   const use = projectUseOf(d, relevance);

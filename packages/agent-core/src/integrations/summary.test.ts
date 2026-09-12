@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RelevanceContext } from "./engine";
 import { AZURE, SNOWFLAKE } from "./registry";
+import type { SectionExtensionDescriptor } from "./sectionExtensions";
 import type { ExtensionSummary } from "./summary";
 import {
   buildExtensionSummaries,
@@ -191,7 +192,7 @@ describe("sectionExtensionSummaries", () => {
   ];
 
   it("produces a hub row per descriptor, tiered as section", () => {
-    const rows = sectionExtensionSummaries(descriptors, {});
+    const rows = sectionExtensionSummaries(descriptors, {}, {}, null);
     expect(rows.map((r) => [r.id, r.tier])).toEqual([
       ["neon", "section"],
       ["docker", "section"],
@@ -199,7 +200,7 @@ describe("sectionExtensionSummaries", () => {
   });
 
   it("carries the brand icon and the category it contributes to", () => {
-    const [neon] = sectionExtensionSummaries(descriptors, {});
+    const [neon] = sectionExtensionSummaries(descriptors, {}, {}, null);
     expect(neon).toMatchObject({ icon: "neon", category: "databases" });
   });
 
@@ -210,10 +211,8 @@ describe("sectionExtensionSummaries", () => {
     const rows = sectionExtensionSummaries(
       descriptors,
       {},
-      {
-        neon: "connected",
-        docker: "absent",
-      },
+      { neon: "connected", docker: "absent" },
+      null,
     );
     expect(rows.map((r) => [r.id, r.status])).toEqual([
       ["neon", "connected"],
@@ -222,14 +221,75 @@ describe("sectionExtensionSummaries", () => {
   });
 
   it("reports an unprobed id as absent rather than claiming it is connected", () => {
-    const rows = sectionExtensionSummaries(descriptors, {}, {});
+    const rows = sectionExtensionSummaries(descriptors, {}, {}, null);
     expect(rows.every((r) => r.status === "absent")).toBe(true);
   });
 
+  // Section extensions are gated per-project too, not just manifests. This
+  // shipped computing NOTHING: `relevance` was a defaulted parameter, so the
+  // one production call site never passed it, every row came back with no
+  // projectUse, and the renderer read that as "relevant" -- the feature was
+  // inert with every test green. The parameter is required now, so the
+  // compiler catches an unwired call site; this pins the behaviour itself.
+  const GATED: SectionExtensionDescriptor[] = [
+    {
+      id: "neon",
+      name: "Neon",
+      icon: "neon",
+      contributesTo: "databases",
+      description: "d",
+      relevance: { envPrefix: "NEON_" },
+    },
+    {
+      id: "docker",
+      name: "Docker",
+      icon: "docker",
+      contributesTo: "databases",
+      description: "d",
+      relevance: { files: ["docker-compose.yml"] },
+    },
+  ];
+  const ctx = (rootFiles: string[]): RelevanceContext => ({
+    secretNames: [],
+    rootFiles,
+    gitRemoteHost: null,
+    connectedHere: [],
+    optedIn: [],
+  });
+
+  it("marks a section extension irrelevant when its signal does not fire", () => {
+    const rows = sectionExtensionSummaries(
+      GATED,
+      {},
+      {},
+      ctx(["package.json"]),
+    );
+    expect(rows.map((r) => [r.id, r.projectUse])).toEqual([
+      ["neon", "none"],
+      ["docker", "none"],
+    ]);
+  });
+
+  it("marks it relevant on a file signal, and says the SIGNAL is why", () => {
+    const rows = sectionExtensionSummaries(
+      GATED,
+      {},
+      {},
+      ctx(["docker-compose.yml", "package.json"]),
+    );
+    expect(rows.map((r) => [r.id, r.projectUse])).toEqual([
+      ["neon", "none"],
+      ["docker", "signal"],
+    ]);
+  });
+
   it("defaults to enabled and honours an explicit disable", () => {
-    const rows = sectionExtensionSummaries(descriptors, {
-      docker: { enabled: false },
-    });
+    const rows = sectionExtensionSummaries(
+      descriptors,
+      { docker: { enabled: false } },
+      {},
+      null,
+    );
     expect(rows.map((r) => r.enabled)).toEqual([true, false]);
   });
 });
