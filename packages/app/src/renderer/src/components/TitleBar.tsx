@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { anyAppPageOpen } from "../lib/appPages";
 import { useApp } from "../store";
 import { AtlasTitlebarButton } from "./AtlasTitlebarButton";
 import { NotificationBell } from "./NotificationBell";
@@ -16,8 +17,14 @@ export function TitleBar() {
   const tabState = useApp((s) => s.tabState);
   const openProjectsAsTabs = useApp((s) => s.openProjectsAsTabs);
   const tabsLen = useApp((s) => s.tabs.length);
-  const settingsTabOpen = useApp((s) => s.settingsTabOpen);
-  const usageTabOpen = useApp((s) => s.usageTabOpen);
+  // All three page flags, read through the one enumeration -- this predicate
+  // used to check settings + usage only, so the strip read as hidden while the
+  // Extensions page-tab was sitting in it.
+  const pageFlags = {
+    settingsTabOpen: useApp((s) => s.settingsTabOpen),
+    usageTabOpen: useApp((s) => s.usageTabOpen),
+    extensionsTabOpen: useApp((s) => s.extensionsTabOpen),
+  };
   // While the split is ON SCREEN (focused tab is a pair member) the title
   // names BOTH projects in pane order; otherwise just the focused project.
   const showSplit =
@@ -35,7 +42,7 @@ export function TitleBar() {
   // project + no IDE page-tab (ProjectTabs returns null there), so the "!" has
   // no tab to live on — surface it in the always-present TitleBar instead.
   const stripHidden =
-    !openProjectsAsTabs && tabsLen <= 1 && !settingsTabOpen && !usageTabOpen;
+    !openProjectsAsTabs && tabsLen <= 1 && !anyAppPageOpen(pageFlags);
   const activeRoot = tabState[activeTabId]?.root ?? null;
   const openOverview = (): void => {
     if (!activeRoot) return;

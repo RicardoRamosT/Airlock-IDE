@@ -1156,7 +1156,24 @@ body,
    ringing the whole content area would change the non-split look (which must be
    identical to before). Inset so it does not nudge layout. */
 .project-split .project-pane.focused {
-  box-shadow: inset 0 0 0 1px var(--accent);
+  /* 2px, not 1px. Git, Secrets, Databases and every MCP action target "the
+     focused pane", and at 1px against #0d1117 the ring was easy to miss --
+     which makes committing to the wrong repo a plausible mistake in a product
+     whose headline feature is many projects at once. */
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* The other half: the SIDEBAR is what needs binding. Its panels act on the
+   focused pane, and while a split is on screen the only cue tying it to one of
+   two projects used to be an 11px dimmed word beside the header. */
+.sidebar.bound {
+  border-right-color: var(--accent);
+  box-shadow: inset -1px 0 0 var(--accent);
+}
+.sidebar.bound .sidebar-view-project {
+  color: var(--accent);
+  opacity: 1;
+  font-weight: 600;
 }
 
 .sidebar {
@@ -1202,6 +1219,9 @@ body,
 .section-toolbar {
   display: flex;
   gap: var(--sb-gap);
+  /* The ROW wraps, never the label. A narrow sidebar moves a button to a
+     second line at full width; it never squeezes one into an unreadable box. */
+  flex-wrap: wrap;
   margin-bottom: var(--sb-block-gap);
 }
 
@@ -1347,48 +1367,81 @@ body,
   flex-direction: column;
   gap: var(--sb-row-gap);
 }
+/* A quiet row: glyph (status on its corner), name, bare count, action, link.
+   NOWRAP is load-bearing -- every child except the name has a fixed size, and
+   the name is the only thing that may give, so no width can rearrange this
+   row. There is no prose in it left to wrap. */
 .provider-head {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 6px;
-  height: var(--row-h);
+  min-height: var(--row-h);
   font-size: 12px;
 }
-.provider-name {
-  font-weight: 600;
+.provider-glyph {
+  flex: none;
 }
-/* The reason line. Dim, because the provider NAME is what you scan for -- but
-   always present, because a row with no reason is the empty state we are
-   fixing. */
-.provider-state {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--fg-dim);
+/* The name owns the slack and is the LAST thing to give. It used to compete on
+   equal terms with the state sentence, so the one part that identifies the row
+   was the first to truncate -- "Neon not conne...", "Docker 3 datab...". */
+.provider-name {
+  flex: 1 1 auto;
+  min-width: 4ch;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "3", not "3 database containers". The section header already said what they
+   are; the number is the only part that changes. */
+.provider-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* Inline, not a full-width block under the row: a provider that is not
+   connected carries an ACTION instead of a count, in the same place. */
 .provider-connect {
-  width: 100%;
+  flex: none;
 }
 .provider-instance {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 6px;
   /* Indented under its provider, past the brand glyph. */
   padding-left: 22px;
   min-height: var(--row-h);
   font-size: 12px;
 }
-.provider-instance-detail {
-  color: var(--fg-dim);
-  font-size: 11px;
+.provider-instance-label {
+  flex: 1 1 auto;
+  min-width: 4ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Fixed, so it can never be squeezed past the panel edge -- the clipped
+   "Conn" button was an unreachable control, not just an ugly one. */
 .provider-instance .btn {
+  flex: none;
   margin-left: auto;
+}
+
+/* Visible to screen readers only. The state sentence the dot replaced lives
+   here as well as in the tooltip, so going quiet costs assistive tech nothing. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Slack sidebar: collapsible channels over a chat transcript. Channel rows keep
@@ -2165,6 +2218,19 @@ body.resizing-col {
   flex: 1;
   min-height: 0;
 }
+
+/* A readable column instead of the full workspace width.
+   Settings > Appearance was two radio buttons in a 1430px-wide card inside a
+   1700px pane; the Extensions detail pane was six slots hugging the left edge
+   of a 1360x1050 void. The scroll containers keep their overflow -- only the
+   CONTENT is constrained, so wide tables still scroll inside their own box. */
+.settings-content > *,
+.ext-page-detail > * {
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+
 /* Back bar for a chip-less sub-page (Overview with project-tabs off). Fixed
    height — override the flex:1 that .app-page > * gives every child. */
 .app-page-bar {
@@ -2253,6 +2319,11 @@ body.resizing-col {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px 14px;
+  /* Usage earns more width than a form -- it is a data table -- but is still
+     bounded, so it stops running to the far edge of a wide window. */
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
 }
 
 .usage-section h3 {
@@ -3381,17 +3452,59 @@ body.resizing-col {
 /* Toolbar buttons share width equally. Declared after base .btn so specificity
    ascends (avoids noDescendingSpecificity). */
 .section-toolbar .btn {
-  flex: 1;
+  /* NOT `flex: 1` (= 1 1 0%): that forced every button to an identical width
+     regardless of label, and .btn has a fixed height with no white-space rule,
+     so the longest label wrapped inside a box that could not grow -- "Push 12",
+     "Import .env", "+ Add database" all did.
+     `min-width: min(max-content, 100%)` means a button never shrinks below its
+     own label (it wraps to the next line instead) and only ellipsises in the
+     one case where a single label is wider than the whole row. */
+  flex: 1 1 auto;
+  min-width: min(max-content, 100%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* The switch between AirLock's two security postures. It was --fg-dim, i.e.
+   DIMMER than the text around it, and visually identical to the "Enabled"
+   toggle in the extensions pane -- the most consequential control in the
+   product styled as the quietest. It reads at normal weight now, and goes
+   amber while armed, so its state is legible at a glance without parking a
+   paragraph in a 230px panel. The consequence itself lives in the confirm. */
 .inject-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--fg-dim);
+  color: var(--fg);
   margin-top: 8px;
   cursor: pointer;
+}
+.inject-toggle.on {
+  color: #d29922;
+  font-weight: 600;
+}
+.inject-toggle.on input {
+  accent-color: #d29922;
+}
+
+/* The one phrase in the confirm that must not be skimmed past. */
+.modal-warn {
+  color: #d29922;
+}
+
+/* A SNAPSHOT column sitting among cumulative ones. The rule is the cheapest
+   way to stop "803.8k" and "15h 00m" reading as two totals of the same kind. */
+.usage-table .usage-snapshot {
+  border-right: 1px solid var(--border);
+  padding-right: 10px;
+}
+.usage-table th .th-qual {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
 }
 
 .inject-toggle:hover {

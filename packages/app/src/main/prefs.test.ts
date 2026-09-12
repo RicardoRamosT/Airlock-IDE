@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { SectionVisibility } from "../shared/ipc";
+import {
+  type SectionVisibility,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
+} from "../shared/ipc";
 import {
   loadPrefs,
   publicPrefs,
@@ -689,6 +693,19 @@ describe("publicPrefs", () => {
     await savePrefs(file, { sidebarWidth: 300 });
     expect(await readFile(`${file}.corrupt`, "utf8")).toBe(original);
     expect((await loadPrefs(file)).sidebarWidth).toBe(300);
+  });
+
+  it("clamps a persisted width to the SAME interval the resizer produces", async () => {
+    // The divergence this pins down: main used to sanitise to [120, 1000]
+    // while the renderer's drag only ever commits [160, 600]. A prefs file
+    // could therefore carry a width no drag could produce and no CSS was
+    // designed for -- and nobody would reproduce it by dragging.
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(file, JSON.stringify({ sidebarWidth: 1000 }), "utf8");
+    expect((await loadPrefs(file)).sidebarWidth).toBe(SIDEBAR_WIDTH_MAX);
+    await writeFile(file, JSON.stringify({ sidebarWidth: 40 }), "utf8");
+    expect((await loadPrefs(file)).sidebarWidth).toBe(SIDEBAR_WIDTH_MIN);
   });
 
   it("saves normally when the file is simply absent", async () => {

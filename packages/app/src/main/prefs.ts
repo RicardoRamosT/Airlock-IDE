@@ -15,12 +15,15 @@ import {
   KNOWN_TERMINALS,
   type Level,
 } from "@airlock/agent-core";
-import type {
-  AppPrefs,
-  BuiltinSection,
-  ClaudeAutoStart,
-  Section,
-  SectionVisibility,
+import {
+  type AppPrefs,
+  type BuiltinSection,
+  type ClaudeAutoStart,
+  type Section,
+  type SectionVisibility,
+  SIDEBAR_WIDTH_DEFAULT,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
 } from "../shared/ipc";
 
 export const BUILTIN_SECTIONS: BuiltinSection[] = [
@@ -53,12 +56,6 @@ const DEFAULT_SECTION_VISIBILITY: SectionVisibility = {
   audit: true,
   events: true,
 };
-
-// Persisted sidebar width clamp. Lenient bounds (the renderer's resizer commits
-// a tighter [160, 600], but a hand-edited prefs file must still land sane).
-export const SIDEBAR_WIDTH_DEFAULT = 230;
-const SIDEBAR_WIDTH_MIN = 120;
-const SIDEBAR_WIDTH_MAX = 1000;
 
 const DEFAULTS: AppPrefs = {
   sidebarVisible: true,

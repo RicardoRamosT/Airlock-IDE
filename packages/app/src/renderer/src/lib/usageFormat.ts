@@ -85,7 +85,13 @@ export function formatTokens(n: number): string {
 export function formatApiTime(ms: number): string {
   const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
+  const m = Math.floor(s / 60);
+  // Past an hour, minutes stop being readable ("4578m 31s" is 76 hours) and
+  // seconds stop mattering. Same h/m shape as quotaFormat's countdown, so the
+  // two duration notations in the app agree.
+  if (m >= 60)
+    return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+  return `${m}m ${s % 60}s`;
 }
 
 export function formatUsd(n: number): string {

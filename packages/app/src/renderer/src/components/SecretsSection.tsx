@@ -3,6 +3,7 @@ import { formatEnvImportSummary } from "../lib/envImportSummary";
 import { useProjectTab } from "../lib/projectPane";
 import { restartActiveTerminal } from "../lib/restartActiveTerminal";
 import { useApp } from "../store";
+import { InjectSecretsModal } from "./InjectSecretsModal";
 import { OpenFolderEmpty } from "./OpenFolderEmpty";
 import { RenderEnvSection } from "./RenderEnvSection";
 
@@ -16,6 +17,7 @@ export function SecretsSection() {
   const setModal = useApp((s) => s.setModal); // app-global -- NOT scoped to a tab
   const clipboardClearSeconds = useApp((s) => s.clipboardClearSeconds);
   const [needsRestart, setNeedsRestart] = useState(false);
+  const [confirmInject, setConfirmInject] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<string | null>(null);
@@ -77,12 +79,22 @@ export function SecretsSection() {
 
   if (!root) return <OpenFolderEmpty />;
 
-  const toggleInject = async () => {
+  // Writing the setting, once the decision is made.
+  const applyInject = async (on: boolean) => {
     const next = await window.airlock.configSet(root, {
-      injectSecretsIntoTerminal: !(config?.injectSecretsIntoTerminal ?? false),
+      injectSecretsIntoTerminal: on,
     });
     setConfig(next, tabId);
     setNeedsRestart(true);
+  };
+
+  // ENABLING changes the app's security posture, so it asks (see
+  // InjectSecretsModal). DISABLING restores the default, which is safe, so it
+  // does not -- a confirm in that direction would be friction with nothing
+  // behind it.
+  const toggleInject = () => {
+    if (config?.injectSecretsIntoTerminal) void applyInject(false);
+    else setConfirmInject(true);
   };
 
   const removeSecret = async (name: string) => {
@@ -266,16 +278,29 @@ export function SecretsSection() {
       </div>
       {importMsg && <div className="section-note">{importMsg}</div>}
       <label
-        className="inject-toggle"
-        title="New terminals in this project start with these secrets as environment variables — everything run there (including Claude) can read them"
+        className={`inject-toggle${
+          config?.injectSecretsIntoTerminal ? " on" : ""
+        }`}
+        title="Every terminal in this project starts with these secrets in its environment, and redaction does not apply to them — everything run there, including Claude, can read them"
       >
         <input
           type="checkbox"
           checked={config?.injectSecretsIntoTerminal ?? false}
           onChange={toggleInject}
         />
-        Make available in terminals
+        {/* Two words, amber when armed. The consequence is not parked here as
+            prose -- it is in the confirm you see on the way in. */}
+        <span>Secrets in terminals</span>
       </label>
+      {confirmInject && (
+        <InjectSecretsModal
+          onConfirm={() => {
+            setConfirmInject(false);
+            void applyInject(true);
+          }}
+          onCancel={() => setConfirmInject(false)}
+        />
+      )}
       {needsRestart && (
         <button
           type="button"

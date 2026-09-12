@@ -111,21 +111,11 @@ export function ActivityBar() {
     // someone who had already collapsed the sidebar before opening the hub
     // should not have it forced open on the way out.
     if (id === EXTENSIONS_HUB_SECTION) {
-      if (s.appPage === "extensions") {
-        s.closeAppPage("extensions");
-        if (s.hubHidSidebar) {
-          s.setHubHidSidebar(false);
-          s.setSidebarVisible(true);
-          void window.airlock.prefsSet({ sidebarVisible: true });
-        }
-        return;
-      }
-      s.openAppPage("extensions");
-      if (s.sidebarVisible) {
-        s.setHubHidSidebar(true);
-        s.setSidebarVisible(false);
-        void window.airlock.prefsSet({ sidebarVisible: false });
-      }
+      // The sidebar collapse/restore now lives in openAppPage/closeAppPage, so
+      // the icon and open_app_page behave identically. This handler is only
+      // the TOGGLE.
+      if (s.appPage === "extensions") s.closeAppPage("extensions");
+      else s.openAppPage("extensions");
       return;
     }
     if (id === view && sidebarVisible) {
@@ -142,7 +132,7 @@ export function ActivityBar() {
     <nav className="activity-bar">
       <div className="activity-bar-icons">
         {sectionMeta
-          .filter((m) => isSectionVisible(vis, m.id))
+          .filter((m) => !m.railHidden && isSectionVisible(vis, m.id))
           .map((m, i, shown) => {
             const level = levelFor(statuses, m.id);
             // A hairline before the FIRST extension icon, so the rail reads as

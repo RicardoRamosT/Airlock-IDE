@@ -16,6 +16,7 @@ import type {
   UpdateProgress,
   UpdateStatus,
 } from "../../shared/ipc";
+import { anyAppPageOpen } from "./lib/appPages";
 import { type OverviewRunResult, planOverviewRun } from "./lib/overviewRun";
 import { BUILTIN_SECTION_META, type SectionMeta } from "./lib/sections";
 import { buildMovingTab } from "./lib/tabDrag";
@@ -613,8 +614,8 @@ export interface AppState {
   // hub is a full-width PAGE, so opening it hides the sidebar -- and closing it
   // must give that sidebar back, or the rail's toggle leaves you with neither.
   // Transient (never persisted): it describes a collapse this session performed.
-  hubHidSidebar: boolean;
-  setHubHidSidebar: (v: boolean) => void;
+  pageHidSidebar: boolean;
+  setPageHidSidebar: (v: boolean) => void;
   showOverview: (root: string) => void; // show the focused project's Overview
   closeOverview: () => void; // leave the Overview page (back to the project's work)
   setSearchResults: (query: string, results: SearchResults) => void;
@@ -1964,25 +1965,49 @@ export const useApp = create<AppState>((set) => ({
   usageTabOpen: false,
   extensionsTabOpen: false,
   overviewRoot: null,
-  openAppPage: (p) =>
-    set((s) => ({
+  // Opening an IDE page reclaims the sidebar, whatever opened it.
+  //
+  // This used to live only in the rail's hub handler, so the same page opened
+  // two different ways: the icon collapsed the sidebar, open_app_page (MCP,
+  // menus) left Settings/Usage/the hub rendering beside a FILES tree they have
+  // nothing to do with -- three competing navigation levels at once.
+  //
+  // pageHidSidebar remembers whether WE took it, so someone already working
+  // without a sidebar never has one forced back on.
+  openAppPage: (p) => {
+    const s = useApp.getState();
+    const taking = s.sidebarVisible;
+    if (taking) void window.airlock?.prefsSet?.({ sidebarVisible: false });
+    set({
       appPage: p,
       settingsTabOpen: p === "settings" ? true : s.settingsTabOpen,
       usageTabOpen: p === "usage" ? true : s.usageTabOpen,
       extensionsTabOpen: p === "extensions" ? true : s.extensionsTabOpen,
-    })),
+      ...(taking ? { sidebarVisible: false, pageHidSidebar: true } : {}),
+    });
+  },
   showAppPage: (p) => set({ appPage: p }),
-  hubHidSidebar: false,
-  setHubHidSidebar: (hubHidSidebar) => set({ hubHidSidebar }),
+  pageHidSidebar: false,
+  setPageHidSidebar: (pageHidSidebar) => set({ pageHidSidebar }),
   showOverview: (root) => set({ appPage: "overview", overviewRoot: root }),
   closeOverview: () => set({ appPage: null, overviewRoot: null }),
-  closeAppPage: (p) =>
-    set((s) => ({
-      appPage: s.appPage === p ? null : s.appPage,
+  closeAppPage: (p) => {
+    const s = useApp.getState();
+    const flags = {
       settingsTabOpen: p === "settings" ? false : s.settingsTabOpen,
       usageTabOpen: p === "usage" ? false : s.usageTabOpen,
       extensionsTabOpen: p === "extensions" ? false : s.extensionsTabOpen,
-    })),
+    };
+    // Give the sidebar back only when the LAST page closes, and only if
+    // opening one is what took it.
+    const giving = s.pageHidSidebar && !anyAppPageOpen(flags);
+    if (giving) void window.airlock?.prefsSet?.({ sidebarVisible: true });
+    set({
+      appPage: s.appPage === p ? null : s.appPage,
+      ...flags,
+      ...(giving ? { sidebarVisible: true, pageHidSidebar: false } : {}),
+    });
+  },
   search: null,
   setSearchOpen: (v) => set({ searchOpen: v }),
   setSearchResults: (query, results) => set({ search: { query, results } }),

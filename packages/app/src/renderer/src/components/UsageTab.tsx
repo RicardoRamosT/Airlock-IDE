@@ -88,6 +88,10 @@ export function UsageTab() {
   // return between the hooks and the render body.
   const visible = visibleSessions(sessions ?? []);
   const models = aggregateByModel(visible);
+  // With one model the Model column repeats the same string on every row --
+  // ~180px of a data-dense table spent saying nothing. It collapses to a
+  // caption under the table instead.
+  const manyModels = models.length > 1;
   const totalCost = visible.reduce((a, s) => a + s.costUsd, 0);
   const totalApiMs = visible.reduce((a, s) => a + s.apiMs, 0);
   const totalAdded = visible.reduce((a, s) => a + s.linesAdded, 0);
@@ -179,48 +183,55 @@ export function UsageTab() {
           )}
         </section>
 
-        <section className="usage-section">
-          <h3>By model</h3>
-          {models.length === 0 ? (
-            <p className="settings-note">
-              No sessions recorded yet. Open a Claude terminal.
-            </p>
-          ) : (
-            <table className="usage-table">
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th className="num">Sessions</th>
-                  <th className="num">API time</th>
-                  <th className="num">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {models.map((m) => (
-                  <tr key={m.model}>
-                    <td>{m.model}</td>
-                    <td className="num">{m.sessions}</td>
-                    <td className="num">{formatApiTime(m.apiMs)}</td>
-                    <td className="num">
-                      {costLabel(m.costUsd, onSubscription)}
-                    </td>
+        {/* At ONE model this table's three numbers -- sessions, API time,
+            cost -- are identical to the tiles directly above it, and the
+            attribution caption explains a split that cannot happen. It earns
+            its place only once there is something to compare. */}
+        {models.length !== 1 && (
+          <section className="usage-section">
+            <h3>By model</h3>
+            {models.length === 0 ? (
+              <p className="settings-note">
+                No sessions recorded yet. Open a Claude terminal.
+              </p>
+            ) : (
+              <table className="usage-table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th className="num">Sessions</th>
+                    <th className="num">API time</th>
+                    <th className="num">Cost</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {models.length > 0 && (
-            <p className="settings-note">
-              Cost and API time are attributed to each session's most recent
-              model. A session that switched models books its whole total to its
-              final model. Any other model it used is counted here, but its cost
-              is approximate (often $0), because the statusLine reports one
-              cumulative cost per session and can't split it across models.
-              {onSubscription &&
-                " On your subscription the cost is the pay-as-you-go equivalent, not money billed."}
-            </p>
-          )}
-        </section>
+                </thead>
+                <tbody>
+                  {models.map((m) => (
+                    <tr key={m.model}>
+                      <td>{m.model}</td>
+                      <td className="num">{m.sessions}</td>
+                      <td className="num">{formatApiTime(m.apiMs)}</td>
+                      <td className="num">
+                        {costLabel(m.costUsd, onSubscription)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {models.length > 0 && (
+              <p className="settings-note">
+                Cost and API time are attributed to each session's most recent
+                model. A session that switched models books its whole total to
+                its final model. Any other model it used is counted here, but
+                its cost is approximate (often $0), because the statusLine
+                reports one cumulative cost per session and can't split it
+                across models.
+                {onSubscription &&
+                  " On your subscription the cost is the pay-as-you-go equivalent, not money billed."}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="usage-section">
           <h3>Recent sessions</h3>
@@ -229,8 +240,14 @@ export function UsageTab() {
               <thead>
                 <tr>
                   <th>Project</th>
-                  <th>Model</th>
-                  <th className="num">Context</th>
+                  {manyModels && <th>Model</th>}
+                  {/* "now" is load-bearing: Context is a SNAPSHOT of current
+                      occupancy, while API time / lines / cost are CUMULATIVE.
+                      They sat in adjacent cells with identical styling, which
+                      reads as two totals. */}
+                  <th className="num usage-snapshot">
+                    Context <span className="th-qual">now</span>
+                  </th>
                   <th className="num">API time</th>
                   <th className="num">± lines</th>
                   <th className="num">Cost</th>
@@ -241,9 +258,9 @@ export function UsageTab() {
                 {visible.map((s) => (
                   <tr key={s.sessionId}>
                     <td title={s.cwd ?? undefined}>{basename(s.cwd)}</td>
-                    <td>{formatModels(s)}</td>
+                    {manyModels && <td>{formatModels(s)}</td>}
                     <td
-                      className="num"
+                      className="num usage-snapshot"
                       title={
                         s.contextWindowSize > 0
                           ? `${Math.round((s.contextTokens / s.contextWindowSize) * 100)}% of the ${formatTokens(s.contextWindowSize)} window`
@@ -269,6 +286,9 @@ export function UsageTab() {
                 ))}
               </tbody>
             </table>
+          )}
+          {!manyModels && models[0] && (
+            <p className="settings-note">All sessions · {models[0].model}</p>
           )}
         </section>
 
