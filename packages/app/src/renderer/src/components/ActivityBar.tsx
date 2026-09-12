@@ -132,7 +132,7 @@ export function ActivityBar() {
     <nav className="activity-bar">
       <div className="activity-bar-icons">
         {sectionMeta
-          .filter((m) => !m.railHidden && isSectionVisible(vis, m.id))
+          .filter((m) => isSectionVisible(vis, m.id))
           .map((m, i, shown) => {
             const level = levelFor(statuses, m.id);
             // A hairline before the FIRST extension icon, so the rail reads as

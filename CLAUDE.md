@@ -658,6 +658,20 @@ protected no longer depends on a per-product icon. Right-click → Hide is still
 the manual escape valve, and **"Use it here" (`useHere`) is the override when a
 signal guesses wrong** — checked first, and there is still no opt-OUT.
 
+There was a `railHidden` flag in between, which took the five provisioned
+products off the rail WHOLESALE. It is gone. It was a blunt stand-in for
+relevance, written before relevance worked — and while it was in force the
+feature was invisible to the person using it, because the only rail-visible
+difference left was the Slack icon. Relevance is the right instrument: the rail
+gains an icon for Docker exactly when the project has a Dockerfile. Real
+composition, below the divider:
+
+    airlock          Extensions, GitHub
+    Trackview        Extensions, GitHub, Docker
+    Revaltone-CRM    Extensions, GitHub, Neon
+    lendlogic-baapp  Extensions, GitHub, Azure, Docker
+    ElArqui          Extensions, GitHub, Neon, Render
+
 `relevant = you said so, OR a signal matches, OR it is connected here.` The
 third clause is load-bearing: nothing in a repo says "this project uses Slack",
 so an identity's only possible signal is being bound to the project. An empty
