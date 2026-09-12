@@ -148,10 +148,7 @@ it("says the extension isn't used in this project, and names what would change t
     view: "host",
     status: "irrelevant",
     resources: [],
-    relevance: {
-      envPrefix: "AZURE_",
-      files: ["azure.yaml", "azure.yml", ".azure"],
-    },
+    relevance: { tech: ["azure"] },
   }));
   render(<ManifestExtensionSection id="azure" />);
   expect(
@@ -159,27 +156,29 @@ it("says the extension isn't used in this project, and names what would change t
   ).toBeTruthy();
   expect(
     screen.getByText(
-      "Add azure.yaml to the project root, or vault a secret starting with AZURE_.",
+      "Nothing in this project's dependencies, config or vaulted secret names looks like it.",
     ),
   ).toBeTruthy();
   expect(screen.queryByText("Nothing to show yet.")).toBeNull();
 });
 
-it("names the prefix alone for a manifest that declares no files, so Snowflake reads correctly", async () => {
+it("gives the same catalog-shaped reason for a manifest with no file signal", async () => {
   mockResources(async () => ({
     id: "snowflake",
     name: "Snowflake",
     view: "databases",
     status: "irrelevant",
     resources: [],
-    relevance: { envPrefix: "SNOWFLAKE_" },
+    relevance: { tech: ["snowflake"] },
   }));
   render(<ManifestExtensionSection id="snowflake" />);
   expect(
     await screen.findByText("Snowflake isn't used in this project."),
   ).toBeTruthy();
   expect(
-    screen.getByText("Vault a secret starting with SNOWFLAKE_."),
+    screen.getByText(
+      "Nothing in this project's dependencies, config or vaulted secret names looks like it.",
+    ),
   ).toBeTruthy();
   // No file signal exists for Snowflake, so inventing one would be a lie.
   expect(screen.queryByText(/project root/)).toBeNull();
@@ -203,7 +202,7 @@ it("offers a way to use the extension here, writes the opt-in, and re-reads at o
           view: "databases",
           status: "irrelevant",
           resources: [],
-          relevance: { envPrefix: "SNOWFLAKE_" },
+          relevance: { tech: ["snowflake"] },
         }
       : {
           id: "snowflake",
@@ -242,7 +241,7 @@ it("offers no opt-in button when no project is focused", async () => {
     view: "host",
     status: "irrelevant",
     resources: [],
-    relevance: { envPrefix: "AZURE_" },
+    relevance: { tech: ["azure"] },
   }));
   useApp.setState({ activeTabId: "t1", tabState: { t1: {} } as never });
   render(<AzureSection />);
@@ -267,7 +266,7 @@ it("renders no resource rows when irrelevant, even if the payload carried some",
         state: "running",
       },
     ],
-    relevance: { envPrefix: "AZURE_" },
+    relevance: { tech: ["azure"] },
   }));
   render(<ManifestExtensionSection id="azure" />);
   await screen.findByText("Azure isn't used in this project.");

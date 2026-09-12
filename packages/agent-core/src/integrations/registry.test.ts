@@ -116,8 +116,11 @@ describe("steady manifests carry install + connect commands", () => {
 
   it("scopes each account-wide integration to projects that use it", () => {
     // Without this, `az webapp list` / `SHOW WAREHOUSES` (whole subscription)
-    // would surface in every project. The env prefix gates the section.
-    expect(AZURE.relevance?.envPrefix).toBe("AZURE_");
-    expect(SNOWFLAKE.relevance?.envPrefix).toBe("SNOWFLAKE_");
+    // would surface in every project. Both gate on a tech id from the SHARED
+    // project-profile catalog rather than a per-manifest filename list, so a
+    // project detected as using Azure by ANY signal the catalog knows -- an
+    // @azure/* dependency, azure.yaml, an AZURE_* secret -- surfaces it.
+    expect(AZURE.relevance?.tech).toEqual(["azure"]);
+    expect(SNOWFLAKE.relevance?.tech).toEqual(["snowflake"]);
   });
 });

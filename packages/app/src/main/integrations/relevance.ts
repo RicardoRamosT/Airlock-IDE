@@ -19,6 +19,9 @@ export interface RelevanceReaders {
   gitRemoteHost(root: string): Promise<string | null>;
   // Extension ids already bound to THIS project.
   connectedHere(root: string): Promise<string[]>;
+  // Tech ids from the SHARED project-profile catalog -- the same detector
+  // Overview and project_info use.
+  tech(root: string): Promise<string[]>;
 }
 
 // Gather what isRelevant needs about a project.
@@ -44,6 +47,9 @@ export async function relevanceContextFor(
     secretNames,
     rootFiles,
     gitRemoteHost,
+    // A detector failure must not read as "this project uses nothing" for the
+    // other signals, so it degrades to no tech rather than rejecting.
+    tech: await r.tech(root).catch(() => []),
     connectedHere: await r.connectedHere(root).catch(() => []),
     optedIn: await r.optedIn(root),
   };

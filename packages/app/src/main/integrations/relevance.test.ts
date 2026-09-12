@@ -15,6 +15,7 @@ const readers = (over: Partial<RelevanceReaders> = {}): RelevanceReaders => ({
   optedIn: async () => [],
   gitRemoteHost: async () => null,
   connectedHere: async () => [],
+  tech: async () => [],
   ...over,
 });
 
@@ -28,12 +29,14 @@ describe("relevanceContextFor", () => {
         optedIn: async () => ["snowflake"],
         gitRemoteHost: async () => "github.com",
         connectedHere: async () => ["slack"],
+        tech: async () => ["docker", "neon"],
       }),
     );
     expect(ctx).toEqual({
       secretNames: ["DATABASE_URL", "STRIPE_SECRET_KEY"],
       rootFiles: ["package.json", "azure.yaml"],
       gitRemoteHost: "github.com",
+      tech: ["docker", "neon"],
       connectedHere: ["slack"],
       optedIn: ["snowflake"],
     });
@@ -46,6 +49,7 @@ describe("relevanceContextFor", () => {
       optedIn: vi.fn(async () => []),
       gitRemoteHost: vi.fn(async () => null),
       connectedHere: vi.fn(async () => []),
+      tech: vi.fn(async () => []),
     };
     await relevanceContextFor("/repo", spies);
     for (const fn of Object.values(spies))
@@ -84,6 +88,7 @@ describe("relevanceContextFor", () => {
       secretNames: ["AZURE_CLIENT_ID"],
       rootFiles: [],
       gitRemoteHost: null,
+      tech: [],
       connectedHere: [],
       optedIn: [],
     });

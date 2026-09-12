@@ -55,6 +55,7 @@ describe("buildExtensionSummaries", () => {
     const ctx = (over: Partial<RelevanceContext> = {}): RelevanceContext => ({
       secretNames: [],
       rootFiles: [],
+      tech: [],
       gitRemoteHost: null,
       connectedHere: [],
       optedIn: [],
@@ -67,7 +68,7 @@ describe("buildExtensionSummaries", () => {
         {},
         {},
         {},
-        ctx({ rootFiles: ["azure.yaml"] }),
+        ctx({ tech: ["azure"] }),
       );
       expect(a?.projectUse).toBe("signal");
     });
@@ -93,7 +94,7 @@ describe("buildExtensionSummaries", () => {
         {},
         {},
         {},
-        ctx({ rootFiles: ["azure.yaml"], optedIn: ["azure"] }),
+        ctx({ tech: ["azure"], optedIn: ["azure"] }),
       );
       expect(a?.projectUse).toBe("signal");
     });
@@ -238,7 +239,7 @@ describe("sectionExtensionSummaries", () => {
       icon: "neon",
       contributesTo: "databases",
       description: "d",
-      relevance: { envPrefix: "NEON_" },
+      relevance: { tech: ["neon"] },
     },
     {
       id: "docker",
@@ -246,37 +247,28 @@ describe("sectionExtensionSummaries", () => {
       icon: "docker",
       contributesTo: "databases",
       description: "d",
-      relevance: { files: ["docker-compose.yml"] },
+      relevance: { tech: ["docker"] },
     },
   ];
-  const ctx = (rootFiles: string[]): RelevanceContext => ({
+  const ctx = (tech: string[]): RelevanceContext => ({
     secretNames: [],
-    rootFiles,
+    rootFiles: [],
+    tech,
     gitRemoteHost: null,
     connectedHere: [],
     optedIn: [],
   });
 
   it("marks a section extension irrelevant when its signal does not fire", () => {
-    const rows = sectionExtensionSummaries(
-      GATED,
-      {},
-      {},
-      ctx(["package.json"]),
-    );
+    const rows = sectionExtensionSummaries(GATED, {}, {}, ctx([]));
     expect(rows.map((r) => [r.id, r.projectUse])).toEqual([
       ["neon", "none"],
       ["docker", "none"],
     ]);
   });
 
-  it("marks it relevant on a file signal, and says the SIGNAL is why", () => {
-    const rows = sectionExtensionSummaries(
-      GATED,
-      {},
-      {},
-      ctx(["docker-compose.yml", "package.json"]),
-    );
+  it("marks it relevant on a detected tech id, and says the SIGNAL is why", () => {
+    const rows = sectionExtensionSummaries(GATED, {}, {}, ctx(["docker"]));
     expect(rows.map((r) => [r.id, r.projectUse])).toEqual([
       ["neon", "none"],
       ["docker", "signal"],

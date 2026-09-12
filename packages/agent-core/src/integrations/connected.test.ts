@@ -118,6 +118,7 @@ it("hides an identity that is not bound to this project", () => {
     {
       secretNames: [],
       rootFiles: [],
+      tech: [],
       gitRemoteHost: null,
       connectedHere: [],
       optedIn: [],
@@ -134,6 +135,7 @@ it("shows it once a workspace is bound here", () => {
     {
       secretNames: [],
       rootFiles: [],
+      tech: [],
       gitRemoteHost: null,
       connectedHere: ["slack"],
       optedIn: [],
@@ -146,6 +148,7 @@ it("shows GitHub for a github.com origin and not for another host", () => {
   const ctx = (host: string | null) => ({
     secretNames: [],
     rootFiles: [],
+    tech: [],
     gitRemoteHost: host,
     connectedHere: [],
     optedIn: [],
