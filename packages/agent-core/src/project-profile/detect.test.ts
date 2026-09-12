@@ -8,6 +8,7 @@ const base: DetectInputs = {
   configFiles: [],
   otherManifests: [],
   secretNames: [],
+  envFileNames: [],
   workspaces: null,
   topLevelDirs: [],
   integrationsDetected: [],

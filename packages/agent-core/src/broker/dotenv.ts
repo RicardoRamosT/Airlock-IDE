@@ -51,3 +51,23 @@ export function parseDotEnv(text: string): Record<string, string> {
   }
   return out;
 }
+
+// The KEY NAMES in a .env, without ever materialising a value.
+//
+// Deliberately NOT `Object.keys(parseDotEnv(text))`. The caller is the project
+// DETECTOR, which runs on every extensions:list to decide what the sidebar
+// shows -- a UI decision has no business holding credentials in memory, even
+// briefly. This reads the left-hand side and stops at the `=`.
+//
+// Same surface parseDotEnv accepts: optional `export `, leading whitespace,
+// `#` comments skipped. A line with no `=` is not an assignment.
+export function dotEnvKeys(text: string): string[] {
+  const out: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+    if (m?.[1] && !out.includes(m[1])) out.push(m[1]);
+  }
+  return out;
+}

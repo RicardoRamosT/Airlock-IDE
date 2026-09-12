@@ -24,7 +24,15 @@ export interface DetectInputs {
   lockfiles: string[]; // present lockfile basenames
   configFiles: string[]; // present top-level config-file basenames
   otherManifests: string[]; // present non-JS manifest basenames
-  secretNames: string[];
+  secretNames: string[]; // VAULTED secret names
+  // KEY NAMES from the project's root .env files -- never values.
+  //
+  // Without this the detector only ever saw npm dependencies, a handful of
+  // filenames, and secrets already imported into the vault. A Python service
+  // deployed to Azure Container Apps, configured entirely through a .env full
+  // of AZURE_* keys, was invisible: no @azure/* dependency, no azure.yaml,
+  // nothing vaulted. SECRET_CATALOG already had the patterns; nothing fed them.
+  envFileNames: string[];
   workspaces: string[] | null; // monorepo workspace dirs, or null
   topLevelDirs: string[];
   integrationsDetected: string[]; // v1: [] (reserved for the live integration registry)
@@ -63,6 +71,12 @@ export function buildProfile(i: DetectInputs): ProjectProfile {
   for (const name of i.secretNames) {
     const match = SECRET_CATALOG.find((s) => s.test.test(name));
     if (match) hits.push({ entry: match.entry, source: `secret: ${name}` });
+  }
+  // Labelled ".env: NAME", not "secret: NAME": these are not vaulted, and
+  // project_info reports the signal that found each tech.
+  for (const name of i.envFileNames) {
+    const match = SECRET_CATALOG.find((s) => s.test.test(name));
+    if (match) hits.push({ entry: match.entry, source: `.env: ${name}` });
   }
 
   const byId = new Map<string, ProjectTech>();

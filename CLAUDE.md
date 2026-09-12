@@ -684,6 +684,20 @@ friends rather than re-typing them. They HAD drifted — `docker-compose.yaml`,
 `compose.yml` and `azure.yaml` were in one and not the other — and a catalog
 entry for a file nobody probes never fires.
 
+**`.env` KEY NAMES are a detector input** (`DetectInputs.envFileNames`, root
+`.env*` only, 64KB cap). They are what makes detection work on a project that
+is not an npm app: pdfextractor is a Python service on Azure Container Apps
+with no `@azure/*` dependency, no `azure.yaml`, and nothing vaulted — every
+other signal missed it while a root `.env` named `AZURE_*` a dozen times.
+`SECRET_CATALOG` already had the pattern; nothing fed it. Sources are labelled
+`.env: NAME`, NOT `secret: NAME`, because these are not vaulted and
+`project_info` reports the signal that found each tech.
+
+**Read with `dotEnvKeys`, never `parseDotEnv`.** It stops at the `=`, so a
+value is never materialised. The caller is the detector, which runs on every
+`extensions:list` to decide what the sidebar shows — a UI decision has no
+business holding credentials in memory, however briefly.
+
 Snowflake and Azure declare their spec on the MANIFEST only — they are also
 section descriptors, and `mergeSectionExtensions` lets the manifest row win, so
 a second copy would be a second answer. (A probe that iterates the raw

@@ -5,6 +5,7 @@ import {
   buildProfile,
   CONFIG_CATALOG,
   type DetectInputs,
+  dotEnvKeys,
   LOCKFILE_CATALOG,
   MANIFEST_CATALOG,
   type ProjectProfile,
@@ -151,22 +152,61 @@ async function readReadme(root: string): Promise<string | null> {
 // files, manifests and secret NAMES -- instead of a second, weaker list of
 // filenames hand-written beside it. One answer to "what does this project
 // use?", or the sidebar and the Overview eventually disagree about it.
+// Root .env* KEY NAMES, never values (dotEnvKeys stops at the `=`).
+//
+// This is what makes detection work on a project that is not an npm app: a
+// Python service on Azure Container Apps has no @azure/* dependency and no
+// azure.yaml, and its AZURE_* config was never imported into the vault -- so
+// every other signal missed it while a root .env named them all.
+//
+// Root only, and capped: this runs on every extensions:list, and a .env is a
+// config file, not a corpus.
+const ENV_FILE_MAX_BYTES = 64 * 1024;
+async function envFileKeys(root: string): Promise<string[]> {
+  let names: string[] = [];
+  try {
+    names = (await readdir(root)).filter((f) => f.startsWith(".env"));
+  } catch {
+    return [];
+  }
+  const keys = new Set<string>();
+  await Promise.all(
+    names.map(async (f) => {
+      try {
+        const p = path.join(root, f);
+        if ((await stat(p)).size > ENV_FILE_MAX_BYTES) return;
+        for (const k of dotEnvKeys(await readFile(p, "utf8"))) keys.add(k);
+      } catch {
+        /* unreadable .env is not a signal, and not an error */
+      }
+    }),
+  );
+  return [...keys];
+}
+
 export async function projectProfile(root: string): Promise<ProjectProfile> {
   const pkg = await readPkg(root);
-  const [configFiles, otherManifests, lockfiles, secretMetas, entries] =
-    await Promise.all([
-      Promise.all(CONFIG_FILES.map((f) => exists(path.join(root, f)))).then(
-        (r) => CONFIG_FILES.filter((_, idx) => r[idx]),
-      ),
-      Promise.all(MANIFESTS.map((f) => exists(path.join(root, f)))).then((r) =>
-        MANIFESTS.filter((_, idx) => r[idx]),
-      ),
-      Promise.all(LOCKFILES.map((f) => exists(path.join(root, f)))).then((r) =>
-        LOCKFILES.filter((_, idx) => r[idx]),
-      ),
-      listSecretNames(root).catch(() => [] as { name: string }[]),
-      readdir(root, { withFileTypes: true }).catch(() => []),
-    ]);
+  const [
+    configFiles,
+    otherManifests,
+    lockfiles,
+    secretMetas,
+    envKeys,
+    entries,
+  ] = await Promise.all([
+    Promise.all(CONFIG_FILES.map((f) => exists(path.join(root, f)))).then((r) =>
+      CONFIG_FILES.filter((_, idx) => r[idx]),
+    ),
+    Promise.all(MANIFESTS.map((f) => exists(path.join(root, f)))).then((r) =>
+      MANIFESTS.filter((_, idx) => r[idx]),
+    ),
+    Promise.all(LOCKFILES.map((f) => exists(path.join(root, f)))).then((r) =>
+      LOCKFILES.filter((_, idx) => r[idx]),
+    ),
+    listSecretNames(root).catch(() => [] as { name: string }[]),
+    envFileKeys(root),
+    readdir(root, { withFileTypes: true }).catch(() => []),
+  ]);
 
   const topLevelDirs = entries
     .filter(
@@ -183,6 +223,7 @@ export async function projectProfile(root: string): Promise<ProjectProfile> {
     configFiles,
     otherManifests,
     secretNames: secretMetas.map((s) => s.name),
+    envFileNames: envKeys,
     workspaces: workspaceDirs(pkg),
     topLevelDirs,
     integrationsDetected: [], // v1
