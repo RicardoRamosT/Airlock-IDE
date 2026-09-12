@@ -1,13 +1,5 @@
 import { expect, it } from "vitest";
-import { POINTER_INSET, popoverBounds, trayTitle } from "./tray";
-
-it("shows a filled marker only when there is an unread brief", () => {
-  // The pointer is a dot and nothing else: no notification, no sound, no
-  // window stealing focus (spec section 7).
-  expect(trayTitle(true)).not.toBe(trayTitle(false));
-  expect(trayTitle(true).length).toBeLessThanOrEqual(4);
-  expect(trayTitle(false).length).toBeLessThanOrEqual(4);
-});
+import { POINTER_INSET, popoverBounds } from "./tray";
 
 it("puts the bubble's pointer under the tray item", () => {
   // Centring drifted the panel away from the icon; the POINTER is what has to

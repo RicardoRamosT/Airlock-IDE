@@ -347,8 +347,7 @@ export type BuiltinSection =
   | "host"
   | "extensions"
   | "audit"
-  | "events"
-  | "atlas";
+  | "events";
 // An extension's own section, namespaced so it can never collide with a
 // built-in and so the rail can tell the two groups apart for its divider.
 export type Section = BuiltinSection | `ext:${string}`;

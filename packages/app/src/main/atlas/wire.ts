@@ -29,7 +29,7 @@ export interface AtlasDeps {
   enabled(): boolean;
   acknowledged(): boolean;
   earliestHour(): number;
-  onBriefReady(day: string): void;
+  onBriefReady?: (day: string) => void;
 }
 
 let composing = false;
@@ -100,7 +100,7 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
       costUsd: result.costUsd,
       createdAt: now,
     });
-    deps.onBriefReady(today);
+    deps.onBriefReady?.(today);
     return true;
   } finally {
     composing = false;

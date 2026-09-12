@@ -20,7 +20,6 @@ it("lists all nine built-in sections in canonical sidebar order", () => {
     "host",
     "audit",
     "events",
-    "atlas",
     "extensions",
   ]);
 });

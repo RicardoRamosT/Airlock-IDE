@@ -13,12 +13,10 @@ import {
   POPOVER_WIDTH,
   popoverBounds,
   TRAY_ICON_DATA_URL,
-  trayTitle,
 } from "./tray";
 
 let tray: Tray | null = null;
 let popover: BrowserWindow | null = null;
-let unread = false;
 // Last size the user chose, fed in by main from prefs, and updated when they
 // drag the window. Shared with the in-app panel so the two agree.
 let panelSize = { width: POPOVER_WIDTH, height: POPOVER_HEIGHT };
@@ -117,8 +115,6 @@ function toggle(): void {
   // so a debrief composed afterwards showed as "No debrief yet" forever.
   popover.webContents.send("atlas:refresh");
   popover.show();
-  // Reading the brief is what clears the dot.
-  setUnread(false);
 }
 
 let chatWin: BrowserWindow | null = null;
@@ -165,11 +161,6 @@ export function openAtlasWindow(): void {
   });
 }
 
-export function setUnread(next: boolean): void {
-  unread = next;
-  tray?.setTitle(trayTitle(unread));
-}
-
 export function startAtlasTray(): void {
   if (tray) return;
   // The source art is 44px so it downsamples cleanly; the macOS menu bar wants
@@ -181,7 +172,6 @@ export function startAtlasTray(): void {
   // Template mode is what makes it adapt to a light or dark menu bar.
   icon.setTemplateImage(true);
   tray = new Tray(icon);
-  tray.setTitle(trayTitle(unread));
   tray.setToolTip("Atlas -- your project administrator");
   tray.on("click", toggle);
 }

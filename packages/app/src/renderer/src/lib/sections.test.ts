@@ -100,7 +100,6 @@ describe("rail groups", () => {
       "host",
       "audit",
       "events",
-      "atlas",
     ]);
   });
 });
