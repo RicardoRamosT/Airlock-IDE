@@ -104,6 +104,40 @@ describe("rail groups", () => {
   });
 });
 
+describe("railHidden", () => {
+  it("keeps a connected extension on the rail", () => {
+    // An identity (Slack, GitHub) is reused across projects and has no home in
+    // Databases or Host, so it keeps its icon.
+    const [slack] = composeSectionMeta([{ id: "slack", name: "Slack" }]).slice(
+      -1,
+    );
+    expect(slack?.railHidden).toBeUndefined();
+  });
+
+  it("takes a section extension OFF the rail without unmaking the section", () => {
+    // It already appears as a provider row in the section it contributes to,
+    // and again in the hub. Three surfaces for one product is the clutter.
+    const meta = composeSectionMeta([], [{ id: "neon", name: "Neon" }]);
+    const neon = meta.find((m) => m.id === "ext:neon");
+    expect(neon?.railHidden).toBe(true);
+    // ...but it is still a KNOWN view, so the provider row's arrow and the
+    // hub's "Open Neon" still land somewhere rather than bouncing to Files.
+    const vis = Object.fromEntries(meta.map((m) => [m.id, true]));
+    expect(effectiveView("ext:neon", vis, meta)).toBe("ext:neon");
+  });
+
+  it("lets a connected extension that also owns a section keep its icon", () => {
+    // Slack satisfies BOTH lists; the connected entry wins the dedup, so it
+    // must not inherit railHidden from the section-extension pass.
+    const meta = composeSectionMeta(
+      [{ id: "slack", name: "Slack" }],
+      [{ id: "slack", name: "Slack" }],
+    );
+    expect(meta.filter((m) => m.id === "ext:slack")).toHaveLength(1);
+    expect(meta.find((m) => m.id === "ext:slack")?.railHidden).toBeUndefined();
+  });
+});
+
 describe("effectiveView", () => {
   const meta = composeSectionMeta([{ id: "slack", name: "Slack" }]);
   const allVisible = Object.fromEntries(meta.map((m) => [m.id, true]));
