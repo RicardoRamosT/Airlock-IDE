@@ -125,7 +125,7 @@ export {
   filterDangerousEnv,
   isDangerousEnvName,
 } from "./broker/dangerous";
-export { parseDotEnv } from "./broker/dotenv";
+export { dotEnvKeys, parseDotEnv } from "./broker/dotenv";
 export { type KeychainStore, systemKeychain } from "./broker/keychain";
 export type { SecretMeta } from "./broker/meta";
 export {
