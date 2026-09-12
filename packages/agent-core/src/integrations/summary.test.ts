@@ -54,6 +54,8 @@ describe("buildExtensionSummaries", () => {
     const ctx = (over: Partial<RelevanceContext> = {}): RelevanceContext => ({
       secretNames: [],
       rootFiles: [],
+      gitRemoteHost: null,
+      connectedHere: [],
       optedIn: [],
       ...over,
     });

@@ -417,7 +417,13 @@ describe("isRelevant", () => {
 
   it("is always relevant when no relevance spec is declared", () => {
     expect(
-      isRelevant(base, { secretNames: [], rootFiles: [], optedIn: [] }),
+      isRelevant(base, {
+        secretNames: [],
+        rootFiles: [],
+        gitRemoteHost: null,
+        connectedHere: [],
+        optedIn: [],
+      }),
     ).toBe(true);
   });
 
@@ -427,6 +433,8 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: ["DATABASE_URL", "AZURE_STORAGE_KEY"],
         rootFiles: [],
+        gitRemoteHost: null,
+        connectedHere: [],
         optedIn: [],
       }),
     ).toBe(true);
@@ -438,6 +446,8 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: [],
         rootFiles: ["src", "azure.yaml"],
+        gitRemoteHost: null,
+        connectedHere: [],
         optedIn: [],
       }),
     ).toBe(true);
@@ -452,6 +462,8 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: ["DATABASE_URL"],
         rootFiles: ["src", "package.json"],
+        gitRemoteHost: null,
+        connectedHere: [],
         optedIn: [],
       }),
     ).toBe(false);
@@ -470,6 +482,8 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: ["DATABASE_URL"],
         rootFiles: ["src", "package.json"],
+        gitRemoteHost: null,
+        connectedHere: [],
         optedIn: ["az"],
       }),
     ).toBe(true);
@@ -481,6 +495,8 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: [],
         rootFiles: [],
+        gitRemoteHost: null,
+        connectedHere: [],
         optedIn: ["snowflake"],
       }),
     ).toBe(false);
@@ -494,6 +510,8 @@ describe("isRelevant", () => {
       isRelevant(m, {
         secretNames: ["AZURE_STORAGE_KEY"],
         rootFiles: [],
+        gitRemoteHost: null,
+        connectedHere: [],
         optedIn: ["snowflake"],
       }),
     ).toBe(true);

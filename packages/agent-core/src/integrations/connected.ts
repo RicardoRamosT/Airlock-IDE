@@ -28,6 +28,10 @@ export interface ConfigSchema {
 
 // The pure, UI/IO-agnostic description of a connected extension. A matching
 // provider (app/main) supplies the runtime (connect/status/resources/tools).
+import type { RelevanceContext } from "./engine";
+import type { RelevanceSpec } from "./manifest";
+import { projectUseOf } from "./summary";
+
 export interface ConnectedExtensionDescriptor {
   id: string;
   name: string;
@@ -39,6 +43,10 @@ export interface ConnectedExtensionDescriptor {
   category?: string;
   authSpec?: AuthSpec;
   configSchema: ConfigSchema;
+  // Same gate as a manifest's. An EMPTY spec means "gated, but no automatic
+  // signal exists" -- nothing in a repo says "this project uses Slack", so it
+  // becomes relevant by being connected here, or by the explicit opt-in.
+  relevance?: RelevanceSpec;
 }
 
 // How a connected extension authenticates. Absent = "token" paste (legacy).
@@ -87,8 +95,10 @@ export function connectedSummary(
   d: ConnectedExtensionDescriptor,
   status: ConnectedStatus,
   prefs: ExtPrefs,
+  relevance: RelevanceContext | null = null,
 ): ExtensionSummary {
   const enabled = prefs[d.id]?.enabled !== false;
+  const use = projectUseOf(d, relevance);
   return {
     id: d.id,
     name: d.name,
@@ -106,6 +116,7 @@ export function connectedSummary(
     // withOpenSection offer "Open <name>" -- without it the hub pane was a dead
     // end, with no way back to the extension's own area.
     hasSection: true,
+    ...(use ? { projectUse: use } : {}),
   };
 }
 
@@ -122,6 +133,9 @@ const SLACK_CLIENT_ID = "11505449057237.11505460411653";
 const SLACK_BROKER_URL = "https://airlock-auth.airlock-workers.workers.dev";
 
 export const SLACK_DESCRIPTOR: ConnectedExtensionDescriptor = {
+  // No file signal exists for Slack: it is an identity, not a project
+  // artifact. Gated, and made relevant by connecting a workspace here.
+  relevance: {},
   id: "slack",
   name: "Slack",
   icon: "slack", // a BRAND mark, not a codicon -- see SectionGlyph
@@ -199,6 +213,8 @@ export function slackScopes(includePrivate: boolean): string[] {
 const GITHUB_CLIENT_ID = "Ov23liPCMhKPFBBWtUbo";
 
 export const GITHUB_DESCRIPTOR: ConnectedExtensionDescriptor = {
+  // A repo hosted on GitLab should not surface GitHub.
+  relevance: { gitRemoteHost: "github.com" },
   id: "github",
   name: "GitHub",
   icon: "github",

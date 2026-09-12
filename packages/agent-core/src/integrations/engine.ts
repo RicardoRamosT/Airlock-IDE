@@ -100,6 +100,13 @@ export function steadyView(m: IntegrationManifest): string | null {
 export interface RelevanceContext {
   secretNames: string[];
   rootFiles: string[];
+  // The host of the project's git origin ("github.com"), or null.
+  gitRemoteHost: string | null;
+  // Extension ids already bound to THIS project (a vaulted token, a pinned
+  // Slack workspace). Required for the same reason optedIn is: a context that
+  // omitted it would answer "irrelevant" for something the user has already
+  // connected here, which is the most confident signal there is.
+  connectedHere: string[];
   // Required, not optional: the only producer is relevanceContextFor, and a
   // context that silently omitted this would answer "irrelevant" for a project
   // the user has explicitly opted in -- i.e. re-create the dead end the opt-in
@@ -122,16 +129,28 @@ export interface RelevanceContext {
 //
 // Pure -- the app layer gathers ctx and filters the account-wide pollSteady
 // result so e.g. Azure only shows in projects that use Azure.
+//
+// Takes anything that declares a relevance spec, not just a manifest: section
+// extensions (Docker, Neon, Render) and connected ones (Slack, GitHub) are
+// gated by the same rule, and a second predicate would be a second answer to
+// "does this project use X?".
 export function isRelevant(
-  m: IntegrationManifest,
+  m: { id: string; relevance?: RelevanceSpec },
   ctx: RelevanceContext,
 ): boolean {
   const r = m.relevance;
   if (!r) return true;
   if (ctx.optedIn.includes(m.id)) return true;
+  // Already bound to this project -- a vaulted token, a pinned Slack
+  // workspace. That IS the declaration, and it is the only signal some
+  // extensions can ever have: nothing in a repo says "this project uses
+  // Slack", so an empty spec (`relevance: {}`) means exactly "gated, with no
+  // automatic signal" rather than "always on".
+  if (ctx.connectedHere.includes(m.id)) return true;
   const prefix = r.envPrefix;
   if (prefix && ctx.secretNames.some((n) => n.startsWith(prefix))) return true;
   if (r.files?.some((f) => ctx.rootFiles.includes(f))) return true;
+  if (r.gitRemoteHost && ctx.gitRemoteHost === r.gitRemoteHost) return true;
   return false;
 }
 

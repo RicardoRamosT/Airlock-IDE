@@ -24,7 +24,14 @@ export interface SectionExtensionDescriptor {
   // (Vercel: its deployments are transient and belong to the Activity feed).
   contributesTo?: "databases" | "host";
   description: string;
+  // Limits this extension to projects that use it. Absent = always shown.
+  // Snowflake and Azure deliberately have none HERE: they are also manifests,
+  // which already declare a spec, and mergeSectionExtensions lets the manifest
+  // row win -- a second copy would be a second answer to the same question.
+  relevance?: RelevanceSpec;
 }
+
+import type { RelevanceSpec } from "./manifest";
 
 export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
   {
@@ -33,6 +40,9 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     icon: "neon",
     contributesTo: "databases",
     description: "Serverless Postgres: projects, branches and databases.",
+    // A vaulted NEON_* key. Connecting Neon here also counts (connectedHere),
+    // which covers the common case without a file signal existing at all.
+    relevance: { envPrefix: "NEON_" },
   },
   {
     id: "docker",
@@ -40,6 +50,18 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     icon: "docker",
     contributesTo: "databases",
     description: "Local containers, including the databases you run in them.",
+    // Docker is MACHINE-wide: without this, a project with no container of its
+    // own still listed whatever happened to be running for some other project.
+    relevance: {
+      files: [
+        "Dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+        ".dockerignore",
+      ],
+    },
   },
   {
     id: "render",
@@ -47,6 +69,7 @@ export const SECTION_EXTENSIONS: SectionExtensionDescriptor[] = [
     icon: "render",
     contributesTo: "host",
     description: "Deployed services and their latest deploys.",
+    relevance: { files: ["render.yaml", "render.json"] },
   },
   {
     id: "snowflake",
