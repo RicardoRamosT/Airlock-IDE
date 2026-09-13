@@ -3,7 +3,8 @@
 // dock. Two sources joined by session_id: the hook-written PHASE dir (sessions/)
 // and the statusLine-written LIVE dir (live/). Focus acknowledges outstanding
 // "done"s (green clears when you come back).
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { type FSWatcher, watch } from "chokidar";
 import { app, BrowserWindow } from "electron";
@@ -56,6 +57,30 @@ async function readLiveness(now: number): Promise<Map<string, number>> {
   return m;
 }
 
+// When this session's transcript last grew. Claude Code stores it at
+// ~/.claude/projects/<encoded cwd>/<session id>.jsonl, and the encoding needs
+// the cwd, which we do not have here -- so glob on the session id instead. One
+// stat per live session on a 10s tick is nothing.
+//
+// null means "could not be located", which aggregate treats as "keep the old
+// behaviour" rather than as evidence of silence.
+async function transcriptTouchedAt(sid: string): Promise<number | null> {
+  const base = path.join(os.homedir(), ".claude", "projects");
+  try {
+    for (const proj of await readdir(base)) {
+      const file = path.join(base, proj, `${sid}.jsonl`);
+      try {
+        return Math.floor((await stat(file)).mtimeMs / 1000);
+      } catch {
+        // not in this project dir; keep looking
+      }
+    }
+  } catch {
+    // no projects dir at all
+  }
+  return null;
+}
+
 async function recompute(): Promise<void> {
   if (!watchedDir) return;
   const now = nowSec();
@@ -72,6 +97,10 @@ async function recompute(): Promise<void> {
           phase: p.state,
           phaseTs: p.ts,
           liveTs: liveBySid.get(name) ?? null,
+          // Only worth a stat for a session that claims to be working; a done
+          // one never reaches the transcript check.
+          transcriptTs:
+            p.state === "working" ? await transcriptTouchedAt(name) : null,
         });
     }
   } catch {

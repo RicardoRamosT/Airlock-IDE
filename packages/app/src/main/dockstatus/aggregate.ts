@@ -3,6 +3,9 @@
 // Fed by two side-channel sources, joined by session_id in watch.ts:
 //   - PHASE (hooks): what the session is doing -- "working" (UserPromptSubmit /
 //     PostToolUse) or "done" (Stop / Notification), stamped with the hook's time.
+//   - TRANSCRIPT: when the session's .jsonl last grew. The only input that does
+//     not depend on a hook firing, which is what makes an interrupted turn
+//     detectable at all -- see TRANSCRIPT_SILENT_SECONDS.
 //   - LIVE (statusLine): a ~5s heartbeat proving the session process is alive
 //     RIGHT NOW. Crucially it keeps firing during long model thinking and while a
 //     session waits on a subagent -- exactly the spans where NO hook fires and the
@@ -16,6 +19,9 @@ export interface SessionEntry {
   phase: "working" | "done";
   phaseTs: number; // epoch seconds of the phase hook
   liveTs: number | null; // epoch seconds of the last statusLine heartbeat, or null
+  // Epoch seconds the session's transcript last grew, or null when it could
+  // not be located. The ONLY signal here that does not depend on a hook.
+  transcriptTs: number | null;
 }
 
 // Fallback horizon, used ONLY for a session with no liveness heartbeat (i.e. the
@@ -30,6 +36,28 @@ export const WORKING_STALE_SECONDS = 45;
 // or crash) -> clear it. 3x the 5s refresh to tolerate jitter; matches the quota
 // meter's own STALE_AFTER_SECONDS.
 export const LIVENESS_STALE_SECONDS = 15;
+
+// How long a transcript may be silent before a "working" session is treated as
+// no longer working.
+//
+// This exists because NOTHING FIRES ON INTERRUPT. Observed in a real session on
+// 2026-09-13: an Escape at 00:20:14, the next user message at 01:36:23, and not
+// one hook record in between -- no Stop, no idle_prompt. PHASE therefore stays
+// "working" forever, and the heartbeat proves only that the PROCESS is alive,
+// not that a TURN is running. Treating those as the same thing is what pinned
+// the dot yellow for 76 minutes.
+//
+// The transcript is the signal that survives a missing hook: it grows while
+// work happens and falls silent the moment it stops. Measured over 1278
+// inter-record gaps in that session: median 1s, p90 13s, p95 24s, p99 99s, and
+// every gap beyond two minutes was the user away rather than Claude working.
+// Five minutes is three times p99, so normal work never trips it.
+//
+// The known cost: a single tool call that runs longer than this with no output
+// goes grey while it is still running. That is the lesser evil -- it corrects
+// itself the moment the call returns, whereas the yellow it replaces corrected
+// itself never.
+export const TRANSCRIPT_SILENT_SECONDS = 300;
 
 // One parsed PHASE side-channel line "<state> <epoch>".
 export interface PhaseLine {
@@ -64,9 +92,17 @@ export function parseLivenessLine(line: string): number | null {
 // count as work.
 function isWorking(s: SessionEntry, now: number): boolean {
   if (s.phase !== "working") return false;
-  return s.liveTs !== null
-    ? s.liveTs > now - LIVENESS_STALE_SECONDS
-    : s.phaseTs > now - WORKING_STALE_SECONDS;
+  const alive =
+    s.liveTs !== null
+      ? s.liveTs > now - LIVENESS_STALE_SECONDS
+      : s.phaseTs > now - WORKING_STALE_SECONDS;
+  if (!alive) return false;
+  // Alive is necessary and NOT sufficient. An interrupted session keeps
+  // heartbeating for as long as its terminal is open, so liveness alone can
+  // never end a turn that no hook closed. A transcript we cannot locate leaves
+  // the old behaviour untouched rather than inventing a verdict.
+  if (s.transcriptTs === null) return true;
+  return s.transcriptTs > now - TRANSCRIPT_SILENT_SECONDS;
 }
 
 // Fold all sessions into the app-wide dock state.
