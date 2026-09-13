@@ -9,6 +9,16 @@ export interface AtlasProject {
   addedAt: number; // epoch ms, first time Atlas saw this root
   lastSeenAt: number; // epoch ms, last time the root was confirmed present
   missing: boolean; // the path did not exist at the last presence check
+  // Is this project in the DEBRIEF. Opt-in: false until the user says so.
+  //
+  // It lives on the project row, and every one of readRegistry, mergeRegistry
+  // and writeRegistry must carry it, because refreshPortfolio rewrites the
+  // whole table (DELETE + re-insert) on every arrival. A representation that
+  // is not threaded through that cycle is erased seconds after being set.
+  //
+  // Off means OUT OF THE DEBRIEF, not forgotten: a disabled project is still
+  // collected, still raises concerns, and can still be asked about in chat.
+  enabled: boolean;
 }
 
 // Last non-empty path segment. Trailing slashes are tolerated because roots
@@ -41,6 +51,7 @@ export function mergeRegistry(
       addedAt: now,
       lastSeenAt: now,
       missing: false,
+      enabled: false, // opt-in
     };
     out.push(added);
     index.set(root, added);

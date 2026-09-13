@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS project (
   name       TEXT NOT NULL,
   addedAt    INTEGER NOT NULL,
   lastSeenAt INTEGER NOT NULL,
-  missing    INTEGER NOT NULL DEFAULT 0
+  missing    INTEGER NOT NULL DEFAULT 0,
+  enabled    INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS snapshot (
   day  TEXT PRIMARY KEY,
@@ -91,6 +92,15 @@ const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
     column: "pending",
     ddl: "ALTER TABLE turn ADD COLUMN pending INTEGER NOT NULL DEFAULT 0",
   },
+  {
+    // DEFAULT 0 is what makes the debrief opt-in. An EXISTING registry
+    // therefore goes dark on upgrade -- no project is enabled, so nothing
+    // composes until the user picks some. That is intended, and the panel's
+    // setup state is what stops it reading as a regression.
+    table: "project",
+    column: "enabled",
+    ddl: "ALTER TABLE project ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0",
+  },
 ];
 
 function migrate(db: DatabaseSync): void {
@@ -148,7 +158,7 @@ function bytes(s: string): Uint8Array | string {
 export function readRegistry(db: DatabaseSync): AtlasProject[] {
   const rows = db
     .prepare(
-      "SELECT root, name, addedAt, lastSeenAt, missing FROM project ORDER BY addedAt, root",
+      "SELECT root, name, addedAt, lastSeenAt, missing, enabled FROM project ORDER BY addedAt, root",
     )
     .all() as {
     root: string;
@@ -156,6 +166,7 @@ export function readRegistry(db: DatabaseSync): AtlasProject[] {
     addedAt: number;
     lastSeenAt: number;
     missing: number;
+    enabled: number;
   }[];
   // SQLite has no boolean type. Convert at the boundary so no caller ever sees
   // a 0/1 where it expects a boolean.
@@ -165,6 +176,7 @@ export function readRegistry(db: DatabaseSync): AtlasProject[] {
     addedAt: r.addedAt,
     lastSeenAt: r.lastSeenAt,
     missing: r.missing !== 0,
+    enabled: r.enabled !== 0,
   }));
 }
 
@@ -179,10 +191,17 @@ export function writeRegistry(
   try {
     db.prepare("DELETE FROM project").run();
     const ins = db.prepare(
-      "INSERT INTO project (root, name, addedAt, lastSeenAt, missing) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO project (root, name, addedAt, lastSeenAt, missing, enabled) VALUES (?, ?, ?, ?, ?, ?)",
     );
     for (const p of projects) {
-      ins.run(p.root, p.name, p.addedAt, p.lastSeenAt, p.missing ? 1 : 0);
+      ins.run(
+        p.root,
+        p.name,
+        p.addedAt,
+        p.lastSeenAt,
+        p.missing ? 1 : 0,
+        p.enabled ? 1 : 0,
+      );
     }
     db.exec("COMMIT");
   } catch (err) {
@@ -213,6 +232,22 @@ export function writeRegistry(
 // removal from a no-op. The match is exact: the root reaches here from the
 // registry or from a concern derived from it, both of which hold the very
 // string the seed produced.
+// Targeted write. Safe ONLY because refreshPortfolio reads the table before it
+// rewrites it (read -> mergeRegistry -> writeRegistry), so a value set here is
+// carried into the next full rewrite rather than clobbered by it. That is a
+// property of readRegistry/mergeRegistry/writeRegistry all threading `enabled`,
+// not an independent guarantee of this function.
+export function setProjectEnabled(
+  db: DatabaseSync,
+  root: string,
+  enabled: boolean,
+): boolean {
+  const r = db
+    .prepare("UPDATE project SET enabled = ? WHERE root = ?")
+    .run(enabled ? 1 : 0, root);
+  return Number(r.changes) > 0;
+}
+
 export function forgetProject(db: DatabaseSync, root: string): boolean {
   db.exec("BEGIN");
   try {

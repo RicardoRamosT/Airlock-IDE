@@ -7,6 +7,7 @@ import type {
   Concern,
   RootSnapshot,
 } from "@airlock/agent-core";
+import { applyPresence, mergeRegistry } from "@airlock/agent-core";
 import { expect, it } from "vitest";
 import {
   abandonTurn,
@@ -33,6 +34,7 @@ import {
   saveBrief,
   saveReports,
   saveSnapshot,
+  setProjectEnabled,
   writeAskedDay,
   writeChatSince,
   writeConcerns,
@@ -48,6 +50,7 @@ const proj = (root: string): AtlasProject => ({
   addedAt: 1000,
   lastSeenAt: 2000,
   missing: false,
+  enabled: false,
 });
 
 const snap = (
@@ -674,4 +677,62 @@ it("reports when the last brief was written, not just which day", () => {
     createdAt: 1_700_000,
   });
   expect(lastBriefAt(d)).toBe(1_700_000);
+});
+
+it("adds enabled to a project table that already has rows, defaulted off", () => {
+  // The migration path. CREATE TABLE IF NOT EXISTS does nothing for evolution,
+  // so an existing database reaches this column only via ADDED_COLUMNS -- the
+  // turn.session lesson.
+  const dir = mkdtempSync(path.join(tmpdir(), "atlas-mig-"));
+  const file = path.join(dir, "atlas.db");
+  const first = openAtlasDb(file);
+  first.exec("DROP TABLE project");
+  first.exec(
+    "CREATE TABLE project (root TEXT PRIMARY KEY, name TEXT NOT NULL, addedAt INTEGER NOT NULL, lastSeenAt INTEGER NOT NULL, missing INTEGER NOT NULL DEFAULT 0)",
+  );
+  first.exec(
+    "INSERT INTO project (root, name, addedAt, lastSeenAt, missing) VALUES ('/p/a', 'a', 1, 1, 0)",
+  );
+  first.close();
+
+  const second = openAtlasDb(file);
+  const rows = readRegistry(second);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.enabled).toBe(false);
+  second.close();
+});
+
+it("keeps enabled across a full read-merge-write cycle", () => {
+  // THE integration test for this feature. writeRegistry is DELETE + re-insert
+  // and refreshPortfolio runs read -> merge -> write on every window focus,
+  // resume, unlock and a 15-minute timer. If any of the three links drops the
+  // column, the switch persists and is erased seconds later.
+  const d = db();
+  writeRegistry(d, [
+    {
+      root: "/p/a",
+      name: "a",
+      addedAt: 1,
+      lastSeenAt: 1,
+      missing: false,
+      enabled: false,
+    },
+  ]);
+  expect(setProjectEnabled(d, "/p/a", true)).toBe(true);
+
+  // the cycle refreshPortfolio performs
+  writeRegistry(
+    d,
+    applyPresence(
+      mergeRegistry(readRegistry(d), ["/p/a"], 2),
+      new Set(["/p/a"]),
+      2,
+    ),
+  );
+
+  expect(readRegistry(d)[0]?.enabled).toBe(true);
+});
+
+it("reports when setProjectEnabled names a root that is not registered", () => {
+  expect(setProjectEnabled(db(), "/p/nope", true)).toBe(false);
 });

@@ -12,6 +12,7 @@ const P = (root: string, over: Partial<AtlasProject> = {}): AtlasProject => ({
   addedAt: 1000,
   lastSeenAt: 1000,
   missing: false,
+  enabled: false,
   ...over,
 });
 
@@ -73,4 +74,35 @@ it("clears missing when a root comes back, and leaves lastSeenAt of absent roots
   expect(out[0]).toMatchObject({ missing: false, lastSeenAt: 7000 });
   const still = applyPresence([P("/a/gone")], new Set(), 7000);
   expect(still[0]).toMatchObject({ missing: true, lastSeenAt: 1000 });
+});
+
+it("defaults a newly discovered project to OFF", () => {
+  // Opt-in: a project Atlas has just noticed is not in the debrief until the
+  // user says so.
+  const [p] = mergeRegistry([], ["/p/new"], 100);
+  expect(p?.enabled).toBe(false);
+});
+
+it("preserves enabled when a known project is re-discovered", () => {
+  // THE test for this feature. refreshPortfolio runs read -> mergeRegistry ->
+  // applyPresence -> writeRegistry on every window focus, resume, unlock and a
+  // 15-minute timer. If merge drops `enabled`, the switch works in the UI,
+  // persists, and is erased seconds later -- with every other test green.
+  const on = mergeRegistry([], ["/p/a"], 100).map((p) => ({
+    ...p,
+    enabled: true,
+  }));
+  const again = mergeRegistry(on, ["/p/a"], 200);
+  expect(again[0]?.enabled).toBe(true);
+  expect(again[0]?.lastSeenAt).toBe(200);
+});
+
+it("leaves enabled alone when presence is applied", () => {
+  const on = mergeRegistry([], ["/p/a"], 100).map((p) => ({
+    ...p,
+    enabled: true,
+  }));
+  const after = applyPresence(on, new Set<string>(), 200);
+  expect(after[0]?.missing).toBe(true);
+  expect(after[0]?.enabled).toBe(true);
 });
