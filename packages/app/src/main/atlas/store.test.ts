@@ -16,6 +16,7 @@ import {
   completeTurn,
   dayKey,
   forgetProject,
+  lastBriefAt,
   lastBriefDay,
   listSessions,
   markInterruptedTurns,
@@ -25,10 +26,12 @@ import {
   readConcerns,
   readFacts,
   readRegistry,
+  readReports,
   readSnapshot,
   readTurns,
   resumeSession,
   saveBrief,
+  saveReports,
   saveSnapshot,
   writeAskedDay,
   writeChatSince,
@@ -612,4 +615,63 @@ it("leaves a portfolio-wide concern alone", () => {
 it("says so when there was nothing to forget", () => {
   // The button must be able to tell a real removal from a no-op.
   expect(forgetProject(db(), "/p/never-known")).toBe(false);
+});
+
+it("distinguishes 'no standup ran' from 'it ran and found nothing'", () => {
+  // Same three-state rule as readSnapshot: null and empty are different
+  // answers, and conflating them is what made panels paint a finished-looking
+  // empty page while a probe was still running.
+  const d = db();
+  expect(readReports(d, "2026-09-12")).toBeNull();
+  saveReports(d, "2026-09-12", [], [], 0);
+  expect(readReports(d, "2026-09-12")).toEqual({
+    reports: [],
+    ledgers: [],
+    quiet: 0,
+  });
+});
+
+it("round-trips reports and ledgers, failed probes included", () => {
+  const d = db();
+  const report = { root: "/p", did: ["a"], standing: ["b"], gaps: [] };
+  const ledger = {
+    root: "/p",
+    sinceMs: 1,
+    untilMs: 2,
+    capped: false,
+    tree: {
+      ok: true as const,
+      value: {
+        branch: "main",
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        dirty: 0,
+      },
+    },
+    commits: { ok: true as const, value: [] },
+    prs: { ok: false as const, reason: "gh boom" },
+    runs: { ok: true as const, value: [] },
+    issues: { ok: true as const, value: [] },
+    releases: { ok: true as const, value: [] },
+  };
+  saveReports(d, "2026-09-12", [report], [ledger], 4);
+  const back = readReports(d, "2026-09-12");
+  expect(back?.reports[0]?.did).toEqual(["a"]);
+  expect(back?.quiet).toBe(4);
+  // A failed probe must survive the round trip, or the debrief loses the one
+  // thing it needs to say instead of "no PRs".
+  expect(back?.ledgers[0]?.prs.ok).toBe(false);
+});
+
+it("reports when the last brief was written, not just which day", () => {
+  const d = db();
+  expect(lastBriefAt(d)).toBeNull();
+  saveBrief(d, {
+    day: "2026-09-11",
+    text: "t",
+    costUsd: 0,
+    createdAt: 1_700_000,
+  });
+  expect(lastBriefAt(d)).toBe(1_700_000);
 });

@@ -10,7 +10,9 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   AtlasFact,
   AtlasProject,
+  CodeLedger,
   Concern,
+  ProjectReport,
   RootSnapshot,
   Turn,
 } from "@airlock/agent-core";
@@ -62,6 +64,10 @@ CREATE TABLE IF NOT EXISTS concern (
   firstValue  INTEGER,
   lastValue   INTEGER,
   resolvedAt  INTEGER
+);
+CREATE TABLE IF NOT EXISTS standup (
+  day  TEXT PRIMARY KEY,
+  json TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS kv (
   k TEXT PRIMARY KEY,
@@ -305,6 +311,57 @@ export function readBrief(db: DatabaseSync, day: string): StoredBrief | null {
 
 // MAX, not "last inserted": days can be written out of order if a compose is
 // slow, and the trigger compares against the most recent day that exists.
+export interface StoredStandup {
+  reports: ProjectReport[];
+  ledgers: CodeLedger[];
+  quiet: number;
+}
+
+// Stored so a re-opened debrief never re-spends, and so the debrief can render
+// ledger numbers without re-running gh.
+export function saveReports(
+  db: DatabaseSync,
+  day: string,
+  reports: readonly ProjectReport[],
+  ledgers: readonly CodeLedger[],
+  quiet: number,
+): void {
+  db.prepare(
+    "INSERT INTO standup (day, json) VALUES (?, CAST(? AS TEXT)) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
+  ).run(day, bytes(JSON.stringify({ reports, ledgers, quiet })));
+}
+
+// null means NO STANDUP RAN for this day; a zero-length one means it ran and
+// every project was quiet. Same distinction readSnapshot keeps.
+export function readReports(
+  db: DatabaseSync,
+  day: string,
+): StoredStandup | null {
+  const row = db.prepare("SELECT json FROM standup WHERE day = ?").get(day) as
+    | { json: string }
+    | undefined;
+  if (!row) return null;
+  try {
+    const parsed = JSON.parse(row.json) as Partial<StoredStandup>;
+    return {
+      reports: Array.isArray(parsed.reports) ? parsed.reports : [],
+      ledgers: Array.isArray(parsed.ledgers) ? parsed.ledgers : [],
+      quiet: typeof parsed.quiet === "number" ? parsed.quiet : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// The debrief window runs from the last brief, which needs a TIME, not the day
+// key lastBriefDay returns.
+export function lastBriefAt(db: DatabaseSync): number | null {
+  const row = db
+    .prepare("SELECT createdAt FROM brief ORDER BY day DESC LIMIT 1")
+    .get() as { createdAt: number } | undefined;
+  return row?.createdAt ?? null;
+}
+
 export function lastBriefDay(db: DatabaseSync): string | null {
   const row = db.prepare("SELECT MAX(day) AS day FROM brief").get() as
     | { day: string | null }
