@@ -72,7 +72,8 @@ it("writes the snapshot under the user's LOCAL day key", async () => {
 it("returns an empty snapshot for a first-run user with no history", async () => {
   const i = input({ recentFolders: [], openTabRoots: [] });
   const out = await refreshPortfolio(i);
-  expect(out).toEqual([]);
+  expect(out.snaps).toEqual([]);
+  expect(out.projects).toEqual([]);
   expect(await i.db.readSnapshot("2026-08-30")).toEqual([]);
 });
 
@@ -168,4 +169,14 @@ it("stays forgotten when the recents entry goes with the row", async () => {
   await refreshPortfolio({ ...i, recentFolders: recents });
   expect((await i.db.readRegistry()).map((p) => p.root)).toEqual(["/p/a"]);
   expect(await i.db.readConcerns()).toEqual([]);
+});
+
+it("returns the registry alongside the snapshots", async () => {
+  // maybeCompose needs to know which projects are enabled, and this function
+  // has just rewritten that table -- asking the database again would be a
+  // second answer that can disagree with the first.
+  const i = input({ recentFolders: ["/p/a"], openTabRoots: [] });
+  const out = await refreshPortfolio(i);
+  expect(out.projects.map((p) => p.root)).toEqual(["/p/a"]);
+  expect(out.projects[0]?.enabled).toBe(false);
 });

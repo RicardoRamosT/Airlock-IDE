@@ -153,3 +153,53 @@ it("does not re-run the standup when this day already has one", async () => {
   expect(await maybeCompose(d)).toBe(true);
   expect(standup).not.toHaveBeenCalled();
 });
+
+it("hands the standup only enabled projects", async () => {
+  // Opt-in, end to end. A project Atlas knows about but the user has not
+  // turned on must never become a ledger or a reporter job.
+  const standup = vi.fn(async () => ({ reports: [], ledgers: [], quiet: 0 }));
+  const d = deps({ standup, roots: () => ["/p/on", "/p/off"] });
+  await d.db.writeRegistry([
+    {
+      root: "/p/on",
+      name: "on",
+      addedAt: 1,
+      lastSeenAt: 1,
+      missing: false,
+      enabled: true,
+    },
+    {
+      root: "/p/off",
+      name: "off",
+      addedAt: 1,
+      lastSeenAt: 1,
+      missing: false,
+      enabled: false,
+    },
+  ]);
+  await maybeCompose(d);
+  expect(standup).toHaveBeenCalledWith(["/p/on"], expect.anything());
+});
+
+it("skips an enabled project whose folder has vanished", async () => {
+  // It cannot be collected, so a reporter call would only report that every
+  // probe failed.
+  const standup = vi.fn(async () => ({ reports: [], ledgers: [], quiet: 0 }));
+  const d = deps({
+    standup,
+    roots: () => ["/p/gone"],
+    collect: { ...collect(), exists: async () => false },
+  });
+  await d.db.writeRegistry([
+    {
+      root: "/p/gone",
+      name: "gone",
+      addedAt: 1,
+      lastSeenAt: 1,
+      missing: true,
+      enabled: true,
+    },
+  ]);
+  await maybeCompose(d);
+  expect(standup).toHaveBeenCalledWith([], expect.anything());
+});

@@ -6,6 +6,7 @@
 // run on a timer -- unlike the composer, which never does.
 
 import {
+  type AtlasProject,
   applyPresence,
   type CollectDeps,
   collectAll,
@@ -30,9 +31,18 @@ export interface RefreshInput {
   sinceMs: number;
 }
 
+// Returns the projects ALONGSIDE the snapshots. The caller needs to know which
+// are enabled, and this function has just written the registry -- asking the
+// database a second time for a table it has this moment rewritten is both
+// wasteful and a chance for the two answers to disagree.
+export interface RefreshResult {
+  snaps: RootSnapshot[];
+  projects: AtlasProject[];
+}
+
 export async function refreshPortfolio(
   input: RefreshInput,
-): Promise<RootSnapshot[]> {
+): Promise<RefreshResult> {
   const { db, deps, now } = input;
 
   const discovered = seedRoots(input.recentFolders, input.openTabRoots);
@@ -45,7 +55,8 @@ export async function refreshPortfolio(
   );
 
   const present = new Set(snaps.filter((s) => !s.missing).map((s) => s.root));
-  await db.writeRegistry(applyPresence(merged, present, now));
+  const projects = applyPresence(merged, present, now);
+  await db.writeRegistry(projects);
 
   // Standing concerns, folded in here because this is the one place that is
   // already free: pure detection over data just collected, no model call. Tier
@@ -69,5 +80,5 @@ export async function refreshPortfolio(
     input.sinceMs,
     snaps,
   );
-  return snaps;
+  return { snaps, projects };
 }

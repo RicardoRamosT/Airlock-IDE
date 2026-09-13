@@ -82,15 +82,19 @@ async function portfolioFor(
   const existing = await deps.db.readSnapshot(today, wantedSince);
   if (existing !== null && existing.length > 0) return existing;
   try {
-    return await refreshPortfolio({
-      db: deps.db,
-      deps: deps.collect,
-      recentFolders: deps.recents(),
-      openTabRoots: deps.roots(),
-      now,
-      tzOffsetMinutes: deps.tzOffsetMinutes(),
-      sinceMs: wantedSince,
-    });
+    // The chat wants only the snapshots; refreshPortfolio also returns the
+    // registry, which is the debrief's concern rather than this one's.
+    return (
+      await refreshPortfolio({
+        db: deps.db,
+        deps: deps.collect,
+        recentFolders: deps.recents(),
+        openTabRoots: deps.roots(),
+        now,
+        tzOffsetMinutes: deps.tzOffsetMinutes(),
+        sinceMs: wantedSince,
+      })
+    ).snaps;
   } catch {
     // A failed collection degrades to no portfolio; the turn still answers.
     return [];

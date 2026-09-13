@@ -79,7 +79,7 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
     // Since the LAST BRIEF, not a fixed 24 hours: a skipped day used to fall
     // out of every debrief permanently.
     const window = debriefWindow(await deps.db.lastBriefAt(), now);
-    const snaps = await refreshPortfolio({
+    const { snaps, projects } = await refreshPortfolio({
       db: deps.db,
       deps: deps.collect,
       recentFolders: deps.recents(),
@@ -92,13 +92,18 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
     // Every project that saw work files a report. A compose that failed and is
     // retried must not re-spend the reporters, so a stored standup for today is
     // reused rather than re-run.
+    // ONLY enabled projects. Off means out of the debrief, not forgotten: the
+    // snapshot above still covers every project, and concerns are still raised
+    // for all of them -- a disabled project simply never becomes a ledger or a
+    // reporter job. `missing` is excluded too, or a vanished folder would spend
+    // a reporter call to report that all of its probes failed.
+    const enabled = new Set(
+      projects.filter((p) => p.enabled && !p.missing).map((p) => p.root),
+    );
+    const roots = snaps.map((s) => s.root).filter((r) => enabled.has(r));
+
     const stored = await deps.db.readReports(today);
-    const standup =
-      stored ??
-      (await deps.standup(
-        snaps.map((s) => s.root),
-        window,
-      ));
+    const standup = stored ?? (await deps.standup(roots, window));
     if (!stored)
       await deps.db.saveReports(
         today,
