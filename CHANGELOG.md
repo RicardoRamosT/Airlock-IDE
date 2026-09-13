@@ -5,6 +5,15 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 ## Unreleased
 
 ### Added
+- **Atlas has its own settings, and you choose which projects it covers.** The
+  panel's header is now two tabs (Debrief, Chat) and a ⋯ menu holding History,
+  New chat, Open in a window, and a new Atlas settings screen. The debrief hour
+  and where Atlas appears moved there from the Settings tab, joined by a list of
+  every project Atlas knows about with a switch each. **Projects start switched
+  off**, so after updating, Atlas will ask you to choose before it writes
+  another debrief. Switching one off keeps it out of the morning debrief only —
+  Atlas still watches it, still raises concerns about it, and can still answer
+  questions about it in chat.
 - **Your projects now brief Atlas themselves.** Before the debrief is written,
   every project that saw work files a report: everything that happened to the
   code, read exhaustively rather than sampled -- commits, pull requests, CI
@@ -15,6 +24,10 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
   reporting nothing.
 
 ### Fixed
+- **A project with a nightly build no longer appears every morning to say
+  nothing.** Any CI run counted as activity, so a repository whose only event
+  was a passing scheduled build was never quiet. Only a failing run now brings a
+  project into the debrief on its own.
 - **CI is read as the project's pinned GitHub account.** Projects pinned to an
   account other than the active one were asking GitHub as the wrong user, and
   the answer -- a 404 -- looked exactly like a passing build with no CI row.
