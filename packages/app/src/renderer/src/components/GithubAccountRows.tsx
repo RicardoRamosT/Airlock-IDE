@@ -73,7 +73,7 @@ export function GithubAccountRows({ root }: { root: string | null }) {
   if (accounts.length === 0)
     return (
       <div className="section-note">
-        No GitHub accounts — run `gh auth login`.
+        No GitHub accounts. Run `gh auth login`.
       </div>
     );
 

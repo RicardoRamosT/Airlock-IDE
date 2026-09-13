@@ -52,13 +52,13 @@ export function EditorBreadcrumb({
         {truncated ? (
           <span className="badge">too large to edit (first 1 MB)</span>
         ) : saveState === "unsaved" ? (
-          <span className="editor-dot" title="Unsaved - autosaving">
+          <span className="editor-dot" title="Unsaved, autosaving">
             unsaved
           </span>
         ) : saveState === "saved" ? (
           <span className="editor-saved">saved</span>
         ) : saveState === "conflict" ? (
-          <span className="editor-conflict" title="Changed on disk - not saved">
+          <span className="editor-conflict" title="Changed on disk, not saved">
             changed on disk
           </span>
         ) : null}

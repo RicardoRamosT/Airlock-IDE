@@ -26,7 +26,8 @@ export const REPORTER_SYSTEM_PROMPT =
   'at most 3 short sentences. "standing" is where it stands now -- what is ' +
   'half-done, blocked, or waiting -- at most 3. "gaps" is anything you could ' +
   "not determine. Never state a count, a commit hash, a PR number or a date: " +
-  "those are rendered from the record, not from you. Never invent activity.";
+  "those are rendered from the record, not from you. Never invent activity. " +
+  "Write plain prose: never use a dash (-, --, or an em dash) as punctuation between clauses. Use separate sentences, a comma, or a colon instead. ";
 
 function probeLine<T>(
   label: string,

@@ -154,7 +154,7 @@ export function ActivityBar() {
                         ? " active"
                         : ""
                   }`}
-                  title={level ? `${m.label} — ${DOT_TITLE[level]}` : m.label}
+                  title={level ? `${m.label}: ${DOT_TITLE[level]}` : m.label}
                   onClick={() => onIcon(m.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -197,7 +197,7 @@ export function ActivityBar() {
         <button
           type="button"
           className={`footer-btn${open === "accounts" ? " active" : ""}`}
-          title={`Accounts — ${ghDot.title}`}
+          title={`Accounts: ${ghDot.title}`}
           onClick={() => setOpen(open === "accounts" ? null : "accounts")}
         >
           <span className="activity-icon-glyph">

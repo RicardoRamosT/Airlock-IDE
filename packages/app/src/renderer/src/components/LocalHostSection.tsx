@@ -504,7 +504,7 @@ export function LocalHostSection() {
             </button>
           </div>
           <div className="section-note">
-            AirLock didn&rsquo;t start this — it may or may not be this
+            AirLock didn&rsquo;t start this, so it may or may not be this
             project&rsquo;s dev server.
           </div>
           <div className="section-toolbar">
@@ -554,7 +554,7 @@ export function LocalHostSection() {
           })}
           <div className="section-note">
             A server is running here, but AirLock didn&rsquo;t start it and
-            can&rsquo;t confirm it&rsquo;s this project&rsquo;s — so it
+            can&rsquo;t confirm it&rsquo;s this project&rsquo;s, so it
             can&rsquo;t Stop/Restart it. Start runs this project&rsquo;s dev
             server through AirLock so it can manage it (if this port is taken,
             your dev command picks another).

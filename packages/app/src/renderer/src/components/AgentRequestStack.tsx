@@ -131,7 +131,7 @@ function SecretCard({
           ? `Claude needs ${request.name} for ${request.projectName}`
           : `Claude needs ${request.name}`
       }
-      expiredNote="Claude stopped waiting — you can still add this, then ask it to retry."
+      expiredNote="Claude stopped waiting. You can still add this, then ask it to retry."
       request={request}
       dismissible={dismissible}
     >

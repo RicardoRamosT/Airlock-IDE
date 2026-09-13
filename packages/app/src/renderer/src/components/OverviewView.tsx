@@ -124,7 +124,7 @@ function LanguageBar({
               width: `${(l.files / total) * 100}%`,
               background: LANG_COLORS[l.id] ?? LANG_COLORS.other,
             }}
-            title={`${l.name} — ${l.files} files`}
+            title={`${l.name}: ${l.files} files`}
           />
         ))}
       </div>
@@ -207,7 +207,7 @@ export function OverviewView({ root }: { root: string }) {
         setGenerating(false);
         stopPoll();
         setNotice(
-          "Didn't detect an update — Claude may still be working. Reload to check.",
+          "Didn't detect an update. Claude may still be working. Reload to check.",
         );
         return;
       }
@@ -319,9 +319,9 @@ export function OverviewView({ root }: { root: string }) {
   const plan = planOverviewRun(tabTerminals[activeTabId], sessionWorking);
   const confirmText =
     plan.mode === "spawn"
-      ? "No Claude is running here — start one and run the summary?"
+      ? "No Claude is running here. Start one and run the summary?"
       : plan.busy
-        ? "Run the summary in this project's Claude? It looks busy — it'll queue after the current turn."
+        ? "Run the summary in this project's Claude? It looks busy, so it'll queue after the current turn."
         : "Run the summary in this project's Claude? It'll be typed in and submitted.";
   const dirty = git
     ? git.staged.length + git.unstaged.length + git.untracked.length
@@ -445,7 +445,7 @@ export function OverviewView({ root }: { root: string }) {
                     {uncovered.length === 1
                       ? `1 area not covered (${uncovered[0]})`
                       : `${uncovered.length} areas not covered (${uncovered.join(", ")})`}{" "}
-                    — Regenerate to refresh.
+                    Regenerate to refresh.
                   </div>
                 ) : null}
                 <OverviewMarkdown
@@ -461,8 +461,8 @@ export function OverviewView({ root }: { root: string }) {
                   </div>
                 ))}
                 <div className="section-note">
-                  No written summary yet — "Generate summary" has Claude
-                  describe each area.
+                  No written summary yet. "Generate summary" has Claude describe
+                  each area.
                 </div>
               </div>
             )}
@@ -474,7 +474,7 @@ export function OverviewView({ root }: { root: string }) {
             {staged && (
               <div className="section-note overview-staged">
                 <span>
-                  Claude is starting — the summary will run automatically when
+                  Claude is starting. The summary will run automatically when
                   it&apos;s ready, or click Send to Claude.
                 </span>
                 <button type="button" className="btn" onClick={sendStaged}>

@@ -124,7 +124,7 @@ export async function addNeonAccount(key: string): Promise<NeonAccountRef> {
   const ref = await identify(key.trim());
   if (!ref)
     throw new Error(
-      "Couldn't identify this key's Neon account — use a personal or organization API key (a project-scoped key can't be added).",
+      "Couldn't identify this key's Neon account. Use a personal or organization API key (a project-scoped key can't be added).",
     );
   await setGlobalSecret(keyName(ref.id), key.trim(), { auditLog: auditLog() });
   const refs = (await readRegistry()).filter((a) => a.id !== ref.id);

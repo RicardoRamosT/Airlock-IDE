@@ -230,8 +230,8 @@ export function SettingsTab() {
                 switch between projects without juggling windows. Off: each
                 project opens on its own and "New Window" gives you a separate
                 window per project. Either way you can drag a project tab out of
-                the window to give it its own — its terminals keep running — or
-                drop it onto another window to merge it back in. The agent
+                the window to give it its own, with its terminals still running,
+                or drop it onto another window to merge it back in. The agent
                 always operates on the project you are currently viewing.
               </p>
 
@@ -424,7 +424,7 @@ export function SettingsTab() {
               </div>
               <p className="settings-note">
                 When opening a folder into a tab whose terminal is busy (e.g. a
-                running <code>claude</code>), AirLock keeps that session alive —
+                running <code>claude</code>), AirLock keeps that session alive,
                 but it stays in the old directory. This shows a reminder to
                 restart it in the new folder so it picks up the right context.
               </p>
@@ -647,10 +647,10 @@ export function SettingsTab() {
               </div>
               <p className="settings-note">
                 When you copy a secret, it goes to the system clipboard, which
-                other apps — and the terminal agent via <code>pbpaste</code> —
-                can read while it is there. airlock clears it after this delay
-                (only if the clipboard still holds that secret). A longer delay,
-                or <strong>0 (never)</strong>, is more convenient but leaves the
+                other apps, and the terminal agent via <code>pbpaste</code>, can
+                read while it is there. airlock clears it after this delay (only
+                if the clipboard still holds that secret). A longer delay, or{" "}
+                <strong>0 (never)</strong>, is more convenient but leaves the
                 value readable for longer. airlock cannot purge a third-party
                 clipboard manager's history.
               </p>

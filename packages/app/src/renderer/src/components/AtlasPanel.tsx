@@ -299,7 +299,7 @@ export function AtlasPanel({
         </div>
       ) : loadFailed ? (
         <p className="atlas-note">
-          Could not load the debrief. Nothing has been lost -- try reopening.
+          Could not load the debrief. Nothing has been lost. Try reopening.
         </p>
       ) : (
         <>
@@ -409,7 +409,7 @@ export function AtlasPanel({
                           setAsk((prev) => ({
                             n: (prev?.n ?? 0) + 1,
                             text: `Look into this standing concern: ${
-                              c.project ? `${c.project} - ` : ""
+                              c.project ? `${c.project}: ` : ""
                             }${c.title}. ${c.detail} It has been open ${c.ageDays} day(s)${
                               c.trend
                                 ? `, and has gone from ${c.trend.from} to ${c.trend.to}`

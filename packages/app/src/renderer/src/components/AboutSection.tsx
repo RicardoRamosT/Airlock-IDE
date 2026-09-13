@@ -50,7 +50,7 @@ export function AboutSection() {
       <h3>About</h3>
       <div className="settings-row">
         <span>Version</span>
-        <span className="settings-value">{info?.version ?? "—"}</span>
+        <span className="settings-value">{info?.version ?? "unknown"}</span>
       </div>
       <div className="settings-row">
         <span>MCP server</span>

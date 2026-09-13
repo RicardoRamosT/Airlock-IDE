@@ -21,7 +21,7 @@ type PingState = "checking" | "ok" | "fail";
 function listErrorHint(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (/\b40[34]\b|not found|forbidden/i.test(msg))
-    return "Couldn't list your Neon projects — this usually means a project-scoped API key, which can't browse projects. Use a personal or organization API key (Neon → Account settings → API keys) and reconnect.";
+    return "Couldn't list your Neon projects. This usually means a project-scoped API key, which can't browse projects. Use a personal or organization API key (Neon → Account settings → API keys) and reconnect.";
   return msg;
 }
 

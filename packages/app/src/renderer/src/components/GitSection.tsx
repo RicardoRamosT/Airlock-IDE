@@ -305,7 +305,7 @@ export function GitSection() {
           <i className="codicon codicon-github" />
           {account.protocol === "ssh" ? (
             <span className="section-note">
-              push as: SSH remote — uses your keys
+              push as: SSH remote, uses your keys
             </span>
           ) : (
             <>
@@ -334,7 +334,7 @@ export function GitSection() {
                   {account.source !== "override" && account.account
                     ? ` (${account.account.username})`
                     : account.source === "none"
-                      ? " (none — pick one)"
+                      ? " (none, pick one)"
                       : ""}
                 </option>
                 {accountList.map((u) => (
@@ -594,7 +594,7 @@ export function GitSection() {
                   The commit is removed but its changes are kept (staged), so
                   you can re-commit.
                   {lastCommitPushed &&
-                    " This commit appears to be pushed already — undoing it will diverge from the remote."}
+                    " This commit appears to be pushed already. Undoing it will diverge from the remote."}
                 </div>
               </>
             )}

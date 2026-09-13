@@ -87,7 +87,7 @@ it("renders the global Accounts/Settings buttons; Settings opens its menu", () =
   render(<ActivityBar />);
   // The Accounts button's tooltip is "Accounts -- <github account status>"
   // (same label--status shape as the section icons), so match the label prefix.
-  expect(screen.getByTitle(/^Accounts —/)).toBeTruthy();
+  expect(screen.getByTitle(/^Accounts:/)).toBeTruthy();
   fireEvent.click(screen.getByTitle("Settings"));
   expect(screen.getByText("Themes")).toBeTruthy();
 });
@@ -103,9 +103,9 @@ it("suggestions button opens the GitHub new-issue page in the browser", () => {
 it("suggestions button sits ABOVE Accounts in the bottom rail", () => {
   const { container } = render(<ActivityBar />);
   const bottom = container.querySelector(".activity-bar-bottom");
-  // Accounts carries a status suffix ("Accounts -- ..."), so compare the labels.
+  // Accounts carries a status suffix ("Accounts: ..."), so compare the labels.
   const titles = [...(bottom?.querySelectorAll("button.footer-btn") ?? [])].map(
-    (b) => b.getAttribute("title")?.split(" — ")[0],
+    (b) => b.getAttribute("title")?.split(": ")[0],
   );
   expect(titles).toEqual(["Send a suggestion", "Accounts", "Settings"]);
 });

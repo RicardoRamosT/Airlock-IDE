@@ -102,8 +102,8 @@ export function ChangelogView({ root }: { root: string }) {
           <i className="codicon codicon-book changelog-empty-icon" />
           <h3 className="changelog-empty-title">No changelog yet</h3>
           <p className="changelog-empty-text">
-            Let Claude document this project&rsquo;s history — it&rsquo;ll
-            review the git log and add an entry for each notable change.
+            Let Claude document this project&rsquo;s history. It&rsquo;ll review
+            the git log and add an entry for each notable change.
           </p>
           <button
             type="button"

@@ -148,7 +148,7 @@ export function AccountsPopover(_props: { onClose: () => void }) {
           ) : pinned && resolved?.account ? (
             <div className="account-pin">
               <span className="section-note">
-                Pinned to <strong>{resolved.account.username}</strong> — this
+                Pinned to <strong>{resolved.account.username}</strong>. This
                 project&rsquo;s git always uses it.
               </span>
               <button
@@ -176,12 +176,12 @@ export function AccountsPopover(_props: { onClose: () => void }) {
               {mismatch && (
                 <span className="account-warn">
                   <i className="codicon codicon-warning" /> Active account
-                  doesn&rsquo;t match this repo — pin to fix.
+                  doesn&rsquo;t match this repo. Pin to fix.
                 </span>
               )}
               {isSsh && (
                 <span className="section-note">
-                  SSH remote — pin sets commit identity only.
+                  SSH remote. Pin sets commit identity only.
                 </span>
               )}
             </div>

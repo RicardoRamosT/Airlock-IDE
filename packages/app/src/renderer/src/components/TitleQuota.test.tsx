@@ -160,7 +160,7 @@ it("keeps both wings (empty) when no session is feeding it, so nothing shifts", 
   const { container } = render(<TitleQuota>{child}</TitleQuota>);
   expect(container.querySelectorAll(".titlebar-wing")).toHaveLength(2);
   expect(container.querySelectorAll(".titlebar-wing-fill")).toHaveLength(0);
-  expect(screen.getAllByText("—")).toHaveLength(2);
+  expect(screen.getAllByText("n/a")).toHaveLength(2);
 });
 
 it("renders the bare title card when the meter is disabled", () => {

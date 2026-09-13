@@ -85,12 +85,12 @@ export function runExtensionAction(
         // added, so it is the tab that actually received it.
         const s = useApp.getState();
         s.switchTab(s.activeTabId);
-        return `Running \`${a.command}\` in a new terminal -- follow its prompts.`;
+        return `Running \`${a.command}\` in a new terminal. Follow its prompts.`;
       }
       return null;
     case "connectOauth":
       useApp.getState().setModal({ oauthDevice: { id: e.id, name: e.name } });
-      return `Opened the ${e.name} sign-in dialog -- approve it in your browser.`;
+      return `Opened the ${e.name} sign-in dialog. Approve it in your browser.`;
     case "connectToken":
       // Slack owns the only paste-a-token modal there is. Guarded, so a future
       // token extension does nothing here rather than opening the WRONG
@@ -128,7 +128,7 @@ export function runExtensionAction(
           .slackBindWorkspace(root, a.accountId)
           .then(() => useApp.getState().setModal("slack-channels"))
           .catch((err) => console.error("slackBindWorkspace failed", err));
-        return `Connected to ${a.label.replace(/^Use /, "")} — now choose which channels Claude may read.`;
+        return `Connected to ${a.label.replace(/^Use /, "")}. Now choose which channels Claude may read.`;
       }
       return null;
     case "disconnect":
@@ -136,6 +136,6 @@ export function runExtensionAction(
       return null;
     case "openSection":
       openExtensionSection(e.id);
-      return `Opened the ${e.name} section in the sidebar -- connect it there.`;
+      return `Opened the ${e.name} section in the sidebar. Connect it there.`;
   }
 }

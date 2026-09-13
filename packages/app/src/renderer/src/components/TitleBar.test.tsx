@@ -25,9 +25,9 @@ afterEach(cleanup);
 it("renders the window title in a non-interactive card (no context menu)", () => {
   useApp.getState().openProject("/Users/me/proj");
   render(<TitleBar />);
-  expect(screen.getByText("AirLock - Proj")).toBeTruthy();
+  expect(screen.getByText("Proj \u00b7 AirLock")).toBeTruthy();
   // The title is passive now: right-clicking it opens nothing.
-  fireEvent.contextMenu(screen.getByText("AirLock - Proj"));
+  fireEvent.contextMenu(screen.getByText("Proj \u00b7 AirLock"));
   expect(screen.queryByText("Overview")).toBeNull();
 });
 

@@ -17,7 +17,7 @@ export function BinaryNotice({
 }) {
   return (
     <div className="binary-notice">
-      <div>Binary file -- {formatSize(size)} -- not shown</div>
+      <div>Binary file, {formatSize(size)}, not shown</div>
       <button
         type="button"
         className="btn"

@@ -244,7 +244,7 @@ export function buildDockTemplate(
   for (const p of recentFolders) {
     const b = basename(p);
     const label =
-      (counts.get(b) ?? 0) > 1 ? `${b} - ${basename(dirname(p))}` : b;
+      (counts.get(b) ?? 0) > 1 ? `${b} \u00b7 ${basename(dirname(p))}` : b;
     items.push({
       label,
       click: () => openRecentFromDock(p, openProjectsAsTabs),

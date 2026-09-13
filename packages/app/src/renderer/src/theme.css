@@ -7631,3 +7631,10 @@ button.docker-row .codicon-chevron-right {
   color: var(--fg);
   font-variant-numeric: tabular-nums;
 }
+
+.atlas-settings-note {
+  margin: 0 0 var(--sb-block-gap);
+  color: var(--fg-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}

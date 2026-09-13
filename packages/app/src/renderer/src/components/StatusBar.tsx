@@ -64,8 +64,8 @@ export function StatusBar() {
             className="statusbar-chip"
             title={
               gitStatus.branch.upstream
-                ? `On ${gitStatus.branch.head} — ${gitStatus.branch.ahead} ahead, ${gitStatus.branch.behind} behind ${gitStatus.branch.upstream}`
-                : `On ${gitStatus.branch.head} — no upstream`
+                ? `On ${gitStatus.branch.head}: ${gitStatus.branch.ahead} ahead, ${gitStatus.branch.behind} behind ${gitStatus.branch.upstream}`
+                : `On ${gitStatus.branch.head}, no upstream`
             }
           >
             <i className="codicon codicon-git-branch" />
@@ -101,7 +101,7 @@ export function StatusBar() {
           <button
             type="button"
             className={`statusbar-chip statusbar-status tone-${statusTone(anthropicStatus.indicator)}`}
-            title={`${anthropicStatus.description || "Anthropic status"} — opens status.claude.com`}
+            title={`${anthropicStatus.description || "Anthropic status"}, opens status.claude.com`}
             onClick={() =>
               void window.airlock.hostOpenExternal("https://status.claude.com")
             }

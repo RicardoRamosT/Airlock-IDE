@@ -29,7 +29,7 @@ import { useApp } from "../store";
 import { Loading } from "./Loading";
 
 const basename = (p: string | null): string =>
-  p ? (p.split("/").pop() ?? p) : "—";
+  p ? (p.split("/").pop() ?? p) : "unknown";
 
 // The Usage page: an IDE-level page-tab in the PROJECT strip (App renders it
 // in the workspace panes slot while appPage === "usage"). Polls usage:get
@@ -348,9 +348,11 @@ export function UsageTab() {
                   {sortProcs(memory.procs, memSort.col, memSort.dir).map(
                     (p) => (
                       <tr key={p.pid}>
-                        <td className="num">{p.pid === -1 ? "—" : p.pid}</td>
+                        <td className="num">{p.pid === -1 ? "all" : p.pid}</td>
                         <td>{kindLabel(p.kind)}</td>
-                        <td>{p.pid === -1 ? p.name : (p.project ?? "—")}</td>
+                        <td>
+                          {p.pid === -1 ? p.name : (p.project ?? "unknown")}
+                        </td>
                         <td className="num">{formatBytes(p.footprint)}</td>
                       </tr>
                     ),

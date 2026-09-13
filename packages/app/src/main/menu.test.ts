@@ -130,8 +130,8 @@ describe("buildDockTemplate", () => {
 
   it("disambiguates a basename collision with the parent dir", () => {
     const items = buildDockTemplate(true, ["/x/api", "/y/api"]);
-    expect(items[0]?.label).toBe("api - x");
-    expect(items[1]?.label).toBe("api - y");
+    expect(items[0]?.label).toBe("api · x");
+    expect(items[1]?.label).toBe("api · y");
   });
 
   it("is just the New item (no leading separator) when there are no recents", () => {

@@ -36,7 +36,9 @@ function Wing({
   title: string;
   onClick: () => void;
 }) {
-  const shown = pct === null ? "—" : `${Math.round(pct)}%`;
+  // Short on purpose: this sits in a fixed titlebar wing beside the centred
+  // title, so a long placeholder would widen the wing and shift the title.
+  const shown = pct === null ? "n/a" : `${Math.round(pct)}%`;
   // The marker sits OUTSIDE the gauge box -- far left for the session, far right for
   // the week -- so it never competes with the fill or the percentage. It stays
   // inside the button so clicking it still opens the Usage page; the border and the
@@ -77,7 +79,7 @@ function Wing({
       type="button"
       className={`titlebar-wing ${side}${pct === null ? " is-idle" : ""}`}
       title={title}
-      aria-label={`${label} ${pct === null ? "no data yet" : shown} — open usage details`}
+      aria-label={`${label} ${pct === null ? "no data yet" : shown}, open usage details`}
       onClick={onClick}
     >
       {side === "left" ? (
@@ -142,9 +144,9 @@ export function TitleQuota({ children }: { children: ReactNode }) {
   ].filter(Boolean);
 
   const title = !fresh
-    ? "Start a Claude session to see your usage limits — click for usage details"
+    ? "Start a Claude session to see your usage limits. Click for usage details"
     : !quota.available
-      ? "Waiting for usage data… — click for usage details"
+      ? "Waiting for usage data… Click for usage details"
       : [quota.model, ...resets].filter(Boolean).join(" · ");
 
   const openUsage = () => useApp.getState().openAppPage("usage");

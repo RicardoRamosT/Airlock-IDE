@@ -122,7 +122,7 @@ it("renders instances with their own action under the provider", () => {
   // you go looking for, not what you scan the list for.
   expect(
     container.querySelector(".provider-instance")?.getAttribute("title"),
-  ).toBe("myapp-db — postgres:16 · :5432");
+  ).toBe("myapp-db: postgres:16 · :5432");
   fireEvent.click(screen.getByText("Connect"));
   expect(onClick).toHaveBeenCalled();
 });

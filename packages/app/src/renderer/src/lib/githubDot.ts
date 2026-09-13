@@ -62,7 +62,7 @@ export function githubAccountDot(
       level: "green",
       title:
         resolved.protocol === "ssh"
-          ? `pinned to ${want.username} (SSH remote — sets commit identity)`
+          ? `pinned to ${want.username} (SSH remote, sets commit identity)`
           : `pinned to ${want.username} for this project`,
     };
   }
@@ -76,7 +76,7 @@ export function githubAccountDot(
   return {
     level: "yellow",
     title: active
-      ? `${active.username} is active but this repo wants ${want.username} — pin it to fix`
+      ? `${active.username} is active but this repo wants ${want.username}. Pin it to fix`
       : `no active account; this repo wants ${want.username}`,
   };
 }

@@ -344,7 +344,7 @@ export function AtlasChat({
           {loadFailed ? (
             <div className="atlas-chat-empty">
               <p>
-                Could not load this conversation. Nothing has been deleted -- it
+                Could not load this conversation. Nothing has been deleted. It
                 is still stored.
               </p>
               <button
@@ -393,7 +393,7 @@ export function AtlasChat({
                   </div>
                 ) : t.pending === "unanswered" ? (
                   <div className="atlas-chat-note">
-                    This was never answered - Atlas was interrupted.
+                    This was never answered. Atlas was interrupted.
                   </div>
                 ) : null}
               </div>

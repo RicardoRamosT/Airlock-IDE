@@ -100,7 +100,7 @@ export function splitActions(actions: ExtensionAction[]): {
 export function statusLine(e: ExtensionSummary, enabled: boolean): string {
   const acct = e.account ? ` · ${e.account}` : "";
   if (!enabled || e.status === "disabled")
-    return `${e.name} is disabled — it is hidden from Claude and from the sidebar.`;
+    return `${e.name} is disabled. It is hidden from Claude and from the sidebar.`;
   switch (e.status) {
     case "absent":
       return `${e.name} is not installed.`;
@@ -120,7 +120,7 @@ export function statusLine(e: ExtensionSummary, enabled: boolean): string {
     case "connected":
       return `Connected${acct}`;
     case "error":
-      return `${e.name} could not be checked — it reported an error.`;
+      return `${e.name} could not be checked. It reported an error.`;
   }
 }
 
@@ -137,7 +137,7 @@ export function noActionsNote(e: ExtensionSummary, enabled: boolean): string {
   // absent/unauthed either -- "ready to use" below would be exactly backwards.
   if (e.status === "absent" || e.status === "unauthed")
     return "Nothing to do here yet.";
-  return `Nothing to configure — ${e.name} is ready to use.`;
+  return `Nothing to configure. ${e.name} is ready to use.`;
 }
 
 // The one-line explanation under the per-project use switch. Each state names

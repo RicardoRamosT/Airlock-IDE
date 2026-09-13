@@ -36,7 +36,7 @@ export function InjectSecretsModal({
           <strong className="modal-warn">
             redaction does not apply to them
           </strong>
-          . A Claude session sharing that terminal can read them directly —
+          . A Claude session sharing that terminal can read them directly,
           <code>echo $DATABASE_URL</code> returns the value in plain text.
           <br />
           <br />

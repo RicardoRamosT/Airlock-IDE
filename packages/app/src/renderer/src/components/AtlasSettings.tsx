@@ -72,6 +72,10 @@ export function AtlasSettings({
       </div>
 
       <p className="sb-section-head">Projects in the debrief</p>
+      <p className="atlas-settings-note">
+        Each morning Atlas reads what changed in these projects, then asks
+        Claude about the ones you worked in.
+      </p>
 
       {projects === null ? (
         <p className="atlas-note">Loading...</p>
@@ -106,12 +110,13 @@ export function AtlasSettings({
       )}
 
       {projects !== null && projects.length > 0 ? (
-        // What a switch COSTS. Since the standup landed an enabled project
-        // with a Claude session spends a reporter call, so the number should
-        // be visible before the switch is flipped rather than after.
+        // What a switch COSTS, in the unit the user actually pays in. An
+        // enabled project that saw work spends a reporter call, so the price
+        // belongs next to the switch rather than in a changelog.
         <p className="atlas-settings-cost">
-          <b>{on.length}</b> of {projects.length} in the debrief. Each one that
-          saw work costs a short Claude call each morning.
+          <b>{on.length}</b> of {projects.length} on. Up to {on.length} short
+          Claude calls each morning, about 20K to 50K tokens each. Projects with
+          no activity are skipped and cost nothing.
         </p>
       ) : null}
     </div>

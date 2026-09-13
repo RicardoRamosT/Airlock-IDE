@@ -71,7 +71,7 @@ export function AtlasTitlebarButton() {
       <button
         type="button"
         className="titlebar-bell-btn"
-        title="Atlas - your project administrator"
+        title="Atlas, your project administrator"
         aria-label="Atlas"
         onClick={() => {
           const next = !open;

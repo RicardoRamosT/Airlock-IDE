@@ -17,7 +17,7 @@ export interface DockStatusPaths {
 
 const EMIT_MARKER = "airlock-dock-status";
 const LABEL =
-  "AirLock dock-status indicator - safe to remove if AirLock is uninstalled";
+  "AirLock dock-status indicator, safe to remove if AirLock is uninstalled";
 const HOOK_EVENTS: { event: string; state: string }[] = [
   { event: "UserPromptSubmit", state: "working" },
   // PreToolUse is the tool-START edge, and it exists because UserPromptSubmit is

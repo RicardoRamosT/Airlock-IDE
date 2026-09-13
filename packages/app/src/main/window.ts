@@ -85,7 +85,7 @@ function setWindowTitleFromRoot(
 ): void {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (!win || win.isDestroyed()) return;
-  win.setTitle(root ? `AirLock - ${basename(root)}` : "AirLock");
+  win.setTitle(root ? `${basename(root)} \u00b7 AirLock` : "AirLock");
 }
 
 // The agent's window id = last-focused, with focused-window / any-window fallbacks.

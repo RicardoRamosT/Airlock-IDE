@@ -32,7 +32,7 @@ export function AddDatabaseModal() {
     }
     if (!connOk) {
       setError(
-        "That doesn't look like a Postgres connection string (expected postgresql://user:password@host/db) — not a Neon API key.",
+        "That doesn't look like a Postgres connection string (expected postgresql://user:password@host/db), not a Neon API key.",
       );
       return;
     }

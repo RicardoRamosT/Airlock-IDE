@@ -30,7 +30,8 @@ export const COMPOSER_DISALLOWED_TOOLS: readonly string[] = [
 export const COMPOSER_SYSTEM_PROMPT =
   "You summarize a software portfolio for its owner. Be concrete and brief. " +
   "Name projects exactly as given. Never invent activity that is not in the " +
-  "input. Prefer one short sentence per project over a list of commits.";
+  "input. Prefer one short sentence per project over a list of commits. " +
+  "Write plain prose: never use a dash (-, --, or an em dash) as punctuation between clauses. Use separate sentences, a comma, or a colon instead. ";
 
 // The prompt is NOT included: it goes on stdin. See the module comment.
 // The system prompt is a parameter so the conversation path (Opus, a different

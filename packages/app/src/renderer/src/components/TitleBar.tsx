@@ -50,7 +50,7 @@ export function TitleBar() {
     // area (the focused project tab also carries an inline Overview entry).
     useApp.getState().showOverview(activeRoot);
   };
-  const title = project ? `AirLock - ${project}` : "AirLock";
+  const title = project ? `${project} \u00b7 AirLock` : "AirLock";
   // Animate the title card's width to fit the name: measure the inner text and
   // set the card width (a transition on width then eases between names). Remeasure
   // on name change + once fonts are ready (metrics settle a frame after mount).

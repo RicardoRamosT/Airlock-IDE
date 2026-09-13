@@ -114,7 +114,7 @@ export function NeonConnectModal() {
             </label>
             <div className="modal-caption">
               Stored in your macOS Keychain; never reaches the AI model. A
-              project-scoped key can't be added — use a personal or organization
+              project-scoped key can't be added. Use a personal or organization
               key.
             </div>
           </>

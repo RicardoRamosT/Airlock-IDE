@@ -125,7 +125,7 @@ describe("formatters", () => {
     expect(formatApiTime(272_000)).toBe("4m 32s");
   });
   it("formatUsd shows dashes for zero and cents otherwise", () => {
-    expect(formatUsd(0)).toBe("—");
+    expect(formatUsd(0)).toBe("none");
     expect(formatUsd(0.004)).toBe("<$0.01");
     expect(formatUsd(1.25)).toBe("$1.25");
   });
@@ -134,8 +134,8 @@ describe("formatters", () => {
     expect(costLabel(178.41, false)).toBe("$178.41");
   });
   it("costLabel leaves the em-dash zero placeholder unprefixed", () => {
-    expect(costLabel(0, true)).toBe("—");
-    expect(costLabel(0, false)).toBe("—");
+    expect(costLabel(0, true)).toBe("none");
+    expect(costLabel(0, false)).toBe("none");
   });
   it("costLabel handles the sub-cent case on a subscription", () => {
     expect(costLabel(0.004, true)).toBe("≈ <$0.01");

@@ -84,10 +84,10 @@ export function AuditSection() {
           {chain.entries === 0
             ? // True but not evidence: an empty log verifies trivially, so it
               // must not read as a pass.
-              "Nothing to verify yet — the log is empty."
+              "Nothing to verify yet. The log is empty."
             : chain.ok
-              ? `Chain intact — ${chain.entries} entries verified.`
-              : `Chain BROKEN — ${chain.entries} entries read. The log has been edited or truncated.`}
+              ? `Chain intact. ${chain.entries} entries verified.`
+              : `Chain BROKEN. ${chain.entries} entries read. The log has been edited or truncated.`}
         </div>
       )}
       {entries.length === 0 && (

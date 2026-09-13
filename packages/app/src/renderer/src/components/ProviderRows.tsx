@@ -125,7 +125,7 @@ export function ProviderRows({ rows }: { rows: ProviderRow[] }) {
             <div
               key={i.key}
               className="provider-instance"
-              title={i.detail ? `${i.label} — ${i.detail}` : i.label}
+              title={i.detail ? `${i.label}: ${i.detail}` : i.label}
             >
               <span className="provider-instance-label">{i.label}</span>
               {i.detail && <span className="sr-only">{i.detail}</span>}

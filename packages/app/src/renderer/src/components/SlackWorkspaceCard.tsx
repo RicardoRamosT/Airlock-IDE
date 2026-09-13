@@ -24,7 +24,7 @@ export function SlackWorkspaceCard({
         // Never a guessed name: a confidently wrong workspace is what made
         // "Claude can't see any messages" so hard to diagnose.
         <div className="section-note">
-          Workspace unknown — reconnect to identify it
+          Workspace unknown. Reconnect to identify it
         </div>
       )}
       <button

@@ -11,10 +11,11 @@ export function buildOverviewPrompt(areaPaths: string[]): string {
     "in GitHub-flavored markdown: start with a one-line summary of what the project is and its primary stack; " +
     "then one `## <Area>` section per area, each with 1-2 sentences on its purpose and role in the data flow, " +
     "plus a short bulleted list of key entry files as markdown links. " +
-    "Keep it skimmable and concise — do not restate the full file tree or paste code. " +
+    "Keep it skimmable and concise. Do not restate the full file tree or paste code. " +
     "Describe architecture only: never include secret values, credentials, API keys, tokens, " +
-    "connection strings, .env contents, internal hostnames/URLs, or personal data — refer to such " +
+    "connection strings, .env contents, internal hostnames/URLs, or personal data. Refer to such " +
     "things by name or role only. " +
+    "Write plain prose: never use a dash (-, --, or an em dash) as punctuation between clauses. Use separate sentences, a comma, or a colon instead. " +
     `Areas to cover: ${seed}.`
   );
 }

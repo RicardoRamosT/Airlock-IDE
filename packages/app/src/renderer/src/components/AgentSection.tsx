@@ -42,7 +42,7 @@ export function AgentSection() {
         <code>run_command</code> bridge, used mainly to inject your vaulted
         secrets). <strong>Block</strong> stops a matching command there
         outright; <strong>Ask</strong> makes the agent re-confirm before it
-        proceeds (the agent re-confirms — it is not a prompt to you).
+        proceeds (the agent re-confirms; it is not a prompt to you).
       </div>
       <div className="agent-policy-scope">
         Not a sandbox: a <code>claude</code> session in the terminal uses its

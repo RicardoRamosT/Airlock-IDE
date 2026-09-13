@@ -280,7 +280,7 @@ export function OAuthDeviceModal() {
               <div className="sb-card oauth-mismatch">
                 <div className="oauth-mismatch-head">
                   Connected to “
-                  {mismatch.workspace.name || mismatch.workspace.id}” — but you
+                  {mismatch.workspace.name || mismatch.workspace.id}”, but you
                   asked for “{mismatch.requested.name}”.
                 </div>
                 <div className="section-note">
@@ -320,7 +320,7 @@ export function OAuthDeviceModal() {
                     : "Default: public channels only."}
                 </div>
                 <div className="modal-caption">
-                  Choose a workspace — AirLock will open Slack's approval page
+                  Choose a workspace. AirLock will open Slack's approval page
                   there.
                 </div>
                 {workspaces.length > 0 ? (
@@ -359,8 +359,7 @@ export function OAuthDeviceModal() {
                   // Not an error: a machine without the Slack app, or a
                   // browser-only workspace, is exactly what the fallback is for.
                   <div className="section-note">
-                    No local Slack workspaces found — paste your Slack URL
-                    below.
+                    No local Slack workspaces found. Paste your Slack URL below.
                   </div>
                 )}
                 {showPaste && (

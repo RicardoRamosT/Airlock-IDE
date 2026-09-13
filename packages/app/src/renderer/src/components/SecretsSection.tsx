@@ -188,7 +188,7 @@ export function SecretsSection() {
           )}
           {copied === s.name && (
             <div className="secret-copied">
-              Copied — clears from clipboard
+              Copied. Clears from clipboard
               {clipboardClearSeconds > 0
                 ? ` in ${clipboardClearSeconds}s`
                 : " disabled (set in Settings)"}
@@ -281,7 +281,7 @@ export function SecretsSection() {
         className={`inject-toggle${
           config?.injectSecretsIntoTerminal ? " on" : ""
         }`}
-        title="Every terminal in this project starts with these secrets in its environment, and redaction does not apply to them — everything run there, including Claude, can read them"
+        title="Every terminal in this project starts with these secrets in its environment, and redaction does not apply to them, so everything run there, including Claude, can read them"
       >
         <input
           type="checkbox"
@@ -313,7 +313,7 @@ export function SecretsSection() {
             setNeedsRestart(false);
           }}
         >
-          ↻ new terminals get secrets — restart active
+          ↻ new terminals get secrets. Restart active
         </button>
       )}
       <RenderEnvSection />
