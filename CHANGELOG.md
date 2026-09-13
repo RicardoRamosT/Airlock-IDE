@@ -4,6 +4,26 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 
 ## Unreleased
 
+### Added
+- **Your projects now brief Atlas themselves.** Before the debrief is written,
+  every project that saw work files a report: everything that happened to the
+  code, read exhaustively rather than sampled -- commits, pull requests, CI
+  runs, issues, releases and what is still uncommitted -- plus a short account
+  of what the work was and where it stands, distilled from that project's own
+  Claude sessions. You should not have to explain yesterday to Atlas any more.
+  When something cannot be read, the debrief says so instead of quietly
+  reporting nothing.
+
+### Fixed
+- **CI is read as the project's pinned GitHub account.** Projects pinned to an
+  account other than the active one were asking GitHub as the wrong user, and
+  the answer -- a 404 -- looked exactly like a passing build with no CI row.
+- **A skipped day no longer vanishes from the debrief.** The debrief covered a
+  fixed 24 hours, so work done on a day you did not open AirLock was never
+  reported by any later debrief. It now runs from your last debrief.
+- **A busy day is no longer truncated.** The debrief listed at most 20 commits
+  per project and silently dropped whole projects when the prompt got long.
+
 ## 0.7.0
 
 ### Added
