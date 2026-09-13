@@ -16,6 +16,8 @@ it("exposes the Atlas engine through the index barrel", () => {
     "parsePrList",
     "ledgerIsQuiet",
     "digestSession",
+    "buildReportPrompt",
+    "parseReport",
   ]) {
     expect(typeof (core as Record<string, unknown>)[name]).toBe("function");
   }

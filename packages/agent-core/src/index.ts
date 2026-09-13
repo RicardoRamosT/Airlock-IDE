@@ -99,6 +99,12 @@ export {
   type SplitReply,
   splitReply,
 } from "./atlas/reply";
+export {
+  buildReportPrompt,
+  type ProjectReport,
+  parseReport,
+  REPORTER_SYSTEM_PROMPT,
+} from "./atlas/report";
 export { type ComposerResult, parseComposerOutput } from "./atlas/result";
 export {
   type AtlasActivity,
