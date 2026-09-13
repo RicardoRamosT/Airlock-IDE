@@ -7,11 +7,16 @@
 // design, so it must never be implicit again.
 
 import { app, powerMonitor } from "electron";
+import { ghRunnerFor } from "../github/ghRunner";
 import { loadPrefs } from "../prefs";
 import { allOpenRoots } from "../window";
+import { collectLedger } from "./codeRunners";
 import { spawnClaude } from "./composer";
 import { atlasDb } from "./db";
+import { runReporters } from "./reporters";
 import { makeCollectDeps } from "./runners";
+import { runStandup } from "./standup";
+import { readDigests } from "./transcripts";
 import { maybeCompose } from "./wire";
 
 export function startAtlasArrival(prefsFile: string): void {
@@ -29,6 +34,23 @@ export function startAtlasArrival(prefsFile: string): void {
         enabled: () => prefs.atlas.enabled,
         acknowledged: () => prefs.atlas.acknowledged,
         earliestHour: () => prefs.atlas.hour,
+        // The standup: each project's ledger plus its own session memory,
+        // distilled by one small reporter per project that has memory.
+        standup: (roots, window) =>
+          runStandup(
+            {
+              ledger: (root, w) =>
+                collectLedger(
+                  { git: makeCollectDeps(), gh: ghRunnerFor },
+                  root,
+                  w,
+                ),
+              digests: (root, w) => readDigests(root, w.sinceMs, w.untilMs),
+              report: (jobs, signal) => runReporters(spawnClaude, jobs, signal),
+            },
+            roots,
+            window,
+          ),
       });
     })();
   };

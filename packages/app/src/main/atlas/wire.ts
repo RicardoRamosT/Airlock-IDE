@@ -8,15 +8,16 @@
 import {
   buildBriefPrompt,
   type CollectDeps,
+  type DebriefWindow,
+  debriefWindow,
   renderStillOpen,
   shouldCompose,
 } from "@airlock/agent-core";
 import { runComposer, type SpawnFn } from "./composer";
 import type { AtlasDb } from "./dbOps";
 import { refreshPortfolio } from "./refresh";
+import type { StandupResult } from "./standup";
 import { dayKey } from "./store";
-
-const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface AtlasDeps {
   db: AtlasDb;
@@ -29,6 +30,12 @@ export interface AtlasDeps {
   enabled(): boolean;
   acknowledged(): boolean;
   earliestHour(): number;
+  // Injected so wire.test.ts never spawns a CLI. Production wires this to
+  // runStandup with collectLedger / readDigests / runReporters.
+  standup(
+    roots: readonly string[],
+    window: DebriefWindow,
+  ): Promise<StandupResult>;
   onBriefReady?: (day: string) => void;
 }
 
@@ -69,7 +76,9 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
       return false;
     }
 
-    const sinceMs = now - WINDOW_MS;
+    // Since the LAST BRIEF, not a fixed 24 hours: a skipped day used to fall
+    // out of every debrief permanently.
+    const window = debriefWindow(await deps.db.lastBriefAt(), now);
     const snaps = await refreshPortfolio({
       db: deps.db,
       deps: deps.collect,
@@ -77,18 +86,43 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
       openTabRoots: deps.roots(),
       now,
       tzOffsetMinutes: deps.tzOffsetMinutes(),
-      sinceMs,
+      sinceMs: window.sinceMs,
     });
+
+    // Every project that saw work files a report. A compose that failed and is
+    // retried must not re-spend the reporters, so a stored standup for today is
+    // reused rather than re-run.
+    const stored = await deps.db.readReports(today);
+    const standup =
+      stored ??
+      (await deps.standup(
+        snaps.map((s) => s.root),
+        window,
+      ));
+    if (!stored)
+      await deps.db.saveReports(
+        today,
+        standup.reports,
+        standup.ledgers,
+        standup.quiet,
+      );
 
     // Open concerns ride the PROMPT as read-only context, so the model can
     // reference one in TODAY when it bears on the day's work. It is told not to
     // restate the list: the panel renders that itself, live from the table.
     const standing = renderStillOpen(await deps.db.readConcerns(), now);
+    const prompt = buildBriefPrompt(
+      standup.ledgers,
+      standup.reports,
+      standup.quiet,
+      window,
+      now,
+    );
     const result = await runComposer(
       deps.spawn,
       standing
-        ? `${buildBriefPrompt(snaps, sinceMs, now)}\n\n${standing}\n(These are already shown to the user separately. Do not list them again; mention one only if it bears on today.)`
-        : buildBriefPrompt(snaps, sinceMs, now),
+        ? `${prompt}\n\n${standing}\n(These are already shown to the user separately. Do not list them again; mention one only if it bears on today.)`
+        : prompt,
     );
     // A failed compose stores nothing, so the day is not consumed and the next
     // arrival tries again.

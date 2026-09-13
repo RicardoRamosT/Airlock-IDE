@@ -35,6 +35,7 @@ const deps = (over: Partial<AtlasDeps> = {}): AtlasDeps => ({
   enabled: () => true,
   acknowledged: () => true,
   earliestHour: () => 0,
+  standup: async () => ({ reports: [], ledgers: [], quiet: 0 }),
   onBriefReady: () => {},
   ...over,
 });
@@ -130,4 +131,25 @@ it("releases the guard so a LATER arrival can still compose", async () => {
   expect(await maybeCompose(d)).toBe(false);
   // Now allowed: if the guard leaked, this second call would be refused.
   expect(await maybeCompose({ ...d, enabled: () => true })).toBe(true);
+});
+
+it("runs the standup before composing and stores it", async () => {
+  const standup = vi.fn(async () => ({ reports: [], ledgers: [], quiet: 2 }));
+  const d = deps({ standup });
+  expect(await maybeCompose(d)).toBe(true);
+  expect(standup).toHaveBeenCalled();
+  expect(await d.db.readReports("2026-08-30")).toEqual({
+    reports: [],
+    ledgers: [],
+    quiet: 2,
+  });
+});
+
+it("does not re-run the standup when this day already has one", async () => {
+  // A compose that failed and is retried must not re-spend the reporters.
+  const standup = vi.fn(async () => ({ reports: [], ledgers: [], quiet: 0 }));
+  const d = deps({ standup });
+  await d.db.saveReports("2026-08-30", [], [], 0);
+  expect(await maybeCompose(d)).toBe(true);
+  expect(standup).not.toHaveBeenCalled();
 });

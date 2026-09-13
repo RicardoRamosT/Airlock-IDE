@@ -13,11 +13,7 @@ export {
   type CommitEntry,
   parseCommitLog,
 } from "./atlas/activity";
-export {
-  buildBriefPrompt,
-  MAX_COMMITS_PER_PROJECT,
-  MAX_PROMPT_CHARS,
-} from "./atlas/brief";
+export { buildBriefPrompt, MAX_PROMPT_CHARS } from "./atlas/brief";
 export {
   ATLAS_AUTHOR,
   ATLAS_AUTHOR_HEADER,
