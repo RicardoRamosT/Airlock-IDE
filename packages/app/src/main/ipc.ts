@@ -1245,6 +1245,30 @@ export function registerIpc(
   // concern is re-detected from the row. So all three go here, in one call --
   // registry row, concerns, recents entry.
   //
+  // The portfolio, so the settings view can list it. Every project, enabled or
+  // not: the list IS the configuration surface, so hiding disabled rows would
+  // leave no way to turn one back on.
+  ipcMain.handle("atlas:projects", async () => atlasDb().readRegistry());
+
+  ipcMain.handle(
+    "atlas:setProjectEnabled",
+    async (_e, root: unknown, enabled: unknown) => {
+      if (typeof root !== "string" || root.trim().length === 0) return false;
+      const ok = await atlasDb().setProjectEnabled(root, enabled === true);
+      // Every surface reloads from the table, the same way forget works --
+      // no optimistic local state to drift. getAllWindows, not appWindows:
+      // the Atlas popover and chat window are not app windows.
+      if (ok) {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+            w.webContents.send("atlas:refresh");
+          }
+        }
+      }
+      return ok;
+    },
+  );
+
   // Recents is written through savePrefs deliberately: the running app holds
   // prefs in memory and would overwrite an external edit to prefs.json.
   ipcMain.handle("atlas:forget", async (_e, root: unknown) => {

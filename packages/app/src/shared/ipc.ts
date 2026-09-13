@@ -2,6 +2,7 @@ import type {
   AgentCommandPolicy,
   AnthropicIndicator,
   AtlasActivity,
+  AtlasProject,
   AuditEntry,
   CiRun,
   Container,
@@ -1356,6 +1357,10 @@ export interface AirlockApi {
   // from recentFolders -- all three, because any one alone is re-seeded by the
   // others on the next refresh. Resolves true when a registry row went.
   atlasForget(root: string): Promise<boolean>;
+  // The whole portfolio, enabled or not: the list IS the configuration
+  // surface, so a filtered one would leave no way to turn a project back on.
+  atlasProjects(): Promise<AtlasProject[]>;
+  atlasSetProjectEnabled(root: string, enabled: boolean): Promise<boolean>;
   // Where the popover's arrow must sit to aim at the tray icon. Sent on every
   // open: the window is clamped to the display, so the offset is not constant.
   onAtlasPointer(cb: (x: number) => void): () => void;
