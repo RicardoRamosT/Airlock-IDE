@@ -90,6 +90,39 @@ describe("collectLedger", () => {
     expect(l.tree.ok).toBe(false);
   });
 
+  it("asks gh only for fields it actually has", async () => {
+    // Every one of these field lists is an assumption about another tool's
+    // schema, and a wrong one fails the WHOLE call: `gh release list --json
+    // tagName,name,publishedAt,url` shipped asking for a url that does not
+    // exist and returned "Unknown JSON field" on every repo. Pinning the
+    // arguments makes a change to them deliberate.
+    const calls: string[][] = [];
+    await collectLedger(
+      deps({
+        gh: async () => ({
+          run: async (args) => {
+            calls.push(args);
+            return "[]";
+          },
+          account: "me",
+          degraded: null,
+        }),
+      }),
+      "/p",
+      WINDOW,
+    );
+    const json = (verb: string) => {
+      const c = calls.find((a) => a[0] === verb) ?? [];
+      return c[c.indexOf("--json") + 1];
+    };
+    expect(json("pr")).toBe("number,title,state,updatedAt,url");
+    expect(json("run")).toBe(
+      "workflowName,status,conclusion,headBranch,url,createdAt",
+    );
+    expect(json("issue")).toBe("number,title,state,updatedAt,url");
+    expect(json("release")).toBe("tagName,name,publishedAt");
+  });
+
   it("caps commits and says how many it withheld", async () => {
     const many = Array.from({ length: 1005 }, (_, i) => ({
       hash: String(i),

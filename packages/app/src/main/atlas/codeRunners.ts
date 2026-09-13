@@ -169,6 +169,11 @@ export async function collectLedger(
       root,
       (raw) => parseIssueList(raw, sinceMs),
     ),
+    // NO url field: `gh release list --json` does not offer one (verified
+    // against gh 2026-09-12 -- it accepts only createdAt, isDraft, isImmutable,
+    // isLatest, isPrerelease, name, publishedAt, tagName). Asking for it fails
+    // the whole call with "Unknown JSON field", which is how this shipped
+    // broken on every repo until a real run surfaced it.
     ghProbe(
       gh,
       [
@@ -177,7 +182,7 @@ export async function collectLedger(
         "--limit",
         limit,
         "--json",
-        "tagName,name,publishedAt,url",
+        "tagName,name,publishedAt",
       ],
       root,
       (raw) => parseReleaseList(raw, sinceMs),
