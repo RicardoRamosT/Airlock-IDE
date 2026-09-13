@@ -144,6 +144,7 @@ import {
 import { spawnClaude } from "./atlas/composer";
 import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
+import { discoverProjects } from "./atlas/discover";
 import { atlasMcp } from "./atlas/mcpEndpoint";
 import { makeCollectDeps } from "./atlas/runners";
 // Only the pure helper: every database call goes through atlasDb(), which
@@ -1248,7 +1249,22 @@ export function registerIpc(
   // The portfolio, so the settings view can list it. Every project, enabled or
   // not: the list IS the configuration surface, so hiding disabled rows would
   // leave no way to turn one back on.
-  ipcMain.handle("atlas:projects", async () => atlasDb().readRegistry());
+  //
+  // It DISCOVERS before it reads. Discovery used to happen only inside
+  // maybeCompose, behind shouldCompose, so a project opened after the last
+  // debrief could not appear here until the next one -- and under opt-in a
+  // project you cannot see is a project you cannot enable. This costs one
+  // registry read and write and runs no git, so it is cheap enough to do
+  // every time the list is opened.
+  ipcMain.handle("atlas:projects", async () => {
+    const prefs = await loadPrefs(prefsFile);
+    return discoverProjects(
+      atlasDb(),
+      prefs.recentFolders,
+      allOpenRoots(),
+      Date.now(),
+    );
+  });
 
   ipcMain.handle(
     "atlas:setProjectEnabled",
