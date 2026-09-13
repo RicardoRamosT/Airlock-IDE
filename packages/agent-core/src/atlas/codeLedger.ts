@@ -181,14 +181,41 @@ export function parseReleaseList(raw: string, sinceMs: number): ReleaseEvent[] {
   return out;
 }
 
+// Does this CI run deserve to wake a project that is otherwise quiet?
+//
+// Only a failure does. A green build is the EXPECTED outcome and says nothing,
+// so counting every run as activity made a repository with a nightly workflow
+// appear in the debrief every single morning with nothing to report -- and
+// Trackview logged 31 runs in two days, so this is not a corner case.
+//
+// A run still in flight (conclusion null) is not news either way yet; it will
+// be looked at again tomorrow.
+//
+// Note this is only the WAKE rule. The ledger still lists every run, because
+// reporting stays exhaustive -- what happened and what is worth waking a
+// project for are different questions.
+const NEWS_CONCLUSIONS = new Set([
+  "failure",
+  "timed_out",
+  "startup_failure",
+  "action_required",
+]);
+
+export function runIsNews(r: CiRunSummary): boolean {
+  return r.conclusion !== null && NEWS_CONCLUSIONS.has(r.conclusion);
+}
+
 // A project with nothing in the window gets no reporter call and no section.
 // A FAILED probe is not quiet: we do not know, and the debrief must say so.
 export function ledgerIsQuiet(l: CodeLedger): boolean {
-  const probes = [l.commits, l.prs, l.runs, l.issues, l.releases];
+  const probes = [l.commits, l.prs, l.issues, l.releases];
   for (const p of probes) {
     if (!p.ok) return false;
     if (p.value.length > 0) return false;
   }
+  // CI is judged, not counted -- see runIsNews.
+  if (!l.runs.ok) return false;
+  if (l.runs.value.some(runIsNews)) return false;
   if (!l.tree.ok) return false;
   return l.tree.value.dirty === 0 && l.tree.value.ahead === 0;
 }
