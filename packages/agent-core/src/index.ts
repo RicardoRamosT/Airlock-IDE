@@ -97,6 +97,12 @@ export {
 } from "./atlas/staleness";
 export { shouldCompose, type TriggerState } from "./atlas/trigger";
 export {
+  type DebriefWindow,
+  debriefWindow,
+  WINDOW_CAP_MS,
+  WINDOW_FLOOR_MS,
+} from "./atlas/window";
+export {
   type AuditEntry,
   appendAudit,
   appendAuditAt,
