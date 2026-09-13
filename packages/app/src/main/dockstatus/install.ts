@@ -18,7 +18,33 @@ export interface DockStatusPaths {
 const EMIT_MARKER = "airlock-dock-status";
 const LABEL =
   "AirLock dock-status indicator, safe to remove if AirLock is uninstalled";
-const HOOK_EVENTS: { event: string; state: string }[] = [
+// Which Notification types mean "this turn is over, go and look".
+//
+// Notification is NOT one event. Claude Code fires it for twelve distinct
+// things (hooks docs, read 2026-09-13): permission_prompt, idle_prompt,
+// auth_success, elicitation_dialog, elicitation_url_dialog,
+// elicitation_complete, elicitation_response, agent_needs_input,
+// agent_completed, quota_auto_resume_fired / _stale / _disabled.
+//
+// It was registered with NO matcher, so all twelve wrote "done". The damaging
+// one is agent_completed: a subagent finishing INSIDE a running workflow turned
+// the dot green while the workflow ground on, and because isWorking gates on
+// the phase, the liveness heartbeat could not rescue it. auth_success and the
+// three quota events did the same for their own reasons. None of them mean
+// Claude has finished.
+//
+// What is left are the three that genuinely hand control back to the user. They
+// are mapped to "done" rather than a state of their own by explicit choice: the
+// dock has three colours and a fourth was not wanted.
+//
+// idle_prompt also earns its place as the recovery for a stuck yellow. A turn
+// interrupted with Escape never fires Stop, so its phase stays "working", and
+// the heartbeat keeps proving the process alive for as long as the terminal is
+// open. idle_prompt is Claude Code telling us that session is now waiting on
+// the user, which is the only signal that clears it.
+const NOTIFY_DONE = ["permission_prompt", "idle_prompt", "agent_needs_input"];
+
+const HOOK_EVENTS: { event: string; state: string; matcher?: string }[] = [
   { event: "UserPromptSubmit", state: "working" },
   // PreToolUse is the tool-START edge, and it exists because UserPromptSubmit is
   // NOT the only way a turn begins (diagnosed 2026-07-29). A turn can RESUME with
@@ -38,7 +64,7 @@ const HOOK_EVENTS: { event: string; state: string }[] = [
   // practice). Without this the dot dangled yellow.
   { event: "PostToolUse", state: "working" },
   { event: "Stop", state: "done" },
-  { event: "Notification", state: "done" },
+  { event: "Notification", state: "done", matcher: NOTIFY_DONE.join("|") },
   { event: "SessionEnd", state: "gone" },
 ];
 
@@ -129,10 +155,16 @@ export async function installDockStatusHooks(
 ): Promise<void> {
   const settings = (await readJson(p.settingsPath)) ?? {};
   const hooks = asHooksObject(settings);
-  for (const { event, state } of HOOK_EVENTS) {
+  for (const { event, state, matcher } of HOOK_EVENTS) {
     const existing = Array.isArray(hooks[event]) ? hooks[event] : [];
     const kept = existing.filter((e) => !isOurEntry(e)); // idempotent: drop our stale one
-    kept.push({ hooks: [{ type: "command", command: hookCommand(p, state) }] });
+    // The matcher is omitted entirely when there is none, rather than set to
+    // undefined or "": the other five events must fire for everything, and an
+    // empty matcher is not the same promise as no matcher.
+    kept.push({
+      ...(matcher ? { matcher } : {}),
+      hooks: [{ type: "command", command: hookCommand(p, state) }],
+    });
     hooks[event] = kept;
   }
   settings.hooks = hooks;

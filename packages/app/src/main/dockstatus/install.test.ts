@@ -33,7 +33,10 @@ const exists = async (f: string) =>
 
 const readSettings = async () =>
   JSON.parse(await readFile(p.settingsPath, "utf8")) as {
-    hooks?: Record<string, { hooks: { command: string }[] }[]>;
+    hooks?: Record<
+      string,
+      { matcher?: string; hooks: { command: string }[] }[]
+    >;
   };
 
 describe("installDockStatusHooks", () => {
@@ -125,5 +128,50 @@ describe("uninstallDockStatusHooks", () => {
     expect(await isDockStatusInstalled(p)).toBe(false);
     // The live dir is gone, so the quota emitter stops writing heartbeats.
     expect(await exists(p.liveDir)).toBe(false);
+  });
+});
+
+describe("Notification matcher", () => {
+  it("only lets the three blocked-on-you notifications end a turn", async () => {
+    // Notification fires for TWELVE different things (Claude Code hooks docs):
+    // permission_prompt, idle_prompt, auth_success, four elicitation_*,
+    // agent_needs_input, agent_completed, and three quota_auto_resume_*.
+    // Registering it WITHOUT a matcher mapped all twelve to "done", so a
+    // subagent finishing inside a running workflow (agent_completed) turned
+    // the dot green mid-work -- and because isWorking gates on the phase, the
+    // liveness heartbeat could not rescue it.
+    await installDockStatusHooks(p);
+    const entries = (await readSettings()).hooks?.Notification ?? [];
+    expect(entries).toHaveLength(1);
+    const matcher = entries[0]?.matcher ?? "";
+    for (const kind of [
+      "permission_prompt",
+      "idle_prompt",
+      "agent_needs_input",
+    ])
+      expect(matcher).toContain(kind);
+    // The ones that must NOT end a turn. agent_completed is the workflow bug.
+    for (const kind of ["agent_completed", "auth_success", "quota_auto_resume"])
+      expect(matcher).not.toContain(kind);
+    expect(entries[0]?.hooks[0]?.command).toContain("done");
+  });
+
+  it("leaves the other five events unmatched, so they fire for everything", async () => {
+    await installDockStatusHooks(p);
+    const hooks = (await readSettings()).hooks ?? {};
+    for (const ev of [
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PostToolUse",
+      "Stop",
+      "SessionEnd",
+    ])
+      expect(hooks[ev]?.[0]?.matcher).toBeUndefined();
+  });
+
+  it("still removes the matched Notification entry on uninstall", async () => {
+    await installDockStatusHooks(p);
+    await uninstallDockStatusHooks(p);
+    expect((await readSettings()).hooks?.Notification).toBeUndefined();
   });
 });
