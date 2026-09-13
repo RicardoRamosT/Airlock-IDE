@@ -12,6 +12,9 @@ it("exposes the Atlas engine through the index barrel", () => {
     "parseCommitLog",
     "collectRoot",
     "collectAll",
+    "debriefWindow",
+    "parsePrList",
+    "ledgerIsQuiet",
   ]) {
     expect(typeof (core as Record<string, unknown>)[name]).toBe("function");
   }
