@@ -107,6 +107,13 @@ export {
 } from "./atlas/runActivity";
 export { seedRoots } from "./atlas/seed";
 export {
+  digestSession,
+  type SessionDigest,
+  TAIL_CHARS,
+  TAIL_TURNS,
+  type TranscriptRecord,
+} from "./atlas/sessions";
+export {
   isStale,
   pickDailyQuestion,
   questionFor,
