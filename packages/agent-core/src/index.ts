@@ -273,7 +273,12 @@ export {
   parseGhUser,
   switchGhAccount,
 } from "./github/accounts";
-export { type CiRun, type CiStep, latestCiRun } from "./github/ci";
+export {
+  type CiRun,
+  type CiStep,
+  type GhRunner,
+  latestCiRun,
+} from "./github/ci";
 export {
   COMMON_DEV_PORTS,
   excludeReservedPorts,

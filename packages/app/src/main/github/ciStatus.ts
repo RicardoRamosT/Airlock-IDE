@@ -10,6 +10,7 @@
 // normal state here, not an error -- which is why the Git section simply omits
 // the row rather than showing a broken one.
 import { type CiRun, gitStatus, latestCiRun } from "@airlock/agent-core";
+import { ghRunnerFor } from "./ghRunner";
 
 export async function ciRunFor(
   root: string | null,
@@ -19,7 +20,11 @@ export async function ciRunFor(
     const branch = (await gitStatus(root)).branch.head;
     // A detached HEAD has no branch to ask GitHub about.
     if (!branch || branch === "(detached)") return null;
-    const run = await latestCiRun(branch, root);
+    // As THIS PROJECT's pinned account. gh has one globally active account, so
+    // a pinned repo asked by the active one 404s -- and that 404 lands in the
+    // catch below as "no CI to report", which is indistinguishable from green.
+    const gh = await ghRunnerFor(root);
+    const run = await latestCiRun(branch, root, gh.run);
     return run ? { branch, run } : null;
   } catch {
     return null;
