@@ -12,6 +12,14 @@ const fireRefresh = () => {
   for (const cb of [...refreshCbs]) cb();
 };
 
+// The header is a tablist now, so "which view am I on" is asserted directly
+// from aria-selected instead of inferred from a button labelled with its
+// DESTINATION -- which is the ambiguity this redesign removed.
+const tab = (name: "Debrief" | "Chat") =>
+  screen.getByRole("tab", { name }) as HTMLElement;
+const onView = (name: "Debrief" | "Chat") =>
+  tab(name).getAttribute("aria-selected") === "true";
+
 const api = {
   atlasState: vi.fn(async () => ({
     acknowledged: true,
@@ -30,6 +38,10 @@ const api = {
   atlasSetView: vi.fn(async (_v: "brief" | "chat") => {}),
   atlasConcerns: vi.fn(async () => [] as unknown[]),
   atlasForget: vi.fn(async (_root: string) => true),
+  atlasOpenWindow: vi.fn(async () => {}),
+  atlasProjects: vi.fn(async () => [] as unknown[]),
+  atlasSetProjectEnabled: vi.fn(async () => true),
+  atlasSetPrefs: vi.fn(async () => true),
   atlasTurns: vi.fn(async () => [] as { role: string; text: string }[]),
   atlasSend: vi.fn(async (_m: string) => "ok"),
   atlasSessions: vi.fn(async () => []),
@@ -60,7 +72,7 @@ it("opens on the debrief when that is the persisted view", async () => {
   render(<AtlasPanel />);
   await waitFor(() => expect(screen.getByText("YESTERDAY")).toBeTruthy());
   // The toggle offers the OTHER view.
-  expect(screen.getByRole("button", { name: "Chat" })).toBeTruthy();
+  expect(onView("Debrief")).toBe(true);
 });
 
 it("REOPENS ON THE CHAT when that is where the user last was", async () => {
@@ -75,18 +87,16 @@ it("REOPENS ON THE CHAT when that is where the user last was", async () => {
     lastView: "chat",
   });
   render(<AtlasPanel />);
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy(),
-  );
+  await waitFor(() => expect(onView("Chat")).toBe(true));
   expect(screen.queryByText("YESTERDAY")).toBeNull();
 });
 
 it("persists the view when the user toggles it", async () => {
   render(<AtlasPanel />);
   await waitFor(() => expect(screen.getByText("YESTERDAY")).toBeTruthy());
-  screen.getByRole("button", { name: "Chat" }).click();
+  tab("Chat").click();
   await waitFor(() => expect(api.atlasSetView).toHaveBeenCalledWith("chat"));
-  screen.getByRole("button", { name: "Debrief" }).click();
+  tab("Debrief").click();
   await waitFor(() => expect(api.atlasSetView).toHaveBeenCalledWith("brief"));
 });
 
@@ -96,17 +106,15 @@ it("does not yank the user back on a REFRESH after they switched view", async ()
   // refresh and pull the user out of the chat mid-sentence.
   render(<AtlasPanel />);
   await waitFor(() => expect(screen.getByText("YESTERDAY")).toBeTruthy());
-  screen.getByRole("button", { name: "Chat" }).click();
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy(),
-  );
+  tab("Chat").click();
+  await waitFor(() => expect(onView("Chat")).toBe(true));
 
   // A refresh arrives (a new debrief composed, say) while the stored pref still
   // says "brief" because the write is async.
   fireRefresh();
   await waitFor(() => expect(api.atlasState).toHaveBeenCalledTimes(2));
   // Still in the chat.
-  expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy();
+  expect(onView("Chat")).toBe(true);
 });
 
 it("says the debrief could not be LOADED, not that none exists", async () => {
@@ -164,9 +172,7 @@ it("hands a concern to the chat when you ask it to look into one", async () => {
   render(<AtlasPanel />);
   await waitFor(() => expect(screen.getByText(/still open/i)).toBeTruthy());
   screen.getByRole("button", { name: /look into this/i }).click();
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Debrief" })).toBeTruthy(),
-  );
+  await waitFor(() => expect(onView("Chat")).toBe(true));
   await waitFor(() => expect(api.atlasSend).toHaveBeenCalled());
   const sent = String(api.atlasSend.mock.calls[0]?.[0] ?? "");
   expect(sent).toContain("no remote");
@@ -184,7 +190,7 @@ it("asks again when you click the SAME concern twice", async () => {
   await waitFor(() => expect(api.atlasSend).toHaveBeenCalledTimes(1));
 
   // Back to the debrief, then ask about the same one again.
-  screen.getByRole("button", { name: "Debrief" }).click();
+  tab("Debrief").click();
   await waitFor(() =>
     expect(
       screen.getByRole("button", { name: /look into this/i }),
@@ -257,4 +263,68 @@ it("still says nothing when there is neither a debrief nor a concern", async () 
   render(<AtlasPanel />);
   await waitFor(() => expect(screen.getByText(/no debrief yet/i)).toBeTruthy());
   expect(screen.queryByText(/still open/i)).toBeNull();
+});
+
+const proj = (name: string, enabled: boolean, missing = false) => ({
+  root: `/p/${name}`,
+  name,
+  addedAt: 1,
+  lastSeenAt: 1,
+  missing,
+  enabled,
+});
+
+it("tells the user Atlas has nothing to watch when nothing is enabled", async () => {
+  // Opt-in's failure mode: Atlas working correctly and Atlas unconfigured are
+  // indistinguishable from the outside. This is the only thing that separates
+  // them, and the migration defaults EVERY existing project to off, so this
+  // is what an upgrading user sees first.
+  api.atlasProjects.mockResolvedValueOnce([proj("a", false), proj("b", false)]);
+  render(<AtlasPanel />);
+  await screen.findByText(/does not know which projects to watch/i);
+  expect(screen.queryByText(/no debrief yet/i)).toBeNull();
+});
+
+it("says 'no debrief yet' once at least one project is enabled", async () => {
+  api.atlasBrief.mockResolvedValueOnce(null);
+  api.atlasProjects.mockResolvedValueOnce([proj("a", true), proj("b", false)]);
+  render(<AtlasPanel />);
+  await screen.findByText(/no debrief yet/i);
+  expect(screen.queryByText(/does not know which projects/i)).toBeNull();
+});
+
+it("does not prompt for setup when Atlas has seen no projects at all", async () => {
+  // An empty portfolio fixes itself the moment a project is opened; only a
+  // populated-but-all-off portfolio is a dead end.
+  api.atlasBrief.mockResolvedValueOnce(null);
+  api.atlasProjects.mockResolvedValueOnce([]);
+  render(<AtlasPanel />);
+  await screen.findByText(/no debrief yet/i);
+});
+
+it("reaches settings through the overflow, and toggles a project there", async () => {
+  api.atlasProjects.mockResolvedValueOnce([proj("Trackview", false)]);
+  render(<AtlasPanel />);
+  await screen.findByRole("tab", { name: "Debrief" });
+
+  screen.getByRole("button", { name: "More" }).click();
+  (await screen.findByRole("menuitem", { name: "Atlas settings" })).click();
+
+  const sw = await screen.findByRole("switch", { name: "Trackview" });
+  expect(sw.getAttribute("aria-checked")).toBe("false");
+  sw.click();
+  await waitFor(() =>
+    expect(api.atlasSetProjectEnabled).toHaveBeenCalledWith(
+      "/p/Trackview",
+      true,
+    ),
+  );
+});
+
+it("offers Open in a window, which only the menu bar could reach before", async () => {
+  render(<AtlasPanel />);
+  await screen.findByRole("tab", { name: "Debrief" });
+  screen.getByRole("button", { name: "More" }).click();
+  (await screen.findByRole("menuitem", { name: "Open in a window" })).click();
+  await waitFor(() => expect(api.atlasOpenWindow).toHaveBeenCalled());
 });

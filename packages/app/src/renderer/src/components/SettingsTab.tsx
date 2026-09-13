@@ -435,27 +435,18 @@ export function SettingsTab() {
             <section className="settings-section">
               <h3>Atlas</h3>
               <div className="settings-row">
-                <label htmlFor="atlas-surface">Where Atlas appears</label>
+                <label htmlFor="atlas-enabled">Atlas</label>
                 <select
-                  id="atlas-surface"
+                  id="atlas-enabled"
                   className="sb-control"
-                  value={atlas.enabled ? atlas.surface : "off"}
+                  value={atlas.enabled ? "on" : "off"}
                   onChange={(e) => {
-                    const v = e.target.value;
-                    const next =
-                      v === "off"
-                        ? { ...atlas, enabled: false }
-                        : {
-                            ...atlas,
-                            enabled: true,
-                            surface: v as "app" | "both",
-                          };
+                    const next = { ...atlas, enabled: e.target.value === "on" };
                     setAtlas(next);
                     void window.airlock.prefsSet({ atlas: next });
                   }}
                 >
-                  <option value="app">In AirLock only</option>
-                  <option value="both">In AirLock and the menu bar</option>
+                  <option value="on">On</option>
                   <option value="off">Off</option>
                 </select>
               </div>
@@ -485,30 +476,10 @@ export function SettingsTab() {
                     ? "No API key is set on this machine, so Atlas runs on your Claude subscription and costs usage quota rather than money. Nothing to add."
                     : "That credential is read from your environment, so Atlas bills your API account for every debrief and reply. To move Atlas onto your Claude plan instead, unset it in your shell and restart AirLock."}
               </p>
-              <div className="settings-row">
-                <label htmlFor="atlas-hour">Debrief no earlier than</label>
-                <select
-                  id="atlas-hour"
-                  className="sb-control"
-                  value={String(atlas.hour)}
-                  onChange={(e) => {
-                    const next = { ...atlas, hour: Number(e.target.value) };
-                    setAtlas(next);
-                    void window.airlock.prefsSet({ atlas: next });
-                  }}
-                >
-                  {HOURS_OF_DAY.map((h) => (
-                    <option key={`hour-${h}`} value={String(h)}>
-                      {`${String(h).padStart(2, "0")}:00`}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <p className="settings-note">
-                The calendar day turns over at midnight, but a debrief at 00:01
-                is no use. Atlas waits until this hour, then writes one the
-                first time you are back at your Mac -- once per day, never again
-                until tomorrow.
+                The debrief hour and where Atlas appears now live in Atlas
+                itself, under the &#8943; menu &#8250; Atlas settings, along
+                with which projects it covers.
               </p>
             </section>
           )}

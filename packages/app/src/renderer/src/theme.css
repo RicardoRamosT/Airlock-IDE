@@ -6618,6 +6618,7 @@ button.docker-row .codicon-chevron-right {
    the content. This bar reserves their space AND provides the drag region --
    without it the lights sit on top of the first message. */
 .atlas-titlebar {
+  position: relative;
   -webkit-app-region: drag;
   flex: 0 0 auto;
   height: 38px;
@@ -6757,6 +6758,7 @@ button.docker-row .codicon-chevron-right {
   overflow-y: auto;
 }
 .atlas-popover-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -7426,4 +7428,206 @@ button.docker-row .codicon-chevron-right {
 }
 .atlas-activity li {
   align-items: flex-start;
+}
+
+/* Atlas panel: tabs, overflow menu, and the settings view.
+   Sized from the sidebar layout tokens so the panel reads like the rest of the
+   app rather than a second grammar: controls at --control-h, list rows at
+   --row-h, stacked blocks at --sb-block-gap. */
+.atlas-tabs {
+  display: flex;
+  height: var(--control-h);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: auto;
+}
+.atlas-tabs button {
+  padding: 0 10px;
+  background: transparent;
+  border: 0;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.atlas-tabs button + button {
+  border-left: 1px solid var(--border);
+}
+.atlas-tabs button[aria-selected="true"] {
+  background: var(--selected);
+  color: var(--fg);
+}
+.atlas-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.atlas-more {
+  width: var(--control-h);
+  padding: 0;
+}
+
+.atlas-menu {
+  position: absolute;
+  right: 8px;
+  top: calc(var(--control-h) + 14px);
+  min-width: 150px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+.atlas-menu button {
+  display: block;
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.atlas-menu button:hover {
+  background: var(--hover);
+}
+.atlas-menu hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 4px 2px;
+}
+
+.atlas-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-gap);
+  align-items: flex-start;
+  padding: 10px;
+  margin-bottom: var(--sb-block-gap);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-panel);
+}
+.atlas-setup p {
+  margin: 0;
+  color: var(--fg-dim);
+}
+
+.atlas-settings {
+  padding: 10px 12px;
+  overflow: auto;
+}
+.atlas-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sb-gap);
+  margin-bottom: var(--sb-block-gap);
+}
+.atlas-field label {
+  flex: 1;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.atlas-field select {
+  flex: 0 0 auto;
+  max-width: 55%;
+}
+
+.atlas-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sb-row-gap);
+}
+.atlas-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--row-h);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.atlas-project:hover {
+  background: var(--hover);
+}
+.atlas-project-name {
+  flex: 1;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.atlas-project.off .atlas-project-name {
+  color: var(--fg-dim);
+}
+.atlas-project-tag {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+.atlas-project-tag.warn {
+  color: #f0883e;
+  border-color: rgba(240, 136, 62, 0.4);
+}
+
+.atlas-switch {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  position: relative;
+  cursor: pointer;
+}
+.atlas-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  transition:
+    transform 0.13s ease,
+    background 0.13s ease;
+}
+.atlas-switch[aria-checked="true"] {
+  background: var(--selected);
+  border-color: var(--accent);
+}
+.atlas-switch[aria-checked="true"]::after {
+  transform: translateX(11px);
+  background: var(--accent);
+}
+.atlas-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-switch::after {
+    transition: none;
+  }
+}
+
+.atlas-settings-cost {
+  margin: var(--sb-block-gap) 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+.atlas-settings-cost b {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
 }

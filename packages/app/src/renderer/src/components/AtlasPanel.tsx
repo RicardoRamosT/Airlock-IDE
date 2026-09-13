@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { AtlasConcern } from "../../../shared/ipc";
+import type { AtlasConcern, AtlasProject } from "../../../shared/ipc";
 import { renderBrief } from "../lib/atlasBrief";
 import { AtlasChat } from "./AtlasChat";
 import { AtlasConsent } from "./AtlasConsent";
+import { AtlasSettings } from "./AtlasSettings";
 
 // The ONE Atlas panel. Four surfaces host it -- the titlebar dropdown, the
 // standalone window, the sidebar section, and the menu bar popover -- and each
@@ -27,14 +28,24 @@ export function AtlasPanel({
     acknowledged: boolean;
     disclosure: string;
     lastView: "brief" | "chat";
+    hour: number;
+    surface: "app" | "both";
   } | null>(null);
   const [asked, setAsked] = useState(false);
   // Seeded from the persisted view, not defaulted to the debrief: the panel is
   // hosted by four surfaces across three windows, so component state meant
   // closing a mid-conversation panel and reopening it landed back on the
   // debrief with the chat apparently gone.
-  const [showChat, setShowChat] = useState(false);
+  // Three views, not two. Settings is transient and deliberately NOT
+  // persisted through atlasSetView: reopening the panel should land you back
+  // on your work, not on the screen where you last changed a setting.
+  const [view, setView] = useState<"brief" | "chat" | "settings">("brief");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // null = NOT ASKED YET, distinct from [] = asked and the portfolio is empty.
+  // The setup state turns on this difference, so conflating them would flash
+  // "Atlas does not know what to watch" at every open.
+  const [projects, setProjects] = useState<AtlasProject[] | null>(null);
   // Fourth state: "asked and there is none" is not "asked and it failed".
   // Saying "No debrief yet" when the read failed is a confident wrong answer.
   const [loadFailed, setLoadFailed] = useState(false);
@@ -52,6 +63,21 @@ export function AtlasPanel({
 
   const seeded = useRef(false);
 
+  // A menu that only closes via its own items is a trap in a 412px popover.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
   useEffect(() => {
     let alive = true;
     const load = () => {
@@ -59,9 +85,11 @@ export function AtlasPanel({
         window.airlock?.atlasState() ?? null,
         window.airlock?.atlasBrief() ?? null,
         window.airlock?.atlasConcerns?.() ?? [],
+        window.airlock?.atlasProjects?.() ?? [],
       ])
-        .then(([s, text, open]) => {
+        .then(([s, text, open, projs]) => {
           if (alive) setConcerns(open ?? []);
+          if (alive) setProjects(projs ?? []);
           if (!alive) return;
           setState(s);
           setBrief(text);
@@ -71,7 +99,7 @@ export function AtlasPanel({
           // user out of the view they had since switched to.
           if (!seeded.current && s) {
             seeded.current = true;
-            setShowChat(s.lastView === "chat");
+            setView(s.lastView === "chat" ? "chat" : "brief");
           }
           setLoadFailed(false);
           setAsked(true);
@@ -89,6 +117,15 @@ export function AtlasPanel({
       if (typeof off === "function") off();
     };
   }, []);
+
+  // Switching to the debrief marks it read, and only brief/chat persist --
+  // settings is transient (see the view state above).
+  const go = (next: "brief" | "chat") => {
+    setMenuOpen(false);
+    if (next === "brief" && view === "chat" && brief) onBriefRead?.(brief.day);
+    setView(next);
+    void window.airlock?.atlasSetView?.(next);
+  };
 
   if (!asked) return <p className="atlas-note">Loading...</p>;
 
@@ -111,14 +148,46 @@ export function AtlasPanel({
           &#10022;
         </span>
         <h1>Atlas</h1>
-        {showChat ? (
-          <>
+        <div className="atlas-tabs" role="tablist" aria-label="Atlas view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "brief"}
+            onClick={() => go("brief")}
+          >
+            Debrief
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "chat"}
+            onClick={() => go("chat")}
+          >
+            Chat
+          </button>
+        </div>
+        <button
+          type="button"
+          className="atlas-btn atlas-more"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="More"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+        >
+          &#8943;
+        </button>
+        {menuOpen ? (
+          <div className="atlas-menu" role="menu">
             <button
               type="button"
-              className="atlas-btn"
-              title="Past conversations"
+              role="menuitem"
               onClick={() => {
-                setShowHistory((v) => !v);
+                setMenuOpen(false);
+                go("chat");
+                setShowHistory(true);
                 void window.airlock
                   ?.atlasSessions()
                   .then(setHistory)
@@ -129,39 +198,68 @@ export function AtlasPanel({
             </button>
             <button
               type="button"
-              className="atlas-btn"
-              title="Start a fresh conversation. Atlas keeps what it has learned about your projects."
+              role="menuitem"
               onClick={() => {
                 // AWAIT the write: refetching first would read the OLD
                 // conversation boundary and show the same transcript back.
                 void (async () => {
+                  setMenuOpen(false);
                   await window.airlock?.atlasNewChat();
                   setShowHistory(false);
+                  go("chat");
                   setReloadKey((k) => k + 1);
                 })();
               }}
             >
               New chat
             </button>
-          </>
+            <hr />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                void window.airlock?.atlasOpenWindow?.();
+              }}
+            >
+              Open in a window
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                setShowHistory(false);
+                setView("settings");
+              }}
+            >
+              Atlas settings
+            </button>
+          </div>
         ) : null}
-        <button
-          type="button"
-          className="atlas-btn"
-          onClick={() => {
-            setShowHistory(false);
-            setShowChat((v) => {
-              if (v && brief) onBriefRead?.(brief.day);
-              void window.airlock?.atlasSetView?.(v ? "brief" : "chat");
-              return !v;
-            });
-          }}
-        >
-          {showChat ? "Debrief" : "Chat"}
-        </button>
       </div>
 
-      {showChat && showHistory ? (
+      {view === "settings" ? (
+        <AtlasSettings
+          hour={state?.hour ?? 8}
+          surface={state?.surface ?? "both"}
+          projects={projects}
+          onPrefs={(patch) => {
+            setState((s) => (s ? { ...s, ...patch } : s));
+            void window.airlock?.atlasSetPrefs?.(patch);
+          }}
+          onToggle={(root, enabled) => {
+            // Optimistic, then the atlas:refresh broadcast reloads from the
+            // table and becomes the truth.
+            setProjects((ps) =>
+              ps
+                ? ps.map((p) => (p.root === root ? { ...p, enabled } : p))
+                : ps,
+            );
+            void window.airlock?.atlasSetProjectEnabled?.(root, enabled);
+          }}
+        />
+      ) : view === "chat" && showHistory ? (
         <div className="atlas-history">
           {history.length === 0 ? (
             <p className="atlas-note">No past conversations yet.</p>
@@ -195,7 +293,7 @@ export function AtlasPanel({
             ))
           )}
         </div>
-      ) : showChat ? (
+      ) : view === "chat" ? (
         <div className="atlas-pane-chat">
           <AtlasChat chrome={false} reloadKey={reloadKey} ask={ask} />
         </div>
@@ -213,11 +311,48 @@ export function AtlasPanel({
               failed, the whole standing-concerns list was invisible and the
               forget action with it. A missing debrief is not evidence that
               nothing is open. */}
+          {/* FOUR states here, not three. "Atlas has nothing to watch" and
+              "Atlas is watching and nothing happened yet" look identical from
+              the outside, and opt-in makes the first one the DEFAULT on
+              upgrade -- so without this note a correctly-working Atlas is
+              indistinguishable from a broken one. projects === null is NOT
+              ASKED YET and must show nothing rather than the setup prompt.
+              Rendered ABOVE any existing brief too: yesterday's debrief is
+              real, but nothing is going to produce tomorrow's.
+
+              length > 0 matters: an EMPTY portfolio is a different state from
+              a portfolio with nothing switched on. The first fixes itself the
+              moment you open a project; only the second is a dead end that
+              needs telling. */}
+          {projects !== null &&
+          projects.length > 0 &&
+          projects.every((p) => !p.enabled) ? (
+            <div className="atlas-setup">
+              <p>
+                Atlas does not know which projects to watch yet, so it will not
+                write a debrief.
+              </p>
+              <button
+                type="button"
+                className="atlas-btn primary"
+                onClick={() => {
+                  setShowHistory(false);
+                  setView("settings");
+                }}
+              >
+                Choose projects
+              </button>
+            </div>
+          ) : null}
           {brief === null ? (
-            <p className="atlas-note">
-              No debrief yet. Atlas writes one each morning, once you are back
-              at your Mac.
-            </p>
+            projects !== null &&
+            projects.length > 0 &&
+            projects.every((p) => !p.enabled) ? null : (
+              <p className="atlas-note">
+                No debrief yet. Atlas writes one each morning, once you are back
+                at your Mac.
+              </p>
+            )
           ) : (
             <div className="atlas-brief">{renderBrief(brief.text)}</div>
           )}
@@ -281,7 +416,7 @@ export function AtlasPanel({
                                 : ""
                             }. Investigate it properly and tell me what to do.`,
                           }));
-                          setShowChat(true);
+                          setView("chat");
                           void window.airlock?.atlasSetView?.("chat");
                         }}
                       >

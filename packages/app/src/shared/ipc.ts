@@ -62,7 +62,11 @@ import type { AgentRequest } from "./agentRequests";
 
 // DevServerState re-exported via import type only (erased at build — never a
 // value import; only npm run package catches a violation).
-export type { AtlasActivity, DevServerState } from "@airlock/agent-core";
+export type {
+  AtlasActivity,
+  AtlasProject,
+  DevServerState,
+} from "@airlock/agent-core";
 export type {
   AgentRequest,
   AgentRequestKind,
@@ -1361,6 +1365,10 @@ export interface AirlockApi {
   // surface, so a filtered one would leave no way to turn a project back on.
   atlasProjects(): Promise<AtlasProject[]>;
   atlasSetProjectEnabled(root: string, enabled: boolean): Promise<boolean>;
+  atlasSetPrefs(patch: {
+    hour?: number;
+    surface?: "app" | "both";
+  }): Promise<boolean>;
   // Where the popover's arrow must sit to aim at the tray icon. Sent on every
   // open: the window is clamped to the display, so the offset is not constant.
   onAtlasPointer(cb: (x: number) => void): () => void;
@@ -1375,6 +1383,8 @@ export interface AirlockApi {
     disclosure: string;
     mode: "api-key" | "auth-token" | "subscription";
     lastView: "brief" | "chat";
+    hour: number;
+    surface: "app" | "both";
   }>;
   atlasSetView(view: "brief" | "chat"): Promise<void>;
   atlasConsent(): Promise<void>;

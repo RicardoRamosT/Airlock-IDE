@@ -1335,8 +1335,32 @@ export function registerIpc(
       disclosure: costDisclosure(mode),
       mode,
       lastView: prefs.atlas.lastView,
+      // For the panel's own settings view. The panel cannot read the app
+      // store -- it is hosted in windows that never hydrate prefs -- so its
+      // settings arrive the same way everything else here does.
+      hour: prefs.atlas.hour,
+      surface: prefs.atlas.surface,
     };
   });
+
+  // A TARGETED patch, done in main. prefsSet merges only at the top level, so
+  // a renderer writing { atlas: { hour } } would replace the whole atlas
+  // object and take width, height, lastView and lastReadDay with it. Same
+  // hazard patchProjectExtension exists to prevent in ProjectConfig.
+  ipcMain.handle(
+    "atlas:setPrefs",
+    async (_e, patch: unknown): Promise<boolean> => {
+      if (!patch || typeof patch !== "object") return false;
+      const p = patch as { hour?: unknown; surface?: unknown };
+      const prev = await loadPrefs(prefsFile);
+      const next = { ...prev.atlas };
+      if (typeof p.hour === "number" && Number.isInteger(p.hour))
+        next.hour = Math.min(23, Math.max(0, p.hour));
+      if (p.surface === "app" || p.surface === "both") next.surface = p.surface;
+      await savePrefs(prefsFile, { atlas: next });
+      return true;
+    },
+  );
   // Which half of the panel to reopen on. Persisted rather than held in the
   // component, because the panel is hosted by four surfaces across three
   // windows: closing a mid-conversation panel used to reopen on the debrief.
