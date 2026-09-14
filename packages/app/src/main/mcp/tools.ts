@@ -233,7 +233,10 @@ export interface ToolDeps {
   // layout metadata (or an error result). Carries ids/paths in + names/titles out
   // -- NEVER a secret value, so this dep keeps the source-guard green. Never
   // throws (a no-window / timeout / renderer error resolves { ok:false }).
-  runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>;
+  runAgentCommand: (
+    cmd: AgentCommand,
+    callerRoot: string | null,
+  ) => Promise<AgentCommandResult>;
   changeVisibility?: (
     prefsFile: string,
     id: Section,
@@ -935,7 +938,14 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     },
   );
 
-  // --- IDE-control tools: drive the FOCUSED window's layout ---------------
+  // --- IDE-control tools: drive YOUR OWN project's layout ------------------
+  //
+  // These used to resolve their target from the focused window and tab and
+  // never consulted the caller, which let a background project's Claude open a
+  // terminal in whatever the user was looking at -- with THAT project's vaulted
+  // secrets injected into it (reported 2026-09-14). The target now comes from
+  // the caller's own root via shared/ideScope.ts, the same boundary
+  // resolveTailScope draws for terminal reads.
   // Each forwards an AgentCommand to deps.runAgentCommand (the main->renderer
   // command round-trip) and maps the result: ok -> the fresh TabsSnapshot,
   // !ok -> a clean error (no window / timed out / renderer error). They carry
@@ -947,7 +957,10 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
 
   // Run a command and return its result as the SDK shape (data on ok, error on !ok).
   const drive = async (cmd: AgentCommand) => {
-    const r = await deps.runAgentCommand(cmd);
+    // The CALLER's project decides which tab this acts on -- not what is
+    // focused. See shared/ideScope.ts; this is the same boundary
+    // resolveTailScope draws for reads.
+    const r = await deps.runAgentCommand(cmd, deps.getWorkspaceRoot());
     return r.ok ? ok(r.data) : err(r.error);
   };
 
@@ -1001,7 +1014,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "close_tab",
     {
       description:
-        "Close a tab by its id (from list_tabs) in the focused airlock window; returns the resulting layout. Closing the last tab leaves a fresh blank tab. Acts on the FOCUSED window.",
+        "Close one of YOUR OWN project's tabs by its id (from list_tabs); returns the resulting layout. Closing the last tab leaves a fresh blank tab. A tab belonging to another project is not yours to close.",
       inputSchema: { tabId: z.string() },
     },
     async ({ tabId }) => drive({ type: "close_tab", tabId }),
@@ -1011,7 +1024,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "switch_tab",
     {
       description:
-        "Focus a tab by its id (from list_tabs) in the focused airlock window; returns the resulting layout. Acts on the FOCUSED window.",
+        "Focus one of YOUR OWN project's tabs by its id (from list_tabs); returns the resulting layout. If the user is working in a different project this is a no-op: you cannot pull their screen to you.",
       inputSchema: { tabId: z.string() },
     },
     async ({ tabId }) => drive({ type: "switch_tab", tabId }),
@@ -1035,7 +1048,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "open_terminal",
     {
       description:
-        "Open a new terminal in the focused airlock window. With a tabId, open it in that tab (it is focused first); with no tabId, open it in the focused tab. Returns the resulting layout (the tab's terminals include the new one). Spawns a shell with the project's secrets injected -- but exposes NO env values. Acts on the FOCUSED window.",
+        "Open a new terminal in YOUR OWN project's tab. With no tabId it goes to your project's tab; a tabId must name a tab of your project. It is focused only if you are already the tab the user is looking at, so this never pulls the screen away from other work. Returns the resulting layout (the tab's terminals include the new one). Spawns a shell with YOUR project's secrets injected -- but exposes NO env values.",
       inputSchema: { tabId: z.string().optional() },
     },
     async ({ tabId }) => drive({ type: "open_terminal", tabId }),

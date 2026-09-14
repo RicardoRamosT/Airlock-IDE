@@ -333,7 +333,10 @@ const api: AirlockApi = {
   terminalGrantResolve: (requestId, granted) =>
     ipcRenderer.invoke("agent:terminal-grant-resolved", requestId, granted),
   onAgentCommand: (cb) =>
-    subscribe<{ id: string; cmd: AgentCommand }>("agent:command", cb),
+    subscribe<{ id: string; cmd: AgentCommand; callerRoot: string | null }>(
+      "agent:command",
+      cb,
+    ),
   agentCommandResult: (id, result: AgentCommandResult) =>
     ipcRenderer.send("agent:command-result", { id, result }),
   onFsChanged: (cb) => subscribe<FsChangedEvent>("fs:changed", cb),

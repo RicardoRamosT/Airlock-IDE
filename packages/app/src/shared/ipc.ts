@@ -1464,7 +1464,12 @@ export interface AirlockApi {
   // Only tab/terminal ids + a path cross in, and layout metadata (names/titles)
   // crosses back -- NO secret value, consistent with the no-secrets invariant.
   onAgentCommand(
-    cb: (p: { id: string; cmd: AgentCommand }) => void,
+    cb: (p: {
+      id: string;
+      cmd: AgentCommand;
+      // Whose project is asking. null for Atlas, which is portfolio-wide.
+      callerRoot: string | null;
+    }) => void,
   ): () => void;
   agentCommandResult(id: string, result: AgentCommandResult): void;
   // The main-process chokidar watcher pushes this (debounced) whenever anything

@@ -42,6 +42,11 @@ const pending = new Map<
 // same window the agent's other tools target.
 export function runAgentCommand(
   cmd: AgentCommand,
+  // WHOSE project is asking. A project's Claude has a root (from its
+  // per-project MCP token); Atlas has none and stays portfolio-wide. The
+  // renderer resolves the target tab from this, NOT from what is focused --
+  // see shared/ideScope.ts.
+  callerRoot: string | null = null,
 ): Promise<AgentCommandResult> {
   const win = lastFocusedWindow();
   // command type is the safe identifier: never carries secret values
@@ -99,7 +104,7 @@ export function runAgentCommand(
       timer,
     });
     try {
-      win.webContents.send("agent:command", { id, cmd });
+      win.webContents.send("agent:command", { id, cmd, callerRoot });
     } catch {
       // The window was destroyed between the isDestroyed() check above and this
       // send. Honor the documented never-rejects contract: clear the timer and

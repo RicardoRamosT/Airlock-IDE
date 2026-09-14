@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { resolveCommandTab } from "../../../shared/ideScope";
 import type {
   AgentCommand,
   ConnectStarted,
@@ -58,8 +59,24 @@ function buildSnapshot(): TabsSnapshot {
 // Perform one IDE-control command against the store. open_tab is async (it opens
 // the folder main-side first via workspaceOpen, so main's root + recents + the
 // MCP registration follow), so this is async and the caller replies after it.
-async function applyCommand(cmd: AgentCommand): Promise<ConnectStarted | null> {
+async function applyCommand(
+  cmd: AgentCommand,
+  callerRoot: string | null,
+): Promise<ConnectStarted | null> {
   const s = useApp.getState();
+  // WHICH tab this command acts on. Resolved from the CALLER's project, never
+  // from what happens to be focused -- see shared/ideScope.ts. Throwing here is
+  // caught by the caller and reported as the command's error.
+  const target = (explicit: string | undefined) => {
+    const t = resolveCommandTab(
+      callerRoot,
+      explicit,
+      s.tabs.map((tab) => ({ id: tab.id, root: tab.root ?? null })),
+      s.activeTabId,
+    );
+    if (!t.ok) throw new Error(t.error);
+    return t;
+  };
   switch (cmd.type) {
     case "list_tabs":
       // Read-only: no action, just the snapshot the caller builds afterward.
@@ -76,11 +93,16 @@ async function applyCommand(cmd: AgentCommand): Promise<ConnectStarted | null> {
       }
       break;
     case "close_tab":
-      s.closeTab(cmd.tabId);
+      // Scoped: a project may only close its OWN tab.
+      s.closeTab(target(cmd.tabId).tabId ?? cmd.tabId);
       break;
-    case "switch_tab":
-      s.switchTab(cmd.tabId);
+    case "switch_tab": {
+      // Scoped, and it may not steal focus: switching to a tab the caller does
+      // not own is exactly the "yanked my screen away" complaint.
+      const t = target(cmd.tabId);
+      if (t.focus || callerRoot === null) s.switchTab(t.tabId ?? cmd.tabId);
       break;
+    }
     case "split_view":
       // Anchor the LEFT/primary tab explicitly when given, so a focus change
       // (e.g. a human clicking another tab between the agent's commands) cannot
@@ -92,16 +114,19 @@ async function applyCommand(cmd: AgentCommand): Promise<ConnectStarted | null> {
       if (cmd.tabId) useApp.getState().splitActiveWith(cmd.tabId);
       else useApp.getState().toggleProjectSplit();
       break;
-    case "open_terminal":
-      // Focus the requested tab so the new terminal is visible, and pass the
-      // tabId to addTerminal so it targets that exact pane (robust even when the
-      // tab is the secondary half of a split, where it is visible but not active).
-      if (cmd.tabId && cmd.tabId !== s.activeTabId) s.switchTab(cmd.tabId);
+    case "open_terminal": {
+      // Pass the tabId to addTerminal so it targets that exact pane (robust even
+      // when the tab is the secondary half of a split, where it is visible but
+      // not active). Focus ONLY when ideScope says so: a background project's
+      // agent must not pull the screen off whatever the user is working in.
+      const t = target(cmd.tabId);
+      if (t.focus && t.tabId && t.tabId !== s.activeTabId) s.switchTab(t.tabId);
       // plainShell: the agent wants a prompt to run commands at. Auto-starting
       // Claude here gave it a TUI, so its next send landed in a composer and
       // was typed but never submitted.
-      useApp.getState().addTerminal(cmd.tabId, { plainShell: true });
+      useApp.getState().addTerminal(t.tabId ?? undefined, { plainShell: true });
       break;
+    }
     case "close_terminal":
       s.removeTerminal(cmd.terminalId);
       break;
@@ -170,11 +195,11 @@ async function connectExtension(id: string): Promise<ConnectStarted> {
 
 export function useAgentCommands(): void {
   useEffect(() => {
-    return window.airlock.onAgentCommand(async ({ id, cmd }) => {
+    return window.airlock.onAgentCommand(async ({ id, cmd, callerRoot }) => {
       try {
         // Most commands answer with the layout snapshot; connect_extension
         // answers with what it started, which a snapshot cannot express.
-        const extra = await applyCommand(cmd);
+        const extra = await applyCommand(cmd, callerRoot ?? null);
         window.airlock.agentCommandResult(id, {
           ok: true,
           data: extra ?? buildSnapshot(),
