@@ -149,6 +149,16 @@ const GONE = {
   missingRoot: "/p/Keyview Track",
 };
 
+const GONE2 = {
+  key: "/p/torque|noremote",
+  project: "torque",
+  title: "no remote",
+  detail: "torque has no remote configured.",
+  ageDays: 5,
+  trend: null,
+  missingRoot: null,
+};
+
 it("shows a standing concern with its age and trend", async () => {
   api.atlasConcerns.mockResolvedValueOnce([CONCERN]);
   render(<AtlasPanel />);
@@ -327,4 +337,34 @@ it("offers Open in a window, which only the menu bar could reach before", async 
   screen.getByRole("button", { name: "More" }).click();
   (await screen.findByRole("menuitem", { name: "Open in a window" })).click();
   await waitFor(() => expect(api.atlasOpenWindow).toHaveBeenCalled());
+});
+
+it("collapses the standing concerns so they cannot bury the debrief", async () => {
+  // Eight concerns at three lines each is taller than the panel, which pushed
+  // the debrief off the top entirely.
+  api.atlasConcerns.mockResolvedValueOnce([GONE, GONE2]);
+  render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  expect(
+    screen.queryAllByRole("button", { name: /look into this/i }).length +
+      screen.queryAllByRole("button", { name: /forget this project/i }).length,
+  ).toBeGreaterThan(0);
+
+  screen.getByRole("button", { name: /still open/i }).click();
+  await waitFor(() =>
+    expect(
+      screen.queryAllByRole("button", { name: /look into this/i }).length +
+        screen.queryAllByRole("button", { name: /forget this project/i })
+          .length,
+    ).toBe(0),
+  );
+  // The header stays, with the count, so nothing silently disappears.
+  expect(screen.getByRole("button", { name: /still open/i })).toBeTruthy();
+});
+
+it("counts the concerns in the header", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([GONE, GONE2]);
+  render(<AtlasPanel />);
+  const head = await screen.findByRole("button", { name: /still open/i });
+  expect(head.textContent).toContain("2");
 });

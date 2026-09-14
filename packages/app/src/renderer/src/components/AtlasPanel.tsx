@@ -56,6 +56,10 @@ export function AtlasPanel({
   // The concern handed to the chat, and a nonce so asking about the SAME one
   // twice still sends twice.
   const [ask, setAsk] = useState<{ text: string; n: number } | null>(null);
+  // Collapsed state for the standing concerns. Local, not a pref: the bounded
+  // height below is what actually stops the section burying the debrief, so
+  // this is convenience and does not warrant a pref, a sanitizer and an IPC.
+  const [standingShut, setStandingShut] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [history, setHistory] = useState<
     { session: number; startedAt: number; turns: number; preview: string }[]
@@ -358,74 +362,94 @@ export function AtlasPanel({
           )}
           {concerns !== null && concerns.length > 0 ? (
             <div className="atlas-standing">
-              <p className="atlas-standing-head">Still open</p>
-              {concerns.map((c) => {
-                // Read ONCE, into a local: TypeScript's narrowing of a
-                // PROPERTY does not survive into the click handler's closure.
-                const gone = c.missingRoot;
-                return (
-                  <div key={c.key} className="atlas-standing-row">
-                    <span className="atlas-standing-what">
-                      {c.project ? <strong>{c.project}</strong> : null}{" "}
-                      {c.title}
-                    </span>
-                    <span className="atlas-standing-age">
-                      {c.ageDays === 0
-                        ? "today"
-                        : c.ageDays === 1
-                          ? "1 day"
-                          : `${c.ageDays} days`}
-                      {c.trend
-                        ? ` \u00b7 ${c.trend.from} \u2192 ${c.trend.to}`
-                        : ""}
-                    </span>
-                    {gone !== null ? (
-                      // A vanished folder is the one concern that cannot be
-                      // fixed, only forgotten -- and it REPLACES "Look into
-                      // this", because there is nothing on disk left to look
-                      // into and the registry never evicts on its own, so
-                      // without this the row is re-raised on every refresh
-                      // forever.
-                      <button
-                        type="button"
-                        className="atlas-btn"
-                        title="Drop it from Atlas's portfolio and from Open Recent. Nothing on disk is touched."
-                        onClick={() => {
-                          // No optimistic removal: main broadcasts atlas:refresh
-                          // once the three writes land, and every surface --
-                          // including this one -- reloads from the table.
-                          void window.airlock?.atlasForget?.(gone);
-                        }}
-                      >
-                        Forget this project
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="atlas-btn"
-                        onClick={() => {
-                          // The whole point of tier 2: a concern is an entry point,
-                          // not prose. Carry enough that Atlas knows which one.
-                          setAsk((prev) => ({
-                            n: (prev?.n ?? 0) + 1,
-                            text: `Look into this standing concern: ${
-                              c.project ? `${c.project}: ` : ""
-                            }${c.title}. ${c.detail} It has been open ${c.ageDays} day(s)${
-                              c.trend
-                                ? `, and has gone from ${c.trend.from} to ${c.trend.to}`
-                                : ""
-                            }. Investigate it properly and tell me what to do.`,
-                          }));
-                          setView("chat");
-                          void window.airlock?.atlasSetView?.("chat");
-                        }}
-                      >
-                        Look into this
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+              {/* Collapsible, and BOUNDED when open. Eight concerns at three
+                  lines each is taller than the whole panel, so the section
+                  used to push the debrief off the top -- the one thing the
+                  panel exists to show. */}
+              <button
+                type="button"
+                className="atlas-standing-head"
+                aria-expanded={!standingShut}
+                onClick={() => setStandingShut((v) => !v)}
+              >
+                <span className="atlas-chevron" aria-hidden="true">
+                  {standingShut ? "\u203a" : "\u2039"}
+                </span>
+                Still open
+                <span className="sb-badge">{concerns.length}</span>
+              </button>
+              <div className="atlas-standing-list" hidden={standingShut}>
+                {concerns.map((c) => {
+                  // Read ONCE, into a local: TypeScript's narrowing of a
+                  // PROPERTY does not survive into the click handler's closure.
+                  const gone = c.missingRoot;
+                  return (
+                    <div key={c.key} className="atlas-standing-row">
+                      <span className="atlas-standing-what">
+                        {c.project ? <strong>{c.project}</strong> : null}{" "}
+                        {c.title}
+                      </span>
+                      <span className="atlas-standing-age">
+                        {c.ageDays === 0
+                          ? "today"
+                          : c.ageDays === 1
+                            ? "1 day"
+                            : `${c.ageDays} days`}
+                        {c.trend
+                          ? ` \u00b7 ${c.trend.from} \u2192 ${c.trend.to}`
+                          : ""}
+                      </span>
+                      {gone !== null ? (
+                        // A vanished folder is the one concern that cannot be
+                        // fixed, only forgotten -- and it REPLACES "Look into
+                        // this", because there is nothing on disk left to look
+                        // into and the registry never evicts on its own, so
+                        // without this the row is re-raised on every refresh
+                        // forever.
+                        <button
+                          type="button"
+                          className="row-action reveal"
+                          aria-label="Forget this project"
+                          title="Forget this project. Drops it from Atlas's portfolio and from Open Recent; nothing on disk is touched."
+                          onClick={() => {
+                            // No optimistic removal: main broadcasts atlas:refresh
+                            // once the three writes land, and every surface --
+                            // including this one -- reloads from the table.
+                            void window.airlock?.atlasForget?.(gone);
+                          }}
+                        >
+                          <span aria-hidden="true">{"\u2715"}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="row-action reveal"
+                          aria-label="Look into this"
+                          title="Look into this"
+                          onClick={() => {
+                            // The whole point of tier 2: a concern is an entry point,
+                            // not prose. Carry enough that Atlas knows which one.
+                            setAsk((prev) => ({
+                              n: (prev?.n ?? 0) + 1,
+                              text: `Look into this standing concern: ${
+                                c.project ? `${c.project}: ` : ""
+                              }${c.title}. ${c.detail} It has been open ${c.ageDays} day(s)${
+                                c.trend
+                                  ? `, and has gone from ${c.trend.from} to ${c.trend.to}`
+                                  : ""
+                              }. Investigate it properly and tell me what to do.`,
+                            }));
+                            setView("chat");
+                            void window.airlock?.atlasSetView?.("chat");
+                          }}
+                        >
+                          <span aria-hidden="true">{"\u2192"}</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
         </>
