@@ -8,8 +8,14 @@ describe("fetchAnthropicStatus", () => {
     }));
     const result = await fetchAnthropicStatus({ transport: { get } });
     expect(get).toHaveBeenCalledWith(
-      "https://status.claude.com/api/v2/status.json",
+      "https://status.claude.com/api/v2/summary.json",
     );
-    expect(result).toEqual({ indicator: "degraded", description: "Degraded" });
+    expect(result).toEqual({
+      indicator: "degraded",
+      description: "Degraded",
+      // No components in this payload, so the rollup decided it and there is
+      // no component to name.
+      component: null,
+    });
   });
 });

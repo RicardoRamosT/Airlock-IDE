@@ -8,7 +8,13 @@ export type { AnthropicIndicator, ParsedAnthropicStatus };
 
 // status.anthropic.com now 302-redirects here; point straight at the new
 // domain so polling survives the old host eventually being retired.
-const STATUS_URL = "https://status.claude.com/api/v2/status.json";
+//
+// summary.json, NOT status.json: status.json carries only the page-wide
+// rollup, which is the worst of every Anthropic product at once. That is how a
+// Claude Cowork incident on Windows made AirLock report "Claude Degraded" for
+// days while Claude Code and the API were both operational. summary.json adds
+// components[], which is what parseAnthropicStatus actually judges on.
+const STATUS_URL = "https://status.claude.com/api/v2/summary.json";
 
 // DI transport so the HTTP edge is swappable in tests (mirrors render/client).
 export interface AnthropicStatusTransport {

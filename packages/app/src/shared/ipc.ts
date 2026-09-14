@@ -487,6 +487,10 @@ export type AgentCommandResult =
 export interface AnthropicStatus {
   indicator: AnthropicIndicator;
   description: string;
+  // Which component decided the indicator (e.g. "Claude Code"), so the status
+  // pill can name it rather than saying "Claude" about one of six products.
+  // null when the judgement fell back to the page-wide rollup.
+  component: string | null;
   updatedAt: number; // unix seconds when main last fetched it
 }
 

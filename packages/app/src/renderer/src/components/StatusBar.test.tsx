@@ -30,6 +30,7 @@ afterEach(cleanup);
 const status = (indicator: AnthropicStatus["indicator"]): AnthropicStatus => ({
   indicator,
   description: "x",
+  component: null,
   updatedAt: 0,
 });
 

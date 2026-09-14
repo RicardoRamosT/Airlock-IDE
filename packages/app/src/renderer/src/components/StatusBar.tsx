@@ -107,7 +107,14 @@ export function StatusBar() {
             }
           >
             <span className={dotClass(anthropicStatus.indicator)} />
-            <span className="statusbar-status-label">Claude</span>
+            {/* Name the component that decided this. "Claude Degraded" left
+                the user to guess which of six products was unwell, and the
+                answer was usually one they do not use. */}
+            <span className="statusbar-status-label">
+              {anthropicStatus.indicator === "operational"
+                ? "Claude"
+                : (anthropicStatus.component ?? "Claude")}
+            </span>
             <span className="statusbar-status-value">
               {anthropicStatus.indicator}
             </span>

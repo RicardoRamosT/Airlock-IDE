@@ -27,11 +27,11 @@ function broadcast(s: AnthropicStatus): void {
 async function tick(): Promise<void> {
   // Stamp updatedAt from Date.now (seconds). A network failure degrades to
   // "unknown" rather than throwing, so a flaky link never spams or crashes.
-  let parsed: { indicator: AnthropicStatus["indicator"]; description: string };
+  let parsed: Omit<AnthropicStatus, "updatedAt">;
   try {
     parsed = await fetchAnthropicStatus();
   } catch {
-    parsed = { indicator: "unknown", description: "" };
+    parsed = { indicator: "unknown", description: "", component: null };
   }
   latest = { ...parsed, updatedAt: Math.floor(Date.now() / 1000) };
   broadcast(latest);
