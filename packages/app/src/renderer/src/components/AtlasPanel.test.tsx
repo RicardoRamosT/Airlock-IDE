@@ -343,7 +343,7 @@ it("collapses the standing concerns so they cannot bury the debrief", async () =
   // Eight concerns at three lines each is taller than the panel, which pushed
   // the debrief off the top entirely.
   api.atlasConcerns.mockResolvedValueOnce([GONE, GONE2]);
-  render(<AtlasPanel />);
+  const { container } = render(<AtlasPanel />);
   await screen.findByText(/still open/i);
   expect(
     screen.queryAllByRole("button", { name: /look into this/i }).length +
@@ -358,6 +358,14 @@ it("collapses the standing concerns so they cannot bury the debrief", async () =
           .length,
     ).toBe(0),
   );
+  // AND it is gone from the DOM, not merely from the accessibility tree.
+  // The first version used the `hidden` ATTRIBUTE, which removes an element
+  // from the a11y tree but loses to any author `display` rule -- the UA
+  // sheet's [hidden]{display:none} is user-agent origin, so .atlas-standing-
+  // list kept its display:flex and stayed fully visible. This very test passed
+  // throughout, because queryAllByRole honours the attribute. Asserting the
+  // accessibility projection alone is exactly what let that ship.
+  expect(container.querySelector(".atlas-standing-list")).toBeNull();
   // The header stays, with the count, so nothing silently disappears.
   expect(screen.getByRole("button", { name: /still open/i })).toBeTruthy();
 });
