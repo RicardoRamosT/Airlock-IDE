@@ -16,6 +16,7 @@ import type {
   RootSnapshot,
   Turn,
 } from "@airlock/agent-core";
+import { writeVerified } from "./verifyWrite";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -144,6 +145,20 @@ export function openAtlasDb(file: string): DatabaseSync {
 // Applied to the model- and user-controlled values, which is where it fires.
 // Short internal keys (day keys, roles, op names) still bind as strings.
 const TEXT_ENCODER = new TextEncoder();
+// Read one text column straight back, for writeVerified. Deliberately not
+// reusing readBrief/readSnapshot: those PARSE and degrade, which is exactly the
+// swallowing that hid this for two weeks.
+function readRawText(
+  db: DatabaseSync,
+  sql: string,
+  key: string,
+): string | null {
+  const row = db.prepare(sql).get(key) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  const v = Object.values(row)[0];
+  return typeof v === "string" ? v : null;
+}
+
 function bytes(s: string): Uint8Array | string {
   // AN EMPTY STRING BINDS AS A PLAIN STRING, not as bytes. A zero-length
   // Uint8Array binds as NULL rather than as an empty blob, so CAST(? AS TEXT)
@@ -271,9 +286,17 @@ export function saveSnapshot(
   sinceMs: number,
   roots: readonly RootSnapshot[],
 ): void {
-  db.prepare(
-    "INSERT INTO snapshot (day, json) VALUES (?, CAST(? AS TEXT)) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
-  ).run(day, bytes(JSON.stringify({ sinceMs, roots })));
+  const json = JSON.stringify({ sinceMs, roots });
+  writeVerified(
+    "snapshot",
+    json,
+    () => {
+      db.prepare(
+        "INSERT INTO snapshot (day, json) VALUES (?, CAST(? AS TEXT)) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
+      ).run(day, bytes(json));
+    },
+    () => readRawText(db, "SELECT json FROM snapshot WHERE day = ?", day),
+  );
 }
 
 // null means NO SNAPSHOT WAS EVER TAKEN for this day; [] means one was taken
@@ -331,10 +354,17 @@ export interface StoredBrief {
 }
 
 export function saveBrief(db: DatabaseSync, brief: StoredBrief): void {
-  db.prepare(
-    "INSERT INTO brief (day, text, costUsd, createdAt) VALUES (?, CAST(? AS TEXT), ?, ?) " +
-      "ON CONFLICT(day) DO UPDATE SET text = excluded.text, costUsd = excluded.costUsd, createdAt = excluded.createdAt",
-  ).run(brief.day, bytes(brief.text), brief.costUsd, brief.createdAt);
+  writeVerified(
+    "brief",
+    brief.text,
+    () => {
+      db.prepare(
+        "INSERT INTO brief (day, text, costUsd, createdAt) VALUES (?, CAST(? AS TEXT), ?, ?) " +
+          "ON CONFLICT(day) DO UPDATE SET text = excluded.text, costUsd = excluded.costUsd, createdAt = excluded.createdAt",
+      ).run(brief.day, bytes(brief.text), brief.costUsd, brief.createdAt);
+    },
+    () => readRawText(db, "SELECT text FROM brief WHERE day = ?", brief.day),
+  );
 }
 
 export function readBrief(db: DatabaseSync, day: string): StoredBrief | null {
@@ -361,9 +391,17 @@ export function saveReports(
   ledgers: readonly CodeLedger[],
   quiet: number,
 ): void {
-  db.prepare(
-    "INSERT INTO standup (day, json) VALUES (?, CAST(? AS TEXT)) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
-  ).run(day, bytes(JSON.stringify({ reports, ledgers, quiet })));
+  const json = JSON.stringify({ reports, ledgers, quiet });
+  writeVerified(
+    "standup",
+    json,
+    () => {
+      db.prepare(
+        "INSERT INTO standup (day, json) VALUES (?, CAST(? AS TEXT)) ON CONFLICT(day) DO UPDATE SET json = excluded.json",
+      ).run(day, bytes(json));
+    },
+    () => readRawText(db, "SELECT json FROM standup WHERE day = ?", day),
+  );
 }
 
 // null means NO STANDUP RAN for this day; a zero-length one means it ran and

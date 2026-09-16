@@ -7,6 +7,7 @@
 // design, so it must never be implicit again.
 
 import { app, powerMonitor } from "electron";
+import { emitEvent } from "../eventlog/wire";
 import { ghRunnerFor } from "../github/ghRunner";
 import { loadPrefs } from "../prefs";
 import { allOpenRoots } from "../window";
@@ -52,7 +53,19 @@ export function startAtlasArrival(prefsFile: string): void {
             window,
           ),
       });
-    })();
+    })().catch((e: unknown) => {
+      // The arrival cycle used to reject into a floating promise, so a failure
+      // here was invisible. writeVerified now THROWS when a value is stored
+      // short rather than letting a half-written debrief through, and a throw
+      // nobody logs is the same silence in a new place.
+      emitEvent({
+        level: "error",
+        category: "atlas",
+        op: "atlas.arrival",
+        outcome: "error",
+        detail: { reason: e instanceof Error ? e.message : String(e) },
+      });
+    });
   };
 
   // ARRIVAL means "the user showed up today", not "AirLock was launched".
