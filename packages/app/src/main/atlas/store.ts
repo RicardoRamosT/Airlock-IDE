@@ -16,7 +16,17 @@ import type {
   RootSnapshot,
   Turn,
 } from "@airlock/agent-core";
+import { encodeText } from "./encodeText";
 import { writeVerified } from "./verifyWrite";
+
+// The store runs in the database HOST process, which has no event log of its
+// own, so a misprediction is surfaced on stderr where the host's output is
+// captured rather than swallowed here.
+function reportMispredict(got: number, want: number): void {
+  console.error(
+    `[atlas] utf-8 encode mispredicted ${got} bytes for ${want}; re-encoded via Buffer`,
+  );
+}
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS project (
@@ -160,14 +170,14 @@ function readRawText(
 }
 
 function bytes(s: string): Uint8Array | string {
-  // AN EMPTY STRING BINDS AS A PLAIN STRING, not as bytes. A zero-length
-  // Uint8Array binds as NULL rather than as an empty blob, so CAST(? AS TEXT)
-  // yields NULL and every NOT NULL column here rejects it -- reachable today
-  // via a reply that is only a facts block (prose is then "") or a fact with an
-  // empty verbatim. The byte path exists to keep a string out of Node's
-  // Utf8Value length prediction, and an empty string has no length to
-  // mispredict, so binding it directly is safe.
-  return s.length === 0 ? "" : TEXT_ENCODER.encode(s);
+  // Delegates to encodeText, which CHECKS the encoder's output against
+  // Buffer.byteLength before handing SQLite anything. The blob bind keeps
+  // node:sqlite's Utf8Value out of the write path; the check keeps
+  // TextEncoder's own UTF-8 length prediction out of it too, which is the one
+  // that was actually losing bytes. See encodeText.ts for the arithmetic.
+  return encodeText(s, undefined, (got, want) => {
+    reportMispredict(got, want);
+  });
 }
 
 export function readRegistry(db: DatabaseSync): AtlasProject[] {
