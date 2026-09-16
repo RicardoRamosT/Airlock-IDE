@@ -1,6 +1,16 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  ATLAS_STANDING_DEFAULT,
+  ATLAS_STANDING_MIN,
+} from "../lib/atlasStandingResize";
 import { AtlasPanel } from "./AtlasPanel";
 
 afterEach(cleanup);
@@ -26,6 +36,7 @@ const api = {
     disclosure: "",
     mode: "subscription" as const,
     lastView: "brief" as "brief" | "chat",
+    standingHeight: 208,
   })),
   // Return type widened to include null: "no debrief today" is a real state
   // the panel must render alongside any open concerns.
@@ -64,6 +75,7 @@ beforeEach(() => {
     disclosure: "",
     mode: "subscription",
     lastView: "brief",
+    standingHeight: 208,
   });
   (window as unknown as { airlock: unknown }).airlock = api;
 });
@@ -85,6 +97,7 @@ it("REOPENS ON THE CHAT when that is where the user last was", async () => {
     disclosure: "",
     mode: "subscription",
     lastView: "chat",
+    standingHeight: 208,
   });
   render(<AtlasPanel />);
   await waitFor(() => expect(onView("Chat")).toBe(true));
@@ -375,4 +388,110 @@ it("counts the concerns in the header", async () => {
   render(<AtlasPanel />);
   const head = await screen.findByRole("button", { name: /still open/i });
   expect(head.textContent).toContain("2");
+});
+
+// --- the Still open resize handle -------------------------------------------
+
+const grip = () => screen.getByRole("separator", { name: /still open/i });
+const listEl = (c: HTMLElement) =>
+  c.querySelector(".atlas-standing-list") as HTMLElement;
+
+// jsdom has no layout, so every rect measures 0 -- which resizeStanding reads
+// as "unmeasured", leaving the drag unconstrained. That is what makes the
+// arithmetic here assertable at all.
+const drag = (from: number, to: number) => {
+  fireEvent.mouseDown(grip(), { clientY: from });
+  fireEvent.mouseMove(document, { clientY: to });
+  fireEvent.mouseUp(document, { clientY: to });
+};
+
+it("seeds the Still open list from the persisted height", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  api.atlasState.mockResolvedValue({
+    acknowledged: true,
+    disclosure: "",
+    mode: "subscription",
+    lastView: "brief",
+    standingHeight: 96,
+  });
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  await waitFor(() => expect(listEl(container).style.height).toBe("96px"));
+});
+
+it("drags the divider UP to make the Still open area bigger", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  drag(300, 240); // 60px up
+  expect(listEl(container).style.height).toBe("268px");
+  await waitFor(() =>
+    expect(api.atlasSetPrefs).toHaveBeenCalledWith({ standingHeight: 268 }),
+  );
+});
+
+it("drags the divider DOWN to make it smaller", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  drag(300, 400); // 100px down
+  expect(listEl(container).style.height).toBe("108px");
+});
+
+it("never drags below one whole concern", async () => {
+  // The floor the user asked for: "minimum I should be able to fit 1 task".
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  drag(300, 5000);
+  expect(listEl(container).style.height).toBe(`${ATLAS_STANDING_MIN}px`);
+});
+
+it("resizes from the keyboard, so the handle is not mouse-only", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  fireEvent.keyDown(grip(), { key: "ArrowUp" });
+  await waitFor(() => expect(listEl(container).style.height).toBe("224px"));
+  await waitFor(() =>
+    expect(api.atlasSetPrefs).toHaveBeenCalledWith({ standingHeight: 224 }),
+  );
+});
+
+it("double-click resets the Still open area to its default height", async () => {
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  drag(300, 400);
+  expect(listEl(container).style.height).not.toBe(
+    `${ATLAS_STANDING_DEFAULT}px`,
+  );
+  fireEvent.doubleClick(grip());
+  await waitFor(() =>
+    expect(listEl(container).style.height).toBe(`${ATLAS_STANDING_DEFAULT}px`),
+  );
+});
+
+it("drops the bottom fade once the area is too short to show one through", async () => {
+  // The fade is 18px of an 18px-ish box at the minimum, so a one-row list would
+  // read as a rendering fault rather than as a list.
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  const { container } = render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  expect(listEl(container).className).not.toContain("is-tight");
+  drag(300, 5000);
+  expect(listEl(container).className).toContain("is-tight");
+});
+
+it("offers no resize handle while the concerns are collapsed", async () => {
+  // There is no list to resize, and a handle that does nothing is worse than
+  // no handle.
+  api.atlasConcerns.mockResolvedValueOnce([CONCERN, GONE]);
+  render(<AtlasPanel />);
+  await screen.findByText(/still open/i);
+  expect(screen.queryByRole("separator", { name: /still open/i })).toBeTruthy();
+  screen.getByRole("button", { name: /still open/i }).click();
+  await waitFor(() =>
+    expect(screen.queryByRole("separator", { name: /still open/i })).toBeNull(),
+  );
 });

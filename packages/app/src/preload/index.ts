@@ -272,8 +272,11 @@ const api: AirlockApi = {
   atlasConcerns: () => ipcRenderer.invoke("atlas:concerns"),
   atlasForget: (root: string) => ipcRenderer.invoke("atlas:forget", root),
   atlasProjects: () => ipcRenderer.invoke("atlas:projects"),
-  atlasSetPrefs: (patch: { hour?: number; surface?: "app" | "both" }) =>
-    ipcRenderer.invoke("atlas:setPrefs", patch),
+  atlasSetPrefs: (patch: {
+    hour?: number;
+    surface?: "app" | "both";
+    standingHeight?: number;
+  }) => ipcRenderer.invoke("atlas:setPrefs", patch),
   atlasSetProjectEnabled: (root: string, enabled: boolean) =>
     ipcRenderer.invoke("atlas:setProjectEnabled", root, enabled),
   onAtlasPointer: (cb) => {

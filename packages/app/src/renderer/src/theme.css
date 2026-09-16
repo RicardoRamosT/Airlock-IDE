@@ -7274,11 +7274,57 @@ button.docker-row .codicon-chevron-right {
   flex-direction: column;
   gap: var(--sb-row-gap);
   margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  /* Never grows past this, however many concerns accumulate. The debrief is
-     what the panel is for; the concern list is not allowed to bury it. */
+  /* The top border is drawn by .atlas-standing-grip, which is also the resize
+     handle -- the line the user grabs has to BE the line they see. */
+  /* Never flexed below the height the drag set: the panel shrinks the debrief
+     above instead, and the drag's own ceiling is what keeps that honest. */
+  flex: 0 0 auto;
   min-height: 0;
+}
+
+/* The rule above the section, and its resize handle. An 11px strip so there is
+   something to grab, with the 1px line drawn inside it -- a 1px hit area is
+   not a control. Rendered even while the section is collapsed (without the
+   separator role) so the border never disappears. */
+.atlas-standing-grip {
+  position: relative;
+  flex: 0 0 auto;
+  height: 11px;
+  margin-bottom: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.atlas-standing-grip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  height: 1px;
+  background: var(--border);
+  transition: background 90ms ease;
+}
+.atlas-standing-grip[role="separator"] {
+  cursor: ns-resize;
+}
+/* Same grammar as .sidebar-resizer: faint at rest so the handle stays
+   discoverable, full accent while hovered, focused or dragging. */
+.atlas-standing-grip[role="separator"]:hover::after,
+.atlas-standing-grip[role="separator"]:focus-visible::after,
+body.resizing-row .atlas-standing-grip[role="separator"]::after {
+  background: var(--accent);
+  height: 2px;
+}
+.atlas-standing-grip[role="separator"]:focus-visible {
+  outline: none;
+}
+
+/* While dragging, force the resize cursor everywhere and suppress selection so
+   a fast drag across the debrief does not select it. */
+body.resizing-row {
+  cursor: ns-resize;
+  user-select: none;
 }
 
 /* The header is the collapse control, so it is a button that still LOOKS like
@@ -7317,17 +7363,25 @@ button.docker-row .codicon-chevron-right {
   transform-origin: center;
 }
 
-/* Roughly five rows, then scroll inside. Sized in em so it follows the row
-   height rather than pinning a pixel guess. */
+/* Height comes from the inline style the divider commits, which always wins --
+   the 16em here only matters if this markup is ever rendered without it, and it
+   is the number the fixed max-height used to be, so an untouched panel looks
+   exactly as it did. */
 .atlas-standing-list {
   display: flex;
   flex-direction: column;
   gap: var(--sb-row-gap);
-  max-height: 16em;
+  height: 16em;
+  min-height: 0;
   overflow-y: auto;
   /* Fades the last line instead of guillotining it, so "there is more" reads
      as more rather than as a rendering bug. */
   mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+}
+/* Dragged short enough that the 18px fade would cover most of the box: one row
+   under the fade reads as a rendering fault, not as a list. */
+.atlas-standing-list.is-tight {
+  mask-image: none;
 }
 
 .atlas-standing-row {
@@ -7336,6 +7390,10 @@ button.docker-row .codicon-chevron-right {
   gap: 8px;
   padding: 3px 4px;
   border-radius: 3px;
+  /* The list is a fixed-height flex column, so a shrinkable row would compress
+     to fit instead of scrolling -- eight concerns squeezed into one screen
+     rather than the one-row minimum the divider promises. */
+  flex: 0 0 auto;
 }
 .atlas-standing-row:hover {
   background: var(--hover);

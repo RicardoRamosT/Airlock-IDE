@@ -129,6 +129,7 @@ import type {
   Section,
   SessionSnapshot,
 } from "../shared/ipc";
+import { ATLAS_STANDING_MAX, ATLAS_STANDING_MIN } from "../shared/ipc";
 import {
   pruneRequestsOnPtyExit,
   resolveExternallyVaulted,
@@ -1356,6 +1357,9 @@ export function registerIpc(
       // settings arrive the same way everything else here does.
       hour: prefs.atlas.hour,
       surface: prefs.atlas.surface,
+      // Same reason: the "Still open" divider has to seed from somewhere, and
+      // the store is not available in the popover or the standalone window.
+      standingHeight: prefs.atlas.standingHeight,
     };
   });
 
@@ -1367,12 +1371,27 @@ export function registerIpc(
     "atlas:setPrefs",
     async (_e, patch: unknown): Promise<boolean> => {
       if (!patch || typeof patch !== "object") return false;
-      const p = patch as { hour?: unknown; surface?: unknown };
+      const p = patch as {
+        hour?: unknown;
+        surface?: unknown;
+        standingHeight?: unknown;
+      };
       const prev = await loadPrefs(prefsFile);
       const next = { ...prev.atlas };
       if (typeof p.hour === "number" && Number.isInteger(p.hour))
         next.hour = Math.min(23, Math.max(0, p.hour));
       if (p.surface === "app" || p.surface === "both") next.surface = p.surface;
+      // Clamped here as well as in the sanitiser: a renderer is not a trusted
+      // source of a number, and the bounds are the shared ones the handle uses.
+      if (
+        typeof p.standingHeight === "number" &&
+        Number.isFinite(p.standingHeight)
+      ) {
+        next.standingHeight = Math.min(
+          ATLAS_STANDING_MAX,
+          Math.max(ATLAS_STANDING_MIN, Math.round(p.standingHeight)),
+        );
+      }
       await savePrefs(prefsFile, { atlas: next });
       return true;
     },

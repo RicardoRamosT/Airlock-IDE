@@ -17,6 +17,9 @@ import {
 } from "@airlock/agent-core";
 import {
   type AppPrefs,
+  ATLAS_STANDING_DEFAULT,
+  ATLAS_STANDING_MAX,
+  ATLAS_STANDING_MIN,
   type BuiltinSection,
   type ClaudeAutoStart,
   type Section,
@@ -79,6 +82,7 @@ const DEFAULTS: AppPrefs = {
     hour: 9,
     width: 380,
     height: 460,
+    standingHeight: ATLAS_STANDING_DEFAULT,
     lastReadDay: "",
     lastView: "brief",
   },
@@ -217,6 +221,7 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
   let hour = 9;
   let width = 380;
   let height = 460;
+  let standingHeight = ATLAS_STANDING_DEFAULT;
   let lastReadDay = "";
   // Opening on the debrief is the right FIRST-run default; after that the
   // panel reopens wherever the user last was.
@@ -242,6 +247,17 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
     if (typeof r.height === "number" && Number.isFinite(r.height)) {
       height = Math.min(1200, Math.max(240, Math.round(r.height)));
     }
+    // Clamped to the SAME interval the drag handle commits, so no prefs file
+    // can carry a height no gesture could produce.
+    if (
+      typeof r.standingHeight === "number" &&
+      Number.isFinite(r.standingHeight)
+    ) {
+      standingHeight = Math.min(
+        ATLAS_STANDING_MAX,
+        Math.max(ATLAS_STANDING_MIN, Math.round(r.standingHeight)),
+      );
+    }
     if (typeof r.lastReadDay === "string") lastReadDay = r.lastReadDay;
   }
   return {
@@ -251,6 +267,7 @@ function sanitizeAtlas(raw: unknown): AppPrefs["atlas"] {
     hour,
     width,
     height,
+    standingHeight,
     lastReadDay,
     lastView,
   };

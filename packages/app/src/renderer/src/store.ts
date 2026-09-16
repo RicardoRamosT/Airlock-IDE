@@ -16,6 +16,7 @@ import type {
   UpdateProgress,
   UpdateStatus,
 } from "../../shared/ipc";
+import { ATLAS_STANDING_DEFAULT } from "../../shared/ipc";
 import { anyAppPageOpen } from "./lib/appPages";
 import { type OverviewRunResult, planOverviewRun } from "./lib/overviewRun";
 import { BUILTIN_SECTION_META, type SectionMeta } from "./lib/sections";
@@ -879,6 +880,7 @@ export const useApp = create<AppState>((set) => ({
     hour: 9,
     width: 380,
     height: 460,
+    standingHeight: ATLAS_STANDING_DEFAULT,
     lastReadDay: "",
     lastView: "brief",
   },

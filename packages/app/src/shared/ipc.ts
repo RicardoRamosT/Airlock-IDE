@@ -405,6 +405,24 @@ export const SIDEBAR_WIDTH_MAX = 600;
 // the handle doubles as a hide gesture. Below MIN by design.
 export const SIDEBAR_COLLAPSE_AT = 120;
 
+// Height of the Atlas panel's "Still open" list, in px. Same ONE-source rule as
+// the sidebar bounds above: the renderer's drag/keyboard handle and main's
+// prefs sanitiser both read these, so no prefs file can carry a height the
+// handle could never produce.
+// The default is 16em at the panel's 13px -- the fixed max-height this
+// replaced, so an untouched panel looks exactly as it did.
+export const ATLAS_STANDING_DEFAULT = 208;
+// One 13px concern row: 3px + 3px padding around a ~16px line. It is a FLOOR,
+// not the min: a row that wrapped to two lines raises it, because the promise
+// is one whole concern visible, not a fixed number of pixels.
+export const ATLAS_STANDING_MIN = 22;
+// Matches the panel's own max height -- a stored value past it is garbage.
+export const ATLAS_STANDING_MAX = 1200;
+// Below this the bottom "there is more" fade covers most of the box, so a
+// one-row list would read as a rendering fault rather than as a list. The fade
+// is dropped instead.
+export const ATLAS_STANDING_FADE_AT = 60;
+
 /**
  * An IDE-control command dispatched main -> renderer over the agent:command
  * channel (the agent-commands round-trip, mirroring request_secret). The
@@ -644,6 +662,12 @@ export interface AppPrefs {
     // menu bar popover so a size set in one is respected by the other.
     width: number;
     height: number;
+    // Height of the debrief's "Still open" list, in px, set by dragging the
+    // divider above it. Shared across the surfaces for the same reason the
+    // panel size is; each surface re-clamps to the room it actually has, so a
+    // height set in the tall standalone window cannot bury the dropdown's
+    // debrief.
+    standingHeight: number;
     // Day key of the last debrief the user actually READ. The dot compares this
     // against the brief's own day; without it "unread" degenerates into "a
     // brief exists" and never clears.
@@ -1372,6 +1396,8 @@ export interface AirlockApi {
   atlasSetPrefs(patch: {
     hour?: number;
     surface?: "app" | "both";
+    // Height of the debrief's "Still open" list, committed by its divider.
+    standingHeight?: number;
   }): Promise<boolean>;
   // Where the popover's arrow must sit to aim at the tray icon. Sent on every
   // open: the window is clamped to the display, so the offset is not constant.
@@ -1389,6 +1415,7 @@ export interface AirlockApi {
     lastView: "brief" | "chat";
     hour: number;
     surface: "app" | "both";
+    standingHeight: number;
   }>;
   atlasSetView(view: "brief" | "chat"): Promise<void>;
   atlasConsent(): Promise<void>;

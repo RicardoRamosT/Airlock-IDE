@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ATLAS_STANDING_DEFAULT,
+  ATLAS_STANDING_MAX,
+  ATLAS_STANDING_MIN,
   type SectionVisibility,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -56,6 +59,7 @@ describe("app prefs", () => {
         hour: 9,
         width: 380,
         height: 460,
+        standingHeight: ATLAS_STANDING_DEFAULT,
         lastReadDay: "",
         lastView: "brief",
       },
@@ -143,6 +147,7 @@ describe("app prefs", () => {
         hour: 9,
         width: 380,
         height: 460,
+        standingHeight: ATLAS_STANDING_DEFAULT,
         lastReadDay: "",
         lastView: "brief",
       },
@@ -284,6 +289,7 @@ describe("app prefs", () => {
         hour: 9,
         width: 380,
         height: 460,
+        standingHeight: ATLAS_STANDING_DEFAULT,
         lastReadDay: "",
         lastView: "brief",
       },
@@ -339,6 +345,7 @@ describe("app prefs", () => {
         hour: 9,
         width: 380,
         height: 460,
+        standingHeight: ATLAS_STANDING_DEFAULT,
         lastReadDay: "",
         lastView: "brief",
       },
@@ -706,6 +713,51 @@ describe("publicPrefs", () => {
     expect((await loadPrefs(file)).sidebarWidth).toBe(SIDEBAR_WIDTH_MAX);
     await writeFile(file, JSON.stringify({ sidebarWidth: 40 }), "utf8");
     expect((await loadPrefs(file)).sidebarWidth).toBe(SIDEBAR_WIDTH_MIN);
+  });
+
+  it("clamps a persisted Still-open height to the interval the handle produces", async () => {
+    // Same one-source rule as sidebarWidth above: the drag commits within
+    // [ATLAS_STANDING_MIN, ATLAS_STANDING_MAX], so a prefs file must not be
+    // able to carry a height no drag could produce.
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(
+      file,
+      JSON.stringify({ atlas: { standingHeight: 99999 } }),
+      "utf8",
+    );
+    expect((await loadPrefs(file)).atlas.standingHeight).toBe(
+      ATLAS_STANDING_MAX,
+    );
+    await writeFile(
+      file,
+      JSON.stringify({ atlas: { standingHeight: 2 } }),
+      "utf8",
+    );
+    expect((await loadPrefs(file)).atlas.standingHeight).toBe(
+      ATLAS_STANDING_MIN,
+    );
+  });
+
+  it("falls back to the default Still-open height on a garbage value", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    await writeFile(
+      file,
+      JSON.stringify({ atlas: { standingHeight: "tall" } }),
+      "utf8",
+    );
+    expect((await loadPrefs(file)).atlas.standingHeight).toBe(
+      ATLAS_STANDING_DEFAULT,
+    );
+  });
+
+  it("round-trips a dragged Still-open height", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "airlock-prefs-"));
+    const file = path.join(dir, "prefs.json");
+    const cur = (await loadPrefs(file)).atlas;
+    await savePrefs(file, { atlas: { ...cur, standingHeight: 96 } });
+    expect((await loadPrefs(file)).atlas.standingHeight).toBe(96);
   });
 
   it("saves normally when the file is simply absent", async () => {

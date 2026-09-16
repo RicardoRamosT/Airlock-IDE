@@ -1,6 +1,16 @@
+import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import type { AtlasConcern, AtlasProject } from "../../../shared/ipc";
 import { renderBrief } from "../lib/atlasBrief";
+import {
+  ATLAS_STANDING_DEFAULT,
+  ATLAS_STANDING_FADE_AT,
+  ATLAS_STANDING_MAX,
+  ATLAS_STANDING_MIN,
+  availableFor,
+  resizeStanding,
+  type StandingBounds,
+} from "../lib/atlasStandingResize";
 import { AtlasChat } from "./AtlasChat";
 import { AtlasConsent } from "./AtlasConsent";
 import { AtlasSettings } from "./AtlasSettings";
@@ -10,6 +20,33 @@ import { AtlasSettings } from "./AtlasSettings";
 // used to carry its own near-copy of this logic. That is how the standalone
 // window ended up with no History, New chat or Debrief buttons at all: the
 // header lived in the dropdown's copy and nowhere else.
+const KEY_STEP = 16; // px the divider moves per Arrow keypress
+
+// The thin DOM layer the pure resizer cannot have: read the three bounds off
+// the live list. Anything it cannot measure comes back 0, which resizeStanding
+// reads as "unbounded" rather than as a ceiling of zero.
+function measureStanding(list: HTMLElement): StandingBounds {
+  const row = list.querySelector<HTMLElement>(".atlas-standing-row");
+  // Which element bounds the list differs per surface, so measure the host
+  // rather than hard-coding one layout.
+  const panel = list.closest<HTMLElement>(
+    ".titlebar-atlas-panel, .atlas-popover, .atlas-window",
+  );
+  const section = list.closest<HTMLElement>(".atlas-standing");
+  // What the section spends above the list: the divider and the STILL OPEN
+  // header. Subtracted so the ceiling is room for the LIST, not for the
+  // section -- otherwise the header quietly eats into the debrief's floor.
+  const chrome =
+    section === null
+      ? 0
+      : list.getBoundingClientRect().top - section.getBoundingClientRect().top;
+  return {
+    rowHeight: row?.getBoundingClientRect().height ?? 0,
+    contentHeight: list.scrollHeight,
+    available: panel === null ? 0 : availableFor(panel.clientHeight, chrome),
+  };
+}
+
 export interface AtlasPanelProps {
   // When the panel IS the window, it draws its own title row; when it is
   // hosted inside a dropdown or a sidebar section, the host provides one.
@@ -60,6 +97,13 @@ export function AtlasPanel({
   // height below is what actually stops the section burying the debrief, so
   // this is convenience and does not warrant a pref, a sanitizer and an IPC.
   const [standingShut, setStandingShut] = useState(false);
+  // Height of the standing-concerns list, in px, set by dragging the divider
+  // above it. Unlike the collapse above this IS persisted -- a size you set
+  // with a deliberate drag should survive reopening the panel -- and it comes
+  // over IPC rather than from the app store, which the popover and the
+  // standalone window never hydrate.
+  const [standingH, setStandingH] = useState(ATLAS_STANDING_DEFAULT);
+  const standingRef = useRef<HTMLDivElement | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [history, setHistory] = useState<
     { session: number; startedAt: number; turns: number; preview: string }[]
@@ -97,6 +141,12 @@ export function AtlasPanel({
           if (!alive) return;
           setState(s);
           setBrief(text);
+          // Re-seeded on every refresh, not once: another window may have
+          // dragged it, and the drag persists on release so there is no
+          // in-progress value here for a refresh to stomp on.
+          if (typeof s?.standingHeight === "number") {
+            setStandingH(s.standingHeight);
+          }
           // Only on the FIRST load, tracked by a REF: `load` is also the
           // refresh handler and closes over its initial state, so testing a
           // piece of state here would re-seed on every refresh and yank the
@@ -129,6 +179,55 @@ export function AtlasPanel({
     if (next === "brief" && view === "chat" && brief) onBriefRead?.(brief.day);
     setView(next);
     void window.airlock?.atlasSetView?.(next);
+  };
+
+  // Commit a height: to component state (which re-renders the inline style) and
+  // to prefs. main does the read-modify-write, because writing the whole atlas
+  // object from here would take lastView and lastReadDay with it.
+  const commitStanding = (next: number) => {
+    setStandingH(next);
+    void window.airlock?.atlasSetPrefs?.({ standingHeight: next });
+  };
+
+  // Dragging mutates the element directly and commits on release, so the panel
+  // does not re-render (and re-parse the whole debrief) once per mousemove.
+  const onGripDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const list = standingRef.current;
+    if (!list) return;
+    const startY = e.clientY;
+    const startH = list.getBoundingClientRect().height || standingH;
+    // Measured ONCE at drag start: measuring per move would read the height
+    // the drag itself just set and the bounds would chase the pointer.
+    const bounds = measureStanding(list);
+    document.body.classList.add("resizing-row");
+    let next = startH;
+    const onMove = (ev: MouseEvent) => {
+      next = resizeStanding(startH, ev.clientY - startY, bounds);
+      list.style.height = `${next}px`;
+      list.classList.toggle("is-tight", next < ATLAS_STANDING_FADE_AT);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.classList.remove("resizing-row");
+      commitStanding(next);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  // Arrow Up/Down nudge the divider in the same physical sense as a drag. A
+  // splitter reachable only by mouse is not reachable.
+  const onGripKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const dir = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    if (dir === 0) return;
+    e.preventDefault();
+    const list = standingRef.current;
+    if (!list) return;
+    commitStanding(
+      resizeStanding(standingH, dir * KEY_STEP, measureStanding(list)),
+    );
   };
 
   if (!asked) return <p className="atlas-note">Loading...</p>;
@@ -362,6 +461,29 @@ export function AtlasPanel({
           )}
           {concerns !== null && concerns.length > 0 ? (
             <div className="atlas-standing">
+              {/* The rule above the section IS the resize handle. It is drawn
+                  either way so the section never loses its top border, but it
+                  only becomes a separator when there is a list to resize -- a
+                  handle that does nothing is worse than no handle. */}
+              {standingShut ? (
+                <div className="atlas-standing-grip" aria-hidden="true" />
+              ) : (
+                // biome-ignore lint/a11y/useSemanticElements: a splitter is a focusable, interactive ARIA "separator"; <hr> cannot carry the drag/keyboard handlers this needs.
+                <div
+                  className="atlas-standing-grip"
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label="Resize Still open"
+                  aria-valuenow={standingH}
+                  aria-valuemin={ATLAS_STANDING_MIN}
+                  aria-valuemax={ATLAS_STANDING_MAX}
+                  tabIndex={0}
+                  title="Drag to resize; double-click to reset"
+                  onMouseDown={onGripDown}
+                  onKeyDown={onGripKey}
+                  onDoubleClick={() => commitStanding(ATLAS_STANDING_DEFAULT)}
+                />
+              )}
               {/* Collapsible, and BOUNDED when open. Eight concerns at three
                   lines each is taller than the whole panel, so the section
                   used to push the debrief off the top -- the one thing the
@@ -386,7 +508,13 @@ export function AtlasPanel({
                   invisible to a screen reader. Every other branch in this file
                   renders conditionally; this one now matches. */}
               {standingShut ? null : (
-                <div className="atlas-standing-list">
+                <div
+                  className={`atlas-standing-list${
+                    standingH < ATLAS_STANDING_FADE_AT ? " is-tight" : ""
+                  }`}
+                  ref={standingRef}
+                  style={{ height: standingH }}
+                >
                   {concerns.map((c) => {
                     // Read ONCE, into a local: TypeScript's narrowing of a
                     // PROPERTY does not survive into the click handler's closure.

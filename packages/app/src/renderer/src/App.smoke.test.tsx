@@ -113,6 +113,7 @@ const DEFAULT_PREFS: AppPrefs = {
     hour: 9,
     width: 380,
     height: 460,
+    standingHeight: 208,
     lastReadDay: "",
     lastView: "brief" as const,
   },
