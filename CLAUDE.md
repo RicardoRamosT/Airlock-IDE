@@ -494,6 +494,41 @@ never carry a credential, and without it the log cannot tell a project's own
 Claude from Atlas reaching in from the portfolio. Use this data before pruning
 further; the earlier round had to be argued rather than measured.
 
+**An agent answer must say WHOSE it is.** `extension_status` returns `root` (the
+project the answer was computed for) and every resources payload declares a
+`scope`, because these readers do not all answer the same question: Docker is
+machine-global, Neon is account-wide, Render is already filtered to the
+project's git remote. Unlabelled, the narrowest reading is the one assumed —
+`airlock`, which has no Dockerfile at all, was handed five containers owned by
+four other projects and a Neon list of eight projects none of which were its
+own, as flat lists with nothing marking them foreign. That is not cosmetic: an
+agent asked to debug "the database" inspects another project's Postgres and
+reports confidently about the wrong system (observed 2026-09-16 — a Claude
+session in `airlock` queried Trackview's DB and offered it as proof Docker
+worked).
+
+- **Docker is narrowed at the AGENT boundary, not in `dockerStatus()`.** `docker
+  ps` has no notion of a project and the Docker SECTION is deliberately an
+  inventory, so the machine-global reader stays as it is; `extensionResources`
+  narrows. Ownership is `com.docker.compose.project{,.working_dir}`, which
+  `docker ps --format '{{json .}}'` already returns in `Labels` — so attribution
+  costs no extra `docker inspect`.
+- **Other projects are SUMMARISED, never dropped.** `otherProjects` carries an
+  owner and a COUNT. "Nothing here, and 5 containers belong to 4 other projects"
+  is honest and still points somewhere; a bare `[]` reads as "nothing is running
+  on this machine".
+- **`containerBelongsTo` never claims what it cannot prove:** the project dir and
+  anything under it, but NOT a parent (a monorepo sibling is not this project)
+  and not a prefix-sharing sibling — lendlogic-baapp's containers live in a
+  worktree BESIDE the project, so they report as foreign. Conservative is the
+  right failure here, since they are still listed with their directory visible.
+  A non-compose `docker run` container is unattributable and is grouped under a
+  null owner rather than hidden.
+- Parsing `Labels` is not a plain comma split: compose writes
+  `project.config_files=/a.yml,/b.yml`, so a fragment with no `=` is a
+  CONTINUATION of the previous value. Splitting naively swallowed the project
+  labels that follow it.
+
 **Atlas's outbound words are SIGNED, and main signs them** (`main/agentAuthor.ts`).
 Atlas can type into a terminal where a Claude session is running, it writes in the
 user's imperative register, and what arrives there is indistinguishable from the

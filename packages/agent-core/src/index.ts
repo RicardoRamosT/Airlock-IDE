@@ -211,6 +211,7 @@ export {
 } from "./db/explorer";
 export {
   type Container,
+  containerBelongsTo,
   type DbContainer,
   type DbEngine,
   type DockerStatus,
@@ -219,7 +220,11 @@ export {
   dockerEnv,
   dockerStart,
   dockerStop,
+  type ForeignContainers,
+  parseDockerLabels,
   parseDockerPs,
+  type ScopedContainers,
+  scopeContainersToRoot,
 } from "./docker/docker";
 export {
   dockerPostgresUrl,

@@ -12,6 +12,8 @@ const docker = (installed: boolean, running: boolean, states: string[]) => ({
     state,
     status: "",
     ports: "",
+    project: null,
+    projectDir: null,
   })),
 });
 

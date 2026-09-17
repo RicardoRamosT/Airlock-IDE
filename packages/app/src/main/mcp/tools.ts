@@ -24,6 +24,7 @@ import {
   captureSecret,
   gateCommand,
   runCommand,
+  scopeContainersToRoot,
 } from "@airlock/agent-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -102,17 +103,43 @@ export const TOOL_NAMES: string[] = [
 // into one lost no capability. An extension with nothing to list (Slack,
 // GitHub, and the manifest integrations) answers null rather than an empty
 // array, which would imply "connected but empty".
+//
+// EVERY answer here declares its `scope`, because these readers do not all
+// answer the same question and an unlabelled list invites the reader to assume
+// the narrowest one. Docker is machine-global, Neon is account-wide, Render is
+// already filtered to the project's git remote. Left unlabelled, a project with
+// no Dockerfile was handed five containers belonging to four other projects and
+// a Neon list of eight projects none of which were its own -- and an agent
+// acting on that inspects the wrong database and reports confidently about the
+// wrong system.
 async function extensionResources(
   id: string,
   root: string | null,
 ): Promise<unknown> {
-  if (id === "docker") return await ide.dockerStatus();
+  if (id === "docker") {
+    // `docker ps` has no notion of a project, so dockerStatus() is and stays
+    // machine-global -- the Docker SECTION is an inventory and wants it that
+    // way. The narrowing belongs here, at the agent boundary, which is the
+    // surface that was observed getting it wrong.
+    //
+    // Other projects' containers are summarised to an owner and a COUNT rather
+    // than dropped: "nothing here, and 5 containers belong to 4 other
+    // projects" is honest and still points somewhere, while a bare [] reads as
+    // "nothing is running on this machine".
+    const { installed, running, containers } = await ide.dockerStatus();
+    return {
+      scope: "project",
+      installed,
+      running,
+      ...scopeContainersToRoot(containers, root),
+    };
+  }
   if (id === "render") return await ide.renderServicesStatus(root);
   if (id === "neon") {
     // Resolve the focused project's Neon account (multi-account: each project
     // binds its own key).
     const connected = (await ide.neonStatus(root)).connected;
-    if (!connected) return { connected, projects: [] };
+    if (!connected) return { scope: "account", connected, projects: [] };
     // Org-based account: aggregate projects across every org the key can see.
     // A project-scoped key can't list orgs (404) -> report connected, no
     // projects, rather than failing the tool.
@@ -121,9 +148,11 @@ async function extensionResources(
       const projects = (
         await Promise.all(orgs.map((o) => ide.neonProjects(root, o.id)))
       ).flat();
-      return { connected, projects };
+      // Account-wide by nature: the key is bound per project, but it lists
+      // every project the ACCOUNT can see, so most rows belong to other work.
+      return { scope: "account", connected, projects };
     } catch {
-      return { connected, projects: [] };
+      return { scope: "account", connected, projects: [] };
     }
   }
   return null;
@@ -375,20 +404,29 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "extension_status",
     {
       description:
-        "Inspect AirLock extensions (Docker, Neon, Render, Snowflake, Azure, Slack, GitHub). With no id: every extension with its connection status (connected / unauthed = not connected / absent = not installed / disabled), account label, and the actions available -- the inventory behind the Extensions hub. With an id: that extension's status PLUS its resources (Docker containers, Neon projects, Render services). Status and resource metadata only -- NO secret values, tokens or API keys. Use extension_connect to start a connect flow.",
+        'Inspect AirLock extensions (Docker, Neon, Render, Snowflake, Azure, Slack, GitHub). With no id: every extension with its connection status (connected / unauthed = not connected / absent = not installed / disabled), account label, and the actions available -- the inventory behind the Extensions hub. With an id: that extension\'s status PLUS its resources (Docker containers, Neon projects, Render services). `root` names the project the answer was computed for. Each resources payload declares its `scope`: "project" = this project\'s only (Docker containers, narrowed by their compose labels, with other projects\' summarised as counts under otherProjects), "account" = everything the account can see and mostly NOT this project (Neon). Status and resource metadata only -- NO secret values, tokens or API keys. Use extension_connect to start a connect flow.',
       inputSchema: { id: z.string().optional() },
     },
     async ({ id }) => {
       const root = deps.getWorkspaceRoot();
       const rows = await deps.listExtensions(root);
-      if (!id) return ok({ extensions: rows });
+      // `root` names the project this answer was computed for, exactly as
+      // list_secret_names and ci_status already do. The caller may have
+      // switched tabs since the last call, and `projectUse` below is a
+      // per-project verdict -- reading it without knowing whose project it
+      // describes is how the wrong project's answer gets acted on.
+      if (!id) return ok({ root, extensions: rows });
 
       const row = rows.find((r) => r.id === id);
       if (!row)
         return err(
           `Unknown extension "${id}". Call extension_status with no id to list them.`,
         );
-      return ok({ ...row, resources: await extensionResources(id, root) });
+      return ok({
+        root,
+        ...row,
+        resources: await extensionResources(id, root),
+      });
     },
   );
 

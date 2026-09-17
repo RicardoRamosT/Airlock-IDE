@@ -12,6 +12,20 @@ export interface Container {
   // Docker's published-port string, e.g. "0.0.0.0:5432->5432/tcp". Already
   // present in `docker ps --format '{{json .}}'`; it used to be discarded.
   ports: string;
+  // WHO OWNS THIS CONTAINER. Compose stamps both on every container it starts,
+  // and `docker ps --format '{{json .}}'` already returns them in `Labels` --
+  // so attributing a container costs no extra `docker inspect`.
+  //
+  // Without these the container list is machine-global and anonymous, which is
+  // how a project with no Dockerfile at all was shown five containers owned by
+  // four other projects, with nothing marking them foreign.
+  //
+  // null when the container was NOT started by compose (a bare `docker run`
+  // records no owner). Null, never a guess: mis-attributing a container to the
+  // project someone is working in is the exact failure this field exists to
+  // stop.
+  project: string | null; // com.docker.compose.project
+  projectDir: string | null; // com.docker.compose.project.working_dir
 }
 
 export type DockerRunner = (args: string[]) => Promise<string>;
@@ -33,6 +47,36 @@ const realDocker: DockerRunner = async (args) => {
 };
 
 /**
+ * Parse Docker's flat `Labels` rendering ("k=v,k=v,...") into a map.
+ *
+ * A VALUE may itself contain commas -- compose writes
+ * `com.docker.compose.project.config_files=/a/compose.yml,/b/compose.yml` --
+ * so splitting on every comma truncates such a value at its first one. A
+ * fragment carrying no "=" is therefore a CONTINUATION of the previous value,
+ * not a new label.
+ *
+ * A continuation that happens to contain "=" is still read as a new key, which
+ * can leave a junk entry in the map. That is deliberate: the alternative is
+ * guessing where a value ends, and the two keys we read (project,
+ * project.working_dir) are a name and a path, neither of which contains a
+ * comma.
+ */
+export function parseDockerLabels(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  let key = "";
+  for (const frag of raw.split(",")) {
+    const eq = frag.indexOf("=");
+    if (eq > 0) {
+      key = frag.slice(0, eq);
+      out[key] = frag.slice(eq + 1);
+    } else if (key) {
+      out[key] += `,${frag}`;
+    }
+  }
+  return out;
+}
+
+/**
  * Parse `docker ps -a --format '{{json .}}'` -- one JSON object per line.
  * Robust to extra fields; tolerant of blank lines and unparseable lines.
  */
@@ -47,6 +91,7 @@ export function parseDockerPs(raw: string): Container[] {
     } catch {
       continue;
     }
+    const labels = parseDockerLabels(String(o.Labels ?? ""));
     out.push({
       id: String(o.ID ?? ""),
       name: String(o.Names ?? ""),
@@ -54,6 +99,8 @@ export function parseDockerPs(raw: string): Container[] {
       state: String(o.State ?? "").toLowerCase(),
       status: String(o.Status ?? ""),
       ports: String(o.Ports ?? ""),
+      project: labels["com.docker.compose.project"] || null,
+      projectDir: labels["com.docker.compose.project.working_dir"] || null,
     });
   }
   return out;
@@ -78,6 +125,82 @@ export async function dockerContainers(
     // docker present but daemon down (or other error) -> installed, not running.
     return { installed: true, running: false, containers: [] };
   }
+}
+
+// A trailing slash is not a different directory. Compare paths without one so
+// "/p/app" and "/p/app/" are the same project.
+function trimSlash(p: string): string {
+  return p.length > 1 && p.endsWith("/") ? p.replace(/\/+$/, "") : p;
+}
+
+/**
+ * Whether a container belongs to the project rooted at `root`.
+ *
+ * True for the project directory itself and anything under it (a compose file
+ * in a subfolder still belongs to the project). Deliberately NOT true when the
+ * container's directory merely CONTAINS the root: a monorepo sibling is not
+ * this project, and claiming it would reintroduce the confusion.
+ *
+ * An unattributable container (no compose labels) is never claimed, and with no
+ * project focused nothing is this project's.
+ */
+export function containerBelongsTo(c: Container, root: string | null): boolean {
+  if (!root || !c.projectDir) return false;
+  const dir = trimSlash(c.projectDir);
+  const r = trimSlash(root);
+  return dir === r || dir.startsWith(`${r}/`);
+}
+
+// One other project's containers, summarised. A COUNT and an owner, never the
+// containers themselves: the point is that a foreign container cannot be read
+// as this project's, and a name/image/port for each is exactly what made that
+// mistake possible.
+export interface ForeignContainers {
+  project: string | null;
+  projectDir: string | null;
+  containers: number;
+}
+
+export interface ScopedContainers {
+  // Only the focused project's containers.
+  containers: Container[];
+  // Every other owner, with a count. Empty when nothing else is running.
+  otherProjects: ForeignContainers[];
+}
+
+/**
+ * Split a machine-global container list into "this project's" and "everyone
+ * else's, counted".
+ *
+ * Containers with no compose labels cannot be attributed to anyone, so they are
+ * grouped under a null owner rather than being dropped -- a `docker run`
+ * postgres is still a real thing running on the machine, and silently hiding it
+ * would trade one wrong answer for another.
+ *
+ * Order is first-seen, so the output is stable for a stable `docker ps`.
+ */
+export function scopeContainersToRoot(
+  containers: Container[],
+  root: string | null,
+): ScopedContainers {
+  const mine: Container[] = [];
+  const others = new Map<string, ForeignContainers>();
+  for (const c of containers) {
+    if (containerBelongsTo(c, root)) {
+      mine.push(c);
+      continue;
+    }
+    const key = c.projectDir ?? c.project ?? "";
+    const seen = others.get(key);
+    if (seen) seen.containers += 1;
+    else
+      others.set(key, {
+        project: c.project,
+        projectDir: c.projectDir,
+        containers: 1,
+      });
+  }
+  return { containers: mine, otherProjects: [...others.values()] };
 }
 
 function assertId(id: string): void {
