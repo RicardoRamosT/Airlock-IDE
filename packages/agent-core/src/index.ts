@@ -219,10 +219,12 @@ export {
   dockerContainers,
   dockerEnv,
   dockerStart,
+  dockerStartedAt,
   dockerStop,
   type ForeignContainers,
   parseDockerLabels,
   parseDockerPs,
+  parseDockerStartedAt,
   type ScopedContainers,
   scopeContainersToRoot,
 } from "./docker/docker";

@@ -146,6 +146,16 @@ function stopPortDiscovery(root: string): void {
 // ----------------------------------------------------------------------------
 // Public API
 
+// Ports AirLock is currently running a dev server on. Used to tell a MANAGED
+// server from a detached one when deciding how to stop it.
+export function managedDevServerPorts(): Set<number> {
+  const out = new Set<number>();
+  for (const st of states.values())
+    if (st.status === "running" && typeof st.port === "number")
+      out.add(st.port);
+  return out;
+}
+
 export function getDevServerState(root: string): DevServerState {
   return get(root);
 }

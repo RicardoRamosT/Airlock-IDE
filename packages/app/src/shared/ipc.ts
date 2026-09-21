@@ -646,6 +646,10 @@ export interface AppPrefs {
   // Code statusLine that AirLock reads (set enabled:false to turn it off and
   // remove the statusLine). App-global.
   quotaMeter: { enabled: boolean };
+  // Long-running local apps. ON by default: the whole point is noticing what
+  // you forgot, and a warning nobody enabled is a warning nobody gets.
+  // thresholdHours is how long is "too long".
+  longRunningApps: { enabled: boolean; thresholdHours: number };
   // Atlas: the portfolio debrief. `enabled` is the feature switch; `acknowledged`
   // records that the user accepted the first-run cost disclosure. Both must be
   // true before Atlas spends a single token -- an API-key user pays real money.
@@ -1333,6 +1337,9 @@ export interface AirlockApi {
   }>;
   dockerStart(id: string): Promise<void>;
   dockerStop(id: string): Promise<void>;
+  // Stop the app a long-running notice describes, addressed by its REQUEST ID.
+  // The renderer never holds the pid or container id for this.
+  localAppStop(requestId: string): Promise<{ ok: boolean; error?: string }>;
   // Database-shaped containers (image recognised as postgres/mysql/mariadb/
   // mongo/redis), for the Databases provider row. Value-free: name, image,
   // engine and published host port only -- never a credential.

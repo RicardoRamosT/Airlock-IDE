@@ -4,7 +4,9 @@ import { BrowserWindow, ipcMain } from "electron";
 import {
   AGENT_REQUEST_POLICY,
   type AgentRequest,
+  appIdentity,
   coalesceKey,
+  type LongRunningAppRequest,
   REGISTRY_MAX,
   type SecretRequest,
   shouldPruneOn,
@@ -102,11 +104,18 @@ const entries = new Map<string, Entry>();
 // quit. Keyed by PTY id (not layout id), so a respawned terminal re-prompts.
 const grantedTerminals = new Set<string>();
 
+// Long-running apps the user has acknowledged ("I know, leave it running").
+// Keyed by appIdentity, which INCLUDES the start time -- so acknowledging is
+// permanent for this run of that app, but a restart is a new identity and is
+// reported again. In-memory: a relaunch is a fair time to be reminded.
+const acknowledgedApps = new Set<string>();
+
 // Test-only: drop all state and timers between cases.
 export function __resetAgentRequests(): void {
   for (const e of entries.values()) if (e.timer) clearTimeout(e.timer);
   entries.clear();
   grantedTerminals.clear();
+  acknowledgedApps.clear();
 }
 
 export function listRequestsForWindow(windowId: number): AgentRequest[] {
@@ -134,12 +143,20 @@ function settle(
   broadcast();
 }
 
-// Evict the oldest NON-pending entries when over the cap. NEVER a pending one --
-// dropping a pending entry strands the agent waiting on it.
+// Evict the oldest entry NOBODY IS WAITING ON when over the cap.
+//
+// The rule used to be "not pending", which existed for one reason: dropping a
+// pending entry STRANDS THE AGENT waiting on it. Waiters express that directly.
+// On the request kinds the two agree exactly -- a pending request always has at
+// least one waiter, and expire() clears them -- so this is a generalisation,
+// not a behaviour change. It is required by the notice kind: a longRunningApp
+// entry is "pending" for as long as the app is up, and under the old rule fifty
+// of them would pin the registry at its cap and starve real requests, while
+// stranding nobody.
 function enforceCap(): void {
   if (entries.size <= REGISTRY_MAX) return;
   const evictable = [...entries.values()]
-    .filter((e) => e.req.state !== "pending")
+    .filter((e) => e.waiters.length === 0)
     .sort((a, b) => a.req.createdAt - b.req.createdAt);
   for (const e of evictable) {
     if (entries.size <= REGISTRY_MAX) break;
@@ -282,6 +299,16 @@ export function resolveTerminalGrant(
 export function dismissAgentRequest(requestId: string): void {
   const e = entries.get(requestId);
   if (!e || !AGENT_REQUEST_POLICY[e.req.kind].dismissible) return;
+  // A notice already LIVES in the bell, so "move it to the bell" would be a
+  // no-op that leaves it on screen forever. Dismissing one means "I know about
+  // this": remember the identity so reconciliation does not re-add it, and drop
+  // the card. Nothing is waiting, so there is nothing to resolve.
+  if (e.req.kind === "longRunningApp") {
+    acknowledgedApps.add(appIdentity(e.req));
+    entries.delete(requestId);
+    broadcast();
+    return;
+  }
   e.req = { ...e.req, dismissed: true };
   broadcast();
 }
@@ -309,6 +336,113 @@ export function resolveExternallyVaulted(root: string, name: string): void {
       e.req.name === name
     )
       settle(e.req.requestId, { ok: true });
+}
+
+// The set of long-running apps, as the detector currently sees it. This is the
+// ONLY producer of longRunningApp notices.
+export interface LongRunningAppInput {
+  appType: LongRunningAppRequest["appType"];
+  appId: string;
+  name: string;
+  detail: string;
+  startedAt: number;
+  root: string | null;
+  projectName: string | null;
+  // MAIN-ONLY. Deliberately absent from LongRunningAppRequest, so a pid never
+  // crosses to the renderer: Stop is driven by requestId and main resolves the
+  // pid itself. That keeps the old "no pid to the renderer" rule intact even
+  // though the button it was protecting against now exists.
+  pid?: number;
+}
+
+// Reconcile the notices against what is actually running.
+//
+// RECONCILIATION, not events: each poll states the whole truth, so a notice
+// disappears when its app stops or drops back under the threshold, with no
+// prune trigger to wire and nothing to miss while AirLock was closed.
+//
+// Existing notices are UPDATED IN PLACE rather than recreated, so a card does
+// not jump to the top of the bell on every poll, and an acknowledged identity
+// is never resurrected.
+export function reconcileLongRunningApps(apps: LongRunningAppInput[]): void {
+  const wanted = new Map<string, LongRunningAppInput>();
+  for (const a of apps) {
+    const id = appIdentity(a);
+    if (!acknowledgedApps.has(id)) wanted.set(id, a);
+  }
+
+  let changed = false;
+  // Retire notices whose app is gone, fell under the threshold, or was
+  // acknowledged since the last pass.
+  for (const e of [...entries.values()]) {
+    if (e.req.kind !== "longRunningApp") continue;
+    const id = appIdentity(e.req);
+    if (wanted.has(id)) {
+      wanted.delete(id); // already shown; nothing to add for it
+      continue;
+    }
+    entries.delete(e.req.requestId);
+    changed = true;
+  }
+
+  // Whatever is left is newly over the threshold.
+  for (const a of wanted.values()) {
+    const req: LongRunningAppRequest = {
+      kind: "longRunningApp",
+      requestId: randomUUID(),
+      state: "pending",
+      createdAt: Date.now(),
+      dismissed: false,
+      root: a.root,
+      projectName: a.projectName,
+      appType: a.appType,
+      appId: a.appId,
+      name: a.name,
+      detail: a.detail,
+      startedAt: a.startedAt,
+    };
+    entries.set(req.requestId, {
+      req,
+      // Route to the window that has this app's project open, so the notice
+      // lands where the user can act on it. Falls back to the focused window.
+      targetWindowId: host.pickWindow(a.root),
+      // No waiter and NO TIMER: nothing is awaiting this, and it must not
+      // expire on a clock -- only the app stopping retires it.
+      waiters: [],
+      timer: null,
+    });
+    changed = true;
+  }
+
+  if (changed) {
+    enforceCap();
+    broadcast();
+  }
+}
+
+// What the registry currently believes is long-running. Also the test seam.
+export function longRunningNotices(): LongRunningAppRequest[] {
+  return [...entries.values()]
+    .map((e) => e.req)
+    .filter((r): r is LongRunningAppRequest => r.kind === "longRunningApp");
+}
+
+// One notice by id, for the Stop action. Returns null for an unknown id or a
+// request of another kind, so Stop can never act on a secret or a grant.
+export function longRunningNoticeById(
+  requestId: string,
+): LongRunningAppRequest | null {
+  const e = entries.get(requestId);
+  return e && e.req.kind === "longRunningApp" ? e.req : null;
+}
+
+// Drop one notice outright, for a Stop that succeeded: the app is gone, so the
+// card should be too rather than lingering until the next poll.
+export function forgetLongRunningNotice(requestId: string): void {
+  const e = entries.get(requestId);
+  if (e?.req.kind !== "longRunningApp") return;
+  entries.delete(requestId);
+  broadcast();
 }
 
 // A window closing must not take pending requests with it. Re-route to a

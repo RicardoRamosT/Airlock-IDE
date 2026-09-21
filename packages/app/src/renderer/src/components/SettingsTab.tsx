@@ -18,6 +18,7 @@ const CATEGORIES = [
   { id: "layout", label: "Layout", icon: "layout" },
   { id: "terminal", label: "Terminal", icon: "terminal" },
   { id: "claude", label: "Claude", icon: "hubot" },
+  { id: "localapps", label: "Local apps", icon: "server-process" },
   { id: "secrets", label: "Secrets", icon: "lock" },
   { id: "agent", label: "Agent", icon: "law" },
   { id: "about", label: "About", icon: "info" },
@@ -607,6 +608,7 @@ export function SettingsTab() {
             </section>
           )}
 
+          {category === "localapps" && <LocalAppsSection />}
           {category === "secrets" && (
             <section className="settings-section">
               <h3>Secrets</h3>
@@ -668,5 +670,75 @@ export function SettingsTab() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Long-running local apps. Read straight from prefs rather than through the
+// store: nothing outside this page needs the value, and a store slice that
+// exists only for one checkbox is a slice that later drifts from prefs.
+function LocalAppsSection() {
+  const [enabled, setEnabled] = useState(true);
+  const [hours, setHours] = useState(24);
+
+  useEffect(() => {
+    let live = true;
+    void window.airlock.prefsGet().then((p) => {
+      if (!live) return;
+      setEnabled(p.longRunningApps.enabled);
+      setHours(p.longRunningApps.thresholdHours);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  return (
+    <section className="settings-section">
+      <h3>Local apps</h3>
+      <div className="settings-row">
+        <label htmlFor="longrunning-enabled">
+          Tell me about apps left running
+        </label>
+        <input
+          id="longrunning-enabled"
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => {
+            const v = e.target.checked;
+            setEnabled(v);
+            void window.airlock.prefsSet({
+              longRunningApps: { enabled: v, thresholdHours: hours },
+            });
+          }}
+        />
+      </div>
+      <div className="settings-row">
+        <label htmlFor="longrunning-hours">Warn after (hours)</label>
+        <input
+          id="longrunning-hours"
+          type="number"
+          min={1}
+          max={720}
+          value={hours}
+          disabled={!enabled}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!Number.isFinite(n)) return;
+            setHours(n);
+            void window.airlock.prefsSet({
+              longRunningApps: { enabled, thresholdHours: n },
+            });
+          }}
+        />
+      </div>
+      <p className="settings-note">
+        Docker containers and dev servers left running cost memory and battery
+        long after you have stopped using them. AirLock checks every ten minutes
+        and puts anything older than the threshold in the notification bell,
+        with the project it belongs to and a Stop button. It never stops
+        anything by itself. &quot;Later&quot; hides one until that app is
+        restarted.
+      </p>
+    </section>
   );
 }

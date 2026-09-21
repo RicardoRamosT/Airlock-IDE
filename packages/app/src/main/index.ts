@@ -33,6 +33,7 @@ import {
 } from "./atlas/trayWindow";
 import {
   getDevServerState,
+  managedDevServerPorts,
   startDevServer,
   stopDevServer,
 } from "./devserver/manager";
@@ -53,6 +54,7 @@ import {
   terminalLabel,
   writeTerminalInput,
 } from "./ipc";
+import { configureLocalApps, startLocalAppsPoll } from "./localapps";
 import { ensureMcpConfig } from "./mcp/config";
 import {
   configureScope,
@@ -159,6 +161,13 @@ function bootstrap(): void {
     // layout for an IDE-control command). The MCP tools that drive this are wired
     // in via runAgentCommand in the startMcpServer deps below.
     registerAgentCommandIpc();
+    // Long-running local apps -> the notification bell. Reads its pref on each
+    // poll, so the Settings toggle takes effect without a relaunch.
+    configureLocalApps({
+      prefs: async () => (await loadPrefs(prefsFile)).longRunningApps,
+      managedPorts: managedDevServerPorts,
+    });
+    startLocalAppsPoll();
     createWindow();
     startAtlasArrival(prefsFile);
     const prefs = await loadPrefs(prefsFile);

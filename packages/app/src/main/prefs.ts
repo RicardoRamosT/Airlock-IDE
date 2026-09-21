@@ -75,6 +75,7 @@ const DEFAULTS: AppPrefs = {
   recentFolders: [],
   agentPolicy: { ...DEFAULT_AGENT_POLICY },
   quotaMeter: { enabled: true },
+  longRunningApps: { enabled: true, thresholdHours: 24 },
   atlas: {
     enabled: true,
     acknowledged: false,
@@ -207,6 +208,26 @@ function sanitizeQuotaMeter(raw: unknown): { enabled: boolean } {
     if (typeof r.enabled === "boolean") return { enabled: r.enabled };
   }
   return { enabled: true };
+}
+
+// longRunningApps is app-global and ON by default. The threshold is clamped to
+// a sane band: 0 would indict everything the instant it starts, and a value
+// past a month is indistinguishable from off (use `enabled: false` for that).
+function sanitizeLongRunningApps(raw: unknown): {
+  enabled: boolean;
+  thresholdHours: number;
+} {
+  const out = { enabled: true, thresholdHours: 24 };
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    if (typeof r.enabled === "boolean") out.enabled = r.enabled;
+    if (
+      typeof r.thresholdHours === "number" &&
+      Number.isFinite(r.thresholdHours)
+    )
+      out.thresholdHours = Math.min(24 * 30, Math.max(1, r.thresholdHours));
+  }
+  return out;
 }
 
 // atlas is app-global. `enabled` defaults ON, but `acknowledged` defaults OFF
@@ -404,6 +425,7 @@ function sanitize(raw: unknown): AppPrefs {
     recentFolders: sanitizeRecentFolders(r.recentFolders),
     agentPolicy: sanitizeAgentPolicy(r.agentPolicy),
     quotaMeter: sanitizeQuotaMeter(r.quotaMeter),
+    longRunningApps: sanitizeLongRunningApps(r.longRunningApps),
     atlas: sanitizeAtlas(r.atlas),
     dockStatus: sanitizeDockStatus(r.dockStatus),
     githubAutoSwitch: sanitizeGithubAutoSwitch(r.githubAutoSwitch),

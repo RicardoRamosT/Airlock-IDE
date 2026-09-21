@@ -229,6 +229,7 @@ import {
   relevanceContextFor,
 } from "./integrations/relevance";
 import { licenseDocPath } from "./licenseDocs";
+import { stopLocalApp } from "./localapps";
 import {
   lspCompletion,
   lspDefinition,
@@ -2319,6 +2320,16 @@ export function registerIpc(
   ipcMain.handle("host:unverifiedServers", (e, root: unknown) =>
     hostUnverifiedServers(resolveRoot(e, root)),
   );
+
+  // localapps:stop -> stop the app one long-running notice describes.
+  // Addressed by REQUEST ID: the renderer never holds a pid or a container id
+  // for this, so it cannot aim the action at anything AirLock is not already
+  // reporting. See main/localapps/index.ts.
+  ipcMain.handle("localapps:stop", async (_e, requestId: unknown) => {
+    if (typeof requestId !== "string" || !requestId)
+      return { ok: false, error: "No such notification" };
+    return await stopLocalApp(requestId);
+  });
 
   // Activity-rail status dots: one aggregate read fanning out to docker/db/host/
   // git/activity for the renderer-supplied project root (null = blank tab).

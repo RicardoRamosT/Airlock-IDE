@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { bellCount, partitionRequests } from "../../../shared/agentRequests";
+import {
+  AGENT_REQUEST_POLICY,
+  bellCount,
+  partitionRequests,
+} from "../../../shared/agentRequests";
 import { useAgentRequests } from "../lib/useAgentRequests";
 import { AgentRequestCard } from "./AgentRequestStack";
 
@@ -46,12 +50,17 @@ export function NotificationBell() {
             <div className="agent-request-note">No notifications yet.</div>
           ) : (
             bell.map((r) => (
-              // Not dismissible from here: it is already dismissed, so a second
-              // "Later" would do nothing.
+              // A card that ARRIVED here by being dismissed offers no second
+              // "Later" -- it would do nothing. A bell-surface kind was never
+              // dismissed (this is where it is born), so for those "Later"
+              // still means something: acknowledge it and stop being told.
               <AgentRequestCard
                 key={r.requestId}
                 request={r}
-                dismissible={false}
+                dismissible={
+                  AGENT_REQUEST_POLICY[r.kind].surface === "bell" &&
+                  !r.dismissed
+                }
               />
             ))
           )}

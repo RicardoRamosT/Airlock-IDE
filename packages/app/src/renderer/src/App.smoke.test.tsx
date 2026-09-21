@@ -123,6 +123,7 @@ const DEFAULT_PREFS: AppPrefs = {
   eventLog: { enabled: true, minLevel: "debug" },
   defaultTerminal: "airlock",
   restoreSession: true,
+  longRunningApps: { enabled: true, thresholdHours: 24 },
 };
 
 // Only the methods whose RESOLVED SHAPE the mount destructures need an explicit

@@ -232,6 +232,7 @@ const api: AirlockApi = {
   sectionStatuses: (root) => ipcRenderer.invoke("section:statuses", root),
   dockerStart: (id) => ipcRenderer.invoke("docker:start", id),
   dockerStop: (id) => ipcRenderer.invoke("docker:stop", id),
+  localAppStop: (requestId) => ipcRenderer.invoke("localapps:stop", requestId),
   dockerDatabases: () => ipcRenderer.invoke("docker:databases"),
   // The pooled Slack workspaces (refs only) + the per-project binding. The
   // tokens stay in main, exactly like the Neon key pool.

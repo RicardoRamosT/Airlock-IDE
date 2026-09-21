@@ -650,6 +650,76 @@ alike would either strand a useful action or offer a button that does nothing.
 - Untrusted payloads are normalised in `useAgentRequests` — the stack renders
   inside the App tree, so a throw during render whites out the whole window.
 
+## Long-running local apps
+
+Containers and dev servers left running cost memory and battery for days. Four
+apps on the dev machine had been up ~6 days each (2026-09-21) and nothing said
+so. AirLock now reports anything over `longRunningApps.thresholdHours`
+(default 24, app-global, Settings > Local apps, default ON) in the
+**notification bell**, with a Stop button. **It never stops anything itself.**
+
+- **MACHINE-WIDE detection, per-project ROUTING.** Every offender belonged to a
+  project other than the focused one, so a per-project monitor would have shown
+  the focused project nothing -- the container-scoping bug in reverse. The scan
+  is machine-wide; each notice is routed by `pickWindow(root)` to the window
+  owning that app's project, which is what makes it actionable.
+- **Qualify a process by its WORKING DIRECTORY, not its port.** The obvious
+  filter is `COMMON_DEV_PORTS`, and it is wrong: the server that prompted this
+  listens on **3005**, which is not in that list, and extending the list is
+  whack-a-mole. A listening process is one of the user's apps when its cwd is
+  inside an open project root (`attributeToRoot`, longest match, segment-wise so
+  `/p/app-old` is never claimed by `/p/app`). That also attributes it for free
+  and means unrelated software never qualifies. AirLock excludes **its own
+  process subtree** -- run from source its cwd IS a project root, so without
+  that it reports itself.
+- **Age comes from the PROCESS or the ENGINE, never from `docker ps`.** Docker's
+  `RunningFor` counts from CREATED: `trackview-postgres-1`, created weeks
+  earlier and restarted that week, read "4 weeks ago" against a real uptime of
+  5d 20h. Containers use `.State.StartedAt` (`dockerStartedAt`); processes use
+  `ps -o etime=` (locale-independent, unlike `lstart`). A container whose start
+  time cannot be read is SKIPPED, not assumed old.
+- **Reconciliation, not events.** Each 10-minute poll states the whole truth, so
+  a notice retires when its app stops or drops under the threshold -- no prune
+  trigger to wire, and nothing missed while AirLock was closed. A Stop
+  reconciles immediately so the card does not linger.
+- **`appIdentity` INCLUDES `startedAt`.** "Later" means acknowledge, and main
+  remembers the identity so the poll never re-raises it. Without the start time
+  that would silence a container forever; with it, a RESTART is a new identity
+  and is reported afresh.
+
+Two registry invariants had to generalise, because a notice is **not a request**
+-- nothing awaits it (`shared/agentRequests.ts`, `main/agent-requests.ts`):
+
+- **`KindPolicy.surface`** (`"corner" | "bell"`). `partitionRequests` routes on
+  it rather than on `dismissed` alone, so an observation is born in the bell and
+  can never take a corner slot from a request that is actually blocking an agent.
+- **`enforceCap` evicts entries with NO WAITERS**, not entries whose state is
+  not `"pending"`. The old rule existed solely to avoid STRANDING AN AGENT, and
+  waiters say that directly. The two agree exactly on the request kinds (a
+  pending request always has >= 1 waiter; `expire` clears them), so it is a
+  generalisation -- but it is required: a notice is "pending" while its app runs,
+  and under the old rule fifty of them would pin the registry at its cap and
+  starve real requests while stranding nobody.
+
+**A detected server now gets a Stop button, REVERSING the old rule** that the
+unverified Host tier is "non-destructive, no pid to the renderer, no kill
+button" (see `memory/project-airlock-dev-server-detection`). That was raised
+with the user on 2026-09-21 and chosen deliberately: the worst offender is
+always the detached one. The non-destructive half is what changed; **the pid
+still never crosses to the renderer.** `localapps:stop` takes a REQUEST ID and
+main resolves the pid itself (`pid` is on the main-only `LongRunningAppInput`,
+deliberately absent from `LongRunningAppRequest`), so the action can only ever
+target something AirLock is already reporting -- never an arbitrary process.
+SIGTERM, not SIGKILL: a server asked politely exits cleanly, and one that
+ignores the signal still shows up on the next poll, which is honest. A MANAGED
+server is stopped through `stopDevServer` so the manager's own state follows.
+
+Deliberately not in v1: **per-app memory** (the motivation is RAM, but
+`docker stats` and per-process footprint on a timer contradict the battery goal
+-- age is the actionable fact), auto-stop, and any non-dev listening port.
+
+Spec: `docs/superpowers/specs/2026-09-21-long-running-local-apps-design.md`.
+
 ## What counts as an extension
 
 **Core is what AirLock authored over your own machine; an extension is an

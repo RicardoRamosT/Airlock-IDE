@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   type AgentRequest,
+  type LongRunningAppRequest,
   partitionRequests,
   type SecretRequest,
   type TerminalGrantRequest,
@@ -53,10 +54,98 @@ export function AgentRequestCard({
   request: AgentRequest;
   dismissible?: boolean;
 }) {
-  return request.kind === "secret" ? (
-    <SecretCard request={request} dismissible={dismissible} />
-  ) : (
-    <GrantCard request={request} dismissible={dismissible} />
+  if (request.kind === "secret")
+    return <SecretCard request={request} dismissible={dismissible} />;
+  if (request.kind === "longRunningApp")
+    return <LongRunningAppCard request={request} dismissible={dismissible} />;
+  return <GrantCard request={request} dismissible={dismissible} />;
+}
+
+/**
+ * How long something has been up, in the coarsest unit that is still true.
+ *
+ * Deliberately coarse: this is a 24-hour threshold, so minutes are noise, and
+ * "6 days" is what makes someone act. Rounds DOWN, so it never overstates.
+ */
+export function formatUptime(ms: number): string {
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.floor(hours / 24);
+  return `${days} days`;
+}
+
+const APP_LABEL: Record<LongRunningAppRequest["appType"], string> = {
+  container: "Container",
+  managedServer: "Dev server",
+  detectedServer: "Dev server",
+};
+
+// A passive OBSERVATION, not a request: nobody is waiting on it, so it offers
+// an action and an acknowledgement and never blocks anything. "Later" here
+// means "I know about this one" -- main remembers the identity so the poll does
+// not raise it again, while a RESTART of the same app is a new identity and is
+// reported afresh.
+function LongRunningAppCard({
+  request,
+  dismissible,
+}: {
+  request: LongRunningAppRequest;
+  dismissible: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const up = formatUptime(Date.now() - request.startedAt);
+
+  const stop = async () => {
+    setBusy(true);
+    setError(null);
+    const r = await window.airlock.localAppStop(request.requestId);
+    if (!r.ok) {
+      setError(r.error ?? "Could not stop it");
+      setBusy(false);
+    }
+    // On success the card is removed by main; no need to unset busy.
+  };
+
+  return (
+    <div className="agent-request-card">
+      <div className="agent-request-title">{`Running for ${up}`}</div>
+      <div className="agent-request-body">
+        <div>
+          <strong>{request.name}</strong>
+        </div>
+        {request.detail && (
+          <div className="agent-request-note">{request.detail}</div>
+        )}
+        <div className="agent-request-note">
+          {`${APP_LABEL[request.appType]}${
+            request.projectName ? ` in ${request.projectName}` : ""
+          }`}
+        </div>
+      </div>
+      {error && <div className="agent-request-error">{error}</div>}
+      <div className="agent-request-actions">
+        <button
+          type="button"
+          className="btn primary"
+          disabled={busy}
+          onClick={() => void stop()}
+        >
+          {busy ? "Stopping..." : "Stop"}
+        </button>
+      </div>
+      {dismissible && (
+        <button
+          type="button"
+          className="agent-request-later"
+          onClick={() =>
+            void window.airlock.agentRequestDismiss(request.requestId)
+          }
+        >
+          Later
+        </button>
+      )}
+    </div>
   );
 }
 

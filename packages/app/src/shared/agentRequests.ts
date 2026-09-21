@@ -6,9 +6,11 @@
 // so electron-vite fails trying to bundle a .node into the browser build).
 // Pure data and pure predicates: no imports, no I/O, no Electron.
 
-export type AgentRequestKind = "secret" | "terminalGrant";
+export type AgentRequestKind = "secret" | "terminalGrant" | "longRunningApp";
 
-// pending -- the agent is still waiting.
+// pending -- the agent is still waiting. A NOTICE kind (longRunningApp) has no
+//   agent behind it and stays "pending" for as long as the thing it describes is
+//   true; it is retired by reconciliation, not by a timeout.
 // expired -- the timeout fired and the agent already received timedOut.
 export type AgentRequestState = "pending" | "expired";
 
@@ -34,11 +36,37 @@ export interface TerminalGrantRequest extends AgentRequestCommon {
   preview: string;
 }
 
-export type AgentRequest = SecretRequest | TerminalGrantRequest;
+// A local app that has been running longer than the threshold. NOT a request:
+// nothing is waiting on it, and answering it is not required. It rides this
+// registry because the bell, the per-window projection, dismissal and the cap
+// are all exactly what it needs -- see main/agent-requests.ts for the two
+// invariants that had to generalise to carry a waiter-less entry.
+//
+// Fields are FLAT rather than a nested app object: this module is deliberately
+// import-free so both main and the renderer can load it.
+export interface LongRunningAppRequest extends AgentRequestCommon {
+  kind: "longRunningApp";
+  appType: LocalAppType;
+  appId: string; // container id | project root | port, per type
+  name: string; // what the user recognises it by
+  detail: string; // image, command, or "" when there is nothing to add
+  startedAt: number; // epoch ms -- part of the identity, see appIdentity
+}
+
+export type LocalAppType = "container" | "managedServer" | "detectedServer";
+
+export type AgentRequest =
+  | SecretRequest
+  | TerminalGrantRequest
+  | LongRunningAppRequest;
 
 export type PruneTrigger = "ptyExit";
 
 export interface KindPolicy {
+  /** Where the card lives. A request from an agent interrupts you in the
+   * corner; a passive OBSERVATION goes straight to the bell and must never
+   * seize the corner. Routed on here rather than on `dismissed` alone. */
+  surface: "corner" | "bell";
   /** May the user still act once the agent stopped waiting? */
   actionableAfterExpiry: boolean;
   /** External events that make this request moot. */
@@ -62,6 +90,7 @@ export const AGENT_REQUEST_POLICY: Record<AgentRequestKind, KindPolicy> = {
   // simply finds it on the next attempt. And the user may vault it by hand in
   // the sidebar while the card is open, which should resolve the request.
   secret: {
+    surface: "corner",
     actionableAfterExpiry: true,
     pruneOn: [],
     dismissible: true,
@@ -70,10 +99,22 @@ export const AGENT_REQUEST_POLICY: Record<AgentRequestKind, KindPolicy> = {
   // The send already returned timedOut, so approving later authorises nothing,
   // and a dead pty makes it moot even before expiry.
   terminalGrant: {
+    surface: "corner",
     actionableAfterExpiry: false,
     pruneOn: ["ptyExit"],
     dismissible: true,
     resolvesExternally: false,
+  },
+  // Nobody is waiting, so it never expires and never strands anyone. It is
+  // retired by RECONCILIATION -- the app stopped, or fell back under the
+  // threshold -- and "dismiss" means acknowledge, which suppresses this exact
+  // identity rather than merely hiding the card.
+  longRunningApp: {
+    surface: "bell",
+    actionableAfterExpiry: true,
+    pruneOn: [],
+    dismissible: true,
+    resolvesExternally: true,
   },
 };
 
@@ -87,9 +128,39 @@ export const AGENT_REQUEST_POLICY: Record<AgentRequestKind, KindPolicy> = {
 // NUL separator, which is collision-proof but puts a NUL byte in the source and
 // makes the file read as binary to grep.)
 export function coalesceKey(r: AgentRequest): string | null {
-  return r.kind === "secret"
-    ? JSON.stringify(["secret", r.root ?? "", r.name])
-    : null;
+  if (r.kind === "secret")
+    return JSON.stringify(["secret", r.root ?? "", r.name]);
+  if (r.kind === "longRunningApp") return appIdentity(r);
+  return null;
+}
+
+// The stable identity of a long-running app, used BOTH to avoid a duplicate
+// card on every poll and to remember what the user acknowledged.
+//
+// `startedAt` IS PART OF THE IDENTITY, and that is the load-bearing detail:
+// acknowledging a notice suppresses this identity for good, so without the
+// start time "Ignore" would silence that container or port forever. Restarting
+// the app gives it a new start time, hence a new identity, so a genuinely new
+// 24-hour run is reported again.
+export function appIdentity(r: {
+  appType: LocalAppType;
+  appId: string;
+  startedAt: number;
+}): string {
+  return JSON.stringify(["app", r.appType, r.appId, r.startedAt]);
+}
+
+// Default threshold. 24h, per the request; the pref may raise or lower it.
+export const DEFAULT_THRESHOLD_HOURS = 24;
+
+// Whether an app has been up long enough to be worth mentioning. Strictly
+// greater, so a threshold of 0 does not indict something started this instant.
+export function isOverThreshold(
+  startedAt: number,
+  now: number,
+  hours: number,
+): boolean {
+  return now - startedAt > hours * 60 * 60 * 1000;
 }
 
 export function isActionable(r: AgentRequest): boolean {
@@ -111,8 +182,9 @@ export function shouldPruneOn(r: AgentRequest, trigger: PruneTrigger): boolean {
 // Cards shown in the corner stack at once; the rest collapse to "+N more".
 export const VISIBLE_STACK_MAX = 3;
 
-// Hard cap on the registry. Eviction drops the oldest NON-pending entry first
-// and NEVER a pending one -- dropping a pending entry strands an agent.
+// Hard cap on the registry. Eviction drops the oldest entry that NOBODY IS
+// WAITING ON -- see enforceCap in main/agent-requests.ts for why that is the
+// rule rather than "not pending".
 export const REGISTRY_MAX = 50;
 
 // Split one window's requests into the corner stack and the bell. An expired but
@@ -124,8 +196,15 @@ export function partitionRequests(all: AgentRequest[]): {
   bell: AgentRequest[];
 } {
   const newestFirst = [...all].sort((a, b) => b.createdAt - a.createdAt);
-  const live = newestFirst.filter((r) => !r.dismissed && isActionable(r));
-  const bell = newestFirst.filter((r) => r.dismissed || !isActionable(r));
+  // A bell-surface kind belongs there from birth: it is an observation, not an
+  // interruption, so it must not take a corner slot from a request that is
+  // actually blocking an agent.
+  const inBell = (r: AgentRequest) =>
+    AGENT_REQUEST_POLICY[r.kind].surface === "bell" ||
+    r.dismissed ||
+    !isActionable(r);
+  const live = newestFirst.filter((r) => !inBell(r));
+  const bell = newestFirst.filter(inBell);
   return {
     stack: live.slice(0, VISIBLE_STACK_MAX),
     overflow: Math.max(0, live.length - VISIBLE_STACK_MAX),

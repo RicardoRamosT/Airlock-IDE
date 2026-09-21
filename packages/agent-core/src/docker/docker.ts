@@ -203,6 +203,59 @@ export function scopeContainersToRoot(
   return { containers: mine, otherProjects: [...others.values()] };
 }
 
+/**
+ * Parse `docker inspect --format '{{.Id}} {{.State.StartedAt}}'` output into
+ * id -> start time (epoch ms).
+ *
+ * Keyed by the SHORT id, because that is what `docker ps` reports and therefore
+ * what every other surface holds. Docker stamps StartedAt with NANOSECOND
+ * precision, which `Date.parse` is not specified to accept, so the fraction is
+ * truncated to milliseconds before parsing rather than trusting the engine.
+ *
+ * A container that has never run has the zero time (year 1), which parses fine
+ * but means "not started"; callers only ask about running containers, and a
+ * zero time simply reads as very old, so it is left to them.
+ */
+export function parseDockerStartedAt(raw: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const line of raw.split(/\r?\n/)) {
+    const m = /^([0-9a-f]+)\s+(\S+)$/i.exec(line.trim());
+    const id = m?.[1];
+    const stamp = m?.[2];
+    if (!id || !stamp) continue;
+    const ms = Date.parse(stamp.replace(/(\.\d{3})\d+/, "$1"));
+    if (Number.isNaN(ms)) continue;
+    out.set(id.slice(0, 12), ms);
+  }
+  return out;
+}
+
+/**
+ * When each of `ids` was last started. ONE `docker inspect` for all of them --
+ * `docker ps` cannot answer this: its RunningFor column counts from CREATED,
+ * not from started, which is why a container created weeks ago but restarted
+ * yesterday reads as weeks old.
+ */
+export async function dockerStartedAt(
+  ids: string[],
+  run: DockerRunner = realDocker,
+): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+  for (const id of ids) assertId(id);
+  try {
+    return parseDockerStartedAt(
+      await run([
+        "inspect",
+        "--format",
+        "{{.Id}} {{.State.StartedAt}}",
+        ...ids,
+      ]),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
 function assertId(id: string): void {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id))
     throw new Error("Invalid container id");
