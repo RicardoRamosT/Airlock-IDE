@@ -29,8 +29,14 @@ function measureStanding(list: HTMLElement): StandingBounds {
   const row = list.querySelector<HTMLElement>(".atlas-standing-row");
   // Which element bounds the list differs per surface, so measure the host
   // rather than hard-coding one layout.
+  // EVERY host that renders AtlasPanel must appear here. A host that does not
+  // measures 0, and resizeStanding reads 0 as "no ceiling at all" -- so the
+  // drag could make the list taller than the panel holding it. .atlas-overlay
+  // was missing for exactly that reason: it was added as a host and this list
+  // was not. atlasPanelScroll.test.ts now enumerates the hosts instead of
+  // trusting this line.
   const panel = list.closest<HTMLElement>(
-    ".titlebar-atlas-panel, .atlas-popover, .atlas-window",
+    ".titlebar-atlas-panel, .atlas-popover, .atlas-window, .atlas-overlay",
   );
   const section = list.closest<HTMLElement>(".atlas-standing");
   // What the section spends above the list: the divider and the STILL OPEN
@@ -431,7 +437,15 @@ export function AtlasPanel({
           Could not load the debrief. Nothing has been lost. Try reopening.
         </p>
       ) : (
-        <>
+        // THE DEBRIEF CARRIES ITS OWN SCROLLER, and that is not styling.
+        // These blocks used to be bare siblings of the header, which only
+        // worked because the one host that existed -- .atlas-popover -- was
+        // itself `overflow-y: auto`. The spine's overlay is not, so a long
+        // brief overflowed it, and overflow with no scroll container
+        // between it and the document scrolls the DOCUMENT: the tab bar and
+        // the status bar slid off the top of the window. Owning the scroller
+        // means no host has to be one. The chat branch already did this.
+        <div className="atlas-pane-brief">
           {/* TWO INDEPENDENT READS, TWO INDEPENDENT BRANCHES. Concerns are
               fetched live -- deliberately, so one that has since resolved
               stops being shown -- and were then rendered INSIDE the
@@ -615,7 +629,7 @@ export function AtlasPanel({
               )}
             </div>
           ) : null}
-        </>
+        </div>
       )}
     </>
   );

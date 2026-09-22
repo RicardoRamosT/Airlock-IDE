@@ -7198,6 +7198,23 @@ button.docker-row .codicon-chevron-right {
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* The debrief's body, and the thing that keeps it from scrolling the app.
+   Same shape as .atlas-pane-chat: it takes the room the header leaves and
+   scrolls INSIDE it, so overflow never reaches the document. min-height: 0 is
+   what makes that true -- a flex item defaults to min-height: auto and simply
+   refuses to shrink below its content, which is how the brief pushed the
+   "still open" section out through the bottom of the panel.
+   The gap replaces the one the popover host used to supply between these
+   blocks when they were its direct children. */
+.atlas-pane-brief {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 10px;
+}
 .atlas-pane-chat .atlas-window,
 .atlas-pane-chat .atlas-chat {
   height: auto;
@@ -8148,4 +8165,16 @@ body.resizing-row {
   display: flex;
   flex-direction: column;
   z-index: 5;
+  /* CONTAINMENT, as a second layer behind the panel's own scroller. Overflow
+     that reaches no scroll container scrolls the DOCUMENT, and an overlay
+     absolutely positioned over the workspace has nothing between it and the
+     root -- so a child that grew too tall took the whole app's layout with it.
+     Nothing inside here may do that again, whatever it is. */
+  overflow: hidden;
+}
+
+/* The debrief body supplies the padding the header already has. Its right
+   gutter is spent on the scrollbar, the same trade the chat log makes. */
+.atlas-overlay .atlas-pane-brief {
+  padding: 12px 0 14px 14px;
 }
