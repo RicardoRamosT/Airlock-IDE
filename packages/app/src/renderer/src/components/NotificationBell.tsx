@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AGENT_REQUEST_POLICY,
   bellCount,
@@ -21,13 +21,65 @@ export function NotificationBell() {
   const requests = useAgentRequests();
   const { bell } = partitionRequests(requests);
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // How far the panel must sit from its own right edge to clear the Atlas
+  // panel, or null when Atlas is not in the way.
+  const [avoidRight, setAvoidRight] = useState<number | null>(null);
+
+  // MEASURED, never hardcoded. The two panels hang off different buttons, so
+  // their right edges start at different insets, and Atlas is resizable -- any
+  // constant offset here would be wrong the moment either changed. Measuring
+  // the live element is exact and self-correcting.
+  useEffect(() => {
+    if (!open) {
+      setAvoidRight(null);
+      return;
+    }
+    const measure = () => {
+      const atlas = document.querySelector<HTMLElement>(
+        ".titlebar-atlas-panel",
+      );
+      const wrap = wrapRef.current;
+      if (!atlas || !wrap) {
+        setAvoidRight(null);
+        return;
+      }
+      const a = atlas.getBoundingClientRect();
+      if (a.width === 0) {
+        setAvoidRight(null);
+        return;
+      }
+      // `right` is measured from the wrapper's right edge, so this is the
+      // distance that lands our right edge just left of Atlas.
+      setAvoidRight(
+        Math.max(
+          0,
+          Math.round(wrap.getBoundingClientRect().right - a.left + 10),
+        ),
+      );
+    };
+    measure();
+    // Atlas can open, close or be resized while the bell is already open, so a
+    // single measurement at open time is not enough. rAF because the panel is
+    // mounted by the same commit that flips the attribute.
+    const mo = new MutationObserver(() => requestAnimationFrame(measure));
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-atlas-open"],
+    });
+    window.addEventListener("resize", measure);
+    return () => {
+      mo.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
   // Count what you can still DO something about. An expired terminal grant is
   // pruned in main and never reaches here; an expired secret request does, and
   // stays actionable because vaulting it is still useful.
   const count = bellCount(bell);
 
   return (
-    <div className="titlebar-bell">
+    <div className="titlebar-bell" ref={wrapRef}>
       <button
         type="button"
         className="titlebar-bell-btn"
@@ -45,7 +97,10 @@ export function NotificationBell() {
         {count > 0 && <span className="titlebar-bell-badge">{count}</span>}
       </button>
       {open && (
-        <div className="titlebar-bell-panel">
+        <div
+          className="titlebar-bell-panel"
+          style={avoidRight === null ? undefined : { right: avoidRight }}
+        >
           {bell.length === 0 ? (
             <div className="agent-request-note">No notifications yet.</div>
           ) : (

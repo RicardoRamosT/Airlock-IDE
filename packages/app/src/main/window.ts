@@ -234,6 +234,18 @@ export function createWindow(): BrowserWindow {
     lastFocusedId = win.id;
     focusOrder = [win.id, ...focusOrder.filter((id) => id !== win.id)];
   });
+
+  // Fullscreen SQUARES the window's corners, so the chrome that borrows the
+  // window radius has to square off with it. Pushed on change, and once on
+  // load so a window that comes up already fullscreen starts correct rather
+  // than showing rounded chrome against a square frame until the user toggles.
+  const sendFullScreen = () => {
+    if (!win.webContents.isDestroyed())
+      win.webContents.send("window:fullscreen", win.isFullScreen());
+  };
+  win.on("enter-full-screen", sendFullScreen);
+  win.on("leave-full-screen", sendFullScreen);
+  win.webContents.on("did-finish-load", sendFullScreen);
   win.on("closed", () => {
     appWindowIds.delete(win.id);
     workspaceRoots.delete(win.id);

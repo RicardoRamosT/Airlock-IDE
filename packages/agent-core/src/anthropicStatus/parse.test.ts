@@ -78,7 +78,26 @@ describe("parseAnthropicStatus over components", () => {
       ),
     });
     expect(s.indicator).toBe("outage");
-    expect(s.component).toContain("Claude API");
+    // toBe, not toContain: Statuspage labels this component
+    // "Claude API (api.anthropic.com)", and the loose assertion happily passed
+    // while the pill showed a hostname to the user.
+    expect(s.component).toBe("Claude API");
+  });
+
+  it("names the component WITHOUT the hostname Statuspage appends", () => {
+    // The pill is chrome in a 22px bar, and a domain in it reads as a link to
+    // somewhere. The canonical name is the one AirLock already watches by.
+    const s = parseAnthropicStatus({
+      ...LIVE,
+      components: LIVE.components.map((c) =>
+        c.name.startsWith("Claude API")
+          ? { ...c, status: "degraded_performance" }
+          : c,
+      ),
+    });
+    expect(s.component).toBe("Claude API");
+    expect(s.description).not.toContain("api.anthropic.com");
+    expect(s.description).toBe("Claude API: degraded performance");
   });
 
   it("takes the WORST of the components it watches", () => {

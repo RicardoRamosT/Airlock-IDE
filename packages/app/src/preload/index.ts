@@ -309,6 +309,7 @@ const api: AirlockApi = {
   journalDeleteNote: (root, ts) =>
     ipcRenderer.invoke("journal:deleteNote", root, ts),
   onQuotaChanged: (cb) => subscribe<QuotaStatus>("quota:changed", cb),
+  onFullScreen: (cb) => subscribe<boolean>("window:fullscreen", cb),
   anthropicStatusGet: () => ipcRenderer.invoke("anthropicStatus:get"),
   onAnthropicStatusChanged: (cb) =>
     subscribe<AnthropicStatus>("anthropicStatus:changed", cb),

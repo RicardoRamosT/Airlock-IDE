@@ -85,7 +85,8 @@ async function surfaceLocalUpdate(currentVersion: string): Promise<boolean> {
       JSON.parse(await readFile(devManifestPath(), "utf8")),
     );
     if (!m) return false;
-    if (!isLocalBuildNewer(m.builtAt, await runningBuiltAtMs())) return false;
+    const runningBuiltAt = await runningBuiltAtMs();
+    if (!isLocalBuildNewer(m.builtAt, runningBuiltAt)) return false;
     latest = {
       available: true,
       currentVersion,
@@ -93,6 +94,11 @@ async function surfaceLocalUpdate(currentVersion: string): Promise<boolean> {
       htmlUrl: null,
       dmgUrl: null,
       localAppPath: m.appPath,
+      // The two timestamps this decision was just made on. Surfaced rather
+      // than recomputed, so the ticket cannot disagree with the button about
+      // which build is newer.
+      currentBuiltAt: runningBuiltAt,
+      latestBuiltAt: m.builtAt,
     };
     broadcast(latest);
     return true;

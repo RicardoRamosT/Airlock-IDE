@@ -1,4 +1,5 @@
 import type { AnthropicStatus, UpdateProgress } from "../../../shared/ipc";
+import { ticketLine } from "../lib/updateTicket";
 import { useApp } from "../store";
 
 // Dot tone per service indicator (reuses the status-dot color classes).
@@ -58,7 +59,7 @@ export function StatusBar() {
 
   return (
     <footer className="statusbar">
-      <div className="statusbar-side">
+      <div className="statusbar-side statusbar-side-left">
         {gitStatus && (
           <span
             className="statusbar-chip"
@@ -96,7 +97,7 @@ export function StatusBar() {
           </span>
         )}
       </div>
-      <div className="statusbar-side">
+      <div className="statusbar-side statusbar-side-right">
         {anthropicStatus && (
           <button
             type="button"
@@ -124,20 +125,34 @@ export function StatusBar() {
       {/* Centered and OUT of both sides' flow (absolutely positioned): the button
           appears and disappears without shifting the Claude chip or the branch. */}
       {update?.available && (
-        <button
-          type="button"
-          className="statusbar-update"
-          disabled={busy}
-          title={
-            updateProgress.phase === "error"
-              ? updateProgress.message
-              : `Update ${update.currentVersion} → ${update.latestVersion}`
-          }
-          onClick={() => void window.airlock.updateApply()}
-        >
-          <i className="codicon codicon-arrow-up" />
-          {updateLabel(updateProgress)}
-        </button>
+        <div className="statusbar-update-ticket">
+          <button
+            type="button"
+            className="statusbar-update"
+            disabled={busy}
+            title={
+              updateProgress.phase === "error"
+                ? updateProgress.message
+                : `Update ${update.currentVersion} → ${update.latestVersion}`
+            }
+            onClick={() => void window.airlock.updateApply()}
+          >
+            <i className="codicon codicon-arrow-up" />
+            {updateLabel(updateProgress)}
+          </button>
+          {/* aria-hidden because the button's own title already says it --
+              this is announced anyway even while invisible, and hearing the two
+              versions twice is worse than not styling it at all. */}
+          <div className="statusbar-update-callout" aria-hidden="true">
+            <span className="statusbar-ticket-line">
+              {ticketLine(update.currentVersion, update.currentBuiltAt)}
+            </span>
+            <i className="codicon codicon-arrow-down statusbar-ticket-arrow" />
+            <span className="statusbar-ticket-line next">
+              {ticketLine(update.latestVersion, update.latestBuiltAt)}
+            </span>
+          </div>
+        </div>
       )}
     </footer>
   );

@@ -20,6 +20,18 @@ export function AtlasTitlebarButton() {
     disclosure: string;
   } | null>(null);
   const [asked, setAsked] = useState(false);
+  // Mirror the panel's open state where the notification bell can see it. The
+  // two hang off adjacent titlebar buttons and are each wide enough to cover
+  // the other, so the bell steps aside instead of making you close one. A data
+  // attribute rather than store state: the bell needs a trigger to re-measure,
+  // not a value, and nothing else in the tree cares.
+  useEffect(() => {
+    document.documentElement.dataset.atlasOpen = open ? "true" : "false";
+    return () => {
+      delete document.documentElement.dataset.atlasOpen;
+    };
+  }, [open]);
+
   const atlas = useApp((st) => st.atlas);
   const setAtlas = useApp((st) => st.setAtlas);
   const panelRef = useRef<HTMLDivElement | null>(null);

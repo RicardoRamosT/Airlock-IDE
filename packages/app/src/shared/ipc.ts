@@ -521,6 +521,12 @@ export interface UpdateStatus {
   // Dev channel only: absolute path to a locally built AirLock.app. null on the
   // GitHub path. Optional so existing constructors stay valid.
   localAppPath?: string | null;
+  // When each build was made (epoch ms). Dev channel only, and the reason the
+  // Update ticket is worth reading there: both versions carry the SAME number,
+  // so the timestamp is the only thing telling the running build from the one
+  // on offer. Absent on the GitHub path, where the version already says it.
+  currentBuiltAt?: number | null;
+  latestBuiltAt?: number | null;
 }
 
 export type UpdateProgress =
@@ -1340,6 +1346,10 @@ export interface AirlockApi {
   // Stop the app a long-running notice describes, addressed by its REQUEST ID.
   // The renderer never holds the pid or container id for this.
   localAppStop(requestId: string): Promise<{ ok: boolean; error?: string }>;
+  // This window's fullscreen state, pushed on change and once on load. Only
+  // CSS consumes it (fullscreen squares the window, so the corner radius goes
+  // to 0), hence a bare boolean rather than a window-state object.
+  onFullScreen(cb: (on: boolean) => void): () => void;
   // Database-shaped containers (image recognised as postgres/mysql/mariadb/
   // mongo/redis), for the Databases provider row. Value-free: name, image,
   // engine and published host port only -- never a credential.

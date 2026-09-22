@@ -98,8 +98,11 @@ export function TitleBar() {
       )}
       {/* Outside TitleQuota above, so the title card stays centred whether or
           not the usage meter is on. Traffic lights own the top-LEFT on macOS. */}
-      <AtlasTitlebarButton />
+      {/* Bell first, Atlas LAST so Atlas is the rightmost icon: it crowns the
+          portfolio spine that runs down the window's right edge, and the two
+          have to share that column to read as one object. */}
       <NotificationBell />
+      <AtlasTitlebarButton />
     </header>
   );
 }

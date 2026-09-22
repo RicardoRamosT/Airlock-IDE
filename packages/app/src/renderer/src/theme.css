@@ -1,4 +1,17 @@
 :root {
+  /* The WINDOW's corner radius, for chrome that sits in a corner and should
+     read as part of the frame (the status bar's outermost chips).
+     titleBarStyle is "hiddenInset", so macOS masks the window itself: a radius
+     at or just under the system value vanishes into the frame, while a LARGER
+     one leaves a sliver of the bar showing through the corner. Erring small is
+     therefore the safe direction. */
+  --app-radius: 10px;
+  /* The status bar row. Shared by .app-shell's grid and the Update stub, which
+     must be exactly one bar tall while its ticket grows above it. */
+  --statusbar-h: 22px;
+  /* Distance from the Update stub to its callout -- also the leader line's
+     length, so the two can never disagree. */
+  --callout-gap: 9px;
   --bg: #0d1117;
   --bg-panel: #11161d;
   --border: #1f2630;
@@ -117,6 +130,14 @@
   box-sizing: border-box;
 }
 
+/* Fullscreen: macOS squares the window, so chrome that borrows the window's
+   radius has to square off with it. Zeroing the TOKEN does that everywhere at
+   once -- a corner-anchored surface added later follows with no rule of its
+   own. Set from main via useFullScreen; absent means not fullscreen. */
+:root[data-fullscreen="true"] {
+  --app-radius: 0px;
+}
+
 html,
 body,
 #root {
@@ -128,7 +149,7 @@ body,
 
 .app-shell {
   display: grid;
-  grid-template-rows: 38px auto minmax(0, 1fr) 22px;
+  grid-template-rows: 38px auto minmax(0, 1fr) var(--statusbar-h);
   height: 100%;
 }
 
@@ -684,10 +705,17 @@ body,
 .statusbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  /* STRETCH, not center: a chip's height:100% resolves against .statusbar-side,
+     and a centered side is only as tall as its content -- so the chips
+     collapsed back to their own text height instead of filling the bar. The
+     chips centre their own contents, so nothing needs centring here. */
+  align-items: stretch;
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
-  padding: 0 10px;
+  /* No horizontal inset: the outermost chip on each side is anchored INTO the
+     window corner, so the bar cannot hold it off the edge. Inner chips get
+     their breathing room from .statusbar-side's gap and their own padding. */
+  padding: 0;
   font-size: 11px;
   color: var(--fg-dim);
   grid-row: 4; /* app-shell's 22px row; pinned -- see the .workspace note */
@@ -696,13 +724,21 @@ body,
      bg covered the 1px border-top at the grid seam. A stacking context puts the
      divider back on top; modals/palette use z-index 50+, so they still overlay. */
   position: relative;
-  z-index: 1;
+  /* Raised well above the workspace: the Update ticket opens UPWARD out of this
+     bar and must cover the pane behind it. A child cannot escape its parent's
+     stacking context, so the height has to live here, not on the ticket.
+     Modals and the palette sit at 50+, so they still win. */
+  z-index: 20;
 }
 
 .statusbar-side {
   display: flex;
   align-items: center;
-  gap: 6px;
+  /* No gap: a side is ONE segmented group. The chips butt together with a
+     hairline between them and the GROUP takes the outer corners -- the same
+     construction as the titlebar wings against the title card. Separate pills
+     with a gap read as unrelated badges scattered on the bar. */
+  gap: 0;
 }
 
 /* Status-bar chips. The branch, the change count, and the Claude service
@@ -713,9 +749,12 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 17px;
+  /* Full bar height: the chips ARE the status bar's surface, not badges
+     floating on it. Needs .statusbar to stretch its sides (see above). */
+  height: 100%;
   padding: 0 8px;
-  border-radius: 999px;
+  /* Square by default: the corners belong to the GROUP, not to each chip. */
+  border-radius: 0;
   background: var(--hover);
   border: 1px solid transparent;
   color: var(--fg-dim);
@@ -753,6 +792,44 @@ body,
 }
 .statusbar-sync .codicon {
   font-size: 11px;
+}
+
+/* The OUTERMOST chip on each side is anchored into the window corner: full bar
+   height, flush against the outer edge and the bottom, taking the window's own
+   radius. It reads as part of the frame rather than a pill floating on it --
+   the mirror of .titlebar-title, which merges into the window's TOP edge.
+   The inner corner stays a small card radius so the shape still rises out of
+   the corner instead of being a plain rectangle.
+
+   Only the OUTERMOST one: a second chip (the change count) stays a pill and
+   floats, which is what keeps the corner reading as a single anchored object. */
+/* Where two chips meet: a hairline, so the group reads as organised segments
+   rather than one undifferentiated slab. The chip already carries a
+   transparent 1px border, so this colours an edge that is already there and
+   nothing shifts. */
+.statusbar-chip + .statusbar-chip {
+  border-left-color: var(--border);
+}
+
+/* The GROUP's outer corners. With a single chip on a side, :first-child and
+   :last-child are the same element and it takes both -- so one chip or three,
+   the silhouette is identical. */
+.statusbar-side-left > .statusbar-chip:first-child {
+  padding-left: 12px;
+  border-bottom-left-radius: var(--app-radius);
+}
+
+.statusbar-side-left > .statusbar-chip:last-child {
+  border-top-right-radius: 7px;
+}
+
+.statusbar-side-right > .statusbar-chip:last-child {
+  padding-right: 12px;
+  border-bottom-right-radius: var(--app-radius);
+}
+
+.statusbar-side-right > .statusbar-chip:first-child {
+  border-top-left-radius: 7px;
 }
 
 /* Clickable Anthropic status chip: opens status.claude.com. */
@@ -798,16 +875,93 @@ body,
    CENTERED and absolutely positioned so it takes no space in either
    .statusbar-side -- appearing/disappearing must not shove the Claude status
    chip or the branch sideways. (.statusbar is position:relative already.) */
-.statusbar-update {
+/* The Update stub, and the callout that explains it.
+   
+   THE STUB NEVER MOVES. An earlier version grew a panel that pushed the button
+   upward on hover; it looked right and was annoying to use, because the thing
+   you were pointing at slid out from under the pointer and you had to aim a
+   second time to click it. The callout is therefore absolutely positioned and
+   contributes no layout, so hovering changes nothing about the target. */
+.statusbar-update-ticket {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* A rounded callout floating clear of the bar, tied to the stub by a leader
+   line rather than butting against it -- a panel welded to the button reads as
+   a dialog, which is not what a passing glance at a version number deserves.
+   
+   pointer-events: none is load-bearing, not tidiness: the callout sits directly
+   above the button, so a callout that accepted the pointer would take the hover
+   off the stub, close itself, and flicker. */
+.statusbar-update-callout {
+  position: absolute;
+  bottom: calc(100% + var(--callout-gap));
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  color: var(--fg-dim);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+/* The leader line, drawn from the callout DOWN to the stub. On the callout
+   rather than the button so it fades in with it as one object. */
+.statusbar-update-callout::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 1px;
+  height: var(--callout-gap);
+  transform: translateX(-50%);
+  background: var(--accent);
+}
+
+.statusbar-update-ticket:hover > .statusbar-update-callout,
+.statusbar-update-ticket:focus-within > .statusbar-update-callout {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* The version you are moving TO is the answer; the one you are on is context. */
+.statusbar-ticket-line.next {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.statusbar-ticket-arrow {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.statusbar-update {
+  /* Exactly one bar tall, inside the column above -- it no longer positions
+     itself; .statusbar-update-ticket does the centring. */
+  height: calc(var(--statusbar-h) - 1px);
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 18px;
-  padding: 0 12px;
+  padding: 0 14px;
   /* Slight vertical gradient + inner top highlight so the pill reads as a raised
      button rather than a flat accent blob. */
   background: linear-gradient(
@@ -816,7 +970,7 @@ body,
     var(--accent)
   );
   border: none;
-  border-radius: 999px; /* pill */
+  border-radius: 7px 7px 0 0;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -858,10 +1012,10 @@ body,
     0 2px 12px var(--accent-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
-/* Keep the centering translate when pressing, or the button would jump to the
-   left edge on click. */
+/* The centring moved to the ticket column, so the press is a plain nudge DOWN
+   into the frame -- no translate to preserve any more. */
 .statusbar-update:active:not(:disabled) {
-  transform: translate(-50%, calc(-50% + 0.5px));
+  transform: translateY(0.5px);
 }
 .statusbar-update:disabled {
   opacity: 0.75;
@@ -872,6 +1026,13 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .statusbar-update {
     animation: none;
+  }
+  /* The callout still APPEARS -- only the travel is dropped. Hiding the
+     versions from someone who asked for less motion would cost them the
+     information. */
+  .statusbar-update-callout {
+    transition: none;
+    transform: translateX(-50%);
   }
 }
 
@@ -6519,13 +6680,39 @@ button.docker-row .codicon-chevron-right {
   overflow-x: auto;
   white-space: pre;
 }
+/* The card's headline: what you recognise the thing by. Clipped rather than
+   wrapped -- a 320px card must not change height because a registry path is
+   long, and the full value is on the title attribute. */
+.agent-request-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-request-note.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .agent-request-actions {
   display: flex;
+  align-items: center;
   gap: var(--sb-gap);
   justify-content: flex-end;
+  /* A little air above the row, so the actions read as the card's foot rather
+     than one more line of text. */
+  margin-top: 2px;
+}
+/* Dismiss shares the action row's baseline and is pushed to the FAR side, so
+   the destructive-ish primary keeps the position the eye lands on. It used to
+   sit on its own line below the row, which is what made the pair look ragged. */
+.agent-request-actions > .agent-request-later {
+  margin-right: auto;
 }
 .agent-request-later {
-  align-self: flex-start;
+  align-self: center;
   background: none;
   border: none;
   color: var(--fg-dim);
@@ -6533,6 +6720,9 @@ button.docker-row .codicon-chevron-right {
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
+}
+.agent-request-later:hover {
+  color: var(--fg);
 }
 .agent-request-overflow {
   font-size: 11px;
@@ -6595,7 +6785,13 @@ button.docker-row .codicon-chevron-right {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
   /* 47, with .agent-request-stack: the bell is where a dismissed card goes, so
      it has to clear .titlebar-atlas-panel (46) for the same reason the stack
-     does. Both hang off the titlebar and never overlap each other. */
+     does.
+     
+     This used to claim the two "never overlap each other". They did: both are
+     top:100%/right:0 off adjacent titlebar buttons about 34px apart, and at
+     320px and 360px wide they covered each other almost completely. Stacking
+     order only decided WHICH one you lost. NotificationBell now measures the
+     Atlas panel and overrides `right` to sit clear of it. */
   z-index: 47;
 }
 

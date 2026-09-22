@@ -110,21 +110,40 @@ function LongRunningAppCard({
   return (
     <div className="agent-request-card">
       <div className="agent-request-title">{`Running for ${up}`}</div>
-      <div className="agent-request-body">
-        <div>
-          <strong>{request.name}</strong>
+      {/* The NAME is the headline -- it is what you recognise the thing by --
+          with the image and the owning project as supporting detail. Both can
+          run long (a registry path, a generated container name), so both clip
+          with the full text on the title attribute. */}
+      <div className="agent-request-name" title={request.name}>
+        {request.name}
+      </div>
+      {request.detail && (
+        <div className="agent-request-note ellipsis" title={request.detail}>
+          {request.detail}
         </div>
-        {request.detail && (
-          <div className="agent-request-note">{request.detail}</div>
-        )}
-        <div className="agent-request-note">
-          {`${APP_LABEL[request.appType]}${
-            request.projectName ? ` in ${request.projectName}` : ""
-          }`}
-        </div>
+      )}
+      <div className="agent-request-note">
+        {`${APP_LABEL[request.appType]}${
+          request.projectName ? ` in ${request.projectName}` : ""
+        }`}
       </div>
       {error && <div className="agent-request-error">{error}</div>}
+      {/* ONE action row. Later and Stop used to sit on separate lines -- Stop
+          pushed right, Later dropped underneath and pushed left -- which read
+          as a ragged pair of afterthoughts rather than the card's two choices.
+          Dismiss stays visually secondary but shares the baseline. */}
       <div className="agent-request-actions">
+        {dismissible && (
+          <button
+            type="button"
+            className="agent-request-later"
+            onClick={() =>
+              void window.airlock.agentRequestDismiss(request.requestId)
+            }
+          >
+            Later
+          </button>
+        )}
         <button
           type="button"
           className="btn primary"
@@ -134,17 +153,6 @@ function LongRunningAppCard({
           {busy ? "Stopping..." : "Stop"}
         </button>
       </div>
-      {dismissible && (
-        <button
-          type="button"
-          className="agent-request-later"
-          onClick={() =>
-            void window.airlock.agentRequestDismiss(request.requestId)
-          }
-        >
-          Later
-        </button>
-      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ import { TerminalSlotsProvider } from "./lib/terminalSlots";
 import { useAgentCommands } from "./lib/useAgentCommands";
 import { useAnthropicStatus } from "./lib/useAnthropicStatus";
 import { useFsWatch } from "./lib/useFsWatch";
+import { useFullScreen } from "./lib/useFullScreen";
 import { useGithubFocusSync } from "./lib/useGithubFocusSync";
 import { useGitStatus } from "./lib/useGitStatus";
 import { useMenuActions } from "./lib/useMenuActions";
@@ -47,6 +48,7 @@ export function App() {
   useFsWatch();
   useQuota();
   useAnthropicStatus();
+  useFullScreen();
   useUpdate();
   useGithubFocusSync();
   const modal = useApp((s) => s.modal);

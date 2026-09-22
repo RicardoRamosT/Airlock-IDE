@@ -83,7 +83,13 @@ export function parseAnthropicStatus(json: unknown): ParsedAnthropicStatus {
     const c = raw as Record<string, unknown>;
     const name = typeof c.name === "string" ? c.name : "";
     const state = typeof c.status === "string" ? c.status : "";
-    if (!WATCHED.some((w) => name.startsWith(w))) continue;
+    // Report the name we MATCHED BY, not the raw label. Statuspage appends a
+    // hostname to some components ("Claude API (api.anthropic.com)"), and
+    // carrying that through put a domain in a 22px status pill, where it reads
+    // as a link to somewhere. WATCHED already holds the canonical names, so
+    // this also survives the rewording the prefix match was chosen to absorb.
+    const watched = WATCHED.find((w) => name.startsWith(w));
+    if (!watched) continue;
     const mapped = COMPONENT_MAP[state] ?? "unknown";
     if (worst === null || worseOf(mapped, worst) === mapped) {
       // Keep the FIRST of equal severity: watched order is our priority order.
@@ -92,7 +98,7 @@ export function parseAnthropicStatus(json: unknown): ParsedAnthropicStatus {
         SEVERITY.indexOf(mapped) < SEVERITY.indexOf(worst)
       ) {
         worst = mapped;
-        worstName = name;
+        worstName = watched;
         worstRaw = state;
       }
     }
