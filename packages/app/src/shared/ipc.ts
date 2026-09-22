@@ -1366,6 +1366,9 @@ export interface AirlockApi {
   // to 0), hence a bare boolean rather than a window-state object.
   onFullScreen(cb: (on: boolean) => void): () => void;
   // One dot per open project, pushed whenever either spine tier polls.
+  // The spine's dots right now. Seeds a renderer that mounted after main's
+  // first broadcast; onAtlasSpine keeps it current after that.
+  atlasSpine(): Promise<SpineDot[]>;
   onAtlasSpine(cb: (dots: SpineDot[]) => void): () => void;
   // Database-shaped containers (image recognised as postgres/mysql/mariadb/
   // mongo/redis), for the Databases provider row. Value-free: name, image,

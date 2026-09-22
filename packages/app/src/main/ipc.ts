@@ -148,6 +148,7 @@ import { atlasDb } from "./atlas/db";
 import { discoverProjects } from "./atlas/discover";
 import { atlasMcp } from "./atlas/mcpEndpoint";
 import { makeCollectDeps } from "./atlas/runners";
+import { spineDots } from "./atlas/spine";
 // Only the pure helper: every database call goes through atlasDb(), which
 // speaks to the isolated host process.
 import { dayKey } from "./atlas/store";
@@ -2325,6 +2326,10 @@ export function registerIpc(
   // Addressed by REQUEST ID: the renderer never holds a pid or a container id
   // for this, so it cannot aim the action at anything AirLock is not already
   // reporting. See main/localapps/index.ts.
+  // The spine's snapshot, for a renderer that mounted after main's first
+  // broadcast. See spineDots for why a push channel alone is not enough.
+  ipcMain.handle("atlas:spine-get", () => spineDots());
+
   ipcMain.handle("localapps:stop", async (_e, requestId: unknown) => {
     if (typeof requestId !== "string" || !requestId)
       return { ok: false, error: "No such notification" };

@@ -95,6 +95,22 @@ export function projectDots(
   });
 }
 
+/**
+ * The dots as they stand right now, for a renderer that has just mounted.
+ *
+ * A push channel alone is HALF A CONTRACT: main sends its first broadcast at
+ * startup, before any window has mounted and subscribed, so without this the
+ * strip stayed empty until the next tick -- a full minute after launch, and
+ * again after every renderer reload. The agent-request surface documents the
+ * same rule: the snapshot is the half that survives a reload.
+ *
+ * With an empty cache this still returns one QUIET dot per open project, so
+ * the strip is present from the first paint and only the colours arrive late.
+ */
+export function spineDots(): SpineDot[] {
+  return projectDots(allOpenRoots(), cache);
+}
+
 function broadcast(): void {
   const dots = projectDots(allOpenRoots(), cache);
   // EVERY window, not just app windows: the Atlas popover and the standalone

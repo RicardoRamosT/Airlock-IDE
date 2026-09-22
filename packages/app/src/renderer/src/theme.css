@@ -6755,7 +6755,8 @@ button.docker-row .codicon-chevron-right {
    group so the title card stays centred with the meter on or off. */
 .titlebar-bell {
   position: absolute;
-  right: 8px;
+  /* Left of the Atlas mark, which owns the spine's column at the very edge. */
+  right: var(--spine-w);
   top: 0;
   height: 100%;
   display: flex;
@@ -7207,18 +7208,23 @@ button.docker-row .codicon-chevron-right {
    it reads as part of the titlebar rather than bolted on. The rail icon is
    easy to lose among fourteen others; this one is always visible. */
 .titlebar-atlas {
-  /* ABSOLUTE, like .titlebar-bell, and offset left of it. The bell is
-     `position: absolute; right: 8px`, so an in-flow sibling does not push it
-     over -- the two simply draw on top of each other. The bell button is a
-     16px icon with 4px side padding, so it occupies roughly 8-32px from the
-     right; 38px clears it with a gap. */
+  /* ABSOLUTE, and flush to the window's right edge owning the SPINE's column.
+     The Atlas mark is the head of the portfolio spine, so it has to sit dead
+     centre above that 28px strip -- width + centring, not an offset, or the
+     two only line up at one window size.
+     
+     Both titlebar icons are absolutely positioned, so DOM ORDER DOES NOTHING
+     here: reordering the JSX left them drawing exactly where these offsets put
+     them. Swapping the icons means swapping these two rules, nothing else. */
   position: absolute;
-  right: 38px;
+  right: 0;
+  width: var(--spine-w);
   top: 0;
   height: 100%;
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 .titlebar-atlas .codicon-sparkle {
   color: var(--accent);
