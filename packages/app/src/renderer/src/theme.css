@@ -6905,6 +6905,11 @@ button.docker-row .codicon-chevron-right {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-bottom-left-radius: 3px;
+  /* FULL WIDTH. 88% is the right cap for something you read as a quoted
+     utterance -- your own message -- but an answer is the content of the
+     panel, and capping it only moved text into fewer, narrower lines while
+     leaving a permanent empty column beside it. */
+  max-width: 100%;
 }
 .atlas-turn-pending {
   align-self: flex-start;
@@ -7685,31 +7690,61 @@ body.resizing-row {
 
 /* --- Atlas: copy a message --- */
 
+/* A turn is the message PLUS its actions, stacked. The wrap is what restores
+   the side a message sits on: .atlas-turn's own align-self stopped working the
+   moment these were wrapped (align-self does nothing in a block container), so
+   every message was left-aligned at 88% and the user's bubble only LOOKED
+   right-aligned because it happened to fill that width. */
 .atlas-turn-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
-/* Hidden until the message is hovered or the button itself is focused, so the
-   transcript stays clean but the control is still keyboard-reachable. */
-.atlas-copy {
-  position: absolute;
-  top: 4px;
-  right: 6px;
+.atlas-turn-wrap-user {
+  align-items: flex-end;
+}
+
+/* The action row, ChatGPT-style: under the message, on the message's own side.
+   Hidden until the turn is hovered or something in the row is focused, so the
+   transcript stays clean and the controls stay keyboard-reachable. Opacity,
+   never display -- a row that appears on hover would reflow the transcript
+   under the pointer. */
+.atlas-turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 3px;
   opacity: 0;
-  padding: 2px 7px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg-panel);
-  color: var(--fg-dim);
-  font-size: 11px;
-  cursor: pointer;
+  transition: opacity 120ms ease;
 }
-.atlas-turn-wrap:hover .atlas-copy,
-.atlas-copy:focus-visible {
+.atlas-turn-wrap:hover .atlas-turn-actions,
+.atlas-turn-actions:focus-within {
   opacity: 1;
 }
-.atlas-copy:hover {
+.atlas-turn-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.atlas-turn-action .codicon {
+  font-size: 13px;
+}
+.atlas-turn-action:hover {
+  background: var(--hover);
   color: var(--fg);
-  border-color: var(--fg-dim);
+}
+.atlas-turn-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* Pasted-screenshot chips above the Atlas composer. A chip, not a thumbnail:

@@ -372,28 +372,46 @@ export function AtlasChat({
             </p>
           ) : (
             turns.map((t) => (
-              <div key={t.key} className="atlas-turn-wrap">
+              <div
+                key={t.key}
+                className={`atlas-turn-wrap atlas-turn-wrap-${t.role}`}
+              >
                 <div className={`atlas-turn atlas-turn-${t.role}`}>
                   {/* Atlas writes markdown; the user's text is shown as typed. */}
                   {t.role === "atlas" ? renderBrief(t.text) : t.text}
                 </div>
-                <button
-                  type="button"
-                  className="atlas-copy"
-                  title="Copy this message"
-                  onClick={() => {
-                    // The RAW text, not the rendered DOM. Atlas writes
-                    // markdown and a copy is usually headed somewhere that
-                    // understands it -- copying the rendering would strip the
-                    // headings, bold and code fences back to flat prose.
-                    void navigator.clipboard
-                      ?.writeText(t.text)
-                      .then(() => setCopiedKey(t.key))
-                      .catch((err) => console.error("copy failed", err));
-                  }}
-                >
-                  {copiedKey === t.key ? "Copied" : "Copy"}
-                </button>
+                {/* ACTIONS BELOW THE MESSAGE, not floating beside it. The copy
+                    button used to be absolutely positioned at the bubble's top
+                    right, which meant the bubble had to leave a lane clear for
+                    it -- and since a message is as wide as its text, that lane
+                    was empty space on every line of every answer. Under the
+                    message it costs one row and the message gets the width. */}
+                <div className="atlas-turn-actions">
+                  <button
+                    type="button"
+                    className="atlas-turn-action"
+                    title={copiedKey === t.key ? "Copied" : "Copy this message"}
+                    aria-label={
+                      copiedKey === t.key ? "Copied" : "Copy this message"
+                    }
+                    onClick={() => {
+                      // The RAW text, not the rendered DOM. Atlas writes
+                      // markdown and a copy is usually headed somewhere that
+                      // understands it -- copying the rendering would strip the
+                      // headings, bold and code fences back to flat prose.
+                      void navigator.clipboard
+                        ?.writeText(t.text)
+                        .then(() => setCopiedKey(t.key))
+                        .catch((err) => console.error("copy failed", err));
+                    }}
+                  >
+                    <i
+                      className={`codicon codicon-${
+                        copiedKey === t.key ? "check" : "copy"
+                      }`}
+                    />
+                  </button>
+                </div>
                 {/* A question's answer state, which only the STORE knows after a
                     reopen -- `busy` belongs to the renderer that asked, and that
                     renderer is gone. Without this the message came back with no

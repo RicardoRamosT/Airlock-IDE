@@ -342,7 +342,14 @@ it("confirms the copy so the click is not silent", async () => {
   render(<AtlasChat />);
   await waitFor(() => expect(screen.getByText("hello")).toBeTruthy());
   screen.getByRole("button", { name: /copy/i }).click();
-  await waitFor(() => expect(screen.getByText(/copied/i)).toBeTruthy());
+  // The confirmation is the button itself: its glyph flips to a check and its
+  // accessible name to "Copied". It used to be the visible word "Copied", but
+  // the action moved under the message as an icon, so the ACCESSIBLE NAME is
+  // where the confirmation now lives -- and asserting the name rather than the
+  // glyph is what keeps this about the user being told, not about an <i>.
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /^copied$/i })).toBeTruthy(),
+  );
 });
 
 it("offers copy on the user's own messages too", async () => {
