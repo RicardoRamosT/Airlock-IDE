@@ -7178,20 +7178,14 @@ button.docker-row .codicon-chevron-right {
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
 }
 
-/* Atlas as a sidebar section: same content, narrow column. */
-.atlas-pane {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sb-block-gap, 10px);
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-}
-.atlas-brief-pane {
-  overflow-y: auto;
-  padding-right: 2px;
-  font-size: 12px;
-}
+/* The chat's wrapper, in EVERY host. Layout only.
+   It began as "Atlas as a sidebar section: same content, narrow column" and
+   carried that column's tuning -- 2px of padding, 12px bubbles, a composer
+   with no background. The sidebar section is gone (nothing renders .atlas-pane
+   or .atlas-brief-pane any more, so both rules went with it), but the tuning
+   stayed and applied everywhere: the overlay's chat wore a narrow column's
+   costume while the debrief beside it did not. Anything that is not layout
+   belongs to the chat's own rules or to a host-scoped override. */
 .atlas-pane-chat {
   display: flex;
   flex-direction: column;
@@ -7221,16 +7215,21 @@ button.docker-row .codicon-chevron-right {
   flex: 1 1 auto;
   min-height: 0;
 }
-.atlas-pane-chat .atlas-chat-log {
-  padding: 4px 2px;
+
+/* HOST-SCOPED spacing, which is where the removed tuning actually belonged.
+   The menu bar popover pads itself (14px all round), so the chat must not pad
+   again or the bubbles sit 28px in. The overlay and the standalone window pad
+   nothing, so the chat's own padding is right there and only the body of the
+   debrief needs supplying. */
+.atlas-popover .atlas-chat-log {
+  padding: 4px 0 6px;
 }
-.atlas-pane-chat .atlas-turn {
-  max-width: 100%;
-  font-size: 12px;
-}
-.atlas-pane-chat .atlas-chat-form {
+.atlas-popover .atlas-chat-form {
   padding: 8px 0 0;
   background: none;
+}
+.atlas-window .atlas-pane-brief {
+  padding: 12px 0 14px 14px;
 }
 .section-empty-note {
   margin: 0;
@@ -8165,6 +8164,12 @@ body.resizing-row {
   display: flex;
   flex-direction: column;
   z-index: 5;
+  /* THE HOST OWES THE PANEL A TYPE SCALE. .atlas-popover and .atlas-window
+     both declare this; the overlay did not, so .atlas-brief kept its own 13px
+     while everything that merely inherits -- the "still open" rows above all
+     -- took the app's base size. One panel, two type scales, which is exactly
+     how it read. */
+  font-size: 13px;
   /* CONTAINMENT, as a second layer behind the panel's own scroller. Overflow
      that reaches no scroll container scrolls the DOCUMENT, and an overlay
      absolutely positioned over the workspace has nothing between it and the

@@ -15,6 +15,12 @@ import { describe, expect, it } from "vitest";
 // The fix is in the panel, not in one host's CSS: the panel now carries its own
 // scroller, so no host has to be one. These assert that, and the containment
 // behind it.
+//
+// The rest of the file guards the same SHAPE of mistake: three surfaces render
+// AtlasPanel, and each time one of them was added it had to be taught things
+// the others already knew. Every assertion here is a contract a host owes the
+// panel, or a piece of tuning the panel must not inherit from a host that no
+// longer exists.
 const src = (f: string) => readFileSync(join(__dirname, f), "utf8");
 const css = readFileSync(join(__dirname, "..", "theme.css"), "utf8");
 
@@ -60,6 +66,38 @@ describe("atlas panel scrolling", () => {
       const root = [...before.matchAll(/className="([\w-]+)"/g)].pop()?.[1];
       expect(root, `${host} has no host class`).toBeDefined();
       expect(known, `${host} hosts the panel`).toContain(`.${root}`);
+    }
+  });
+
+  it("sizes its own text, on every host", () => {
+    // .atlas-popover and .atlas-window both declare font-size: 13px, and
+    // .atlas-brief pins 13px of its own -- so on a host that declares none,
+    // the brief stayed 13px while everything that inherits (the "still open"
+    // rows especially) jumped to the app's base size. Two type scales in one
+    // panel, which is what it looked like.
+    for (const host of [".atlas-popover", ".atlas-window", ".atlas-overlay"]) {
+      expect(block(host), `${host} sets no font-size`).toMatch(/font-size:/);
+    }
+  });
+
+  it("keeps host tuning out of the shared chat wrapper", () => {
+    // .atlas-pane-chat wraps the chat in EVERY host, but its overrides were
+    // written for the Atlas SIDEBAR SECTION -- 2px of padding, 12px bubbles, a
+    // composer with no background -- and that section no longer exists. They
+    // stayed, so the overlay's chat wore a narrow column's costume while the
+    // debrief beside it did not. Layout only here; typography and spacing
+    // belong to the chat's own rules or to a host-scoped one.
+    const rules = [
+      ...css.matchAll(/^([^\n{}]*\.atlas-pane-chat[^\n{}]*)\{([^}]*)\}/gm),
+    ];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const [, selector, body] of rules) {
+      expect(body, `${(selector as string).trim()} tunes spacing`).not.toMatch(
+        /padding:/,
+      );
+      expect(body, `${(selector as string).trim()} tunes type`).not.toMatch(
+        /font-size:/,
+      );
     }
   });
 });
