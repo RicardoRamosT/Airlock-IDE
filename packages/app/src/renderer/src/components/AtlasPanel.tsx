@@ -234,6 +234,13 @@ export function AtlasPanel({
     );
   };
 
+  // The header's scope label. A basename, not the path: the strip already
+  // names projects that way and the row has one line to spend.
+  const headTitle =
+    focusRoot === null
+      ? "Atlas"
+      : (focusRoot.split("/").filter(Boolean).pop() ?? "Atlas");
+
   if (!asked) return <p className="atlas-note">Loading...</p>;
 
   if (state !== null && !state.acknowledged) {
@@ -251,41 +258,51 @@ export function AtlasPanel({
   return (
     <>
       <div className={standalone ? "atlas-titlebar" : "atlas-popover-head"}>
-        <span className="atlas-mark" aria-hidden="true">
-          &#10022;
-        </span>
-        <h1>Atlas</h1>
-        <div className="atlas-tabs" role="tablist" aria-label="Atlas view">
+        {/* WHOSE conversation this is. Opened from a spine dot the header
+            names the PROJECT: a row reading "ATLAS" above answers scoped to
+            one project tells you nothing about which one, and the scope is
+            the only thing about this header you cannot infer from the tabs.
+            The decorative mark that used to sit here is gone -- it competed
+            with the scope for the one piece of the row that carries meaning. */}
+        <h1 className="atlas-head-title" title={focusRoot ?? undefined}>
+          {headTitle}
+        </h1>
+        {/* Tabs and the overflow menu are ONE group pinned right, so the row
+            reads as scope-on-the-left, controls-on-the-right rather than
+            three things spaced apart by whatever flex happened to do. */}
+        <div className="atlas-head-actions">
+          <div className="atlas-tabs" role="tablist" aria-label="Atlas view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "brief"}
+              onClick={() => go("brief")}
+            >
+              Debrief
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "chat"}
+              onClick={() => go("chat")}
+            >
+              Chat
+            </button>
+          </div>
           <button
             type="button"
-            role="tab"
-            aria-selected={view === "brief"}
-            onClick={() => go("brief")}
+            className="atlas-btn atlas-more"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="More"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
           >
-            Debrief
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "chat"}
-            onClick={() => go("chat")}
-          >
-            Chat
+            &#8943;
           </button>
         </div>
-        <button
-          type="button"
-          className="atlas-btn atlas-more"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-label="More"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen((v) => !v);
-          }}
-        >
-          &#8943;
-        </button>
         {menuOpen ? (
           <div className="atlas-menu" role="menu">
             <button

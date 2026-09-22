@@ -6988,7 +6988,23 @@ button.docker-row .codicon-chevron-right {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--fg-dim);
-  flex: 1 1 auto;
+  /* SHRINKS, never grows: a long project name truncates rather than shoving
+     the tabs off the row. The actions group is what claims the free space. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tabs + overflow as one right-hand group, so the header reads as two things
+   (scope | controls) instead of three spaced by whatever flex worked out. */
+.atlas-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .atlas-popover .atlas-mark {
   color: var(--accent);
@@ -8061,6 +8077,19 @@ body.resizing-row {
   padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
+}
+
+/* The conversation's scrollbar OVERLAYS instead of reserving a lane.
+   A classic WebKit scrollbar is always drawn at the padding-box edge and
+   always takes its width out of the content box, so the only way to buy that
+   space back for the chat is to spend the gutter on it: the log keeps no
+   right padding, the 10px bar sits exactly where the padding used to be, and
+   the bubbles run 14px further right. (Pulling the log wider with a negative
+   margin would put the bar OUTSIDE the panel, on top of the spine.) The track
+   is transparent and the thumb is 6px inside a 2px transparent border, so what
+   you see floats in front of the chat rather than fencing it off. */
+.atlas-overlay .atlas-chat-log {
+  padding-right: 0;
 }
 
 .atlas-spine-callout {
