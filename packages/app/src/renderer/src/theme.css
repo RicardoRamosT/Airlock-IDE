@@ -6900,16 +6900,28 @@ button.docker-row .codicon-chevron-right {
   color: #fff;
   border-bottom-right-radius: 3px;
 }
+/* AN ANSWER IS NOT A BUBBLE. It is the content of the panel, the same way the
+   debrief is, so it draws no box: no border, no fill, no padding of its own.
+
+   That is also what finally removes the "scrollbar lane" in the chat. A
+   classic WebKit scrollbar ALWAYS takes its 10px from the content box and is
+   ALWAYS drawn at the padding-box edge -- it cannot be overlaid, and the
+   debrief pays the same 10px. The difference was never the padding (both
+   panes have spent their right gutter on the bar since the overlay shipped):
+   it was that a BORDERED CARD ends in a hard vertical edge right beside the
+   bar, which reads as a reserved column, while ragged text does not. Remove
+   the card and the chat reads exactly like the debrief.
+
+   The user's own message keeps its bubble -- it is a quoted utterance, and
+   88% of the width, right-aligned, is what says so. Same split ChatGPT
+   makes. */
 .atlas-turn-atlas {
-  align-self: flex-start;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 3px;
-  /* FULL WIDTH. 88% is the right cap for something you read as a quoted
-     utterance -- your own message -- but an answer is the content of the
-     panel, and capping it only moved text into fewer, narrower lines while
-     leaving a permanent empty column beside it. */
+  align-self: stretch;
   max-width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 .atlas-turn-pending {
   align-self: flex-start;

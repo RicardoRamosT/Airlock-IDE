@@ -30,6 +30,20 @@ function block(selector: string): string {
   return m[1] as string;
 }
 
+// A rule's padding `right`, written longhand or as a one-to-four shorthand.
+function paddingRight(body: string): string {
+  const longhand = body.match(/padding-right:\s*([^;]+);/);
+  const raw =
+    longhand !== null
+      ? (longhand[1] as string)
+      : ((body.match(/[\s;{]padding:\s*([^;]+);/)?.[1] ?? "")
+          .trim()
+          .split(/\s+/)[1] ??
+        body.match(/[\s;{]padding:\s*([^;]+);/)?.[1] ??
+        "");
+  return raw.trim().replace(/px$/, "");
+}
+
 describe("atlas panel scrolling", () => {
   it("gives the debrief its own scroller, like the chat has", () => {
     expect(src("AtlasPanel.tsx")).toContain('className="atlas-pane-brief"');
@@ -98,6 +112,19 @@ describe("atlas panel scrolling", () => {
       expect(body, `${(selector as string).trim()} tunes type`).not.toMatch(
         /font-size:/,
       );
+    }
+  });
+
+  it("spends the same right gutter on the scrollbar in both panes", () => {
+    // The chat and the debrief scroll in different elements, so this is the
+    // only thing keeping them looking alike. A classic WebKit scrollbar always
+    // takes its width out of the content box and is always drawn at the
+    // padding-box edge -- it CANNOT be overlaid -- so the nearest thing to
+    // "in front of the chat" is for both panes to spend their right gutter on
+    // it rather than gutter AND bar. One of them drifting back to a padded
+    // gutter is what makes one look narrower than the other.
+    for (const pane of [".atlas-pane-brief", ".atlas-chat-log"]) {
+      expect(paddingRight(block(`.atlas-overlay ${pane}`)), pane).toBe("0");
     }
   });
 });
