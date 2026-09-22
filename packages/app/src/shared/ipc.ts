@@ -512,6 +512,21 @@ export interface AnthropicStatus {
   updatedAt: number; // unix seconds when main last fetched it
 }
 
+// One project's dot on the Atlas spine. `tone` is the colour; `line` is the
+// callout's sentence.
+//
+// The tone union is spelled out here rather than imported from agent-core's
+// DotTone: the renderer may not value-import agent-core, and a type-only
+// import would still couple this file to that barrel. Two identical string
+// unions is the lesser evil, and the spine test pins them together.
+export type SpineTone = "fail" | "you" | "clean" | "quiet";
+export interface SpineDot {
+  root: string;
+  name: string;
+  tone: SpineTone;
+  line: string;
+}
+
 export interface UpdateStatus {
   available: boolean;
   currentVersion: string;
@@ -1350,6 +1365,8 @@ export interface AirlockApi {
   // CSS consumes it (fullscreen squares the window, so the corner radius goes
   // to 0), hence a bare boolean rather than a window-state object.
   onFullScreen(cb: (on: boolean) => void): () => void;
+  // One dot per open project, pushed whenever either spine tier polls.
+  onAtlasSpine(cb: (dots: SpineDot[]) => void): () => void;
   // Database-shaped containers (image recognised as postgres/mysql/mariadb/
   // mongo/redis), for the Databases provider row. Value-free: name, image,
   // engine and published host port only -- never a credential.

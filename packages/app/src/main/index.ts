@@ -23,6 +23,7 @@ import {
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
 import { setAtlasMcp } from "./atlas/mcpEndpoint";
+import { startSpine } from "./atlas/spine";
 import { startAtlasArrival } from "./atlas/start";
 import {
   atlasJustInteracted,
@@ -170,6 +171,10 @@ function bootstrap(): void {
     startLocalAppsPoll();
     createWindow();
     startAtlasArrival(prefsFile);
+    // The spine reads its own inputs on its own cadence -- see main/atlas/
+    // spine.ts for why it cannot ride the debrief's once-a-day ledger. The
+    // pref is read per tick, so toggling Atlas takes effect without a relaunch.
+    startSpine(async () => (await loadPrefs(prefsFile)).atlas.enabled);
     const prefs = await loadPrefs(prefsFile);
     // The menu bar item is OPT-IN: in-app (the sidebar section) is the default
     // surface, so a user who never wants a menu bar item never gets one.

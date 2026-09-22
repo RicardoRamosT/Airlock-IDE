@@ -17,6 +17,7 @@ import type {
   PtyExitEvent,
   QuotaStatus,
   SectionVisibility,
+  SpineDot,
   TabDragHover,
   UpdateProgress,
   UpdateStatus,
@@ -265,6 +266,7 @@ const api: AirlockApi = {
   atlasSend: (message: string, attachments?: readonly string[]) =>
     ipcRenderer.invoke("atlas:send", message, attachments ?? []),
   onAtlasActivity: (cb) => subscribe<AtlasActivity[]>("atlas:activity", cb),
+  onAtlasSpine: (cb) => subscribe<SpineDot[]>("atlas:spine", cb),
   atlasAttach: (bytes: Uint8Array, mime: string) =>
     // Array.from: a Uint8Array does not survive the structured clone across
     // this bridge in every Electron build, and a plain array always does.
