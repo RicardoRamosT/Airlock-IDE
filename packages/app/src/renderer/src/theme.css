@@ -55,11 +55,6 @@
   --sb-gap: 6px; /* between sibling controls in a row (toolbars) */
   --sb-row-gap: 2px; /* between list rows within a section */
   --sb-block-gap: 10px; /* between stacked blocks (toolbar / list / footer / control groups) */
-  /* Shared height of the two bottom "docks" (the rail's accounts/settings
-     block and the sidebar's quota meter) so their top borders form ONE
-     continuous line across both columns. Sized to fit the meter's tallest
-     state (title + two bars + reset line). */
-  --sidebar-dock-h: 88px;
   /* Titlebar usage gauges. Theme-aware because the percentage straddles two
      grounds -- the coloured fill and the empty track -- as the bar advances, so the
      text needs a halo in the OPPOSITE direction from the surface it sits on. */
@@ -1219,18 +1214,19 @@ body,
 }
 
 /* Rail bottom: the app-global Accounts/Settings buttons; position:relative
-   anchors their bottom-sheet popovers (which overlay the sidebar beside it). */
+   anchors their bottom-sheet popovers (which overlay the sidebar beside it).
+   It sizes to its buttons and nothing else. It used to be pinned to
+   --sidebar-dock-h so its top border lined up with the SIDEBAR QUOTA METER's
+   -- but that meter moved to the titlebar (TitleQuota), and the rail went on
+   holding a line against a border that is not there any more. The 88px it
+   reserved is what squeezed these three into a 2px rhythm under a rail spaced
+   at 40. */
 .activity-bar-bottom {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  /* Match the quota meter's dock height (buttons anchored at the bottom) so
-     this border-top and the meter's sit at the same level. */
-  min-height: var(--sidebar-dock-h);
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 6px 0;
+  align-items: stretch;
+  padding: 4px 0;
   border-top: 1px solid var(--border);
 }
 
@@ -2337,25 +2333,33 @@ body.resizing-col {
 }
 
 /* Icon buttons at the activity bar's bottom (accounts + settings). */
+/* ONE RAIL, ONE CONTROL. A footer button is a rail icon: same 40px row, same
+   full width, same inset rounded hover card drawn behind the glyph. It was a
+   24x28 pill packed at a 2px pitch, which read as a lesser row of controls
+   below a rail spaced at 40 -- the same complaint the 14px-vs-20px glyphs drew.
+   Keep these two in step; railDock.test.ts asserts it. */
 .footer-btn {
+  position: relative;
+  height: 40px;
+  padding: 0;
   background: none;
   border: none;
   color: var(--fg-dim);
   cursor: pointer;
-  /* Fixed height so the 3 stacked icons fit inside --sidebar-dock-h (88px):
-     3*24 + 2*2 gap + 2*6 pad = 88. Without it they inherit line-height, overflow
-     the dock, and the activity-bar divider rises above the quota meter's.
-     Re-derive this if the glyph size changes -- the box grew from 22 to 24 when
-     the glyphs went to 20px, and the sum has to keep landing on 88. */
-  height: 24px;
-  /* Fixed box + centred content so all three glyphs share one vertical axis --
-     padding alone let differently-proportioned icons sit off-centre. */
-  width: 28px;
-  padding: 0;
-  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* The hover/selected surface, inset exactly as .activity-icon's is, and drawn
+   behind the glyph. */
+.footer-btn::after {
+  content: "";
+  position: absolute;
+  inset: 3px 5px;
+  z-index: -1;
+  border-radius: 8px;
+  background: transparent;
+  transition: background 140ms ease;
 }
 
 /* ONE rail, ONE icon size. The footer glyphs used to inherit the app-wide 14px
@@ -2369,13 +2373,17 @@ body.resizing-col {
 }
 
 .footer-btn:hover {
-  background: var(--hover);
   color: var(--fg);
+}
+.footer-btn:hover::after {
+  background: var(--hover);
 }
 
 .footer-btn.active {
-  background: var(--hover);
   color: var(--fg);
+}
+.footer-btn.active::after {
+  background: var(--selected);
 }
 
 /* The Usage page renders IN the pane's content slot (a page-tab in the main

@@ -2,52 +2,56 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// The rail's footer (feedback / accounts / settings) has to fit EXACTLY inside
-// --sidebar-dock-h. If the three buttons come to more than that, the dock
-// grows, and the activity bar's divider stops lining up with the quota meter's
-// -- a misalignment two rules apart in this file, in a sum nothing computes.
+// ONE RAIL, ONE CONTROL.
 //
-// The arithmetic is written in a comment beside .footer-btn's height, which is
-// how it survived the glyphs going from 14px to 20px: the comment still said
-// 3*22 while the box said 24. This asserts the sum instead of describing it.
+// Above the divider and below it are the same kind of thing -- an icon you
+// click in the rail -- and they drifted apart twice: first the glyphs (14px
+// below, 20px above), then the rhythm (a 2px pitch below, 40px above). Both
+// times the bottom three read as a lesser class of control.
+//
+// The rhythm drifted because the footer was pinned to --sidebar-dock-h, a
+// height it held so its top border would line up with the SIDEBAR quota
+// meter's. That meter moved to the titlebar and the constraint outlived it.
+// This asserts the two controls agree rather than describing them in a
+// comment, which is what let the last arithmetic here go stale.
 const css = readFileSync(join(__dirname, "theme.css"), "utf8");
 
 function block(selector: string): string {
-  const re = new RegExp(`^\\${selector} \\{([\\s\\S]*?)^\\}`, "m");
-  const m = css.match(re);
+  const m = css.match(new RegExp(`^\\${selector} \\{([\\s\\S]*?)^\\}`, "m"));
   if (!m) throw new Error(`no rule for ${selector}`);
   return m[1] as string;
 }
 
 function px(body: string, prop: string): number {
-  // No \b: a custom property starts with "-", which is not a word character.
   const m = body.match(new RegExp(`[\\s;{]${prop}:\\s*(-?[\\d.]+)px`));
   if (!m) throw new Error(`no ${prop} in rule`);
   return Number(m[1]);
 }
 
-describe("activity bar footer dock", () => {
-  it("fits the three buttons exactly into --sidebar-dock-h", () => {
-    const dock = px(block(":root"), "--sidebar-dock-h");
-    const btn = block(".footer-btn");
-    const bottom = block(".activity-bar-bottom");
-    const padding = Number(
-      bottom.match(/\bpadding:\s*([\d.]+)px/)?.[1] ?? Number.NaN,
+describe("activity bar footer", () => {
+  it("is the same control as a section icon", () => {
+    expect(px(block(".footer-btn"), "height")).toBe(
+      px(block(".activity-icon"), "height"),
     );
-    expect(Number.isNaN(padding)).toBe(false);
-    expect(3 * px(btn, "height") + 2 * px(bottom, "gap") + 2 * padding).toBe(
-      dock,
-    );
-  });
-
-  it("uses one icon size across the whole rail", () => {
-    // Above and below the divider are the same kind of control, so they are
-    // the same size. Two scales in one rail is what this replaced.
     expect(px(block(".footer-btn .codicon"), "font-size")).toBe(
       px(
         block(".activity-icon .codicon,\n.activity-icon .brand-glyph"),
         "font-size",
       ),
+    );
+  });
+
+  it("stacks at the same pitch, with no gap of its own", () => {
+    // The rail's icons sit flush: their 40px box IS the rhythm. A gap here
+    // would space the bottom three differently however tall they are.
+    expect(block(".activity-bar-bottom")).not.toMatch(/[\s;{]gap:/);
+  });
+
+  it("insets its hover surface exactly as the rail does", () => {
+    const inset = (body: string) =>
+      body.match(/inset:\s*([^;]+);/)?.[1]?.trim();
+    expect(inset(block(".footer-btn::after"))).toBe(
+      inset(block(".activity-icon::after")),
     );
   });
 });
