@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
 import { AgentRequestStack } from "./components/AgentRequestStack";
+import { AtlasOverlay } from "./components/AtlasOverlay";
 import { AtlasSpine } from "./components/AtlasSpine";
 import { ExtensionsTab } from "./components/ExtensionsTab";
 import { NeonConnectModal } from "./components/NeonConnectModal";
@@ -129,6 +130,11 @@ export function App() {
             </div>
           ) : (
             <ProjectPane tabId={activeTabId} focused />
+          )}
+          {/* Hinged on the spine and absolutely positioned, so opening the
+              conversation moves nothing underneath it. */}
+          {spineRoot && (
+            <AtlasOverlay root={spineRoot} onClose={() => setSpineRoot(null)} />
           )}
           {/* The Atlas portfolio spine: the workspace's fourth grid column.
               Renders null when Atlas is off or nothing is open, and the column

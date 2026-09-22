@@ -8059,3 +8059,23 @@ body.resizing-row {
   height: 1px;
   background: var(--accent);
 }
+
+/* The Atlas conversation, hinged on the spine. ABSOLUTE inside the workspace
+   row, so opening it moves nothing: no pane resizes and no terminal reflows.
+   Sits below the spine's z-index so the strip stays the visible anchor. */
+.atlas-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--spine-w);
+  width: 430px;
+  /* Never swallow the whole window on a narrow one: the rail must stay
+     reachable so you can get back to your work. */
+  max-width: calc(100% - 44px);
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+}
