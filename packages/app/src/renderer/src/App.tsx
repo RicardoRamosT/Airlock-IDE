@@ -1,7 +1,9 @@
 import type React from "react";
+import { useState } from "react";
 import { ActivityBar } from "./components/ActivityBar";
 import { AddDatabaseModal } from "./components/AddDatabaseModal";
 import { AgentRequestStack } from "./components/AgentRequestStack";
+import { AtlasSpine } from "./components/AtlasSpine";
 import { ExtensionsTab } from "./components/ExtensionsTab";
 import { NeonConnectModal } from "./components/NeonConnectModal";
 import { OAuthDeviceModal } from "./components/OAuthDeviceModal";
@@ -67,6 +69,7 @@ export function App() {
   // to a non-pair tab hides the split (the pair persists in `split`), switching
   // back to a member shows it again. Left = a (primary), right = b (secondary);
   // the focused pane (=== activeTabId) drives the agent / window title.
+  const [spineRoot, setSpineRoot] = useState<string | null>(null);
   const showSplit =
     split !== null && (activeTabId === split.a || activeTabId === split.b);
   return (
@@ -127,6 +130,10 @@ export function App() {
           ) : (
             <ProjectPane tabId={activeTabId} focused />
           )}
+          {/* The Atlas portfolio spine: the workspace's fourth grid column.
+              Renders null when Atlas is off or nothing is open, and the column
+              is `auto`, so it collapses and the panes reclaim the width. */}
+          <AtlasSpine onOpen={setSpineRoot} />
         </div>
         {/* Mounted ONCE here (NOT inside a pane): it portals every tab's
             terminals into the pane that currently holds that tab, so the ptys

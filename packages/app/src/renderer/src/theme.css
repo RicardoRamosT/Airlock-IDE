@@ -12,6 +12,9 @@
   /* Distance from the Update stub to its callout -- also the leader line's
      length, so the two can never disagree. */
   --callout-gap: 9px;
+  /* The Atlas portfolio spine's column. Fixed: the strip must never change
+     width, or pointing at a dot would mean aiming twice. */
+  --spine-w: 28px;
   --bg: #0d1117;
   --bg-panel: #11161d;
   --border: #1f2630;
@@ -1041,7 +1044,7 @@ body,
    sidebar-right variant flips the reading order via `order`. */
 .workspace {
   display: grid;
-  grid-template-columns: 44px var(--sidebar-w, 230px) minmax(0, 1fr);
+  grid-template-columns: 44px var(--sidebar-w, 230px) minmax(0, 1fr) auto;
   min-height: 0;
   /* Positioning context for the absolutely-placed .sidebar-resizer handle. */
   position: relative;
@@ -7954,4 +7957,105 @@ body.resizing-row {
   color: var(--fg-dim);
   font-size: 11px;
   line-height: 1.45;
+}
+
+/* --- Atlas portfolio spine --------------------------------------------------
+   One dot per open project on the workspace's right edge. Colour only at rest;
+   28px that is read peripherally. See AtlasSpine.tsx for the rules. */
+.atlas-spine {
+  width: var(--spine-w);
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 14px;
+  gap: 14px;
+}
+
+/* Positioning context for the callout, so it aligns with ITS dot without any
+   arithmetic over the strip's padding and gaps. */
+.atlas-spine-slot {
+  position: relative;
+  display: flex;
+}
+
+.atlas-spine-dot-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.atlas-spine-dot-btn:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 50%;
+}
+
+.atlas-spine-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #59626d;
+  transition: box-shadow 120ms ease;
+}
+.atlas-spine-dot.tone-fail {
+  background: #f14c4c;
+  box-shadow: 0 0 0 3px rgba(241, 76, 76, 0.13);
+}
+.atlas-spine-dot.tone-you {
+  background: #d9a441;
+  box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.13);
+}
+.atlas-spine-dot.tone-clean {
+  background: #3ba776;
+  box-shadow: 0 0 0 3px rgba(59, 167, 118, 0.13);
+}
+/* Quiet is the COMMON case with several projects open -- every project gets a
+   dot, which is what keeps positions fixed. So it sits close to the panel
+   rather than competing as a fourth colour. */
+.atlas-spine-dot.tone-quiet {
+  background: #59626d;
+}
+
+.atlas-spine-callout {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  /* Load-bearing: the callout sits against its own dot, so one that took the
+     pointer would steal the hover and flicker. */
+  pointer-events: none;
+  z-index: 6;
+}
+.atlas-spine-callout-body {
+  max-width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  padding: 9px 12px;
+  white-space: nowrap;
+}
+.atlas-spine-callout-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.atlas-spine-callout-line {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  margin-top: 3px;
+}
+.atlas-spine-leader {
+  width: var(--callout-gap);
+  height: 1px;
+  background: var(--accent);
 }
