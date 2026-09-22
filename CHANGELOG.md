@@ -5,6 +5,15 @@ All notable user-facing changes to AirLock. Dates are when the version was cut.
 ## Unreleased
 
 ### Added
+- **Your whole portfolio, down the right edge.** A slim strip now runs down the
+  right of the window with one dot per open project: red when CI is failing,
+  amber when something is waiting on *you* (a pull request of yours nobody has
+  reviewed), green when a project is clean, grey when it has nothing to say.
+  Hover a dot for the one-line reason; click it to open Atlas over your work —
+  nothing resizes or reflows underneath. Every open project keeps a dot and a
+  fixed position, so after a day or two you know which one is which without
+  reading anything. The Atlas icon moved to the far right of the title bar to
+  sit at the head of the strip, and the notifications bell moved left of it.
 - **Atlas has its own settings, and you choose which projects it covers.** The
   panel's header is now two tabs (Debrief, Chat) and a ⋯ menu holding History,
   New chat, Open in a window, and a new Atlas settings screen. The debrief hour

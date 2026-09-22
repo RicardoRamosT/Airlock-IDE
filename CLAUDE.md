@@ -720,6 +720,75 @@ Deliberately not in v1: **per-app memory** (the motivation is RAM, but
 
 Spec: `docs/superpowers/specs/2026-09-21-long-running-local-apps-design.md`.
 
+## Atlas portfolio spine
+
+A **28px strip on the workspace's right edge**: one dot per open project,
+colour only at rest. Hovering a dot shows a leader-line callout; clicking
+opens the Atlas conversation as an overlay. The Atlas mark in the titlebar is
+its head — it owns the same 28px column, which is why the bell sits left of it.
+
+- **EVERY open project gets a dot**, including quiet ones. Fixed positions are
+  the design: third from the top is always the same project, and that is what
+  makes a colour-only surface readable peripherally. Hiding quiet projects
+  would destroy the muscle memory the whole thing rests on. The cost is that
+  most dots are grey most of the time, which is accepted.
+- **At rest it is colour only** — no text, no counts, no badges. The moment it
+  carries a number it stops being peripheral. Each dot's name and line ride its
+  `aria-label`, because colour alone is not an accessible status.
+
+**The spine CANNOT use Atlas's `CodeLedger`.** `collectLedger` is called from
+exactly one place — `maybeCompose`'s `standup` dep — and `maybeCompose` is
+idempotent per calendar day. `start.ts`'s 15-minute `setInterval` is a
+day-rollover backstop ("a day-key comparison, and composes at most once a
+day"), NOT a refresh. A dot built on that ledger would show yesterday: fix a
+red CI at 10am and it stays red until tomorrow. **A colour you cannot trust is
+worse than no colour**, because you learn to ignore it.
+
+So the spine reads its own inputs, **split by cost** (`main/atlas/spine.ts`):
+
+- **Local, 60s:** one `gitStatus` per open root. 60 and not 30 because this
+  spawns a process PER ROOT — ten tabs at 30s is 20 spawns a minute forever,
+  and an uncommitted count does not need that resolution. The app ships a
+  battery-saving feature; this must not be the thing that burns it.
+- **Remote, 5 min:** `ciRunFor` + `openPrsFor`, and ONLY for open roots with a
+  remote. Skipping the rest is what keeps it affordable — a local-only project
+  would otherwise pay two failing subprocesses every five minutes forever.
+
+**Green requires positive evidence on ALL THREE inputs** (`dotState`, pure, in
+agent-core). Anything unread — a failed `gh` call, no remote, a probe that has
+not returned — is **quiet, never clean**. Same rule as the Docker container
+scoping: never a confident answer to a question nobody asked. A *cancelled* run
+is not a broken build, and a run still in flight is not a verdict either way.
+
+**Amber is the load-bearing state, and it is PRECISE:** `mine &&
+awaitingReview && !draft`. Red is the machine's problem; amber means the next
+move is yours. Atlas's `PrEvent` carries no author, review decision or draft
+flag, which is exactly why `main/github/openPrs.ts` exists rather than reusing
+it — on `PrEvent` any open PR at all turns the dot amber, common enough to stop
+meaning "act now".
+
+- **Every `gh` call goes through `ghRunnerFor`** so the PINNED account asks. gh
+  has one globally active account, so a pinned repo asked by the active one
+  404s — and that 404 arrives as "nothing to report", indistinguishable from
+  clean. `openPrsFor` caches your login by ACCOUNT, not by root: the pin makes
+  the answer genuinely vary between projects, but most share one.
+- **`ciRunFor` returns null for "no workflows" AND for a failed call**, so a
+  project with no CI stays quiet forever. That is intended — quiet means
+  "nothing to report", which is true. Do NOT special-case "no CI" into green.
+- **The strip never changes width and the overlay never pushes.** A target that
+  moves when you point at it makes you aim twice (the Update stub taught this
+  the same week), and a surface that reflows the editor is one you learn not to
+  open. The callout lives INSIDE its dot's slot rather than being positioned by
+  index, so alignment is the browser's problem rather than arithmetic that rots
+  when a padding changes.
+- Rides `atlas.enabled`, **checked per tick** rather than once at startup, so
+  toggling Atlas stops and resumes the polling without a relaunch. There is
+  deliberately no separate spine pref.
+
+Spec: `docs/superpowers/specs/2026-09-21-atlas-portfolio-spine-design.md` ·
+Plan: `docs/superpowers/plans/2026-09-21-atlas-portfolio-spine.md`
+(both gitignored — this section is the durable record).
+
 ## What counts as an extension
 
 **Core is what AirLock authored over your own machine; an extension is an
