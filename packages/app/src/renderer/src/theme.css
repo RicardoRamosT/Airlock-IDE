@@ -1039,9 +1039,18 @@ body,
   }
 }
 
-/* Window-level workspace row: icon rail | ONE shared sidebar | panes. The rail
-   is always visible; sidebar-hidden collapses only the sidebar column; the
-   sidebar-right variant flips the reading order via `order`. */
+/* Window-level workspace row: icon rail | ONE shared sidebar | panes | Atlas
+   spine. The rail is always visible; sidebar-hidden collapses only the sidebar
+   column; the sidebar-right variant flips the reading order via `order`.
+   
+   FOUR rules define these columns (this one plus sidebar-right,
+   sidebar-hidden, and the two combined). EVERY ONE must end with the spine's
+   `auto` track: the spine is the last in-flow child, so a variant that forgets
+   it does not hide the strip -- it wraps it to row 2 column 1, which renders
+   as a stack of dots at the bottom of the icon rail. workspaceGrid.test.ts
+   pins this, because the base rule was updated alone and shipped exactly that.
+   `auto` rather than the token so the column collapses when the strip renders
+   null and the panes reclaim the width. */
 .workspace {
   display: grid;
   grid-template-columns: 44px var(--sidebar-w, 230px) minmax(0, 1fr) auto;
@@ -2230,7 +2239,16 @@ img
    the sidebar (DOM child 1) renders in the right column and main in the left.
    The divider moves to the sidebar's left edge. */
 .workspace.sidebar-right {
-  grid-template-columns: minmax(0, 1fr) var(--sidebar-w, 230px) 44px;
+  /* The spine stays on the WINDOW's right edge even when the rail moves there,
+     so it is still the last track -- matching the Atlas mark, which is always
+     the rightmost thing in the titlebar. */
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-w, 230px) 44px auto;
+}
+
+/* This variant reorders its children explicitly, so the spine needs its own
+   order or it would default to 0 and jump to the far LEFT. */
+.workspace.sidebar-right .atlas-spine {
+  order: 4;
 }
 
 .workspace.sidebar-right .activity-bar {
@@ -2260,11 +2278,11 @@ img
 
 /* Sidebar hidden: drop only the sidebar column; the rail stays. */
 .workspace.sidebar-hidden {
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr) auto;
 }
 
 .workspace.sidebar-hidden.sidebar-right {
-  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr) 44px auto;
 }
 
 .workspace.sidebar-hidden .sidebar {
