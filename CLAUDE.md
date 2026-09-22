@@ -722,8 +722,8 @@ Spec: `docs/superpowers/specs/2026-09-21-long-running-local-apps-design.md`.
 
 ## Atlas portfolio spine
 
-A **28px strip on the workspace's right edge**: one dot per open project,
-colour only at rest. Hovering a dot shows a leader-line callout; clicking
+A **28px strip on the workspace's right edge**: one dot per project in the
+debrief, colour only at rest. Hovering a dot shows a leader-line callout; clicking
 opens the Atlas conversation as an overlay. The Atlas mark in the titlebar is
 its head — it owns the same 28px column, which is why the bell sits left of it.
 
@@ -754,8 +754,9 @@ worse than no colour**, because you learn to ignore it.
 
 So the spine reads its own inputs, **split by cost** (`main/atlas/spine.ts`):
 
-- **Local, 60s:** one `gitStatus` per open root. 60 and not 30 because this
-  spawns a process PER ROOT — ten tabs at 30s is 20 spawns a minute forever,
+- **Local, 60s:** one `gitStatus` per watched root (and the tier that re-reads
+  the root list). 60 and not 30 because this spawns a process PER ROOT — a
+  dozen projects at 30s is 24 spawns a minute forever,
   and an uncommitted count does not need that resolution. The app ships a
   battery-saving feature; this must not be the thing that burns it.
 - **Remote, a FIXED BUDGET:** `ciRunFor` + `openPrsFor` for the next
