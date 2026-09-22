@@ -2343,12 +2343,14 @@ body.resizing-col {
   color: var(--fg-dim);
   cursor: pointer;
   /* Fixed height so the 3 stacked icons fit inside --sidebar-dock-h (88px):
-     3*22 + 2*2 gap + 2*6 pad = 88. Without it they inherit line-height, overflow
-     the dock, and the activity-bar divider rises above the quota meter's. */
-  height: 22px;
+     3*24 + 2*2 gap + 2*6 pad = 88. Without it they inherit line-height, overflow
+     the dock, and the activity-bar divider rises above the quota meter's.
+     Re-derive this if the glyph size changes -- the box grew from 22 to 24 when
+     the glyphs went to 20px, and the sum has to keep landing on 88. */
+  height: 24px;
   /* Fixed box + centred content so all three glyphs share one vertical axis --
      padding alone let differently-proportioned icons sit off-centre. */
-  width: 26px;
+  width: 28px;
   padding: 0;
   border-radius: 6px;
   display: flex;
@@ -2356,15 +2358,14 @@ body.resizing-col {
   justify-content: center;
 }
 
-/* The rail's footer icons are 14px (vs the 20px section icons), so their status
-   dot -- the Accounts button's GitHub-account-correctness dot -- is scaled down
-   and tucked tighter to stay a tiny corner marker rather than a blob. */
-.footer-btn .activity-dot {
-  width: 6px;
-  height: 6px;
-  right: -3px;
-  bottom: -2px;
-  border-width: 1.5px;
+/* ONE rail, ONE icon size. The footer glyphs used to inherit the app-wide 14px
+   .codicon size while the section icons above the divider were 20px, so the
+   same rail carried two scales and the bottom three read as a lesser, smaller
+   row of controls. They are the same kind of thing -- an icon you click in the
+   rail -- so they are now the same size, which also lets the Accounts dot use
+   the standard .activity-dot rather than a shrunken copy of it. */
+.footer-btn .codicon {
+  font-size: 20px;
 }
 
 .footer-btn:hover {
