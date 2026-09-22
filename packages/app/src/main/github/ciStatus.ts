@@ -12,12 +12,20 @@
 import { type CiRun, gitStatus, latestCiRun } from "@airlock/agent-core";
 import { ghRunnerFor } from "./ghRunner";
 
+/**
+ * `known` is a branch the caller already read, so this does not spawn its own
+ * `git status` for it. The spine polls on a timer and had just computed the
+ * branch a moment earlier -- one redundant process per project per cycle,
+ * which stops being invisible once the poll covers a whole portfolio. Every
+ * other caller passes nothing and gets the original behaviour.
+ */
 export async function ciRunFor(
   root: string | null,
+  known?: string | null,
 ): Promise<{ branch: string; run: CiRun } | null> {
   if (!root) return null;
   try {
-    const branch = (await gitStatus(root)).branch.head;
+    const branch = known ?? (await gitStatus(root)).branch.head;
     // A detached HEAD has no branch to ask GitHub about.
     if (!branch || branch === "(detached)") return null;
     // As THIS PROJECT's pinned account. gh has one globally active account, so

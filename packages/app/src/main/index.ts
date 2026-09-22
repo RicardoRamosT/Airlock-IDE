@@ -22,6 +22,7 @@ import {
   startAnthropicStatusWatch,
   stopAnthropicStatusWatch,
 } from "./anthropicStatus/watch";
+import { atlasDb } from "./atlas/db";
 import { setAtlasMcp } from "./atlas/mcpEndpoint";
 import { startSpine } from "./atlas/spine";
 import { startAtlasArrival } from "./atlas/start";
@@ -174,7 +175,19 @@ function bootstrap(): void {
     // The spine reads its own inputs on its own cadence -- see main/atlas/
     // spine.ts for why it cannot ride the debrief's once-a-day ledger. The
     // pref is read per tick, so toggling Atlas takes effect without a relaunch.
-    startSpine(async () => (await loadPrefs(prefsFile)).atlas.enabled);
+    //
+    // The dots are THE DEBRIEF'S PROJECTS, not the open tabs: the tab bar
+    // already says what is open, so a strip repeating it says nothing, while
+    // the enabled set is the portfolio Atlas actually reports on. `missing` is
+    // excluded for the same reason the debrief excludes it -- a vanished
+    // folder would spend a git call to report that every probe failed.
+    startSpine({
+      enabled: async () => (await loadPrefs(prefsFile)).atlas.enabled,
+      roots: async () =>
+        (await atlasDb().readRegistry())
+          .filter((p) => p.enabled && !p.missing)
+          .map((p) => p.root),
+    });
     const prefs = await loadPrefs(prefsFile);
     // The menu bar item is OPT-IN: in-app (the sidebar section) is the default
     // surface, so a user who never wants a menu bar item never gets one.

@@ -12,8 +12,15 @@
 // ignore it.
 //
 // So the spine reads its own inputs, SPLIT BY COST: the local git call is
-// cheap and runs often; the gh calls are expensive and run rarely, and only
-// for open projects that have a remote.
+// cheap and runs every minute for every project; the gh calls are expensive
+// and are rationed -- see REMOTE_BUDGET.
+//
+// WHOSE PROJECTS. The dots are the projects in ATLAS'S DEBRIEF, not the open
+// tabs. The tab bar already shows what is open, and a second row saying the
+// same thing is ambiguous rather than informative; the spine is for the
+// portfolio you are responsible for, which is exactly the enabled set. The
+// roots therefore arrive through a dependency rather than from window.ts, and
+// this file stays free of electron so it can be unit-tested.
 
 import {
   type DotTone,
@@ -25,7 +32,6 @@ import { BrowserWindow } from "electron";
 import type { SpineDot } from "../../shared/ipc";
 import { ciRunFor } from "../github/ciStatus";
 import { openPrsFor } from "../github/openPrs";
-import { allOpenRoots } from "../window";
 
 export const SPINE_CHANNEL = "atlas:spine";
 
@@ -34,7 +40,19 @@ export const SPINE_CHANNEL = "atlas:spine";
 // not need that resolution. The app ships a feature whose whole point is not
 // burning battery in the background; this must not be the thing that does.
 const LOCAL_MS = 60 * 1000;
-const REMOTE_MS = 5 * 60 * 1000;
+
+// The remote tier spends a FIXED BUDGET, not a per-project one.
+//
+// It used to poll EVERY root every five minutes, so its cost was 2 gh calls
+// per project per cycle -- fine at the five open tabs it was written for, and
+// a number that simply grows once the dots follow the debrief instead (a dozen
+// projects, and it doubles again the day you add another). Now each tick takes
+// the next REMOTE_BUDGET roots round-robin, so the call rate is constant
+// whatever the portfolio does and only the time to come back round grows: a
+// dozen projects refresh every six minutes, which is the same freshness the
+// old five-minute sweep gave and at a rate that cannot run away.
+const REMOTE_MS = 60 * 1000;
+const REMOTE_BUDGET = 2;
 
 export interface SpineCacheEntry {
   tree: { dirty: number; branch: string | null; hasRemote: boolean } | null;
@@ -43,16 +61,45 @@ export interface SpineCacheEntry {
 }
 
 const cache = new Map<string, SpineCacheEntry>();
+// The roots the last poll saw, so the IPC snapshot can answer without a
+// database read and without being async.
+let roots: string[] = [];
+let cursor = 0;
+let readRoots: (() => Promise<string[]>) | null = null;
 let localTimer: ReturnType<typeof setInterval> | null = null;
 let remoteTimer: ReturnType<typeof setInterval> | null = null;
 
-// Test seam: drop the timers and the cache.
+// Test seam: drop the timers, the cache and the roots.
 export function __resetSpine(): void {
   if (localTimer) clearInterval(localTimer);
   if (remoteTimer) clearInterval(remoteTimer);
   localTimer = null;
   remoteTimer = null;
   cache.clear();
+  roots = [];
+  cursor = 0;
+  readRoots = null;
+}
+
+/**
+ * The next `budget` items from `items`, starting at `cursor`, wrapping around.
+ *
+ * Pure so the rationing is testable: the bug it guards against is a slice that
+ * silently never reaches the tail, which would leave the last projects in the
+ * list permanently unread -- quiet dots that look like "nothing to report".
+ */
+export function nextSlice<T>(
+  items: readonly T[],
+  cursor: number,
+  budget: number,
+): { slice: T[]; next: number } {
+  if (items.length === 0 || budget <= 0) return { slice: [], next: 0 };
+  const start = ((cursor % items.length) + items.length) % items.length;
+  const take = Math.min(budget, items.length);
+  const slice: T[] = [];
+  for (let i = 0; i < take; i += 1)
+    slice.push(items[(start + i) % items.length] as T);
+  return { slice, next: (start + take) % items.length };
 }
 
 function nameOf(root: string): string {
@@ -108,15 +155,37 @@ export function projectDots(
  * the strip is present from the first paint and only the colours arrive late.
  */
 export function spineDots(): SpineDot[] {
-  return projectDots(allOpenRoots(), cache);
+  return projectDots(roots, cache);
 }
 
-export function broadcastSpine(): void {
+/**
+ * Re-read the watched projects and push the result.
+ *
+ * Called when the debrief's project list changes -- toggling one in Atlas
+ * settings must move the strip immediately, not at the next tick. The new
+ * project's dot is QUIET until a poll fills it, which is the honest answer:
+ * nothing has been read for it yet.
+ */
+export async function refreshSpineRoots(): Promise<void> {
+  if (readRoots === null) return;
+  try {
+    setRoots(await readRoots());
+  } catch {
+    return;
+  }
   broadcast();
 }
 
+// Adopt a new root list and forget the cache of anything that left, so a
+// project switched off does not come back with a stale colour.
+function setRoots(next: readonly string[]): void {
+  roots = [...next];
+  const live = new Set(roots);
+  for (const key of [...cache.keys()]) if (!live.has(key)) cache.delete(key);
+}
+
 function broadcast(): void {
-  const dots = projectDots(allOpenRoots(), cache);
+  const dots = projectDots(roots, cache);
   // EVERY window, not just app windows: the Atlas popover and the standalone
   // Atlas window are not app windows, the same trap activityBridge documents.
   for (const w of BrowserWindow.getAllWindows())
@@ -132,9 +201,17 @@ function entryFor(root: string): SpineCacheEntry {
   return fresh;
 }
 
-// Local tier: one git call per open root. No network, so it can run often.
+// Local tier: one git call per watched root. No network, so it can run often,
+// and it is also what refreshes the root list the other tier rations over.
 async function pollLocal(): Promise<void> {
-  for (const root of allOpenRoots()) {
+  if (readRoots !== null) {
+    try {
+      setRoots(await readRoots());
+    } catch {
+      // Keep the last known list rather than emptying the strip.
+    }
+  }
+  for (const root of roots) {
     try {
       const st = await gitStatus(root);
       entryFor(root).tree = {
@@ -149,15 +226,25 @@ async function pollLocal(): Promise<void> {
   broadcast();
 }
 
-// Remote tier: two gh calls per open root WITH A REMOTE. Skipping the rest is
-// what keeps this affordable -- a local-only project would otherwise pay two
-// failing subprocesses every five minutes forever.
+// Remote tier: two gh calls per root, for REMOTE_BUDGET roots per tick.
+//
+// Roots with no remote are filtered out BEFORE the slice rather than skipped
+// inside it: a local-only project that consumed a slot would spend the budget
+// on nothing and delay everything behind it, on top of paying two failing
+// subprocesses forever. A root whose tree has not been read yet is eligible --
+// unknown is not the same as no.
 async function pollRemote(): Promise<void> {
-  for (const root of allOpenRoots()) {
+  const eligible = roots.filter((r) => cache.get(r)?.tree?.hasRemote !== false);
+  const { slice, next } = nextSlice(eligible, cursor, REMOTE_BUDGET);
+  cursor = next;
+  for (const root of slice) {
     const e = entryFor(root);
-    if (e.tree && !e.tree.hasRemote) continue;
     try {
-      const ci = await ciRunFor(root);
+      // The branch is already in hand from the local tier, so ciRunFor is not
+      // made to spawn its own git status for it. That was one redundant
+      // process per root per cycle, which is exactly the kind of cost that
+      // stops being invisible once the strip follows a portfolio.
+      const ci = await ciRunFor(root, e.tree?.branch ?? null);
       e.ci = ci
         ? { status: ci.run.status, conclusion: ci.run.conclusion }
         : null;
@@ -178,12 +265,21 @@ async function pollRemote(): Promise<void> {
  * resumes it. Clearing the cache on the disabled branch is what makes the
  * strip vanish and the workspace reclaim its column.
  */
-export function startSpine(isEnabled: () => Promise<boolean>): void {
+export function startSpine(deps: {
+  enabled: () => Promise<boolean>;
+  // The projects in the debrief. A dependency, not an import, because the
+  // answer lives in Atlas's database behind an electron-only client and this
+  // file must stay testable.
+  roots: () => Promise<string[]>;
+}): void {
   if (localTimer) return;
+  readRoots = deps.roots;
   const guard = (poll: () => Promise<void>) => async () => {
-    if (!(await isEnabled().catch(() => false))) {
-      if (cache.size > 0) {
+    if (!(await deps.enabled().catch(() => false))) {
+      if (cache.size > 0 || roots.length > 0) {
         cache.clear();
+        roots = [];
+        cursor = 0;
         broadcast();
       }
       return;

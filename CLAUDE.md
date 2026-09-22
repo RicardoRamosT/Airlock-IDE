@@ -727,9 +727,17 @@ colour only at rest. Hovering a dot shows a leader-line callout; clicking
 opens the Atlas conversation as an overlay. The Atlas mark in the titlebar is
 its head — it owns the same 28px column, which is why the bell sits left of it.
 
-- **EVERY open project gets a dot**, including quiet ones. Fixed positions are
-  the design: third from the top is always the same project, and that is what
-  makes a colour-only surface readable peripherally. Hiding quiet projects
+- **The dots are THE DEBRIEF'S PROJECTS** (Atlas's registry, `enabled && !missing`),
+  NOT the open tabs. The tab bar already says what is open, so a strip
+  repeating it is ambiguous rather than informative; the spine is the portfolio
+  Atlas reports on. `startSpine` takes the roots as a DEPENDENCY so `spine.ts`
+  stays electron-free — and because passing `allOpenRoots` instead would
+  type-check perfectly, `spineRoots.test.ts` asserts the wiring. Toggling a
+  project in Atlas settings calls `refreshSpineRoots()`, or the switch would
+  look like it did nothing until the next tick.
+- **EVERY watched project gets a dot**, including quiet ones. Fixed positions
+  are the design: third from the top is always the same project, and that is
+  what makes a colour-only surface readable peripherally. Hiding quiet projects
   would destroy the muscle memory the whole thing rests on. The cost is that
   most dots are grey most of the time, which is accepted.
 - **At rest it is colour only** — no text, no counts, no badges. The moment it
@@ -750,9 +758,20 @@ So the spine reads its own inputs, **split by cost** (`main/atlas/spine.ts`):
   spawns a process PER ROOT — ten tabs at 30s is 20 spawns a minute forever,
   and an uncommitted count does not need that resolution. The app ships a
   battery-saving feature; this must not be the thing that burns it.
-- **Remote, 5 min:** `ciRunFor` + `openPrsFor`, and ONLY for open roots with a
-  remote. Skipping the rest is what keeps it affordable — a local-only project
-  would otherwise pay two failing subprocesses every five minutes forever.
+- **Remote, a FIXED BUDGET:** `ciRunFor` + `openPrsFor` for the next
+  `REMOTE_BUDGET` (2) roots per minute, round-robin (`nextSlice`, pure). It
+  used to sweep every root every 5 min, so the cost was 2 gh calls per project
+  per cycle — fine for five tabs, and a number that grows on its own once the
+  dots follow the debrief. Now the call RATE is constant and only the time to
+  come back round grows (a dozen projects ≈ 6 min, the same freshness the old
+  sweep gave). Roots with no remote are filtered out BEFORE the slice, not
+  skipped inside it, or they would spend the budget on nothing; a root whose
+  tree has not been read yet is eligible, because unknown is not "no". The
+  branch comes from the local tier (`ciRunFor(root, known)`) rather than
+  `ciRunFor` spawning its own `git status` — one redundant process per root per
+  cycle. `nextSlice` is unit-tested for STARVATION: a slice that never reaches
+  the tail leaves the last projects permanently unread, which looks exactly
+  like "nothing to report".
 
 **Green requires positive evidence on ALL THREE inputs** (`dotState`, pure, in
 agent-core). Anything unread — a failed `gh` call, no remote, a probe that has

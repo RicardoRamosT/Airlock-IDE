@@ -148,7 +148,7 @@ import { atlasDb } from "./atlas/db";
 import { discoverProjects } from "./atlas/discover";
 import { atlasMcp } from "./atlas/mcpEndpoint";
 import { makeCollectDeps } from "./atlas/runners";
-import { broadcastSpine, spineDots } from "./atlas/spine";
+import { refreshSpineRoots, spineDots } from "./atlas/spine";
 // Only the pure helper: every database call goes through atlasDb(), which
 // speaks to the isolated host process.
 import { dayKey } from "./atlas/store";
@@ -648,11 +648,6 @@ export function registerIpc(
       setWindowRoots(e, list);
       syncWindowWatchers(e.sender, list);
       syncLspServers(allOpenRoots());
-      // The roots arrive FROM the renderer, after it mounts, so at seed time
-      // allOpenRoots() is still empty and the strip had nothing to show until
-      // the next 60s tick -- which is why it appeared a minute late. This also
-      // keeps the dots in step with tab open and close.
-      broadcastSpine();
     }
   });
 
@@ -1295,6 +1290,9 @@ export function registerIpc(
             w.webContents.send("atlas:refresh");
           }
         }
+        // The spine's dots ARE this list, so the strip must move with the
+        // switch rather than at the next tick.
+        void refreshSpineRoots();
       }
       return ok;
     },

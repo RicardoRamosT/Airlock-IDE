@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectDots, type SpineCacheEntry } from "./spine";
+import { nextSlice, projectDots, type SpineCacheEntry } from "./spine";
 
 const entry = (over: Partial<SpineCacheEntry> = {}): SpineCacheEntry => ({
   tree: { dirty: 0, branch: "main", hasRemote: true },
@@ -9,7 +9,7 @@ const entry = (over: Partial<SpineCacheEntry> = {}): SpineCacheEntry => ({
 });
 
 describe("projectDots", () => {
-  it("emits one dot per open root, in the order given", () => {
+  it("emits one dot per watched root, in the order given", () => {
     const cache = new Map<string, SpineCacheEntry>([
       ["/p/alpha", entry()],
       [
@@ -35,7 +35,7 @@ describe("projectDots", () => {
     expect(got.map((d) => d.tone)).toEqual(["quiet", "quiet"]);
   });
 
-  it("drops a cached root that is no longer open", () => {
+  it("drops a cached root that is no longer watched", () => {
     const cache = new Map<string, SpineCacheEntry>([["/p/gone", entry()]]);
     expect(projectDots(["/p/alpha"], cache).map((d) => d.root)).toEqual([
       "/p/alpha",
@@ -69,9 +69,57 @@ describe("projectDots", () => {
     expect(got[0]?.line).toBe("1 uncommitted change.");
   });
 
-  it("emits nothing when no project is open", () => {
+  it("emits nothing when no project is watched", () => {
     // The disabled path clears the cache and broadcasts this, which is what
     // makes the strip vanish and the workspace reclaim its column.
     expect(projectDots([], new Map())).toEqual([]);
+  });
+});
+
+describe("nextSlice", () => {
+  it("takes the next budget items and reports where to resume", () => {
+    const items = ["a", "b", "c", "d", "e"];
+    expect(nextSlice(items, 0, 2)).toEqual({ slice: ["a", "b"], next: 2 });
+    expect(nextSlice(items, 2, 2)).toEqual({ slice: ["c", "d"], next: 4 });
+  });
+
+  it("wraps around the end", () => {
+    expect(nextSlice(["a", "b", "c"], 2, 2)).toEqual({
+      slice: ["c", "a"],
+      next: 1,
+    });
+  });
+
+  it("STARVES NOTHING: every item is reached within one pass", () => {
+    // The failure this exists for is a slice that never reaches the tail --
+    // the last projects in the debrief would sit permanently unread, showing
+    // quiet dots that look exactly like "nothing to report".
+    const items = ["a", "b", "c", "d", "e", "f", "g"];
+    const seen = new Set<string>();
+    let cursor = 0;
+    for (let tick = 0; tick < Math.ceil(items.length / 2); tick += 1) {
+      const r = nextSlice(items, cursor, 2);
+      for (const x of r.slice) seen.add(x);
+      cursor = r.next;
+    }
+    expect([...seen].sort()).toEqual(items);
+  });
+
+  it("returns the whole list once when the budget exceeds it", () => {
+    expect(nextSlice(["a", "b"], 0, 9)).toEqual({
+      slice: ["a", "b"],
+      next: 0,
+    });
+  });
+
+  it("asks for nothing when there is nothing, or no budget", () => {
+    expect(nextSlice([], 3, 2)).toEqual({ slice: [], next: 0 });
+    expect(nextSlice(["a"], 0, 0)).toEqual({ slice: [], next: 0 });
+  });
+
+  it("normalises a cursor left over from a longer list", () => {
+    // The root list shrinks when a project is switched off, and the cursor
+    // does not: an out-of-range start must not throw or skip the list.
+    expect(nextSlice(["a", "b"], 7, 1)).toEqual({ slice: ["b"], next: 0 });
   });
 });
