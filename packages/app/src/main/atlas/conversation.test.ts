@@ -92,7 +92,7 @@ it("keeps the cost-saving flags from the debrief path", async () => {
 it("records both the user turn and the reply", async () => {
   const d = deps();
   await sendMessage(d, "what should I do?");
-  expect(await d.db.readTurns(10)).toEqual([
+  expect(await d.db.readTurns(null, 10)).toEqual([
     { role: "user", text: "what should I do?", pending: "settled" },
     { role: "atlas", text: "Work on Revaltone-CRM first.", pending: "settled" },
   ]);
@@ -122,7 +122,7 @@ it("stores the stripped prose as the turn, not the raw reply", async () => {
     spawn: async () => reply(`Noted.\n${FACTS_OPEN}\n[]\n${FACTS_CLOSE}`),
   });
   await sendMessage(d, "hi");
-  expect((await d.db.readTurns(10))[1]?.text).toBe("Noted.");
+  expect((await d.db.readTurns(null, 10))[1]?.text).toBe("Noted.");
 });
 
 it("sends prior turns so the conversation has continuity", async () => {
@@ -173,7 +173,7 @@ it("KEEPS the question, marked unanswered, when the CLI fails", async () => {
   });
   // The question was real and stays visible -- it used to vanish, which is how
   // an in-flight message disappeared when the panel was closed.
-  expect(await d.db.readTurns(10)).toEqual([
+  expect(await d.db.readTurns(null, 10)).toEqual([
     { role: "user", text: "hi", pending: "unanswered" },
   ]);
 });
@@ -324,7 +324,7 @@ it("DISCARDS the question on a cancel, because it goes back to the composer", as
   expect(await sendMessage(d, "never mind")).toBeNull();
   // Discarded, not kept as unanswered: the renderer puts the text back in the
   // composer, so keeping it here too would show it in two places at once.
-  expect(await d.db.readTurns(10)).toEqual([]);
+  expect(await d.db.readTurns(null, 10)).toEqual([]);
 });
 
 it("records a concern Atlas raised in its reply", async () => {

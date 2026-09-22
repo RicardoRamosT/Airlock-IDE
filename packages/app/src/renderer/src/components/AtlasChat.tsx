@@ -96,7 +96,7 @@ export function AtlasChat({
       setAsked(false);
     }
     window.airlock
-      ?.atlasTurns()
+      ?.atlasTurns(focusRoot)
       .then((t) => {
         if (!alive) return;
         setTurns(t.map(withKey));
@@ -114,7 +114,12 @@ export function AtlasChat({
     // Re-runs when the host switches conversation (New chat, or resuming one
     // from History). Without this dep the prop was accepted and ignored, so
     // both buttons appeared to do nothing at all.
-  }, [reloadKey, retryNonce]);
+    //
+    // focusRoot is a dep for the same reason and a stronger one: it IS the
+    // conversation now, not just context for the answer, so the overlay moving
+    // from one project's dot to another has to reload the transcript or you
+    // would be reading one project's chat while typing into another's.
+  }, [reloadKey, retryNonce, focusRoot]);
 
   // Refetch when main says a run finished ANYWHERE.
   //

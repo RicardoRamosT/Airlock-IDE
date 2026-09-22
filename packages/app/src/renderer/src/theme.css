@@ -7043,6 +7043,29 @@ button.docker-row .codicon-chevron-right {
   font-family: inherit;
   font-size: 13px;
 }
+
+/* A project's debrief: the stored report, as headed blocks. Same type scale as
+   the portfolio prose beside it, so the two tabs read as one surface. */
+.atlas-report {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  line-height: 1.55;
+  font-size: 13px;
+}
+.atlas-report-block h2 {
+  margin: 0 0 5px;
+}
+.atlas-report-block ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.atlas-report-block li {
+  word-break: break-word;
+}
 .atlas-note {
   margin: 0;
   color: var(--fg-dim);

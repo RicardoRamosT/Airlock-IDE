@@ -24,6 +24,7 @@ import {
   openAtlasDb,
   readAskedDay,
   readBrief,
+  readChatSince,
   readConcerns,
   readFacts,
   readRegistry,
@@ -237,17 +238,20 @@ it("replaces the fact table wholesale so a rewrite cannot duplicate rows", () =>
 
 it("appends turns and reads them back oldest-first", () => {
   const d = db();
-  appendTurn(d, { role: "user", text: "first" }, 1);
-  appendTurn(d, { role: "atlas", text: "second" }, 2);
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["first", "second"]);
+  appendTurn(d, null, { role: "user", text: "first" }, 1);
+  appendTurn(d, null, { role: "atlas", text: "second" }, 2);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual([
+    "first",
+    "second",
+  ]);
 });
 
 it("returns the MOST RECENT turns when limited, still oldest-first", () => {
   const d = db();
   for (let i = 0; i < 5; i++) {
-    appendTurn(d, { role: "user", text: `t${i}` }, i);
+    appendTurn(d, null, { role: "user", text: `t${i}` }, i);
   }
-  expect(readTurns(d, 2).map((t) => t.text)).toEqual(["t3", "t4"]);
+  expect(readTurns(d, null, 2).map((t) => t.text)).toEqual(["t3", "t4"]);
 });
 
 it("round-trips the day a staleness question was last asked", () => {
@@ -263,12 +267,12 @@ it("hides turns before the conversation boundary but keeps the FACTS", () => {
   // "New chat" must clear the transcript without forgetting. A fresh chat with
   // no memory would be a worse assistant, not a cleaner one.
   const d = db();
-  appendTurn(d, { role: "user", text: "before" }, 1000);
+  appendTurn(d, null, { role: "user", text: "before" }, 1000);
   writeFacts(d, [aFact()]);
-  writeChatSince(d, 2000);
-  appendTurn(d, { role: "user", text: "after" }, 3000);
+  writeChatSince(d, null, 2000);
+  appendTurn(d, null, { role: "user", text: "after" }, 3000);
 
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["after"]);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["after"]);
   // The memory survived.
   expect(readFacts(d)).toHaveLength(1);
   expect(readFacts(d)[0]?.verbatim).toBe("Muros is due the 15th");
@@ -285,6 +289,7 @@ it("writes a user turn and its reply as ONE unit, or not at all", () => {
     () =>
       appendTurns(
         d,
+        null,
         [
           { role: "user", text: "what should I do?" },
           // Forces the SECOND insert to fail, standing in for the abort. It
@@ -298,7 +303,7 @@ it("writes a user turn and its reply as ONE unit, or not at all", () => {
     // appendTurns does not exist at all, which is a vacuous test.
   ).toThrow(/bound to SQLite/);
   // Neither turn survives: no dangling user message.
-  expect(readTurns(d, 10)).toEqual([]);
+  expect(readTurns(d, null, 10)).toEqual([]);
 });
 
 it("stores text as real TEXT even though it is bound as bytes", () => {
@@ -307,7 +312,7 @@ it("stores text as real TEXT even though it is bound as bytes", () => {
   // value must be indistinguishable from a plain string bind, so this pins the
   // column TYPE as well as the round-trip.
   const d = db();
-  appendTurns(d, [{ role: "atlas", text: "hello" }], 1000);
+  appendTurns(d, null, [{ role: "atlas", text: "hello" }], 1000);
   const row = d
     .prepare("SELECT typeof(text) AS ty FROM turn LIMIT 1")
     .get() as { ty: string };
@@ -318,15 +323,15 @@ it("round-trips unicode, newlines and quotes through the byte bind", () => {
   const tricky =
     'unicode e\u0301n \u4e2d\u6587 \u00b7 emoji \ud83d\ude80\n"quotes"\ttabs';
   const d = db();
-  appendTurns(d, [{ role: "atlas", text: tricky }], 1000);
-  expect(readTurns(d, 10)[0]?.text).toBe(tricky);
+  appendTurns(d, null, [{ role: "atlas", text: tricky }], 1000);
+  expect(readTurns(d, null, 10)[0]?.text).toBe(tricky);
 });
 
 it("round-trips a large reply, the size class that actually crashed", () => {
   const big = "x".repeat(60_000);
   const d = db();
-  appendTurns(d, [{ role: "atlas", text: big }], 1000);
-  expect(readTurns(d, 10)[0]?.text).toBe(big);
+  appendTurns(d, null, [{ role: "atlas", text: big }], 1000);
+  expect(readTurns(d, null, 10)[0]?.text).toBe(big);
 });
 
 it("round-trips text through briefs, facts and snapshots too", () => {
@@ -345,54 +350,56 @@ it("commits both turns together on the happy path", () => {
   const d = db();
   appendTurns(
     d,
+    null,
     [
       { role: "user", text: "q" },
       { role: "atlas", text: "a" },
     ],
     1000,
   );
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["q", "a"]);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["q", "a"]);
 });
 
 it("stamps both turns with the SAME session, so a pair cannot straddle a boundary", () => {
   const d = db();
-  writeChatSince(d, 500);
+  writeChatSince(d, null, 500);
   appendTurns(
     d,
+    null,
     [
       { role: "user", text: "q" },
       { role: "atlas", text: "a" },
     ],
     1000,
   );
-  expect(readTurns(d, 10)).toHaveLength(2);
+  expect(readTurns(d, null, 10)).toHaveLength(2);
 });
 
 it("shows every turn when no boundary has been set", () => {
   const d = db();
-  appendTurn(d, { role: "user", text: "one" }, 1);
-  appendTurn(d, { role: "atlas", text: "two" }, 2);
-  expect(readTurns(d, 10)).toHaveLength(2);
+  appendTurn(d, null, { role: "user", text: "one" }, 1);
+  appendTurn(d, null, { role: "atlas", text: "two" }, 2);
+  expect(readTurns(d, null, 10)).toHaveLength(2);
 });
 
 it("deletes nothing: a boundary moved back reveals the old turns again", () => {
   const d = db();
-  appendTurn(d, { role: "user", text: "old" }, 1000);
-  writeChatSince(d, 5000);
-  expect(readTurns(d, 10)).toEqual([]);
-  writeChatSince(d, 0);
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["old"]);
+  appendTurn(d, null, { role: "user", text: "old" }, 1000);
+  writeChatSince(d, null, 5000);
+  expect(readTurns(d, null, 10)).toEqual([]);
+  writeChatSince(d, null, 0);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["old"]);
 });
 
 it("lists past conversations newest-first, with a preview and a count", () => {
   const d = db();
-  writeChatSince(d, 100);
-  appendTurn(d, { role: "user", text: "first question" }, 110);
-  appendTurn(d, { role: "atlas", text: "an answer" }, 120);
-  writeChatSince(d, 200);
-  appendTurn(d, { role: "user", text: "second question" }, 210);
+  writeChatSince(d, null, 100);
+  appendTurn(d, null, { role: "user", text: "first question" }, 110);
+  appendTurn(d, null, { role: "atlas", text: "an answer" }, 120);
+  writeChatSince(d, null, 200);
+  appendTurn(d, null, { role: "user", text: "second question" }, 210);
 
-  const out = listSessions(d);
+  const out = listSessions(d, null);
   expect(out.map((x) => x.session)).toEqual([200, 100]);
   expect(out[0]).toMatchObject({ preview: "second question", turns: 1 });
   expect(out[1]).toMatchObject({ preview: "first question", turns: 2 });
@@ -402,28 +409,28 @@ it("reopens a past conversation instead of only showing it", () => {
   // "In case I want to go back into a chat" -- resuming makes it active again,
   // so it can simply be continued.
   const d = db();
-  writeChatSince(d, 100);
-  appendTurn(d, { role: "user", text: "old thread" }, 110);
-  writeChatSince(d, 200);
-  appendTurn(d, { role: "user", text: "new thread" }, 210);
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["new thread"]);
+  writeChatSince(d, null, 100);
+  appendTurn(d, null, { role: "user", text: "old thread" }, 110);
+  writeChatSince(d, null, 200);
+  appendTurn(d, null, { role: "user", text: "new thread" }, 210);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["new thread"]);
 
-  resumeSession(d, 100);
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["old thread"]);
+  resumeSession(d, null, 100);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["old thread"]);
   // And the newer one is still there to go back to.
-  resumeSession(d, 200);
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["new thread"]);
+  resumeSession(d, null, 200);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["new thread"]);
 });
 
 it("groups by the session a turn was written in, not by timestamp", () => {
   // A turn keeps its session even if the boundary later moves past its time.
   const d = db();
-  writeChatSince(d, 100);
-  appendTurn(d, { role: "user", text: "belongs to 100" }, 500);
-  writeChatSince(d, 300);
-  expect(readTurns(d, 10)).toEqual([]);
-  resumeSession(d, 100);
-  expect(readTurns(d, 10).map((t) => t.text)).toEqual(["belongs to 100"]);
+  writeChatSince(d, null, 100);
+  appendTurn(d, null, { role: "user", text: "belongs to 100" }, 500);
+  writeChatSince(d, null, 300);
+  expect(readTurns(d, null, 10)).toEqual([]);
+  resumeSession(d, null, 100);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["belongs to 100"]);
 });
 
 it("REFUSES a snapshot narrower than the window asked for", () => {
@@ -494,7 +501,7 @@ it("MIGRATES a database whose turn table predates the session column", () => {
     second.prepare("PRAGMA table_info(turn)").all() as { name: string }[]
   ).map((c) => c.name);
   expect(cols).toContain("session");
-  expect(readTurns(second, 10).map((t) => t.text)).toEqual(["legacy"]);
+  expect(readTurns(second, null, 10).map((t) => t.text)).toEqual(["legacy"]);
 
   // And a third open must not try to add it twice.
   second.close();
@@ -508,17 +515,17 @@ it("PERSISTS the user's message before the reply exists", () => {
   // message reappeared minutes later when the run finished. The user's own
   // diagnosis: "if I talk it is not saved until claude responds".
   const d = db();
-  beginTurn(d, "what should I do?", 1000);
-  const shown = readTurns(d, 10);
+  beginTurn(d, null, "what should I do?", 1000);
+  const shown = readTurns(d, null, 10);
   expect(shown.map((t) => t.text)).toEqual(["what should I do?"]);
   expect(shown[0]?.pending).toBe("pending");
 });
 
 it("completes the pair atomically when the reply lands", () => {
   const d = db();
-  const seq = beginTurn(d, "q", 1000);
+  const seq = beginTurn(d, null, "q", 1000);
   completeTurn(d, seq, "a", 2000);
-  const shown = readTurns(d, 10);
+  const shown = readTurns(d, null, 10);
   expect(shown.map((t) => t.text)).toEqual(["q", "a"]);
   expect(shown.every((t) => t.pending === "settled")).toBe(true);
 });
@@ -526,9 +533,9 @@ it("completes the pair atomically when the reply lands", () => {
 it("marks a turn UNANSWERED rather than deleting it when the run fails", () => {
   // The message was real and the user should still see they asked it.
   const d = db();
-  const seq = beginTurn(d, "q", 1000);
+  const seq = beginTurn(d, null, "q", 1000);
   abandonTurn(d, seq);
-  const shown = readTurns(d, 10);
+  const shown = readTurns(d, null, 10);
   expect(shown).toHaveLength(1);
   expect(shown[0]?.pending).toBe("unanswered");
 });
@@ -537,9 +544,9 @@ it("turns a turn left PENDING by a dead process into unanswered on open", () => 
   // Nothing will ever complete it: the process that spawned the run is gone.
   // Leaving it "pending" would show a working indicator forever.
   const d = db();
-  beginTurn(d, "q", 1000);
+  beginTurn(d, null, "q", 1000);
   expect(markInterruptedTurns(d)).toBe(1);
-  expect(readTurns(d, 10)[0]?.pending).toBe("unanswered");
+  expect(readTurns(d, null, 10)[0]?.pending).toBe("unanswered");
   // Idempotent: a second open has nothing left to convert.
   expect(markInterruptedTurns(d)).toBe(0);
 });
@@ -548,6 +555,7 @@ it("leaves settled turns alone when marking interrupted ones", () => {
   const d = db();
   appendTurns(
     d,
+    null,
     [
       { role: "user", text: "q" },
       { role: "atlas", text: "a" },
@@ -555,7 +563,9 @@ it("leaves settled turns alone when marking interrupted ones", () => {
     1000,
   );
   expect(markInterruptedTurns(d)).toBe(0);
-  expect(readTurns(d, 10).every((t) => t.pending === "settled")).toBe(true);
+  expect(readTurns(d, null, 10).every((t) => t.pending === "settled")).toBe(
+    true,
+  );
 });
 
 it("stores an EMPTY string rather than failing the NOT NULL column", () => {
@@ -565,9 +575,9 @@ it("stores an EMPTY string rather than failing the NOT NULL column", () => {
   // an empty verbatim.
   const d = db();
   expect(() =>
-    appendTurns(d, [{ role: "atlas", text: "" }], 1000),
+    appendTurns(d, null, [{ role: "atlas", text: "" }], 1000),
   ).not.toThrow();
-  expect(readTurns(d, 10)[0]?.text).toBe("");
+  expect(readTurns(d, null, 10)[0]?.text).toBe("");
 
   expect(() => writeFacts(d, [aFact({ verbatim: "" })])).not.toThrow();
   expect(readFacts(d)[0]?.verbatim).toBe("");
@@ -735,4 +745,106 @@ it("keeps enabled across a full read-merge-write cycle", () => {
 
 it("reports when setProjectEnabled names a root that is not registered", () => {
   expect(setProjectEnabled(db(), "/p/nope", true)).toBe(false);
+});
+
+// --- one conversation per project ---------------------------------------
+
+const A = "/p/alpha";
+const B = "/p/beta";
+
+it("keeps each project's conversation separate, and the portfolio's apart from both", () => {
+  const d = db();
+  appendTurn(d, null, { role: "user", text: "portfolio" }, 1);
+  appendTurn(d, A, { role: "user", text: "alpha" }, 2);
+  appendTurn(d, B, { role: "user", text: "beta" }, 3);
+
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["portfolio"]);
+  expect(readTurns(d, A, 10).map((t) => t.text)).toEqual(["alpha"]);
+  expect(readTurns(d, B, 10).map((t) => t.text)).toEqual(["beta"]);
+});
+
+it("NEW CHAT in one project leaves every other conversation alone", () => {
+  // The boundary is per root. One global boundary would mean starting a fresh
+  // chat in one project silently emptied the transcript of every other.
+  const d = db();
+  appendTurn(d, A, { role: "user", text: "alpha old" }, 1000);
+  appendTurn(d, B, { role: "user", text: "beta old" }, 1000);
+  appendTurn(d, null, { role: "user", text: "portfolio old" }, 1000);
+
+  writeChatSince(d, A, 2000);
+
+  expect(readTurns(d, A, 10)).toEqual([]);
+  expect(readTurns(d, B, 10).map((t) => t.text)).toEqual(["beta old"]);
+  expect(readTurns(d, null, 10).map((t) => t.text)).toEqual(["portfolio old"]);
+});
+
+it("reads turns written before the column existed as the PORTFOLIO conversation", () => {
+  // No attempt is made to guess which project an old message was about. NULL
+  // is the portfolio, which is where every one of them was actually said.
+  const file = path.join(
+    mkdtempSync(path.join(tmpdir(), "atlas-root-mig-")),
+    "atlas.db",
+  );
+  const first = openAtlasDb(file);
+  first.exec("DROP TABLE turn");
+  first.exec(
+    "CREATE TABLE turn (seq INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, text TEXT NOT NULL, at INTEGER NOT NULL, session INTEGER NOT NULL DEFAULT 0, pending INTEGER NOT NULL DEFAULT 0)",
+  );
+  first
+    .prepare("INSERT INTO turn (role, text, at) VALUES ('user','legacy',1)")
+    .run();
+  first.close();
+
+  const second = openAtlasDb(file);
+  const cols = (
+    second.prepare("PRAGMA table_info(turn)").all() as { name: string }[]
+  ).map((c) => c.name);
+  expect(cols).toContain("root");
+  expect(readTurns(second, null, 10).map((t) => t.text)).toEqual(["legacy"]);
+  expect(readTurns(second, A, 10)).toEqual([]);
+  second.close();
+  expect(() => openAtlasDb(file).close()).not.toThrow();
+});
+
+it("lists only that project's past conversations", () => {
+  const d = db();
+  appendTurn(d, A, { role: "user", text: "alpha one" }, 1000);
+  writeChatSince(d, A, 2000);
+  appendTurn(d, A, { role: "user", text: "alpha two" }, 3000);
+  appendTurn(d, B, { role: "user", text: "beta one" }, 1500);
+
+  expect(listSessions(d, A).map((x) => x.preview)).toEqual([
+    "alpha two",
+    "alpha one",
+  ]);
+  expect(listSessions(d, B).map((x) => x.preview)).toEqual(["beta one"]);
+  expect(listSessions(d, null)).toEqual([]);
+});
+
+it("lands a reply in the SAME conversation as its question, not the current one", () => {
+  // The reply used to take whatever boundary was active when it arrived, so a
+  // New chat mid-flight orphaned it: an answer appeared in the fresh
+  // transcript with no question, and the question sat answerless in the old
+  // one. The reply belongs to its question's thread, which the row knows.
+  const d = db();
+  const seq = beginTurn(d, A, "q", 1000);
+  writeChatSince(d, A, 2000);
+  completeTurn(d, seq, "a", 3000);
+
+  expect(readTurns(d, A, 10)).toEqual([]);
+  resumeSession(d, A, 0);
+  expect(readTurns(d, A, 10).map((t) => t.text)).toEqual(["q", "a"]);
+});
+
+it("resumes a conversation per project", () => {
+  const d = db();
+  appendTurn(d, A, { role: "user", text: "alpha old" }, 1000);
+  writeChatSince(d, A, 2000);
+  appendTurn(d, A, { role: "user", text: "alpha new" }, 3000);
+
+  resumeSession(d, A, 0);
+  expect(readTurns(d, A, 10).map((t) => t.text)).toEqual(["alpha old"]);
+  expect(readChatSince(d, A)).toBe(0);
+  // Untouched: the portfolio's boundary is its own key.
+  expect(readChatSince(d, null)).toBe(0);
 });

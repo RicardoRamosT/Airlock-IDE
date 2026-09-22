@@ -125,7 +125,10 @@ export async function sendMessage(
     today,
   );
   const prompt = buildChatPrompt({
-    history: await deps.db.readTurns(MAX_HISTORY_TURNS),
+    // THIS conversation's history. focusRoot selects the thread, so a
+    // project's chat never resends the portfolio's transcript back to the
+    // model, nor another project's.
+    history: await deps.db.readTurns(focusRoot, MAX_HISTORY_TURNS),
     facts,
     snaps: await portfolioFor(deps, today, now),
     concerns: openConcerns(concerns).map((c) => ({
@@ -141,7 +144,7 @@ export async function sendMessage(
   // Write the question NOW, before the model is spawned. Until this existed the
   // message lived only as optimistic state in the panel, so closing it mid-run
   // lost sight of it entirely until the reply landed minutes later.
-  const seq = await deps.db.beginTurn(message, now);
+  const seq = await deps.db.beginTurn(focusRoot, message, now);
 
   let raw: string;
   try {

@@ -744,6 +744,43 @@ its head — it owns the same 28px column, which is why the bell sits left of it
   carries a number it stops being peripheral. Each dot's name and line ride its
   `aria-label`, because colour alone is not an accessible status.
 
+**Clicking a dot opens THAT PROJECT's Atlas, not the portfolio's with a hint.**
+All three surfaces are scoped by the one `focusRoot` prop:
+
+- **Chat is a separate thread per project.** `turn.root` (NULL = the portfolio,
+  the titlebar mark) and a per-root boundary — `chatSince:<root>`, the bare key
+  still the portfolio's — so History and New chat are per project too. Every
+  turn written before the column is NULL, which is correct rather than
+  convenient: they were all said to the portfolio. Consequence, accepted: the
+  portfolio chat cannot see what was said in a project's.
+  - `root IS ?`, never `root = ?`: SQLite's `=` is never true for NULL, so the
+    portfolio's turns (and every pre-migration one) would read as empty.
+  - `turn.root` is in **`ADDED_COLUMNS`**, not only in `CREATE TABLE` — the
+    trap `turn.session` already sprang, and `store.test.ts` reopens a
+    column-less database to prove the repair.
+  - **`completeTurn` takes its thread from the QUESTION's row**, not from the
+    active boundary. It used to read the boundary, so a New chat mid-flight
+    orphaned the pair: the answer landed in the fresh transcript with no
+    question, and the question sat answerless in the old one.
+  - **One resolver, `chatRoot`, validates against ATLAS'S REGISTRY** — not
+    `allOpenRoots()`, which `atlas:send` used. That was right while the value
+    only steered an answer and wrong the moment it also chose the thread: most
+    watched projects have no tab open, so their messages would have been filed
+    under the portfolio while their own transcript sat on screen. All five chat
+    handlers share it, so the transcript, the send, History and New chat cannot
+    disagree about which thread they are in.
+- **Debrief: the project's STORED REPORT, not a slice of the prose.** The brief
+  is composed ACROSS projects, so no per-project paragraph exists — extracting
+  one would mean parsing prose to guess whose each sentence is. `ProjectReport`
+  (did / standing / gaps) is the material that prose was written FROM, already
+  per project and keyed by day (`atlas:report`, no model call). A heading
+  renders only when it has lines: `[]` is a real answer, and three empty
+  headings say "nothing to report" three times.
+- **Still open: `concernsForRoot`** (pure, agent-core). A concern with **no
+  root is PORTFOLIO-LEVEL** and appears only there — not "unattributed and
+  therefore everyone's", which would assert an ownership nothing established.
+  A root nothing matches is EMPTY, never everything.
+
 **The spine CANNOT use Atlas's `CodeLedger`.** `collectLedger` is called from
 exactly one place — `maybeCompose`'s `standup` dep — and `maybeCompose` is
 idempotent per calendar day. `start.ts`'s 15-minute `setInterval` is a

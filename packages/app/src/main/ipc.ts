@@ -8,6 +8,7 @@ import {
   buildExtensionSummaries,
   CONNECTED_EXTENSIONS,
   type ConnectedStatus,
+  concernsForRoot,
   connectedSummary,
   costDisclosure,
   createBranch,
@@ -1127,12 +1128,44 @@ export function registerIpc(
     const b = await atlasDb().readBrief(day);
     return b ? { day: b.day, text: b.text } : null;
   });
+  // ONE PROJECT's debrief: the report the morning standup stored for it. The
+  // composed brief is prose written across the portfolio, so there is no
+  // paragraph to extract -- this is the material it was written FROM, and it
+  // is already per project, keyed by day. No model call.
+  ipcMain.handle("atlas:report", async (_e, root: unknown) => {
+    const scope = await chatRoot(root);
+    if (scope === null) return null;
+    const day = dayKey(Date.now(), -new Date().getTimezoneOffset());
+    const stored = await atlasDb().readReports(day);
+    const r = stored?.reports.find((x) => x.root === scope);
+    return r
+      ? { day, root: r.root, did: r.did, standing: r.standing, gaps: r.gaps }
+      : null;
+  });
   ipcMain.handle("atlas:markRead", async (_e, day: unknown) => {
     if (typeof day !== "string" || day.length === 0) return;
     const cur = (await loadPrefs(prefsFile)).atlas;
     await savePrefs(prefsFile, { atlas: { ...cur, lastReadDay: day } });
   });
-  ipcMain.handle("atlas:turns", () => atlasDb().readTurns(MAX_HISTORY_TURNS));
+  // WHICH CONVERSATION a chat handler acts on. null is the portfolio (the
+  // titlebar mark); a root is that project's own thread.
+  //
+  // Validated against ATLAS'S REGISTRY, not the open tabs. The spine's dots
+  // are the debrief's projects, and most of them have no tab open -- checking
+  // openRoots would hand back null for exactly those, and since this value now
+  // SELECTS THE THREAD rather than merely steering an answer, the message
+  // would land in the portfolio conversation while the panel showed the
+  // project's. One resolver for all five handlers, so the transcript, the
+  // send, History and New chat cannot disagree about which thread they are in.
+  const chatRoot = async (v: unknown): Promise<string | null> => {
+    if (typeof v !== "string" || v.trim().length === 0) return null;
+    const known = await atlasDb().readRegistry();
+    return known.some((p) => p.root === v) ? v : null;
+  };
+
+  ipcMain.handle("atlas:turns", async (_e, root: unknown) =>
+    atlasDb().readTurns(await chatRoot(root), MAX_HISTORY_TURNS),
+  );
   // Recents are the strongest seed for the portfolio, so read them fresh on
   // every send: a project opened a minute ago must be visible without a
   // restart. Passing [] here is what made Atlas report an empty portfolio.
@@ -1161,12 +1194,12 @@ export function registerIpc(
     "atlas:send",
     async (_e, message: unknown, attachments: unknown, focusRoot: unknown) => {
       if (typeof message !== "string") return null;
-      // Only a root the user actually has open can steer the answer; anything
-      // else is ignored rather than trusted.
-      const focus =
-        typeof focusRoot === "string" && allOpenRoots().includes(focusRoot)
-          ? focusRoot
-          : null;
+      // The same resolver the transcript uses -- see chatRoot. It used to
+      // check allOpenRoots(), which was right while this only steered the
+      // answer and wrong the moment it also chose the thread: a watched
+      // project with no tab open would have had its message filed under the
+      // portfolio while its own transcript sat on screen.
+      const focus = await chatRoot(focusRoot);
       const files = Array.isArray(attachments)
         ? attachments.filter((a): a is string => typeof a === "string")
         : [];
@@ -1227,10 +1260,17 @@ export function registerIpc(
   );
   // Live, not from the stored brief: a concern that has since resolved must
   // stop being shown, including when an older debrief is on screen.
-  ipcMain.handle("atlas:concerns", async () => {
+  ipcMain.handle("atlas:concerns", async (_e, root: unknown) => {
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
-    return openConcerns(await atlasDb().readConcerns()).map((c) => ({
+    // Scoped to one project when asked. The concern's own `root` does the
+    // filtering, so nothing has to match display names -- and a concern with
+    // no root stays portfolio-level rather than being claimed by whichever
+    // project happens to be open.
+    const scope = await chatRoot(root);
+    return openConcerns(
+      concernsForRoot(await atlasDb().readConcerns(), scope),
+    ).map((c) => ({
       key: c.key,
       project: c.project,
       title: c.title,
@@ -1346,15 +1386,20 @@ export function registerIpc(
   });
   // Clears the visible transcript WITHOUT forgetting: facts survive, so Atlas
   // still knows the deadlines and priorities it was told.
-  ipcMain.handle("atlas:newChat", async () => {
-    await atlasDb().writeChatSince(Date.now());
+  ipcMain.handle("atlas:newChat", async (_e, root: unknown) => {
+    await atlasDb().writeChatSince(await chatRoot(root), Date.now());
   });
-  ipcMain.handle("atlas:sessions", () => atlasDb().listSessions());
-  ipcMain.handle("atlas:resume", async (_e, session: unknown) => {
-    if (typeof session === "number" && Number.isFinite(session)) {
-      await atlasDb().resumeSession(session);
-    }
-  });
+  ipcMain.handle("atlas:sessions", async (_e, root: unknown) =>
+    atlasDb().listSessions(await chatRoot(root)),
+  );
+  ipcMain.handle(
+    "atlas:resume",
+    async (_e, root: unknown, session: unknown) => {
+      if (typeof session === "number" && Number.isFinite(session)) {
+        await atlasDb().resumeSession(await chatRoot(root), session);
+      }
+    },
+  );
   ipcMain.handle("atlas:openWindow", () => openAtlasWindow());
   ipcMain.handle("atlas:state", async () => {
     const prefs = await loadPrefs(prefsFile);

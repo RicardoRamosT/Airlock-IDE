@@ -261,8 +261,13 @@ const api: AirlockApi = {
     ipcRenderer.invoke("terminal:openExternal", root),
   quotaGet: () => ipcRenderer.invoke("quota:get"),
   atlasBrief: () => ipcRenderer.invoke("atlas:brief"),
+  // The project's stored morning report, or null for the portfolio (which
+  // reads the composed brief above instead).
+  atlasReport: (root: string) => ipcRenderer.invoke("atlas:report", root),
   atlasMarkRead: (day: string) => ipcRenderer.invoke("atlas:markRead", day),
-  atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
+  // Every chat call names its CONVERSATION: null is the portfolio, a root is
+  // that project's own thread.
+  atlasTurns: (root: string | null) => ipcRenderer.invoke("atlas:turns", root),
   atlasSend: (
     message: string,
     attachments?: readonly string[],
@@ -282,7 +287,8 @@ const api: AirlockApi = {
     // this bridge in every Electron build, and a plain array always does.
     ipcRenderer.invoke("atlas:attach", Array.from(bytes), mime),
   atlasCancel: () => ipcRenderer.invoke("atlas:cancel"),
-  atlasConcerns: () => ipcRenderer.invoke("atlas:concerns"),
+  atlasConcerns: (root: string | null) =>
+    ipcRenderer.invoke("atlas:concerns", root),
   atlasForget: (root: string) => ipcRenderer.invoke("atlas:forget", root),
   atlasProjects: () => ipcRenderer.invoke("atlas:projects"),
   atlasSetPrefs: (patch: {
@@ -297,9 +303,12 @@ const api: AirlockApi = {
     ipcRenderer.on("atlas:pointer", h);
     return () => ipcRenderer.removeListener("atlas:pointer", h);
   },
-  atlasNewChat: () => ipcRenderer.invoke("atlas:newChat"),
-  atlasSessions: () => ipcRenderer.invoke("atlas:sessions"),
-  atlasResume: (session: number) => ipcRenderer.invoke("atlas:resume", session),
+  atlasNewChat: (root: string | null) =>
+    ipcRenderer.invoke("atlas:newChat", root),
+  atlasSessions: (root: string | null) =>
+    ipcRenderer.invoke("atlas:sessions", root),
+  atlasResume: (root: string | null, session: number) =>
+    ipcRenderer.invoke("atlas:resume", root, session),
   atlasOpenWindow: () => ipcRenderer.invoke("atlas:openWindow"),
   atlasState: () => ipcRenderer.invoke("atlas:state"),
   atlasSetView: (view: "brief" | "chat") =>

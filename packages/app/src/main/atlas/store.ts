@@ -62,7 +62,12 @@ CREATE TABLE IF NOT EXISTS turn (
   text    TEXT NOT NULL,
   at      INTEGER NOT NULL,
   session INTEGER NOT NULL DEFAULT 0,
-  pending INTEGER NOT NULL DEFAULT 0
+  pending INTEGER NOT NULL DEFAULT 0,
+  -- Which conversation this turn belongs to. NULL is the PORTFOLIO chat (the
+  -- titlebar mark); a root is that project's own chat, opened from its spine
+  -- dot. Every turn written before this column existed is NULL, which is
+  -- correct rather than convenient: they were all said to the portfolio.
+  root    TEXT
 );
 CREATE TABLE IF NOT EXISTS concern (
   key         TEXT PRIMARY KEY,
@@ -102,6 +107,13 @@ const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
     table: "turn",
     column: "pending",
     ddl: "ALTER TABLE turn ADD COLUMN pending INTEGER NOT NULL DEFAULT 0",
+  },
+  {
+    // Per-project conversations. NULL = the portfolio chat, so every existing
+    // turn keeps its meaning without a data migration.
+    table: "turn",
+    column: "root",
+    ddl: "ALTER TABLE turn ADD COLUMN root TEXT",
   },
   {
     // DEFAULT 0 is what makes the debrief opt-in. An EXISTING registry
@@ -551,8 +563,13 @@ export function writeConcerns(
   }
 }
 
-export function appendTurn(db: DatabaseSync, turn: Turn, at: number): void {
-  appendTurns(db, [turn], at);
+export function appendTurn(
+  db: DatabaseSync,
+  root: string | null,
+  turn: Turn,
+  at: number,
+): void {
+  appendTurns(db, root, [turn], at);
 }
 
 // A user message and its reply are ONE unit and are written in ONE transaction.
@@ -570,6 +587,7 @@ export function appendTurn(db: DatabaseSync, turn: Turn, at: number): void {
 // crash mid-pair leaves NEITHER turn instead of a dangling one.
 export function appendTurns(
   db: DatabaseSync,
+  root: string | null,
   turns: readonly Turn[],
   at: number,
 ): void {
@@ -577,13 +595,13 @@ export function appendTurns(
   // Read the boundary ONCE, outside the loop: the active boundary doubles as
   // the session id, and reading it per turn would let a pair straddle two
   // conversations if "New chat" landed between the two inserts.
-  const session = readChatSince(db);
+  const session = readChatSince(db, root);
   db.exec("BEGIN");
   try {
     const ins = db.prepare(
-      "INSERT INTO turn (role, text, at, session) VALUES (?, CAST(? AS TEXT), ?, ?)",
+      "INSERT INTO turn (role, text, at, session, root) VALUES (?, CAST(? AS TEXT), ?, ?, ?)",
     );
-    for (const t of turns) ins.run(t.role, bytes(t.text), at, session);
+    for (const t of turns) ins.run(t.role, bytes(t.text), at, session, root);
     db.exec("COMMIT");
   } catch (err) {
     db.exec("ROLLBACK");
@@ -616,10 +634,15 @@ function turnState(v: number): TurnState {
 
 // Write the user's message NOW, before the model is even spawned, and return
 // its seq so the reply can complete it.
-export function beginTurn(db: DatabaseSync, text: string, at: number): number {
+export function beginTurn(
+  db: DatabaseSync,
+  root: string | null,
+  text: string,
+  at: number,
+): number {
   db.prepare(
-    "INSERT INTO turn (role, text, at, session, pending) VALUES ('user', CAST(? AS TEXT), ?, ?, ?)",
-  ).run(bytes(text), at, readChatSince(db), TURN_PENDING);
+    "INSERT INTO turn (role, text, at, session, pending, root) VALUES ('user', CAST(? AS TEXT), ?, ?, ?, ?)",
+  ).run(bytes(text), at, readChatSince(db, root), TURN_PENDING, root);
   const row = db.prepare("SELECT last_insert_rowid() AS seq").get() as {
     seq: number;
   };
@@ -634,12 +657,23 @@ export function completeTurn(
   reply: string,
   at: number,
 ): void {
-  const session = readChatSince(db);
+  // The reply's thread comes from ITS QUESTION, not from whatever is active
+  // now. It used to read the current boundary, so a "New chat" while the model
+  // was still working orphaned the pair: the answer landed in the fresh
+  // transcript with no question, and the question sat answerless in the old
+  // one. The row knows where it belongs; ask it. (A question that is somehow
+  // gone falls back to the active portfolio boundary rather than throwing --
+  // losing a reply is worse than filing it oddly.)
+  const q = db
+    .prepare("SELECT session, root FROM turn WHERE seq = ?")
+    .get(seq) as { session: number; root: string | null } | undefined;
+  const session = q ? q.session : readChatSince(db, null);
+  const root = q ? q.root : null;
   db.exec("BEGIN");
   try {
     db.prepare(
-      "INSERT INTO turn (role, text, at, session, pending) VALUES ('atlas', CAST(? AS TEXT), ?, ?, ?)",
-    ).run(bytes(reply), at, session, TURN_SETTLED);
+      "INSERT INTO turn (role, text, at, session, pending, root) VALUES ('atlas', CAST(? AS TEXT), ?, ?, ?, ?)",
+    ).run(bytes(reply), at, session, TURN_SETTLED, root);
     db.prepare("UPDATE turn SET pending = ? WHERE seq = ?").run(
       TURN_SETTLED,
       seq,
@@ -693,13 +727,20 @@ export function markInterruptedTurns(db: DatabaseSync): number {
 // The most recent `limit` turns, returned OLDEST FIRST so the caller can append
 // them to a prompt in reading order. Turns older than the conversation
 // boundary are excluded -- that is what "New chat" means.
-export function readTurns(db: DatabaseSync, limit: number): Turn[] {
-  const session = readChatSince(db);
+export function readTurns(
+  db: DatabaseSync,
+  root: string | null,
+  limit: number,
+): Turn[] {
+  const session = readChatSince(db, root);
   const rows = db
     .prepare(
-      "SELECT role, text, pending FROM turn WHERE session = ? ORDER BY seq DESC LIMIT ?",
+      // `root IS ?` and not `root = ?`: SQLite's = is never true for NULL, so
+      // the portfolio's turns (root NULL, which is also every turn written
+      // before the column existed) would read as an empty conversation.
+      "SELECT role, text, pending FROM turn WHERE session = ? AND root IS ? ORDER BY seq DESC LIMIT ?",
     )
-    .all(session, limit) as {
+    .all(session, root, limit) as {
     role: string;
     text: string;
     pending: number;
@@ -728,18 +769,28 @@ export function writeAskedDay(db: DatabaseSync, day: string): void {
 // starts empty -- but nothing is deleted, and the FACTS table is untouched, so
 // everything Atlas has learned about the user carries over. A fresh chat with
 // no memory would be a worse assistant, not a cleaner one.
-export function readChatSince(db: DatabaseSync): number {
-  const row = db.prepare("SELECT v FROM kv WHERE k = 'chatSince'").get() as
+// One boundary PER CONVERSATION. The bare key stays the portfolio's, so an
+// existing database keeps its boundary and nothing resets on upgrade.
+function chatKey(root: string | null): string {
+  return root === null ? "chatSince" : `chatSince:${root}`;
+}
+
+export function readChatSince(db: DatabaseSync, root: string | null): number {
+  const row = db.prepare("SELECT v FROM kv WHERE k = ?").get(chatKey(root)) as
     | { v: string }
     | undefined;
   const n = row ? Number.parseInt(row.v, 10) : 0;
   return Number.isFinite(n) ? n : 0;
 }
 
-export function writeChatSince(db: DatabaseSync, at: number): void {
+export function writeChatSince(
+  db: DatabaseSync,
+  root: string | null,
+  at: number,
+): void {
   db.prepare(
-    "INSERT INTO kv (k, v) VALUES ('chatSince', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
-  ).run(String(at));
+    "INSERT INTO kv (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v",
+  ).run(chatKey(root), String(at));
 }
 
 export interface ChatSession {
@@ -751,18 +802,26 @@ export interface ChatSession {
 
 // Past conversations, newest first. Nothing is ever deleted, so "New chat"
 // leaves a browsable trail rather than throwing work away.
-export function listSessions(db: DatabaseSync, limit = 30): ChatSession[] {
+export function listSessions(
+  db: DatabaseSync,
+  root: string | null,
+  limit = 30,
+): ChatSession[] {
   return db
     .prepare(
       "SELECT session, MIN(at) AS startedAt, COUNT(*) AS turns, " +
-        "(SELECT text FROM turn t2 WHERE t2.session = t.session AND t2.role = 'user' ORDER BY seq LIMIT 1) AS preview " +
-        "FROM turn t GROUP BY session ORDER BY startedAt DESC LIMIT ?",
+        "(SELECT text FROM turn t2 WHERE t2.session = t.session AND t2.root IS t.root AND t2.role = 'user' ORDER BY seq LIMIT 1) AS preview " +
+        "FROM turn t WHERE t.root IS ? GROUP BY session ORDER BY startedAt DESC LIMIT ?",
     )
-    .all(limit) as unknown as ChatSession[];
+    .all(root, limit) as unknown as ChatSession[];
 }
 
 // Reopen a past conversation: point the boundary back at it, so it becomes the
 // active session again and can simply be continued.
-export function resumeSession(db: DatabaseSync, session: number): void {
-  writeChatSince(db, session);
+export function resumeSession(
+  db: DatabaseSync,
+  root: string | null,
+  session: number,
+): void {
+  writeChatSince(db, root, session);
 }

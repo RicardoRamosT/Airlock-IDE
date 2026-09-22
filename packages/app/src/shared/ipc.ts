@@ -650,6 +650,24 @@ export interface AtlasConcern {
   missingRoot: string | null;
 }
 
+/**
+ * One project's morning report -- its Debrief tab.
+ *
+ * Mirrors agent-core's `ProjectReport` here rather than importing it: the
+ * renderer must never value-import agent-core, and a type it can reach without
+ * one is how every other renderer-facing payload in this file works.
+ *
+ * Empty arrays are real answers ("nothing to report under this heading"), so a
+ * surface renders the headings it has content for rather than three empty ones.
+ */
+export interface AtlasProjectReport {
+  day: string;
+  root: string;
+  did: string[];
+  standing: string[];
+  gaps: string[];
+}
+
 export interface AppPrefs {
   sidebarVisible: boolean;
   sidebarPosition: "left" | "right";
@@ -1402,8 +1420,20 @@ export interface AirlockApi {
   // pushed live on quota:changed.
   quotaGet(): Promise<QuotaStatus | null>;
   atlasBrief(): Promise<{ day: string; text: string } | null>;
+  // ONE PROJECT's debrief. The composed brief above is prose written ACROSS
+  // the portfolio, so "this project's slice" of it does not exist -- but the
+  // per-project report it was written FROM does, stored with the day. null
+  // means no standup ran today, which is the same state the portfolio's
+  // "nothing composed yet" note covers.
+  atlasReport(root: string): Promise<AtlasProjectReport | null>;
   atlasMarkRead(day: string): Promise<void>;
-  atlasTurns(): Promise<{ role: "user" | "atlas"; text: string }[]>;
+  // Every chat call names its CONVERSATION: null is the portfolio (opened from
+  // the titlebar mark), a root is that project's own thread. The threads are
+  // genuinely separate -- the portfolio chat cannot see what was said in a
+  // project's, which is the point.
+  atlasTurns(
+    root: string | null,
+  ): Promise<{ role: "user" | "atlas"; text: string }[]>;
   // null means CANCELLED (the user stopped it). A failure comes back as
   // { ok: false, error } carrying the real reason, because "Could not reach
   // Claude" was shown for every failure -- including runs where Claude was
@@ -1425,7 +1455,9 @@ export interface AirlockApi {
   atlasCancel(): Promise<void>;
   // Open standing concerns, read LIVE rather than baked into the debrief text:
   // re-reading an old brief must not show concerns that have since resolved.
-  atlasConcerns(): Promise<AtlasConcern[]>;
+  // `root` scopes the list to one project; null is the whole portfolio. A
+  // concern with no root of its own is portfolio-level and appears only there.
+  atlasConcerns(root: string | null): Promise<AtlasConcern[]>;
   // Drop a project from Atlas's registry, delete its concerns, and remove it
   // from recentFolders -- all three, because any one alone is re-seeded by the
   // others on the next refresh. Resolves true when a registry row went.
@@ -1443,11 +1475,13 @@ export interface AirlockApi {
   // Where the popover's arrow must sit to aim at the tray icon. Sent on every
   // open: the window is clamped to the display, so the offset is not constant.
   onAtlasPointer(cb: (x: number) => void): () => void;
-  atlasNewChat(): Promise<void>;
-  atlasSessions(): Promise<
+  atlasNewChat(root: string | null): Promise<void>;
+  atlasSessions(
+    root: string | null,
+  ): Promise<
     { session: number; startedAt: number; turns: number; preview: string }[]
   >;
-  atlasResume(session: number): Promise<void>;
+  atlasResume(root: string | null, session: number): Promise<void>;
   atlasOpenWindow(): Promise<void>;
   atlasState(): Promise<{
     acknowledged: boolean;

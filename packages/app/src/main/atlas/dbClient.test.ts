@@ -61,7 +61,7 @@ it("turns a host CRASH into a rejected call, not a thrown app", async () => {
   // defence is that it happens somewhere else -- and arrives here as this.
   const h = fakeHost();
   const db = createDbClient({ fork: () => h.proc });
-  const a = db.readTurns(10);
+  const a = db.readTurns(null, 10);
   const b = db.readFacts();
   h.crash(134);
   await expect(a).rejects.toThrow(/host exited \(134\)/);

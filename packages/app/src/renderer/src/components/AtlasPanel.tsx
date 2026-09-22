@@ -1,6 +1,10 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import type { AtlasConcern, AtlasProject } from "../../../shared/ipc";
+import type {
+  AtlasConcern,
+  AtlasProject,
+  AtlasProjectReport,
+} from "../../../shared/ipc";
 import { renderBrief } from "../lib/atlasBrief";
 import {
   ATLAS_STANDING_DEFAULT,
@@ -53,6 +57,28 @@ function measureStanding(list: HTMLElement): StandingBounds {
   };
 }
 
+// One heading of a project's report. Rendered only when it has lines, so the
+// pane shows what there is to say rather than a fixed set of empty headings.
+function ReportBlock({
+  label,
+  lines,
+}: {
+  label: string;
+  lines: readonly string[];
+}) {
+  if (lines.length === 0) return null;
+  return (
+    <section className="atlas-report-block">
+      <h2 className="sb-section-head">{label}</h2>
+      <ul>
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export interface AtlasPanelProps {
   // When the panel IS the window, it draws its own title row; when it is
   // hosted inside a dropdown or a sidebar section, the host provides one.
@@ -71,6 +97,10 @@ export function AtlasPanel({
   const [brief, setBrief] = useState<{ day: string; text: string } | null>(
     null,
   );
+  // A project's debrief. Null means either "portfolio, so read `brief`" or
+  // "no standup ran today" -- the render tells them apart by focusRoot, not by
+  // this being null.
+  const [report, setReport] = useState<AtlasProjectReport | null>(null);
   const [state, setState] = useState<{
     acknowledged: boolean;
     disclosure: string;
@@ -142,15 +172,24 @@ export function AtlasPanel({
       Promise.all([
         window.airlock?.atlasState() ?? null,
         window.airlock?.atlasBrief() ?? null,
-        window.airlock?.atlasConcerns?.() ?? [],
+        // SCOPED. In a project, "still open" is that project's concerns; a
+        // portfolio-level one has no root and stays where it belongs.
+        window.airlock?.atlasConcerns?.(focusRoot) ?? [],
         window.airlock?.atlasProjects?.() ?? [],
+        // A project's Debrief is its stored morning report, not a slice of the
+        // portfolio prose -- there is no slice to take, the brief is written
+        // across projects. Null for the portfolio, which reads `brief`.
+        focusRoot === null
+          ? null
+          : (window.airlock?.atlasReport?.(focusRoot) ?? null),
       ])
-        .then(([s, text, open, projs]) => {
+        .then(([s, text, open, projs, rep]) => {
           if (alive) setConcerns(open ?? []);
           if (alive) setProjects(projs ?? []);
           if (!alive) return;
           setState(s);
           setBrief(text);
+          setReport(rep ?? null);
           // Re-seeded on every refresh, not once: another window may have
           // dragged it, and the drag persists on release so there is no
           // in-progress value here for a refresh to stomp on.
@@ -180,7 +219,10 @@ export function AtlasPanel({
       alive = false;
       if (typeof off === "function") off();
     };
-  }, []);
+    // focusRoot is a real dependency: it selects the concerns, the report and
+    // the conversation. Without it, moving the overlay from one dot to another
+    // kept the first project's answers on screen.
+  }, [focusRoot]);
 
   // Switching to the debrief marks it read, and only brief/chat persist --
   // settings is transient (see the view state above).
@@ -319,7 +361,7 @@ export function AtlasPanel({
                 go("chat");
                 setShowHistory(true);
                 void window.airlock
-                  ?.atlasSessions()
+                  ?.atlasSessions(focusRoot)
                   .then(setHistory)
                   .catch(() => setHistory([]));
               }}
@@ -334,7 +376,7 @@ export function AtlasPanel({
                 // conversation boundary and show the same transcript back.
                 void (async () => {
                   setMenuOpen(false);
-                  await window.airlock?.atlasNewChat();
+                  await window.airlock?.atlasNewChat(focusRoot);
                   setShowHistory(false);
                   go("chat");
                   setReloadKey((k) => k + 1);
@@ -401,7 +443,7 @@ export function AtlasPanel({
                 className="atlas-history-row"
                 onClick={() => {
                   void (async () => {
-                    await window.airlock?.atlasResume(h.session);
+                    await window.airlock?.atlasResume(focusRoot, h.session);
                     setShowHistory(false);
                     setReloadKey((k) => k + 1);
                   })();
@@ -487,7 +529,36 @@ export function AtlasPanel({
               </button>
             </div>
           ) : null}
-          {brief === null ? (
+          {/* TWO DEBRIEFS, and they are different KINDS of thing. The
+              portfolio's is composed prose written across every project. A
+              project's is the report the morning standup stored for it -- the
+              material that prose was written FROM -- because the brief has no
+              per-project paragraph to extract and asking for one would mean
+              parsing prose to guess who each sentence was about. */}
+          {focusRoot !== null ? (
+            report === null ? (
+              <p className="atlas-note">
+                No debrief for this project yet. Atlas reports on it each
+                morning, once you are back at your Mac.
+              </p>
+            ) : (
+              <div className="atlas-report">
+                {/* A heading only when it has something under it: an empty
+                    list is a real answer ("nothing to report here"), and three
+                    empty headings say it three times over. */}
+                <ReportBlock label="What happened" lines={report.did} />
+                <ReportBlock label="Where it stands" lines={report.standing} />
+                <ReportBlock label="Not determined" lines={report.gaps} />
+                {report.did.length === 0 &&
+                report.standing.length === 0 &&
+                report.gaps.length === 0 ? (
+                  <p className="atlas-note">
+                    Atlas looked, and this project was quiet.
+                  </p>
+                ) : null}
+              </div>
+            )
+          ) : brief === null ? (
             projects !== null &&
             projects.length > 0 &&
             projects.every((p) => !p.enabled) ? null : (

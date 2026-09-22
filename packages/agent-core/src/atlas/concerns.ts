@@ -420,3 +420,19 @@ export function renderStillOpen(all: readonly Concern[], now: number): string {
 
   return `STILL OPEN\n${lines.join("\n")}`;
 }
+
+/**
+ * Concerns belonging to ONE project, or the whole portfolio when `root` is
+ * null.
+ *
+ * A concern with no root of its own is PORTFOLIO-LEVEL and appears only in the
+ * portfolio view. That is deliberate: it is not "unattributed and therefore
+ * everyone's" -- showing it under a project would assert an ownership nothing
+ * established, the same rule the Docker container scoping follows.
+ */
+export function concernsForRoot(
+  all: readonly Concern[],
+  root: string | null,
+): Concern[] {
+  return root === null ? [...all] : all.filter((c) => c.root === root);
+}

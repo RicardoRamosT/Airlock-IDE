@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import type { RootSnapshot } from "./collect";
 import {
   type Concern,
+  concernsForRoot,
   detectConcerns,
   mergeAtlasConcerns,
   missingRootOf,
@@ -475,4 +476,25 @@ it("cannot be spoofed by an Atlas-raised concern wearing the key", () => {
       open({ key: "/p/live|missing", root: "/p/live", source: "atlas" }),
     ),
   ).toBeNull();
+});
+
+it("scopes concerns to one project, and leaves rootless ones to the portfolio", () => {
+  // A concern with no root is PORTFOLIO-LEVEL. Showing it under a project
+  // would assert an ownership nothing established -- the same rule that keeps
+  // another project's containers out of this project's answer.
+  const all = [
+    open({ key: "a", root: "/p/alpha", project: "alpha" }),
+    open({ key: "b", root: "/p/beta", project: "beta" }),
+    open({ key: "c", root: null, project: null }),
+  ];
+  expect(concernsForRoot(all, "/p/alpha").map((c) => c.key)).toEqual(["a"]);
+  expect(concernsForRoot(all, "/p/beta").map((c) => c.key)).toEqual(["b"]);
+  expect(concernsForRoot(all, null).map((c) => c.key)).toEqual(["a", "b", "c"]);
+});
+
+it("scoping a project nothing is open for is EMPTY, not everything", () => {
+  // The failure that matters: a filter that falls back to "all" on no match
+  // would show a project the whole portfolio's concerns and read as correct.
+  const all = [open({ key: "a", root: "/p/alpha" })];
+  expect(concernsForRoot(all, "/p/gamma")).toEqual([]);
 });

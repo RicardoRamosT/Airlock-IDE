@@ -57,6 +57,18 @@ const api = {
   atlasSend: vi.fn(async (_m: string) => "ok"),
   atlasSessions: vi.fn(async () => []),
   atlasNewChat: vi.fn(async () => {}),
+  atlasResume: vi.fn(async () => {}),
+  atlasReport: vi.fn(
+    async (
+      _root: string,
+    ): Promise<{
+      day: string;
+      root: string;
+      did: string[];
+      standing: string[];
+      gaps: string[];
+    } | null> => null,
+  ),
   onAtlasRefresh: (cb: () => void) => {
     refreshCbs.push(cb);
     return () => {
@@ -494,4 +506,70 @@ it("offers no resize handle while the concerns are collapsed", async () => {
   await waitFor(() =>
     expect(screen.queryByRole("separator", { name: /still open/i })).toBeNull(),
   );
+});
+
+// --- opened from a project's dot ----------------------------------------
+
+const ROOT = "/p/ElArqui";
+
+it("asks for THAT PROJECT's concerns, report and conversation", async () => {
+  // Every one of these takes the scope now. The failure that matters is a
+  // call site that quietly keeps passing nothing: it type-checks as the
+  // portfolio and shows the whole portfolio's answers under one project.
+  render(<AtlasPanel focusRoot={ROOT} />);
+  await waitFor(() => expect(api.atlasConcerns).toHaveBeenCalled());
+  expect(api.atlasConcerns).toHaveBeenCalledWith(ROOT);
+  expect(api.atlasReport).toHaveBeenCalledWith(ROOT);
+  // The transcript is only fetched once the chat is on screen, so ask for it.
+  fireEvent.click(tab("Chat"));
+  await waitFor(() => expect(api.atlasTurns).toHaveBeenCalledWith(ROOT));
+});
+
+it("shows the project's stored report, NOT the portfolio prose", async () => {
+  api.atlasReport.mockResolvedValue({
+    day: "2026-09-21",
+    root: ROOT,
+    did: ["Reordered the Monterrey listings work."],
+    standing: ["elarqui.com is down with 500s."],
+    gaps: [],
+  });
+  render(<AtlasPanel focusRoot={ROOT} />);
+  await waitFor(() =>
+    expect(
+      screen.getByText("Reordered the Monterrey listings work."),
+    ).toBeTruthy(),
+  );
+  expect(screen.getByText("elarqui.com is down with 500s.")).toBeTruthy();
+  expect(screen.getByText("Where it stands")).toBeTruthy();
+  // An empty heading is not rendered: [] is a real answer, and three empty
+  // headings say "nothing to report" three times over.
+  expect(screen.queryByText("Not determined")).toBeNull();
+  // The composed brief belongs to the portfolio and must not appear here.
+  expect(screen.queryByText("YESTERDAY")).toBeNull();
+});
+
+it("says so when the standup has not reported on this project today", async () => {
+  api.atlasReport.mockResolvedValue(null);
+  render(<AtlasPanel focusRoot={ROOT} />);
+  await waitFor(() =>
+    expect(screen.getByText(/No debrief for this project yet/)).toBeTruthy(),
+  );
+});
+
+it("still shows the portfolio prose with no project focused", async () => {
+  render(<AtlasPanel />);
+  await waitFor(() => expect(screen.getByText("YESTERDAY")).toBeTruthy());
+  expect(api.atlasConcerns).toHaveBeenCalledWith(null);
+  // No report is fetched for the portfolio: there is nothing per-project to ask
+  // for, and the brief is the answer.
+  expect(api.atlasReport).not.toHaveBeenCalled();
+});
+
+it("starts a new chat and resumes one IN THIS PROJECT's thread", async () => {
+  api.atlasSessions.mockResolvedValue([]);
+  render(<AtlasPanel focusRoot={ROOT} />);
+  await waitFor(() => expect(api.atlasConcerns).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole("button", { name: "More" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "New chat" }));
+  await waitFor(() => expect(api.atlasNewChat).toHaveBeenCalledWith(ROOT));
 });

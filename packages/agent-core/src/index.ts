@@ -59,6 +59,7 @@ export {
 export {
   type Concern,
   type ConcernSource,
+  concernsForRoot,
   type DetectedConcern,
   detectConcerns,
   type IncomingConcern,
