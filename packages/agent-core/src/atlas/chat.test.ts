@@ -247,3 +247,27 @@ it("NAMES ATLAS AS THE AUTHOR on its own MCP client", () => {
   // Still authorized, obviously.
   expect(cfg.mcpServers.airlock.headers.Authorization).toBe("Bearer tok");
 });
+
+const focusBase = {
+  history: [],
+  facts: [],
+  snaps: [],
+  question: null,
+  message: "what is left here?",
+};
+
+it("names the project the chat was opened FROM, when there is one", () => {
+  // The spine opens this chat from a dot, so the question is about that
+  // project. Without saying so, "what is left here?" is unanswerable and
+  // Atlas answers about the whole portfolio instead.
+  const out = buildChatPrompt({ ...focusBase, focusRoot: "/p/ElArqui" });
+  expect(out).toContain("ElArqui");
+  expect(out).toMatch(/FOCUS/);
+});
+
+it("says nothing about focus for the portfolio-wide chat", () => {
+  expect(buildChatPrompt(focusBase)).not.toMatch(/FOCUS/);
+  expect(buildChatPrompt({ ...focusBase, focusRoot: null })).not.toMatch(
+    /FOCUS/,
+  );
+});

@@ -8047,6 +8047,22 @@ body.resizing-row {
   background: #59626d;
 }
 
+/* The dot whose project is open: a wider ring, so the strip says WHICH
+   conversation you are looking at without adding any text. */
+.atlas-spine-dot.open {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Hosted mode draws .atlas-popover-head, which brings no padding of its own
+   (its usual host is a padded dropdown). The overlay supplies it. */
+.atlas-overlay .atlas-popover-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
 .atlas-spine-callout {
   position: absolute;
   right: 100%;

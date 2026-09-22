@@ -376,6 +376,13 @@ export interface AppState {
   anthropicStatus: AnthropicStatus | null;
   setAnthropicStatus: (s: AnthropicStatus) => void;
   update: UpdateStatus | null;
+  // The Atlas overlay hinged on the spine. null = closed; { root: null } =
+  // the portfolio-wide chat (the titlebar mark); { root } = scoped to that
+  // project (a spine dot). In the STORE rather than App state because both the
+  // spine and the titlebar mark open the same one surface -- two components
+  // driving one overlay is exactly what a shared store is for.
+  atlasOverlay: { root: string | null } | null;
+  setAtlasOverlay: (next: { root: string | null } | null) => void;
   setUpdate: (s: UpdateStatus) => void;
   updateProgress: UpdateProgress;
   setUpdateProgress: (p: UpdateProgress) => void;
@@ -897,6 +904,8 @@ export const useApp = create<AppState>((set) => ({
   setAnthropicStatus: (s) => set({ anthropicStatus: s }),
   update: null,
   setUpdate: (s) => set({ update: s }),
+  atlasOverlay: null,
+  setAtlasOverlay: (next) => set({ atlasOverlay: next }),
   updateProgress: { phase: "idle" },
   setUpdateProgress: (p) => set({ updateProgress: p }),
   sectionMeta: BUILTIN_SECTION_META,

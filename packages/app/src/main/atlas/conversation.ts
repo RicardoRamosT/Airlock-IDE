@@ -108,6 +108,10 @@ export async function sendMessage(
   // only -- the turn stored in the transcript keeps the user's own words, so
   // reopening a conversation does not show it full of file paths.
   attachments: readonly string[] = [],
+  // The project this chat was opened FROM (a spine dot), or null for the
+  // portfolio-wide chat. Steers the answer only -- the stored turn is
+  // unchanged, so reopening a conversation reads as the user wrote it.
+  focusRoot: string | null = null,
 ): Promise<AtlasSendResult | null> {
   const now = deps.now();
   const today = dayKey(now, deps.tzOffsetMinutes());
@@ -131,6 +135,7 @@ export async function sendMessage(
     })),
     question: stale ? questionFor(stale, now) : null,
     message: message + describeAttachments(attachments),
+    focusRoot,
   });
 
   // Write the question NOW, before the model is spawned. Until this existed the

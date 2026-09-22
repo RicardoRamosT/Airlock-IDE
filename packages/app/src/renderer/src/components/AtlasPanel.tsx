@@ -52,11 +52,15 @@ export interface AtlasPanelProps {
   // hosted inside a dropdown or a sidebar section, the host provides one.
   standalone?: boolean;
   onBriefRead?: (day: string) => void;
+  // The project this panel was opened FROM (the spine's dot), or null for the
+  // portfolio-wide chat. Passed to the send so Atlas answers about it.
+  focusRoot?: string | null;
 }
 
 export function AtlasPanel({
   standalone = false,
   onBriefRead,
+  focusRoot = null,
 }: AtlasPanelProps) {
   const [brief, setBrief] = useState<{ day: string; text: string } | null>(
     null,
@@ -398,7 +402,12 @@ export function AtlasPanel({
         </div>
       ) : view === "chat" ? (
         <div className="atlas-pane-chat">
-          <AtlasChat chrome={false} reloadKey={reloadKey} ask={ask} />
+          <AtlasChat
+            chrome={false}
+            reloadKey={reloadKey}
+            ask={ask}
+            focusRoot={focusRoot}
+          />
         </div>
       ) : loadFailed ? (
         <p className="atlas-note">

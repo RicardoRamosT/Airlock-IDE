@@ -148,7 +148,7 @@ import { atlasDb } from "./atlas/db";
 import { discoverProjects } from "./atlas/discover";
 import { atlasMcp } from "./atlas/mcpEndpoint";
 import { makeCollectDeps } from "./atlas/runners";
-import { spineDots } from "./atlas/spine";
+import { broadcastSpine, spineDots } from "./atlas/spine";
 // Only the pure helper: every database call goes through atlasDb(), which
 // speaks to the isolated host process.
 import { dayKey } from "./atlas/store";
@@ -648,6 +648,11 @@ export function registerIpc(
       setWindowRoots(e, list);
       syncWindowWatchers(e.sender, list);
       syncLspServers(allOpenRoots());
+      // The roots arrive FROM the renderer, after it mounts, so at seed time
+      // allOpenRoots() is still empty and the strip had nothing to show until
+      // the next 60s tick -- which is why it appeared a minute late. This also
+      // keeps the dots in step with tab open and close.
+      broadcastSpine();
     }
   });
 
@@ -1159,8 +1164,14 @@ export function registerIpc(
 
   ipcMain.handle(
     "atlas:send",
-    async (_e, message: unknown, attachments: unknown) => {
+    async (_e, message: unknown, attachments: unknown, focusRoot: unknown) => {
       if (typeof message !== "string") return null;
+      // Only a root the user actually has open can steer the answer; anything
+      // else is ignored rather than trusted.
+      const focus =
+        typeof focusRoot === "string" && allOpenRoots().includes(focusRoot)
+          ? focusRoot
+          : null;
       const files = Array.isArray(attachments)
         ? attachments.filter((a): a is string => typeof a === "string")
         : [];
@@ -1199,6 +1210,7 @@ export function registerIpc(
           },
           message,
           files,
+          focus,
         );
       } finally {
         // Only clear OUR controller: a newer send may already own the slot.

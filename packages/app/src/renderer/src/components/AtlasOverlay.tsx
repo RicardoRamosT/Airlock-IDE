@@ -8,15 +8,23 @@ import { AtlasPanel } from "./AtlasPanel";
 // a surface that reflows the editor under you is a surface you learn not to
 // open, and the spine exists to be opened casually.
 //
-// AtlasPanel is reused WHOLE. It is already surface-independent (AtlasWindow
-// is literally <AtlasPanel standalone />), so the Debrief/Chat tabs, History
-// and the composer all come along, and there is no second chat implementation
-// to drift from the first.
+// AtlasPanel is reused WHOLE, in its HOSTED mode -- deliberately NOT
+// `standalone`. `standalone` means "I am a whole window": it draws
+// .atlas-titlebar, which carries `-webkit-app-region: drag` and 78px of
+// traffic-light padding. Inside an overlay that drag region SWALLOWS every
+// click on the Debrief/Chat/... buttons, which is exactly how this shipped
+// unclickable. Hosted mode draws .atlas-popover-head instead: no drag, no
+// padding for window controls.
+//
+// `focusRoot` is what makes this the PROJECT's chat rather than the portfolio
+// one. Without it, opening from a dot and asking "what is left here?" gets
+// answered about everything.
 export function AtlasOverlay({
   root,
   onClose,
 }: {
-  root: string;
+  // null = the portfolio-wide chat, opened from the titlebar mark.
+  root: string | null;
   onClose: () => void;
 }) {
   // Escape closes. Registered only while the overlay is open, so nothing
@@ -31,8 +39,8 @@ export function AtlasOverlay({
   }, [onClose]);
 
   return (
-    <div className="atlas-overlay" data-root={root}>
-      <AtlasPanel standalone />
+    <div className="atlas-overlay">
+      <AtlasPanel focusRoot={root} />
     </div>
   );
 }

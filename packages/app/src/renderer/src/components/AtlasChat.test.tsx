@@ -96,7 +96,9 @@ it("sends a message and appends both turns", async () => {
     expect(screen.getByText("Work on Revaltone-CRM first.")).toBeTruthy(),
   );
   expect(screen.getByText("what should I do?")).toBeTruthy();
-  expect(api.atlasSend).toHaveBeenCalledWith("what should I do?", []);
+  // The third argument is the FOCUS root: null here, because this chat was
+  // not opened from a spine dot. A scoped chat passes the project root.
+  expect(api.atlasSend).toHaveBeenCalledWith("what should I do?", [], null);
 });
 
 it("does not send an empty message", async () => {
@@ -159,7 +161,9 @@ it("sends on a plain Enter", async () => {
   await waitFor(() => expect(api.atlasTurns).toHaveBeenCalled());
   fireEvent.change(box(), { target: { value: "hi" } });
   fireEvent.keyDown(box(), { key: "Enter" });
-  await waitFor(() => expect(api.atlasSend).toHaveBeenCalledWith("hi", []));
+  await waitFor(() =>
+    expect(api.atlasSend).toHaveBeenCalledWith("hi", [], null),
+  );
 });
 
 it("STOPS an in-flight reply on Escape and hands the message back", async () => {

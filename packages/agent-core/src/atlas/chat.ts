@@ -216,8 +216,22 @@ export function buildChatPrompt(input: {
   // Open standing concerns, so Atlas can REUSE a key instead of minting a
   // duplicate that would restart the age at zero.
   concerns?: readonly { key: string; title: string; project: string | null }[];
+  // The project this chat was opened FROM (the spine's dot), or null for the
+  // portfolio-wide chat. Without it a question like "what is left here?" has
+  // no referent and gets answered about the whole portfolio.
+  focusRoot?: string | null;
 }): string {
   const parts: string[] = ["PORTFOLIO:", portfolio(input.snaps), ""];
+
+  if (input.focusRoot) {
+    const name =
+      input.focusRoot.split("/").filter(Boolean).pop() ?? input.focusRoot;
+    parts.push(
+      "FOCUS:",
+      `This conversation was opened from ${name} (${input.focusRoot}). Unless the user says otherwise, answer about THAT project and keep the rest of the portfolio as background.`,
+      "",
+    );
+  }
 
   const live = liveFacts(input.facts);
   if (live.length > 0) {

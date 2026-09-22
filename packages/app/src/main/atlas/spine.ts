@@ -111,6 +111,10 @@ export function spineDots(): SpineDot[] {
   return projectDots(allOpenRoots(), cache);
 }
 
+export function broadcastSpine(): void {
+  broadcast();
+}
+
 function broadcast(): void {
   const dots = projectDots(allOpenRoots(), cache);
   // EVERY window, not just app windows: the Atlas popover and the standalone

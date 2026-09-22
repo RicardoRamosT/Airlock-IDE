@@ -1408,9 +1408,13 @@ export interface AirlockApi {
   // { ok: false, error } carrying the real reason, because "Could not reach
   // Claude" was shown for every failure -- including runs where Claude was
   // reached and worked for fifteen minutes before being stopped.
+  // `focusRoot` is the project this chat was opened FROM (a spine dot), or
+  // null/absent for the portfolio-wide chat. It steers Atlas's answer; without
+  // it, "what is left here?" has no referent.
   atlasSend(
     message: string,
     attachments?: readonly string[],
+    focusRoot?: string | null,
   ): Promise<AtlasSendResult | null>;
   // Writes a pasted image to disk and returns its absolute path, or null when
   // it is not a supported image. The path is passed back to atlasSend.

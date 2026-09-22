@@ -19,7 +19,13 @@ import { useSpineDots } from "../lib/useSpineDots";
 //    positioned by index. Alignment is then the browser's problem rather than
 //    arithmetic over paddings and gaps that silently rots the moment either
 //    changes.
-export function AtlasSpine({ onOpen }: { onOpen: (root: string) => void }) {
+export function AtlasSpine({
+  openRoot,
+  onOpen,
+}: {
+  openRoot: string | null;
+  onOpen: (root: string) => void;
+}) {
   const dots = useSpineDots();
   const [active, setActive] = useState<string | null>(null);
   if (dots.length === 0) return null;
@@ -40,7 +46,11 @@ export function AtlasSpine({ onOpen }: { onOpen: (root: string) => void }) {
             onBlur={() => setActive((r) => (r === d.root ? null : r))}
             onClick={() => onOpen(d.root)}
           >
-            <span className={`atlas-spine-dot tone-${d.tone}`} />
+            <span
+              className={`atlas-spine-dot tone-${d.tone}${
+                d.root === openRoot ? " open" : ""
+              }`}
+            />
           </button>
           {active === d.root && (
             <div className="atlas-spine-callout" aria-hidden="true">

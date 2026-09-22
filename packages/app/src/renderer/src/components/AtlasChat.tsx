@@ -27,9 +27,13 @@ export function AtlasChat({
   chrome = true,
   reloadKey = 0,
   ask = null,
+  focusRoot = null,
 }: {
   chrome?: boolean;
   reloadKey?: number;
+  // The project this chat was opened FROM, or null for the portfolio-wide
+  // one. Rides the send so Atlas answers about that project.
+  focusRoot?: string | null;
   // A question handed in from outside -- "look into this concern". The nonce is
   // what makes asking about the SAME concern twice send twice.
   ask?: { text: string; n: number } | null;
@@ -209,7 +213,11 @@ export function AtlasChat({
       setBusy(true);
       setTurns((prev) => [...prev, mine]);
       try {
-        const reply = await window.airlock?.atlasSend(message, files);
+        const reply = await window.airlock?.atlasSend(
+          message,
+          files,
+          focusRoot,
+        );
         // Cancelled while we waited: whatever came back is not wanted, and a
         // null from a killed subprocess is not a failure to report.
         if (sendIdRef.current !== id) return;
@@ -230,7 +238,10 @@ export function AtlasChat({
         }
       }
     },
-    [busy],
+    // focusRoot is reactive too: the overlay can switch from one project's
+    // chat to another while mounted, and a stale capture would send the next
+    // message about the project you just left.
+    [busy, focusRoot],
   );
 
   // Escape stops the run. It kills the SUBPROCESS rather than only stopping the

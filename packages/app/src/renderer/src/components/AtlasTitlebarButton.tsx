@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { isUnread } from "../lib/atlasUnread";
 import { useApp } from "../store";
-import { AtlasPanel } from "./AtlasPanel";
 
-// Atlas's in-app entry point, mounted at the RIGHT END of the titlebar beside
-// the notification bell and using the same button + dropdown-panel pattern.
+// Atlas's in-app entry point: the mark at the FAR RIGHT of the titlebar, at
+// the head of the portfolio spine's column.
 //
-// It lives here rather than only in the activity-bar rail because the rail
-// holds fourteen icons and an eighth sparkle in that column is genuinely easy
-// to miss -- which is exactly what happened. The titlebar is visible whatever
-// section is open.
+// It is a button and nothing else. It used to own a resizable dropdown panel
+// holding its own copy of the conversation, which became a second Atlas the
+// moment the spine gained one -- clicking the mark opened a floating chat that
+// ignored the strip entirely. Now it opens the SPINE's overlay, portfolio-wide
+// (root null), and toggles like every dot on the strip.
+//
+// Lost with the dropdown: that panel was resizable, and `atlas.width/height`
+// still exist in prefs for the menu-bar popover. The overlay is a fixed width.
 export function AtlasTitlebarButton() {
-  const [open, setOpen] = useState(false);
   const [brief, setBrief] = useState<{ day: string; text: string } | null>(
     null,
   );
@@ -20,21 +22,8 @@ export function AtlasTitlebarButton() {
     disclosure: string;
   } | null>(null);
   const [asked, setAsked] = useState(false);
-  // Mirror the panel's open state where the notification bell can see it. The
-  // two hang off adjacent titlebar buttons and are each wide enough to cover
-  // the other, so the bell steps aside instead of making you close one. A data
-  // attribute rather than store state: the bell needs a trigger to re-measure,
-  // not a value, and nothing else in the tree cares.
-  useEffect(() => {
-    document.documentElement.dataset.atlasOpen = open ? "true" : "false";
-    return () => {
-      delete document.documentElement.dataset.atlasOpen;
-    };
-  }, [open]);
-
   const atlas = useApp((st) => st.atlas);
   const setAtlas = useApp((st) => st.setAtlas);
-  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -86,61 +75,20 @@ export function AtlasTitlebarButton() {
         title="Atlas, your project administrator"
         aria-label="Atlas"
         onClick={() => {
-          const next = !open;
-          setOpen(next);
-          if (next && brief) markReadDay(brief.day);
+          // Opens the SPINE's overlay, not a second floating panel. Two Atlas
+          // surfaces -- a dropdown here and an overlay on the strip -- read as
+          // two different Atlases; this mark is the head of the strip, so it
+          // opens the strip's conversation, portfolio-wide (root null).
+          // Toggles, like every dot on the spine.
+          const st = useApp.getState();
+          const already = st.atlasOverlay?.root === null;
+          st.setAtlasOverlay(already ? null : { root: null });
+          if (!already && brief) markReadDay(brief.day);
         }}
       >
         <i className="codicon codicon-sparkle" />
         {unread && <span className="titlebar-atlas-dot" />}
       </button>
-      {open && (
-        <div
-          className="titlebar-atlas-panel"
-          ref={panelRef}
-          style={{ width: atlas.width, height: atlas.height }}
-        >
-          {/* Grip bottom-LEFT: the panel is anchored to the right edge, so it
-              grows leftward and downward. */}
-          <button
-            type="button"
-            className="atlas-resize-grip"
-            aria-label="Resize Atlas panel"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              const startX = e.clientX;
-              const startY = e.clientY;
-              const startW = atlas.width;
-              const startH = atlas.height;
-              const el = e.currentTarget;
-              el.setPointerCapture(e.pointerId);
-              const move = (ev: PointerEvent) => {
-                setAtlas({
-                  ...atlas,
-                  width: Math.min(
-                    900,
-                    Math.max(280, Math.round(startW - (ev.clientX - startX))),
-                  ),
-                  height: Math.min(
-                    1200,
-                    Math.max(240, Math.round(startH + (ev.clientY - startY))),
-                  ),
-                });
-              };
-              const up = () => {
-                el.removeEventListener("pointermove", move);
-                el.removeEventListener("pointerup", up);
-                void window.airlock?.prefsSet({
-                  atlas: useApp.getState().atlas,
-                });
-              };
-              el.addEventListener("pointermove", move);
-              el.addEventListener("pointerup", up);
-            }}
-          />
-          <AtlasPanel onBriefRead={markReadDay} />
-        </div>
-      )}
     </div>
   );
 }

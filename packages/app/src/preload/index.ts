@@ -263,8 +263,17 @@ const api: AirlockApi = {
   atlasBrief: () => ipcRenderer.invoke("atlas:brief"),
   atlasMarkRead: (day: string) => ipcRenderer.invoke("atlas:markRead", day),
   atlasTurns: () => ipcRenderer.invoke("atlas:turns"),
-  atlasSend: (message: string, attachments?: readonly string[]) =>
-    ipcRenderer.invoke("atlas:send", message, attachments ?? []),
+  atlasSend: (
+    message: string,
+    attachments?: readonly string[],
+    focusRoot?: string | null,
+  ) =>
+    ipcRenderer.invoke(
+      "atlas:send",
+      message,
+      attachments ?? [],
+      focusRoot ?? null,
+    ),
   onAtlasActivity: (cb) => subscribe<AtlasActivity[]>("atlas:activity", cb),
   atlasSpine: () => ipcRenderer.invoke("atlas:spine-get"),
   onAtlasSpine: (cb) => subscribe<SpineDot[]>("atlas:spine", cb),
