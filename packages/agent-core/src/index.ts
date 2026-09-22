@@ -75,6 +75,12 @@ export {
   detectCredentialMode,
 } from "./atlas/credentials";
 export {
+  type DotTone,
+  dotState,
+  type SpineInput,
+  type SpinePr,
+} from "./atlas/dotState";
+export {
   type AtlasFact,
   FACT_KINDS,
   type FactKind,
