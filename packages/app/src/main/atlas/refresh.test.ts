@@ -21,6 +21,10 @@ const deps = (over: Partial<CollectDeps> = {}): CollectDeps => ({
 const input = (over: Partial<RefreshInput> = {}): RefreshInput => ({
   db: directDb(openAtlasDb(":memory:")),
   deps: deps(),
+  // Every root present by default. Injected rather than hitting the real
+  // filesystem: these roots are fictional, so a real stat would call them all
+  // gone and the registry would come back entirely flagged.
+  probe: async (roots) => new Map(roots.map((r) => [r, "present" as const])),
   recentFolders: ["/p/a"],
   openTabRoots: ["/p/b"],
   now: Date.UTC(2026, 7, 30, 18, 0, 0),
@@ -54,7 +58,10 @@ it("marks a vanished root missing but keeps it in the registry", async () => {
   await refreshPortfolio(i);
   await refreshPortfolio({
     ...i,
-    deps: deps({ exists: async (r) => r !== "/p/a" }),
+    // The PROBE decides presence now, not the collector's boolean `exists`:
+    // only the probe can tell "gone" from "could not be checked".
+    probe: async (roots) =>
+      new Map(roots.map((r) => [r, r === "/p/a" ? "gone" : "present"])),
   });
   const reg = await i.db.readRegistry();
   expect(reg).toHaveLength(2);

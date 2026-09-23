@@ -14,6 +14,7 @@ import { allOpenRoots } from "../window";
 import { collectLedger } from "./codeRunners";
 import { spawnClaude } from "./composer";
 import { atlasDb } from "./db";
+import { probeRoots } from "./presence";
 import { runReporters } from "./reporters";
 import { makeCollectDeps } from "./runners";
 import { runStandup } from "./standup";
@@ -27,6 +28,7 @@ export function startAtlasArrival(prefsFile: string): void {
       await maybeCompose({
         db: atlasDb(),
         collect: makeCollectDeps(),
+        probe: probeRoots,
         spawn: spawnClaude,
         now: () => Date.now(),
         tzOffsetMinutes: () => -new Date().getTimezoneOffset(),

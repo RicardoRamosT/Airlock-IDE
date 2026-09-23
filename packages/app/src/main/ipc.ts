@@ -148,6 +148,7 @@ import { sendMessage } from "./atlas/conversation";
 import { atlasDb } from "./atlas/db";
 import { discoverProjects } from "./atlas/discover";
 import { atlasMcp } from "./atlas/mcpEndpoint";
+import { probeRoots } from "./atlas/presence";
 import { makeCollectDeps } from "./atlas/runners";
 import { refreshSpineRoots, spineDots } from "./atlas/spine";
 // Only the pure helper: every database call goes through atlasDb(), which
@@ -1313,6 +1314,10 @@ export function registerIpc(
       prefs.recentFolders,
       allOpenRoots(),
       Date.now(),
+      // Presence is checked HERE, on every read, so a folder deleted since the
+      // last debrief is flagged the moment you look at the list rather than
+      // tomorrow morning. One stat per project.
+      probeRoots,
     );
   });
 

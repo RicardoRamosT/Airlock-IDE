@@ -430,6 +430,14 @@ export function AtlasPanel({
             );
             void window.airlock?.atlasSetProjectEnabled?.(root, enabled);
           }}
+          onForget={(root) => {
+            // Optimistic, then atlas:refresh reloads from the table -- the
+            // same contract onToggle follows. Dropping the row locally first
+            // matters here because forget also clears the project's concerns
+            // and its recentFolders entry, so the round trip is not instant.
+            setProjects((ps) => (ps ? ps.filter((p) => p.root !== root) : ps));
+            void window.airlock?.atlasForget?.(root);
+          }}
         />
       ) : view === "chat" && showHistory ? (
         <div className="atlas-history">

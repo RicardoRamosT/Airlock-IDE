@@ -871,6 +871,53 @@ Spec: `docs/superpowers/specs/2026-09-21-atlas-portfolio-spine-design.md` ·
 Plan: `docs/superpowers/plans/2026-09-21-atlas-portfolio-spine.md`
 (both gitignored — this section is the durable record).
 
+## Atlas's project registry, and what `missing` means
+
+The settings list IS the configuration surface, so it has to be true when you
+look at it. Three rules make it so.
+
+- **`missing` names what was OBSERVED, not what it implies.** It means the
+  root did not answer a presence check. It is NOT "deleted" — one `stat`
+  cannot tell a deletion from a rename, a move, an unmounted volume or a macOS
+  TCC prompt you have not granted, and claiming otherwise would be a confident
+  answer to a question nobody asked. That is also why a vanished root is
+  FLAGGED, never dropped: removing the row would assert a deletion the check
+  cannot prove.
+- **Presence is THREE states** (`RootPresence`, `main/atlas/presence.ts`).
+  `probeRoot` classifies `ENOENT`/`ENOTDIR` as **gone** and every other errno
+  — `EACCES`, `EPERM`, `EIO`, an unmounted share — as **unknown**, and
+  `applyPresenceResults` leaves an unknown root's flag AND its `lastSeenAt`
+  exactly as they were. It used to be one `fs.access` with a bare
+  `catch { return false }`, so "is not there" and "could not be checked" were
+  the same answer — and a flagged project is silently dropped from the debrief
+  (`enabled && !missing`), from the spine's dots and from the long-running-apps
+  monitor. Same rule as `dotState`: an unread probe is not a negative answer.
+  The probe is INJECTED everywhere (`discoverProjects`, `RefreshInput.probe`,
+  `AtlasDeps.probe`) because these run against fictional paths under test, and
+  reaching for the real filesystem made the whole registry read as missing.
+- **Checked on EVERY read of the list**, not once a day. Discovery was live in
+  one direction only: `mergeRegistry` costs nothing so a new folder appeared at
+  once, but only `refreshPortfolio` could write `missing`, and its two callers
+  (the morning compose, and the chat's once-a-day snapshot) meant a folder
+  deleted at noon still read as fine until tomorrow. `discoverProjects` now
+  probes too — one stat per project, no git, against the per-root git
+  `refreshPortfolio` spends.
+
+**`lastSeenAt` means LAST CONFIRMED PRESENT, and only the presence pass writes
+it.** `mergeRegistry` used to stamp it for any rediscovered root, but appearing
+in recents or an open tab is not evidence the folder exists — a recents entry
+outlives the directory it names, which is the very case `missing` reports. With
+merge stamping it, "last seen" read as *now* for a folder deleted weeks ago,
+i.e. it was wrong at the only moment it mattered.
+
+**Removing a row is the USER's call.** `forgetProject` was reachable only from
+a debrief concern, so a dead project sat in the settings list permanently and
+kept counting toward "N of M on". Missing rows now carry a trash action there
+too, plus a tooltip giving the path, the last sighting and the fact that
+"missing" covers deleted / renamed / moved / unmounted. It is offered ONLY on a
+missing row: forgetting a live project would re-seed it from recents on the
+next read, so the button would appear to do nothing.
+
 ## What counts as an extension
 
 **Core is what AirLock authored over your own machine; an extension is an

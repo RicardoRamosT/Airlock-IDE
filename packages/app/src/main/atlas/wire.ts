@@ -15,13 +15,17 @@ import {
 } from "@airlock/agent-core";
 import { runComposer, type SpawnFn } from "./composer";
 import type { AtlasDb } from "./dbOps";
-import { refreshPortfolio } from "./refresh";
+import { type RefreshInput, refreshPortfolio } from "./refresh";
 import type { StandupResult } from "./standup";
 import { dayKey } from "./store";
 
 export interface AtlasDeps {
   db: AtlasDb;
   collect: CollectDeps;
+  // Does each root still exist. Injected for the same reason collect is:
+  // wire.test.ts runs against fictional paths, and a real stat would call
+  // every one of them gone. Production wires probeRoots.
+  probe: RefreshInput["probe"];
   spawn: SpawnFn;
   now(): number;
   tzOffsetMinutes(): number;
@@ -82,6 +86,7 @@ export async function maybeCompose(deps: AtlasDeps): Promise<boolean> {
     const { snaps, projects } = await refreshPortfolio({
       db: deps.db,
       deps: deps.collect,
+      probe: deps.probe,
       recentFolders: deps.recents(),
       openTabRoots: deps.roots(),
       now,

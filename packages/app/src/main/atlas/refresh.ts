@@ -7,11 +7,12 @@
 
 import {
   type AtlasProject,
-  applyPresence,
+  applyPresenceResults,
   type CollectDeps,
   collectAll,
   detectConcerns,
   mergeRegistry,
+  type RootPresence,
   type RootSnapshot,
   reconcileConcerns,
   seedRoots,
@@ -24,6 +25,11 @@ import { dayKey } from "./store";
 export interface RefreshInput {
   db: AtlasDb;
   deps: CollectDeps;
+  // Does each root still exist. INJECTED, like every other probe here: this
+  // function is unit-tested against stub deps, and reaching for the real
+  // filesystem would make its result depend on paths the test never created.
+  // Production passes probeRoots.
+  probe: (roots: readonly string[]) => Promise<Map<string, RootPresence>>;
   recentFolders: readonly string[];
   openTabRoots: readonly string[];
   now: number;
@@ -54,8 +60,17 @@ export async function refreshPortfolio(
     input.sinceMs,
   );
 
-  const present = new Set(snaps.filter((s) => !s.missing).map((s) => s.root));
-  const projects = applyPresence(merged, present, now);
+  // The SAME probe the project list uses, rather than re-deriving presence
+  // from the snapshots. collectRoot's `missing` is a boolean -- it cannot say
+  // "could not tell" -- so reading it here would reintroduce the collapse of
+  // "gone" and "unreadable" that probeRoot exists to undo. One rule, one
+  // place, so the debrief and the settings list cannot disagree about whether
+  // a project still exists.
+  const projects = applyPresenceResults(
+    merged,
+    await input.probe(merged.map((p) => p.root)),
+    now,
+  );
   await db.writeRegistry(projects);
 
   // Standing concerns, folded in here because this is the one place that is

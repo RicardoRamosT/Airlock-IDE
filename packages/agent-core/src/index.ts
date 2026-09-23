@@ -93,8 +93,10 @@ export {
 export {
   type AtlasProject,
   applyPresence,
+  applyPresenceResults,
   mergeRegistry,
   projectName,
+  type RootPresence,
 } from "./atlas/registry";
 export {
   FACTS_CLOSE,

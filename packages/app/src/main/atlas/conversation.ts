@@ -31,6 +31,7 @@ import { emitEvent } from "../eventlog/wire";
 import { describeAttachments } from "./attachments";
 import type { SpawnFn } from "./composer";
 import type { AtlasDb } from "./dbOps";
+import { probeRoots } from "./presence";
 import { refreshPortfolio } from "./refresh";
 // dayKey is pure; everything else now crosses the process boundary.
 import { dayKey } from "./store";
@@ -88,6 +89,7 @@ async function portfolioFor(
       await refreshPortfolio({
         db: deps.db,
         deps: deps.collect,
+        probe: probeRoots,
         recentFolders: deps.recents(),
         openTabRoots: deps.roots(),
         now,

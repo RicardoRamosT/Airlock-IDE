@@ -21,6 +21,10 @@ export interface AtlasSettingsProps {
   projects: AtlasProject[] | null;
   onPrefs: (patch: { hour?: number; surface?: "app" | "both" }) => void;
   onToggle: (root: string, enabled: boolean) => void;
+  // Drop a project from the registry for good. Offered ONLY on a row whose
+  // folder is gone: forgetting a live project would just re-seed it from
+  // recents on the next read, so the button would appear to do nothing.
+  onForget: (root: string) => void;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -35,6 +39,7 @@ export function AtlasSettings({
   projects,
   onPrefs,
   onToggle,
+  onForget,
 }: AtlasSettingsProps) {
   const on = projects?.filter((p) => p.enabled && !p.missing) ?? [];
 
@@ -102,7 +107,42 @@ export function AtlasSettings({
                 {p.name}
               </span>
               {p.missing ? (
-                <span className="atlas-project-tag warn">missing</span>
+                <>
+                  {/* WHAT WAS OBSERVED, not what it implies. The folder did
+                      not answer -- which could be a deletion, a rename, an
+                      unmounted drive or a permission AirLock has not been
+                      granted, and one stat cannot tell those apart. The tag
+                      said only "missing" with no way to find out what that
+                      meant or when it was last seen. */}
+                  <span
+                    className="atlas-project-tag warn"
+                    title={`Not found at ${p.root}. Last seen ${new Date(
+                      p.lastSeenAt,
+                    ).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}. The folder may have been deleted, renamed, moved, or be on a drive that is not mounted.`}
+                  >
+                    missing
+                  </span>
+                  {/* The row was permanent before this: forgetProject is
+                      reachable only from a debrief concern, so a folder you
+                      deleted sat here for good and kept counting toward
+                      "N of M on". Removal stays the USER's call -- AirLock
+                      flags, and never drops on its own, because it cannot
+                      prove a deletion. */}
+                  <button
+                    type="button"
+                    className="row-action reveal"
+                    title={`Remove ${p.name} from this list`}
+                    aria-label={`Remove ${p.name} from this list`}
+                    onClick={() => onForget(p.root)}
+                  >
+                    <i className="codicon codicon-trash" />
+                  </button>
+                </>
               ) : null}
             </div>
           ))}

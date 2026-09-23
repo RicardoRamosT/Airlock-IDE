@@ -18,7 +18,9 @@
 // refreshPortfolio, so it is cheap enough to do on every read of the list.
 import {
   type AtlasProject,
+  applyPresenceResults,
   mergeRegistry,
+  type RootPresence,
   seedRoots,
 } from "@airlock/agent-core";
 import type { AtlasDb } from "./dbOps";
@@ -28,12 +30,32 @@ export async function discoverProjects(
   recentFolders: readonly string[],
   openTabRoots: readonly string[],
   now: number,
+  // Does each root still exist. Injected, like refreshPortfolio's: a test
+  // works with fictional paths, and a real stat would report every one of
+  // them gone. Production passes probeRoots.
+  probe: (roots: readonly string[]) => Promise<Map<string, RootPresence>>,
 ): Promise<AtlasProject[]> {
   const merged = mergeRegistry(
     await db.readRegistry(),
     seedRoots(recentFolders, openTabRoots),
     now,
   );
-  await db.writeRegistry(merged);
-  return merged;
+  // PRESENCE ON EVERY READ, not once a day.
+  //
+  // Discovery has always been live in one direction only: open a folder and it
+  // appears here at once, because mergeRegistry costs nothing. Removal was not
+  // -- only refreshPortfolio could clear or set `missing`, and its two callers
+  // (the morning compose and the chat's once-a-day snapshot) meant a folder
+  // deleted at noon still read as fine until tomorrow. This list is the
+  // CONFIGURATION SURFACE, so it has to be true when you look at it.
+  //
+  // Affordable for the same reason discovery is: one stat per project, no git
+  // and no subprocess, against the per-root git refreshPortfolio spends.
+  const projects = applyPresenceResults(
+    merged,
+    await probe(merged.map((p) => p.root)),
+    now,
+  );
+  await db.writeRegistry(projects);
+  return projects;
 }

@@ -42,7 +42,11 @@ export function mergeRegistry(
     if (root.length === 0) continue;
     const known = index.get(root);
     if (known) {
-      known.lastSeenAt = now;
+      // Deliberately NOT stamping lastSeenAt. Appearing in recents or in an
+      // open tab is not evidence the folder is still on disk -- a recents
+      // entry outlives the directory it names, which is the very case the
+      // `missing` flag exists to report. Only applyPresenceResults writes
+      // lastSeenAt, so the field means ONE thing: last confirmed present.
       continue;
     }
     const added: AtlasProject = {
@@ -59,16 +63,61 @@ export function mergeRegistry(
   return out;
 }
 
-// Record which roots still exist on disk. A vanished root is FLAGGED, never
-// dropped: the author's own recents already contain a path that no longer
-// exists, and silently losing it would hide the fact rather than report it.
+/**
+ * What a presence check found. THREE states, not two.
+ *
+ * "unknown" is the one that matters: a check can fail without proving
+ * anything. `fs.access` throws ENOENT for a path that is gone, and EPERM for
+ * one that exists behind a macOS permission prompt, and an I/O error for one
+ * on a drive that is not mounted. Collapsing those into "not present" is how a
+ * live project gets flagged as vanished -- and a flagged project is dropped
+ * from the debrief, from the spine's dots and from the local-app monitor,
+ * silently. Same rule as the spine's dotState: an unread probe is not a
+ * negative answer.
+ */
+export type RootPresence = "present" | "gone" | "unknown";
+
+/**
+ * Record which roots still exist. A vanished root is FLAGGED, never dropped:
+ * the author's own recents already contain a path that no longer exists, and
+ * silently losing it would hide the fact rather than report it. Removing a row
+ * is the USER's call, through forgetProject.
+ *
+ * Only evidence moves the flag. "unknown", and a root the probe said nothing
+ * about, leave the entry exactly as it was -- both the flag and lastSeenAt,
+ * since a failed read is not a sighting either.
+ */
+export function applyPresenceResults(
+  projects: readonly AtlasProject[],
+  results: ReadonlyMap<string, RootPresence>,
+  now: number,
+): AtlasProject[] {
+  return projects.map((p) => {
+    const found = results.get(p.root) ?? "unknown";
+    if (found === "unknown") return { ...p };
+    if (found === "gone") return { ...p, missing: true };
+    return { ...p, missing: false, lastSeenAt: now };
+  });
+}
+
+/**
+ * The two-state form: every root NOT in `present` is taken to be gone.
+ *
+ * Only for callers that genuinely have that evidence for every root they pass.
+ * Prefer applyPresenceResults, which can say "could not tell".
+ */
 export function applyPresence(
   projects: readonly AtlasProject[],
   present: ReadonlySet<string>,
   now: number,
 ): AtlasProject[] {
-  return projects.map((p) => {
-    const here = present.has(p.root);
-    return { ...p, missing: !here, lastSeenAt: here ? now : p.lastSeenAt };
-  });
+  return applyPresenceResults(
+    projects,
+    new Map(
+      projects.map(
+        (p) => [p.root, present.has(p.root) ? "present" : "gone"] as const,
+      ),
+    ),
+    now,
+  );
 }

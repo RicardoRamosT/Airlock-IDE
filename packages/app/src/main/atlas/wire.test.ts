@@ -27,6 +27,11 @@ const collect = (): CollectDeps => ({
 const deps = (over: Partial<AtlasDeps> = {}): AtlasDeps => ({
   db: directDb(openAtlasDb(":memory:")),
   collect: collect(),
+  // Every root present unless a test says otherwise. Presence is a separate
+  // probe from the collector now, because collect's `exists` is a boolean and
+  // cannot say "could not tell" -- see presence.ts.
+  probe: async (roots: readonly string[]) =>
+    new Map(roots.map((r) => [r, "present" as const])),
   spawn: async () => okJson,
   now: () => Date.UTC(2026, 7, 30, 18, 0, 0),
   tzOffsetMinutes: () => -360,
@@ -89,9 +94,9 @@ it("notifies once when a brief becomes ready", async () => {
 
 it("refreshes the portfolio before composing, so the brief is current", async () => {
   const c = collect();
-  const exists = vi.fn(c.exists);
-  await maybeCompose(deps({ collect: { ...c, exists } }));
-  expect(exists).toHaveBeenCalled();
+  const status = vi.fn(c.status);
+  await maybeCompose(deps({ collect: { ...c, status } }));
+  expect(status).toHaveBeenCalled();
 });
 
 it("starts ONE composer when several arrival events land together", async () => {
@@ -189,6 +194,8 @@ it("skips an enabled project whose folder has vanished", async () => {
     standup,
     roots: () => ["/p/gone"],
     collect: { ...collect(), exists: async () => false },
+    probe: async (roots: readonly string[]) =>
+      new Map(roots.map((r) => [r, "gone" as const])),
   });
   await d.db.writeRegistry([
     {
