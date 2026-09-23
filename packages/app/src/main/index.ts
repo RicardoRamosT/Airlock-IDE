@@ -57,6 +57,7 @@ import {
   writeTerminalInput,
 } from "./ipc";
 import { configureLocalApps, startLocalAppsPoll } from "./localapps";
+import { mergeProjectRoots } from "./localapps/scan";
 import { ensureMcpConfig } from "./mcp/config";
 import {
   configureScope,
@@ -167,6 +168,19 @@ function bootstrap(): void {
     // poll, so the Settings toggle takes effect without a relaunch.
     configureLocalApps({
       prefs: async () => (await loadPrefs(prefsFile)).longRunningApps,
+      // Open tabs, plus every project Atlas watches, plus every folder you
+      // have opened before. A server qualifies on its working directory, and
+      // that set used to be the open tabs ALONE -- so closing a tab stopped
+      // AirLock noticing that project's servers, and a seven-day one on :3005
+      // went unreported because its project happened to have no tab. The whole
+      // registry, not only the enabled rows: "not in the debrief" is not the
+      // same as "not my project".
+      knownRoots: async () =>
+        mergeProjectRoots(
+          allOpenRoots(),
+          (await atlasDb().readRegistry()).map((p) => p.root),
+          (await loadPrefs(prefsFile)).recentFolders,
+        ),
       managedPorts: managedDevServerPorts,
     });
     startLocalAppsPoll();

@@ -29,6 +29,38 @@ function projectNameOf(root: string | null): string | null {
 }
 
 /**
+ * Every directory AirLock knows to be one of your projects.
+ *
+ * This is the set a listening process is qualified against, and widening it is
+ * the whole fix: it used to be the OPEN TABS alone, so `attributeToRoot`
+ * -- which answers "whose is it" -- was also deciding "is this one of your
+ * apps at all", and a project with no tab failed both. A seven-day dev server
+ * on :3005 was dropped before its age was read, purely because its project was
+ * not open; the identical server in an open project was reported. Closing a
+ * tab silently stopped the monitoring.
+ *
+ * It still cannot admit system software. Every daemon on the machine -- clamd,
+ * OneDrive, rapportd, ControlCenter -- runs from "/", which is nobody's
+ * project, and a blank entry is dropped because an empty string is a prefix of
+ * everything.
+ */
+export function mergeProjectRoots(
+  ...lists: readonly (readonly string[])[]
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const r of list) {
+      const root = typeof r === "string" ? r.trim() : "";
+      if (root.length === 0 || seen.has(root)) continue;
+      seen.add(root);
+      out.push(root);
+    }
+  }
+  return out;
+}
+
+/**
  * Containers that have been up longer than the threshold.
  *
  * Only RUNNING containers: a stopped one costs nothing, which is the whole

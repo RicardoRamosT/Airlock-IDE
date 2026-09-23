@@ -28,6 +28,12 @@ let timer: ReturnType<typeof setInterval> | null = null;
 export interface LocalAppsDeps {
   // Reading the pref each poll, so toggling it takes effect without a restart.
   prefs: () => Promise<{ enabled: boolean; thresholdHours: number }>;
+  // EVERY project AirLock knows, not just the open tabs. A dependency because
+  // two of its three sources live behind async clients, and because the
+  // compiler is then what forces a caller to say where the set comes from --
+  // this used to be `allOpenRoots` inline, and nothing said that closing a tab
+  // silently stopped monitoring that project's servers.
+  knownRoots: () => Promise<readonly string[]>;
   // Ports AirLock started itself, so a managed server is stopped through the
   // manager rather than shot in the head.
   managedPorts: () => Set<number>;
@@ -58,11 +64,14 @@ export async function pollLocalApps(): Promise<void> {
     reconcileLongRunningApps([]);
     return;
   }
+  // Resolved ONCE per poll, outside the scan, so the scan's root list stays a
+  // plain array it can match against without awaiting mid-loop.
+  const known = await deps.knownRoots().catch(() => allOpenRoots());
   let apps: LongRunningAppInput[] = [];
   try {
     apps = await scanLocalApps(
       {
-        roots: allOpenRoots,
+        roots: () => [...known],
         managedPorts: deps.managedPorts,
         now: () => Date.now(),
         selfPid: () => process.pid,

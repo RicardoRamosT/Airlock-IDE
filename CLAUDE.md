@@ -667,11 +667,27 @@ so. AirLock now reports anything over `longRunningApps.thresholdHours`
   filter is `COMMON_DEV_PORTS`, and it is wrong: the server that prompted this
   listens on **3005**, which is not in that list, and extending the list is
   whack-a-mole. A listening process is one of the user's apps when its cwd is
-  inside an open project root (`attributeToRoot`, longest match, segment-wise so
+  inside a project root (`attributeToRoot`, longest match, segment-wise so
   `/p/app-old` is never claimed by `/p/app`). That also attributes it for free
   and means unrelated software never qualifies. AirLock excludes **its own
   process subtree** -- run from source its cwd IS a project root, so without
   that it reports itself.
+- **The root set is EVERY project AirLock knows** (`mergeProjectRoots`: open
+  tabs + the whole Atlas registry + `recentFolders`), injected as the
+  `knownRoots` dep. It was `allOpenRoots()` alone, which made `attributeToRoot`
+  answer two questions at once -- "is this one of your apps" and "whose is it"
+  -- so failing the second killed the first: the process path did
+  `if (root === null) continue`, and a seven-day next-server on :3005 was
+  dropped before its age was ever read, purely because ElArqui had no tab.
+  Closing a tab silently stopped monitoring that project. (The CONTAINER path
+  never had this bug -- an unattributable container reports under a null owner,
+  which is why `root`/`projectName` are already nullable and `pickWindow(null)`
+  already falls back to the focused window.) The whole registry, not just the
+  enabled rows: "not in the debrief" is not "not my project". Widening is safe
+  because every system daemon -- clamd, OneDrive, rapportd, ControlCenter --
+  runs from `/`, which is nobody's project; a blank root is dropped because an
+  empty string is a prefix of everything. `knownRoots.test.ts` asserts the
+  wiring, since passing `allOpenRoots` would type-check perfectly.
 - **Age comes from the PROCESS or the ENGINE, never from `docker ps`.** Docker's
   `RunningFor` counts from CREATED: `trackview-postgres-1`, created weeks
   earlier and restarted that week, read "4 weeks ago" against a real uptime of
