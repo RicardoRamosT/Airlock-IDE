@@ -40,6 +40,20 @@ function updateLabel(progress: UpdateProgress): string {
   }
 }
 
+// The button's accessible name, or undefined to let its own text be the name.
+//
+// Idle, "Update" alone does not say from what to what, so the versions are
+// added. On error the label says only "Update failed", so the reason is added.
+// Every other phase already reads as exactly what is happening.
+function updateAriaLabel(
+  update: { currentVersion: string; latestVersion: string | null },
+  progress: UpdateProgress,
+): string | undefined {
+  if (progress.phase === "error") return `Update failed: ${progress.message}`;
+  if (progress.phase !== "idle") return undefined;
+  return `Update ${update.currentVersion} \u2192 ${update.latestVersion}`;
+}
+
 export function StatusBar() {
   const gitStatus = useApp((s) => s.gitStatus);
   const anthropicStatus = useApp((s) => s.anthropicStatus);
@@ -130,27 +144,51 @@ export function StatusBar() {
             type="button"
             className="statusbar-update"
             disabled={busy}
-            title={
-              updateProgress.phase === "error"
-                ? updateProgress.message
-                : `Update ${update.currentVersion} → ${update.latestVersion}`
-            }
+            // aria-label, NOT title. `title` draws the OS tooltip, which
+            // repeated the two versions a second time, in a second style,
+            // below a callout that had just said it better -- and after the
+            // OS's own hover delay, so it arrived as an afterthought. The
+            // accessible name still has to exist, so it moves here: announced,
+            // never drawn.
+            //
+            // ONLY WHERE THE TEXT IS NOT ALREADY THE ANSWER. aria-label
+            // REPLACES the button's text as its accessible name, where `title`
+            // merely filled in when there was none -- so labelling every phase
+            // would have announced "Update 0.1.1 -> 0.2.0" while the button
+            // visibly read "42%", replacing live progress with a stale
+            // constant. Mid-apply the label IS the state, so it is left to
+            // speak for itself.
+            aria-label={updateAriaLabel(update, updateProgress)}
             onClick={() => void window.airlock.updateApply()}
           >
             <i className="codicon codicon-arrow-up" />
             {updateLabel(updateProgress)}
           </button>
-          {/* aria-hidden because the button's own title already says it --
+          {/* aria-hidden because the button's own aria-label already says it --
               this is announced anyway even while invisible, and hearing the two
-              versions twice is worse than not styling it at all. */}
+              versions twice is worse than not styling it at all.
+
+              ON ERROR IT CARRIES THE MESSAGE. That text used to live only in
+              the button's `title`, so deleting the tooltip would have taken the
+              one place a sighted user could read WHY an update failed -- the
+              label says no more than "Update failed". The callout is the
+              surface this pattern already has for saying more on hover. */}
           <div className="statusbar-update-callout" aria-hidden="true">
-            <span className="statusbar-ticket-line">
-              {ticketLine(update.currentVersion, update.currentBuiltAt)}
-            </span>
-            <i className="codicon codicon-arrow-down statusbar-ticket-arrow" />
-            <span className="statusbar-ticket-line next">
-              {ticketLine(update.latestVersion, update.latestBuiltAt)}
-            </span>
+            {updateProgress.phase === "error" ? (
+              <span className="statusbar-ticket-line next">
+                {updateProgress.message}
+              </span>
+            ) : (
+              <>
+                <span className="statusbar-ticket-line">
+                  {ticketLine(update.currentVersion, update.currentBuiltAt)}
+                </span>
+                <i className="codicon codicon-arrow-down statusbar-ticket-arrow" />
+                <span className="statusbar-ticket-line next">
+                  {ticketLine(update.latestVersion, update.latestBuiltAt)}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
