@@ -730,6 +730,15 @@ SIGTERM, not SIGKILL: a server asked politely exits cleanly, and one that
 ignores the signal still shows up on the next poll, which is honest. A MANAGED
 server is stopped through `stopDevServer` so the manager's own state follows.
 
+**Signalling the LISTENER is enough for a supervised tree, verified 2026-09-23.**
+The obvious doubt is that AirLock targets the process holding the port while
+the real supervisors sit above it. ElArqui's 7-day server was
+`npm run dev`(ppid 1, detached) -> `next dev` -> `next-server`(:3005) -> two
+workers, and one SIGTERM to `next-server` took all five down inside the same
+half-second poll: no respawn, no orphaned supervisor, port released. So do NOT
+reach for a process-group kill -- a detached tree unwinds from the leaf, and
+signalling the group would be a bigger hammer bought with no evidence.
+
 Deliberately not in v1: **per-app memory** (the motivation is RAM, but
 `docker stats` and per-process footprint on a timer contradict the battery goal
 -- age is the actionable fact), auto-stop, and any non-dev listening port.
