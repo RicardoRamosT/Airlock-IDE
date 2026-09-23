@@ -8020,6 +8020,30 @@ body.resizing-row {
 .atlas-project.off .atlas-project-name {
   color: var(--fg-dim);
 }
+/* Remove a project whose folder is gone. Deliberately NOT a hover-reveal:
+   this cannot be undone, and a control you cannot see is one you click by
+   accident -- which is exactly how it went wrong the first time. Quiet rather
+   than hidden: it only ever appears on a row already flagged missing. */
+.atlas-project-forget {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.atlas-project-forget:hover {
+  color: var(--danger, #f85149);
+  border-color: var(--danger, #f85149);
+}
+.atlas-project-forget:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .atlas-project-tag {
   font-size: 9px;
   letter-spacing: 0.04em;

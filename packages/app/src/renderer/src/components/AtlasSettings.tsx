@@ -132,15 +132,25 @@ export function AtlasSettings({
                       deleted sat here for good and kept counting toward
                       "N of M on". Removal stays the USER's call -- AirLock
                       flags, and never drops on its own, because it cannot
-                      prove a deletion. */}
+                      prove a deletion.
+
+                      ALWAYS VISIBLE, and LABELLED. It shipped once as a
+                      `row-action reveal` trash icon, and `.reveal` is
+                      opacity:0 with the un-hiding rule wired per row
+                      container -- .atlas-project has none, so the control was
+                      invisible and still perfectly clickable, and a project
+                      got removed by someone who could not see what they hit.
+                      A hover-reveal is for a cheap, repeatable action; this
+                      one cannot be undone. The word "Remove" also settles
+                      what a trash can next to a project name does NOT mean:
+                      nothing on disk is touched. */}
                   <button
                     type="button"
-                    className="row-action reveal"
-                    title={`Remove ${p.name} from this list`}
-                    aria-label={`Remove ${p.name} from this list`}
+                    className="atlas-project-forget"
+                    title={`Remove ${p.name} from Atlas's list. The folder itself is not touched -- it is already gone from ${p.root}.`}
                     onClick={() => onForget(p.root)}
                   >
-                    <i className="codicon codicon-trash" />
+                    Remove
                   </button>
                 </>
               ) : null}

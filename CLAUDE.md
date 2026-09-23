@@ -912,11 +912,23 @@ i.e. it was wrong at the only moment it mattered.
 
 **Removing a row is the USER's call.** `forgetProject` was reachable only from
 a debrief concern, so a dead project sat in the settings list permanently and
-kept counting toward "N of M on". Missing rows now carry a trash action there
-too, plus a tooltip giving the path, the last sighting and the fact that
+kept counting toward "N of M on". Missing rows now carry a **Remove** action
+there too, plus a tooltip giving the path, the last sighting and the fact that
 "missing" covers deleted / renamed / moved / unmounted. It is offered ONLY on a
 missing row: forgetting a live project would re-seed it from recents on the
 next read, so the button would appear to do nothing.
+
+**That action is ALWAYS VISIBLE and LABELLED, and `.row-action.reveal` must
+not be used for it.** It shipped once as a `reveal` trash icon —
+`.row-action.reveal` is `opacity: 0` and the un-hiding rule is wired PER ROW
+CONTAINER (`.db-entry-head`, `.slack-channel-head`, `.atlas-standing-row`);
+`.atlas-project` has none, so the control was invisible and still perfectly
+clickable, and a project was removed by someone who could not see what they
+hit. opacity does not remove hit testing. A hover-reveal is for a cheap,
+repeatable action; `forgetProject` cannot be undone. The word "Remove" rather
+than a trash glyph also settles what it does NOT mean — nothing on disk is
+touched. `revealActions.test.ts` enumerates the trigger containers from
+`theme.css` and fails on any component that hides a row action without one.
 
 ## What counts as an extension
 
