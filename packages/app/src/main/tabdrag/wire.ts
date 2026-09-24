@@ -17,7 +17,12 @@ import {
 } from "../window";
 import { hideCursorHint, showCursorHint } from "./cursorHint";
 import type { MovingSessions } from "./moving";
-import { resolveDropTarget, sameTarget } from "./target";
+import {
+  dropAction,
+  hoverTarget,
+  resolveDropTarget,
+  sameTarget,
+} from "./target";
 
 const POLL_MS = 16; // ~60Hz, only while a drag is in flight
 // Backstop for a drag whose end never arrives (a `dragend` the source window
@@ -34,6 +39,9 @@ let lastTarget: DropTarget | null = null;
 // Name of the tab in flight, echoed in every hover so a window can say WHICH
 // project it is about to take ("Release to open Airlock in a new window").
 let dragLabel: string | null = null;
+// False while the source window's LAST tab is in flight: it can merge into
+// another window but cannot open one, so the hover hint must not offer it.
+let dragCanDetach = true;
 
 // Tabs waiting for a freshly created window to come up and claim them. PULLED by
 // the renderer once it has mounted, never pushed: did-finish-load fires before
@@ -99,6 +107,7 @@ function stop(): void {
   dragSourceId = null;
   lastTarget = null;
   dragLabel = null;
+  dragCanDetach = true;
   // Every drag-exit path funnels through here, so the label can never be orphaned.
   hideCursorHint();
 }
@@ -106,10 +115,12 @@ function stop(): void {
 export function startTabDrag(
   sourceWindowId: number,
   label: string | null,
+  canDetach = true,
 ): void {
   stop(); // a new drag supersedes any stale one
   dragSourceId = sourceWindowId;
   dragLabel = label;
+  dragCanDetach = canDetach;
   const startedAt = Date.now();
   timer = setInterval(() => {
     if (dragSourceId === null) {
@@ -134,7 +145,7 @@ export function startTabDrag(
       return;
     }
     const point = screen.getCursorScreenPoint();
-    const target = targetAt(point, dragSourceId);
+    const target = hoverTarget(targetAt(point, dragSourceId), dragCanDetach);
     // Outside every window the in-strip hint is out of sight -- the user is looking
     // at the cursor -- so the message follows the pointer instead. Repositioned on
     // EVERY tick, which is why this sits above the edge-triggered broadcast below.
@@ -158,39 +169,57 @@ export function stopTabDragFor(windowId: number): void {
   if (dragSourceId === windowId) stop();
 }
 
-// Resolve the drop and perform it. `payload` is null when the renderer decided the
-// tab cannot move (a split pair, a page-tab, or the window's last tab); this then
-// only reports the target and moves nothing.
+// The window a merge would hand the tab to, or null if it cannot take it.
+//
+// isAppWindow as well as alive: a merge target must be able to ADOPT. Only app
+// windows run the tab store that listens for "tabdrag:adopt", so sending to
+// anything else drops the tab into a renderer that ignores it while the source
+// still removes it -- the tab, its project and its live terminals simply vanish.
+// windowBoxesFrontMostFirst already filters to app windows, so this is
+// belt-and-braces for any future path that builds a merge target another way.
+function adoptableWindow(windowId: number): BrowserWindow | null {
+  const win = BrowserWindow.fromId(windowId);
+  return win && !win.isDestroyed() && isAppWindow(win.id) ? win : null;
+}
+
+// Resolve the drop and perform it.
+//
+// `payload` is null when the renderer decided the tab cannot move at all (a split
+// pair or a page-tab). `canDetach` is false for the window's LAST tab: it still
+// ships its payload, because merging it into another window is exactly how a
+// torn-off window is put back -- only opening YET another window for it is
+// pointless. See dropAction, which is where the two are told apart.
 export function endTabDrag(
   sourceWindowId: number,
   payload: MovingTab | null,
   moving: MovingSessions,
+  canDetach = true,
 ): DropTarget {
   const target = currentTarget(sourceWindowId);
   stop();
   // Tell every window the drag is over so drop indicators clear.
   broadcast({ target: { kind: "reorder" }, sourceWindowId, label: null });
-  if (!payload || target.kind === "reorder") return { kind: "reorder" };
+
+  const into =
+    target.kind === "merge" ? adoptableWindow(target.windowId) : null;
+  const action = dropAction(target, {
+    hasPayload: payload !== null,
+    canAdopt: into !== null,
+    canDetach,
+  });
+  // The payload re-check is for the type checker: dropAction already answered
+  // "none" for a null one.
+  if (action === "none" || !payload) return { kind: "reorder" };
 
   // Ticket the live ptys so (and only so) the adopting window may re-point them.
+  // Only once the move is settled: an outcome that moves nothing must not leave
+  // single-use tickets lying around for a later adopt to spend.
   moving.mark(payload.terminals.map((t) => t.ptyId));
 
-  if (target.kind === "merge") {
-    const win = BrowserWindow.fromId(target.windowId);
-    // isAppWindow as well as alive: a merge target must be able to ADOPT. Only
-    // app windows run the tab store that listens for "tabdrag:adopt", so
-    // sending to anything else drops the tab into a renderer that ignores it
-    // while the source still removes it -- the tab, its project and its live
-    // terminals simply vanish. windowBoxesFrontMostFirst already filters to app
-    // windows, so this is belt-and-braces for any future path that builds a
-    // merge target another way.
-    if (win && !win.isDestroyed() && isAppWindow(win.id)) {
-      win.webContents.send("tabdrag:adopt", payload);
-      win.focus();
-      return target;
-    }
-    // Target closed between the last hover and the release: fall through and
-    // detach instead of losing the tab.
+  if (action === "merge" && into) {
+    into.webContents.send("tabdrag:adopt", payload);
+    into.focus();
+    return target;
   }
   createWindowForAdopt(payload);
   return { kind: "detach" };

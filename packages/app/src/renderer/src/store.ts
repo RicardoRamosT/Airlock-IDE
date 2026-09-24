@@ -1582,12 +1582,15 @@ export const useApp = create<AppState>((set) => ({
   },
   // Hand a tab off to another window: serialize it, drop it from this window, and
   // record its ptys in movingPtyIds so the unmounting panes SKIP ptyKill (the
-  // whole point is that the session survives the move). Refuses the last tab --
-  // that window is already the project's own window.
+  // whole point is that the session survives the move).
+  //
+  // The window's LAST tab may leave too -- by MERGING into another window, which
+  // is how a torn-off window is put back. (Main refuses to DETACH a last tab, so
+  // a merge is the only way that case gets here.) ProjectTabs then closes the
+  // emptied window.
   detachTab: (tabId) => {
     let payload: MovingTab | null = null;
     set((s) => {
-      if (s.tabs.length <= 1) return {};
       const idx = s.tabs.findIndex((t) => t.id === tabId);
       if (idx === -1) return {};
       const built = buildMovingTab(s, tabId);
@@ -1610,6 +1613,26 @@ export const useApp = create<AppState>((set) => ({
         s.split && (s.split.a === tabId || s.split.b === tabId)
           ? null
           : s.split;
+      // Gave up the LAST tab. The window is about to close, but it must not sit
+      // tab-less even for that instant (activeTabId would dangle and the whole
+      // pane tree renders off it), so seed a fresh BLANK tab -- the same rule
+      // closeTab follows when the last tab is closed.
+      if (tabs.length === 0) {
+        const blankId = newTabId();
+        const blankState = freshProjectState(null);
+        return {
+          tabs: [{ id: blankId, root: null }],
+          tabState: { [blankId]: blankState },
+          tabTerminals: { [blankId]: emptyTabTerminals() },
+          tabGlow: {},
+          tabRenames: {},
+          activeTabId: blankId,
+          split: null,
+          movingPtyIds: [...s.movingPtyIds, ...moving],
+          ...mirrorOf(blankState),
+          modal: null,
+        };
+      }
       // Promote the tab-order NEIGHBOR (prev, then next) exactly as closeTab
       // does, so detaching the focused tab lands you next door rather than on
       // the strip's first tab (often the blank one).

@@ -51,3 +51,39 @@ export function sameTarget(a: DropTarget, b: DropTarget): boolean {
     ? a.windowId === b.windowId
     : true;
 }
+
+// What a release actually DOES with the tab, once the cursor's target is known.
+//
+// `canDetach` is false for the source window's LAST tab: that window is already
+// this project's own window, so handing the tab to a NEW one would swap one
+// window for another and leave the source empty. It does NOT mean the tab is
+// stuck -- MERGING it is a real move, and the only way to put a torn-off window
+// back. Conflating the two is what made a torn-off window unmergeable: the drop
+// resolved a merge target, then moved nothing.
+//
+// `canAdopt` is false when the merge target died between the last hover and the
+// release (or was never an app window that listens for "tabdrag:adopt"). That
+// falls back to a new window rather than losing the tab -- unless the source
+// cannot spare it, in which case the tab simply stays put.
+export type DropAction = "none" | "merge" | "detach";
+
+export function dropAction(
+  target: DropTarget,
+  ctx: { hasPayload: boolean; canAdopt: boolean; canDetach: boolean },
+): DropAction {
+  if (!ctx.hasPayload || target.kind === "reorder") return "none";
+  if (target.kind === "merge" && ctx.canAdopt) return "merge";
+  return ctx.canDetach ? "detach" : "none";
+}
+
+// The target to ADVERTISE while the drag is in flight. The hint has to promise
+// only what the release will actually do, so a tab that cannot detach is never
+// offered a new window -- that is the same lie the unmergeable last tab told,
+// just on the other side of the rule. A merge is still offered: a last tab can
+// do that, and it is how a torn-off window is put back.
+export function hoverTarget(
+  target: DropTarget,
+  canDetach: boolean,
+): DropTarget {
+  return target.kind === "detach" && !canDetach ? { kind: "reorder" } : target;
+}

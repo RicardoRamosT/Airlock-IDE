@@ -1,6 +1,7 @@
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { MovingTab } from "../../../shared/ipc";
+import { anyAppPageOpen } from "../lib/appPages";
 import { reorderNames } from "../lib/fileOrder";
 import { dropPlace, reconcileOrder, stripLiveKeys } from "../lib/stripOrder";
 import { buildMovingTab, isMovableKey } from "../lib/tabDrag";
@@ -342,6 +343,9 @@ export function ProjectTabs() {
         const dragged = tabs.find((t) => t.id === key);
         void window.airlock.tabDragStart?.(
           dragged ? displayLabel(dragged) : null,
+          // The LAST tab cannot open a new window, so the hints must not offer
+          // one -- it can still merge, which they do keep offering.
+          tabs.length > 1,
         );
       }
     },
@@ -359,17 +363,36 @@ export function ProjectTabs() {
       // follow-the-cursor "Release to open ..." label on every later mouse-exit
       // (and, on macOS, that label's window takes the whole dock tile away).
       //
-      // A pair/page-tab never moves, and a window's last tab is already its own
-      // window: null tells main to report the target and move nothing.
+      // A pair/page-tab never moves: null tells main to report the target and
+      // move nothing.
+      //
+      // A window's LAST tab DOES send its payload. It cannot detach -- that
+      // window is already this project's own window -- but it can MERGE into
+      // another window, which is the only way to put a torn-off window back.
+      // Withholding the payload here conflated the two, so the drop reported a
+      // merge target and then silently moved nothing while the target window had
+      // already offered to take the tab. `canDetach` is what tells them apart.
       const payload =
-        key !== null && isMovableKey(key) && s.tabs.length > 1
-          ? buildMovingTab(s, key)
-          : null;
+        key !== null && isMovableKey(key) ? buildMovingTab(s, key) : null;
+      const canDetach = s.tabs.length > 1;
       void window.airlock
-        .tabDragEnd?.(payload)
+        .tabDragEnd?.(payload, canDetach)
         .then((target) => {
-          if (key !== null && payload && target && target.kind !== "reorder")
-            useApp.getState().detachTab(key);
+          if (key === null || !payload || !target || target.kind === "reorder")
+            return;
+          // A window that just gave up its LAST tab, with no IDE page-tab left
+          // to hold it open, has nothing to show -- merging a torn-off window
+          // back has to consume the window, or the round trip only half works.
+          //
+          // Gated on the move having actually HAPPENED, not on the count alone:
+          // a tab can stop being ours between the release and main's reply
+          // (closed from a menu, say), and "one tab left" would then close a
+          // window still showing a live project.
+          const st = useApp.getState();
+          const wasLast = st.tabs.length === 1;
+          const moved = st.detachTab(key) !== null;
+          if (moved && wasLast && !anyAppPageOpen(useApp.getState()))
+            void window.airlock.windowClose?.();
         })
         .catch(() => {
           /* main unreachable -> keep the tab where it is */

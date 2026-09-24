@@ -3179,10 +3179,22 @@ export function registerIpc(
     "window:id",
     (e) => BrowserWindow.fromWebContents(e.sender)?.id ?? -1,
   );
-  ipcMain.handle("tabdrag:start", (e, label: unknown) => {
+  // Close the SENDER's own window -- never one named by the caller, so this can
+  // only ever close a window the user is already looking at. Sent when a merge
+  // takes a window's last tab away.
+  ipcMain.handle("window:close", (e) => {
+    BrowserWindow.fromWebContents(e.sender)?.close();
+  });
+  ipcMain.handle("tabdrag:start", (e, label: unknown, canDetach: unknown) => {
     const id = BrowserWindow.fromWebContents(e.sender)?.id;
     if (id !== undefined)
-      startTabDrag(id, typeof label === "string" ? label : null);
+      startTabDrag(
+        id,
+        typeof label === "string" ? label : null,
+        // Default TRUE only for a caller that sends nothing: a window's last tab
+        // says false explicitly.
+        canDetach !== false,
+      );
   });
   // A window created for a torn-off tab CLAIMS it once its renderer has mounted.
   // Pull, not push: did-finish-load fires before React's effects run, so a pushed
@@ -3191,15 +3203,21 @@ export function registerIpc(
     const id = BrowserWindow.fromWebContents(e.sender)?.id;
     return id === undefined ? null : takePendingAdopt(id);
   });
-  ipcMain.handle("tabdrag:end", (e, payload: unknown): DropTarget => {
-    const id = BrowserWindow.fromWebContents(e.sender)?.id;
-    if (id === undefined) return { kind: "reorder" };
-    return endTabDrag(
-      id,
-      (payload ?? null) as MovingTab | null,
-      movingSessions,
-    );
-  });
+  ipcMain.handle(
+    "tabdrag:end",
+    (e, payload: unknown, canDetach: unknown): DropTarget => {
+      const id = BrowserWindow.fromWebContents(e.sender)?.id;
+      if (id === undefined) return { kind: "reorder" };
+      return endTabDrag(
+        id,
+        (payload ?? null) as MovingTab | null,
+        movingSessions,
+        // Default TRUE only for a caller that sends nothing: a window's last tab
+        // says false explicitly.
+        canDetach !== false,
+      );
+    },
+  );
 
   // Whether a terminal's shell has a running child (e.g. a live `claude`).
   // Renderer->main UI ONLY (the open-folder helper consults it so a busy

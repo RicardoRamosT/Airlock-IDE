@@ -73,13 +73,31 @@ it("detachTab promotes a surviving tab when the detached one was focused", () =>
   expect(s.root).toBe("/a"); // mirrored to the promoted tab
 });
 
-it("detachTab refuses the window's last tab (already its own window)", () => {
+it("detachTab moves a window's LAST tab and leaves a fresh blank one", () => {
+  // The last tab CAN leave -- by merging into another window, which is how a
+  // torn-off window is put back. (Main refuses to DETACH it, so that is the only
+  // way this is reached.) The window is about to close, but it must not sit
+  // tab-less even for that instant: seed a blank, exactly as closeTab does.
   const s0 = useApp.getState();
   s0.openProject("/only");
   const only = useApp.getState().activeTabId;
   useApp.setState((st) => ({ tabs: st.tabs.filter((t) => t.id === only) }));
-  expect(useApp.getState().detachTab(only)).toBeNull();
-  expect(useApp.getState().tabs).toHaveLength(1);
+  expect(useApp.getState().detachTab(only)?.root).toBe("/only");
+  const s = useApp.getState();
+  expect(s.tabs).toHaveLength(1);
+  expect(s.tabs[0]?.root).toBeNull();
+  expect(s.tabs[0]?.id).not.toBe(only);
+  expect(s.activeTabId).toBe(s.tabs[0]?.id);
+  expect(s.root).toBeNull(); // mirrored to the blank tab
+});
+
+it("detachTab keeps the last tab's ptys alive across the move", () => {
+  const bId = seedTwo();
+  useApp.setState((st) => ({ tabs: st.tabs.filter((t) => t.id === bId) }));
+  useApp.getState().detachTab(bId);
+  // The pane's unmount consults this and SKIPS ptyKill -- a live `claude` has to
+  // survive being merged back just as it survives a tear-off.
+  expect(useApp.getState().movingPtyIds).toContain("pty-9");
 });
 
 it("detachTab dissolves a split it was a member of", () => {

@@ -1105,13 +1105,24 @@ export interface AirlockApi {
   // This window's BrowserWindow id, so the renderer can tell whether a hover
   // broadcast is about itself.
   windowId(): Promise<number>;
+  // Close THIS window. Used when a merge takes its last tab away and no IDE
+  // page-tab is left to keep it: putting a torn-off window back has to consume
+  // the window, or the round trip only half works.
+  windowClose(): Promise<void>;
   // Begin the drag: main starts tracking the cursor and broadcasting hovers.
   // `label` is the dragged tab's display name, echoed back in those hovers.
-  tabDragStart(label: string | null): Promise<void>;
+  // `canDetach` false (the window's LAST tab) keeps the hovers from offering a
+  // new window the release would not actually open.
+  tabDragStart(label: string | null, canDetach: boolean): Promise<void>;
   // Release: main resolves the final target, performs the move, and reports what
-  // it did. A null payload means "this tab cannot move" (pair / page-tab / last
-  // tab) -- main then only reports the target and moves nothing.
-  tabDragEnd(payload: MovingTab | null): Promise<DropTarget>;
+  // it did. A null payload means "this tab cannot move at all" (pair / page-tab).
+  // `canDetach` false means it is the window's LAST tab: it can still MERGE into
+  // another window (the way a torn-off window is put back), but opening yet
+  // another window for it would move nothing real.
+  tabDragEnd(
+    payload: MovingTab | null,
+    canDetach: boolean,
+  ): Promise<DropTarget>;
   // A window created for a torn-off tab claims it once mounted (pull, not push:
   // a push on load can arrive before the renderer subscribes and lose the tab).
   tabDragTakePending(): Promise<MovingTab | null>;

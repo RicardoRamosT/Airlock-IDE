@@ -216,8 +216,20 @@ another AirLock window to merge it in. **Running terminals move alive** — a li
   `ptyKill` for ids in `movingPtyIds` (otherwise tearing off would kill the very
   session being preserved) and **consumes** the marker via `forgetMovingPty`, or a
   later legitimate close of that pty would also skip its kill and orphan a shell.
-- Not movable: split pairs (one tab, two projects), the Settings/Usage page-tabs,
-  and a window's last tab (already its own window).
+- Not movable at all: split pairs (one tab, two projects) and the Settings/Usage
+  page-tabs — the renderer sends main a null payload for those.
+- **A window's LAST tab is a different case, and conflating the two was a bug.**
+  It cannot DETACH (its window is already that project's own window) but it can
+  MERGE, which is the only way to put a torn-off window back. The renderer used
+  to withhold its payload for both, so a torn-off window was unmergeable: the
+  target window painted "Drop to add X here" and the release moved nothing. The
+  two are now told apart by `canDetach` (false = last tab), which rides both
+  `tabdrag:start` and `tabdrag:end`; `dropAction` (pure, in `target.ts`) turns it
+  into none/merge/detach, and `hoverTarget` keeps the in-flight hint from
+  offering a new window the release would not open. A merge that empties its
+  window CLOSES it (`window:close`), gated on the move having actually happened —
+  never on "one tab left", since a tab can stop being the window's between the
+  release and main's reply. An open Settings/Usage page-tab keeps the window.
 - Session restore does NOT rebuild the window arrangement — `SessionSnapshot`
   holds roots only, with no window grouping.
 
