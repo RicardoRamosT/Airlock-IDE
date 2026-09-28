@@ -1,7 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Container } from "@airlock/agent-core";
 import { describe, expect, it } from "vitest";
 import type { ProcInfo } from "./detect";
-import { longRunningContainers, longRunningProcesses } from "./scan";
+import {
+  longRunningContainers,
+  longRunningProcesses,
+  type ScanProbes,
+  scanLocalApps,
+} from "./scan";
 
 const HOUR = 3600 * 1000;
 const NOW = 1_800_000_000_000;
@@ -74,11 +81,8 @@ describe("longRunningContainers", () => {
 describe("longRunningProcesses", () => {
   const roots = ["/p/ElArqui", "/p/app"];
   const ages = new Map<number, ProcInfo>([
-    [
-      36019,
-      { ppid: 1, startedAt: NOW - 134 * HOUR, command: "next-server (v16)" },
-    ],
-    [999, { ppid: 1, startedAt: NOW - 2 * HOUR, command: "vite" }],
+    [36019, { startedAt: NOW - 134 * HOUR, command: "next-server (v16)" }],
+    [999, { startedAt: NOW - 2 * HOUR, command: "vite" }],
   ]);
   const cwds = new Map<number, string>([
     [36019, "/p/ElArqui"],
@@ -140,7 +144,7 @@ describe("longRunningProcesses", () => {
     ).toEqual([]);
   });
 
-  it("ignores AirLock's own subtree", () => {
+  it("ignores AirLock's own processes", () => {
     // Run from source, AirLock's cwd IS a project root.
     expect(
       longRunningProcesses(
@@ -189,5 +193,105 @@ describe("longRunningProcesses", () => {
     );
     expect(got).toHaveLength(1);
     expect(got[0]?.appId).toBe("3005"); // the lowest, the one a human knows
+  });
+
+  it("reports a socket shared by a supervisor and its worker ONCE, as the supervisor", () => {
+    // uvicorn --reload, observed 2026-09-28: the reloader binds :8000 and its
+    // worker inherits the SAME socket, so lsof lists the port under both pids.
+    // The card belongs to the reloader -- SIGTERM to it takes the worker down,
+    // while SIGTERM to the worker leaves the reloader holding the port. The
+    // supervisor is always the OLDER of the two: a parent starts before its
+    // child.
+    const got = longRunningProcesses(
+      [
+        { pid: 27003, port: 8000 }, // the worker, listed first
+        { pid: 40248, port: 8000 }, // the reloader
+      ],
+      new Map([
+        [27003, "/p/app/server_py"],
+        [40248, "/p/app/server_py"],
+      ]),
+      new Map<number, ProcInfo>([
+        [
+          27003,
+          { startedAt: NOW - 96 * HOUR, command: "Python -c spawn_main" },
+        ],
+        [40248, { startedAt: NOW - 109 * HOUR, command: "Python uvicorn" }],
+      ]),
+      roots,
+      NOW,
+      24,
+      none,
+      noManaged,
+    );
+    expect(got).toHaveLength(1);
+    expect(got[0]).toMatchObject({ pid: 40248, detail: "Python uvicorn" });
+  });
+});
+
+describe("scanLocalApps", () => {
+  // The real shape, observed 2026-09-28: every dev server on the machine had
+  // been started by Claude from an AirLock terminal, so each one DESCENDS from
+  // AirLock --
+  //   AirLock -> zsh (the terminal) -> claude -> zsh -c -> npm run dev -> vite
+  // Three of them had been up 1.5 to 4.5 days and the bell said nothing.
+  const AIRLOCK = 74099;
+  const ages = new Map<number, ProcInfo>([
+    [AIRLOCK, { startedAt: NOW - 121 * HOUR, command: "AirLock" }],
+    [36884, { startedAt: NOW - 108 * HOUR, command: "zsh" }], // the terminal
+    [37167, { startedAt: NOW - 108 * HOUR, command: "claude" }],
+    [40172, { startedAt: NOW - 108 * HOUR, command: "npm run dev" }],
+    [40232, { startedAt: NOW - 108 * HOUR, command: "vite" }],
+  ]);
+  const probes: ScanProbes = {
+    processAges: () => ages,
+    listeningPorts: () => [
+      { pid: AIRLOCK, port: 4319 }, // its own MCP server
+      { pid: 40232, port: 5100 },
+    ],
+    cwdsForPids: (pids) =>
+      new Map(
+        pids.flatMap((p): [number, string][] =>
+          p === AIRLOCK
+            ? [[p, "/p/airlock"]] // run from source, AirLock's cwd IS a root
+            : p === 40232
+              ? [[p, "/p/LendLogic"]]
+              : [],
+        ),
+      ),
+    containers: async () => ({
+      installed: false,
+      running: false,
+      containers: [],
+    }),
+    containerStartedAt: async () => new Map(),
+  };
+  const deps = {
+    roots: () => ["/p/airlock", "/p/LendLogic"],
+    managedPorts: () => new Set<number>(),
+    now: () => NOW,
+    ownPids: () => new Set([AIRLOCK]),
+  };
+
+  it("reports a server started from an AirLock terminal", async () => {
+    const got = await scanLocalApps(deps, 24, probes);
+    expect(got.map((a) => a.name)).toContain("LendLogic on :5100");
+  });
+
+  it("never reports AirLock itself", async () => {
+    const got = await scanLocalApps(deps, 24, probes);
+    expect(got.map((a) => a.name)).not.toContain("airlock on :4319");
+  });
+});
+
+describe("AirLock's own pids are actually wired", () => {
+  // The compiler forces an `ownPids` dependency but not what it returns: a
+  // subtree walk from process.pid would type-check perfectly and hide every
+  // server started from an AirLock terminal again.
+  const poll = readFileSync(join(__dirname, "index.ts"), "utf8");
+
+  it("comes from Electron's own process set, not a walk of its descendants", () => {
+    expect(poll).toContain("app.getAppMetrics()");
+    expect(poll).not.toMatch(/subtree(Of|Pids)\(/);
   });
 });

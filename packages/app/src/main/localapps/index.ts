@@ -3,6 +3,7 @@
 // ASCII-only comments and string literals (CJS-bundled into Electron main).
 
 import { dockerStop } from "@airlock/agent-core";
+import { app } from "electron";
 import { appIdentity } from "../../shared/agentRequests";
 import {
   forgetLongRunningNotice,
@@ -74,7 +75,8 @@ export async function pollLocalApps(): Promise<void> {
         roots: () => [...known],
         managedPorts: deps.managedPorts,
         now: () => Date.now(),
-        selfPid: () => process.pid,
+        // Electron's own process set, never a subtree walk: see ScanDeps.
+        ownPids: () => new Set(app.getAppMetrics().map((m) => m.pid)),
       },
       cfg.thresholdHours,
     );

@@ -23,7 +23,6 @@ import path from "node:path";
 const PROBE_TIMEOUT_MS = 5000;
 
 export interface ProcInfo {
-  ppid: number;
   startedAt: number; // epoch ms
   command: string;
 }
@@ -48,52 +47,28 @@ export function parseElapsed(s: string): number | null {
 }
 
 /**
- * Parse `ps -Ao pid=,ppid=,etime=,command=` into pid -> info.
+ * Parse `ps -Ao pid=,etime=,command=` into pid -> info.
  *
  * `startedAt` is derived from `now` minus the elapsed time, so callers compare
  * absolute instants and the value stays stable across polls.
  *
- * ppid is carried so AirLock can exclude ITS OWN subtree: run from source, the
- * dev instance's working directory IS a project root, so without this AirLock
- * would report itself as a long-running app in its own repo.
+ * There is deliberately no ppid. It was carried to exclude AirLock's own
+ * process SUBTREE, and that rule hid every server started from an AirLock
+ * terminal -- see `ownPids` in scan.ts.
  */
 export function parsePsAges(out: string, now: number): Map<number, ProcInfo> {
   const res = new Map<number, ProcInfo>();
   for (const line of out.split(/\r?\n/)) {
-    const m = /^\s*(\d+)\s+(\d+)\s+(\S+)\s*(.*)$/.exec(line);
-    if (!m?.[1] || !m[2] || !m[3]) continue;
-    const secs = parseElapsed(m[3]);
+    const m = /^\s*(\d+)\s+(\S+)\s*(.*)$/.exec(line);
+    if (!m?.[1] || !m[2]) continue;
+    const secs = parseElapsed(m[2]);
     if (secs === null) continue;
     res.set(Number(m[1]), {
-      ppid: Number(m[2]),
       startedAt: now - secs * 1000,
-      command: (m[4] ?? "").trim(),
+      command: (m[3] ?? "").trim(),
     });
   }
   return res;
-}
-
-/**
- * Every pid at or under `rootPid`, walking the ppid links.
- *
- * Iterates to a fixed point rather than recursing, so a cycle in a malformed
- * table cannot hang the main process.
- */
-export function subtreeOf(
-  table: Map<number, ProcInfo>,
-  rootPid: number,
-): Set<number> {
-  const out = new Set<number>([rootPid]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const [pid, info] of table)
-      if (!out.has(pid) && out.has(info.ppid)) {
-        out.add(pid);
-        grew = true;
-      }
-  }
-  return out;
 }
 
 /**
@@ -182,6 +157,6 @@ export function cwdsForPids(pids: number[]): Map<number, string> {
 }
 
 export function processAges(now: number): Map<number, ProcInfo> {
-  const out = run("ps", ["-Ao", "pid=,ppid=,etime=,command="]);
+  const out = run("ps", ["-Ao", "pid=,etime=,command="]);
   return out === null ? new Map() : parsePsAges(out, now);
 }

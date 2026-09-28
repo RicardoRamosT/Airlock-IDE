@@ -682,8 +682,22 @@ so. AirLock now reports anything over `longRunningApps.thresholdHours`
   inside a project root (`attributeToRoot`, longest match, segment-wise so
   `/p/app-old` is never claimed by `/p/app`). That also attributes it for free
   and means unrelated software never qualifies. AirLock excludes **its own
-  process subtree** -- run from source its cwd IS a project root, so without
-  that it reports itself.
+  processes** (`app.getAppMetrics()`) -- run from source its cwd IS a project
+  root, so without that it reports itself.
+- **Exclude AirLock's PROCESSES, never its SUBTREE.** It was the subtree, and
+  every terminal is in it: a server started from an AirLock terminal -- by you,
+  or by Claude's Bash tool, i.e. nearly every dev server here -- was never
+  reported, and a managed server (spawned into a pty AirLock owns) never could
+  be. Only a server that had detached to ppid 1 was visible, which is why the
+  ElArqui case that motivated the feature passed. Found 2026-09-28 with three
+  servers up 1.5-4.5 days and a silent bell, each `AirLock -> zsh -> claude ->
+  npm -> vite`. `scan.test.ts` asserts the wiring, since a subtree walk
+  handed to `ownPids` would type-check perfectly.
+- **One card per SOCKET, not per pid listing it.** A supervisor that binds then
+  forks (uvicorn `--reload`, gunicorn) shares the socket with its worker, so
+  lsof lists the port under both. The OLDEST owns it -- a parent starts before
+  its child -- and it is the right one to stop: SIGTERM to the reloader takes
+  the worker down, SIGTERM to the worker leaves the reloader holding the port.
 - **The root set is EVERY project AirLock knows** (`mergeProjectRoots`: open
   tabs + the whole Atlas registry + `recentFolders`), injected as the
   `knownRoots` dep. It was `allOpenRoots()` alone, which made `attributeToRoot`
