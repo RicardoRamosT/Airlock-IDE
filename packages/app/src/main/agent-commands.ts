@@ -46,7 +46,13 @@ export function runAgentCommand(
   // per-project MCP token); Atlas has none and stays portfolio-wide. The
   // renderer resolves the target tab from this, NOT from what is focused --
   // see shared/ideScope.ts.
-  callerRoot: string | null = null,
+  //
+  // REQUIRED, with no default. It defaulted to null, and null means "Atlas:
+  // act on the focused tab" -- so the dev-server manager, which never passed
+  // it, silently got Atlas's behaviour. A project's start_dev_server ran in
+  // whichever project was on screen (observed 2026-09-28). Only the compiler
+  // reliably enumerates call sites, and only if there is no default.
+  callerRoot: string | null,
 ): Promise<AgentCommandResult> {
   const win = lastFocusedWindow();
   // command type is the safe identifier: never carries secret values

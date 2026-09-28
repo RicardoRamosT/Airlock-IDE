@@ -76,7 +76,10 @@ export type {
 } from "./agentRequests";
 export type DevServerStartResult =
   | { ok: true; state: DevServerState }
-  | { ok: false; needsCommand: true; guess: string | null };
+  | { ok: false; needsCommand: true; guess: string | null }
+  // The renderer could not start it -- no tab for this project in that window.
+  // Distinct from needsCommand, which is a question for the user, not a failure.
+  | { ok: false; error: string };
 
 // A detected unmanaged (user-run) dev server: a LISTEN port owned by a process
 // in one of THIS project's terminals. Plain interface — no agent-core import.

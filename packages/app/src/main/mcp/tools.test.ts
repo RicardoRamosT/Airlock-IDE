@@ -864,3 +864,39 @@ describe("capture_secret tool", () => {
     expect(JSON.parse(res.content[0].text)).toEqual(engineResult);
   });
 });
+
+describe("start_dev_server reports what actually happened", () => {
+  function startTool(result: DevServerStartResult) {
+    const { mcp, tools } = fakeServer();
+    registerTools(mcp, {
+      ...baseDeps,
+      getWorkspaceRoot: () => "/p/Trackview",
+      startDevServer: vi.fn(async () => result),
+    });
+    const tool = tools.find((t) => t.name === "start_dev_server");
+    if (!tool) throw new Error("start_dev_server not registered");
+    return tool;
+  }
+
+  it("surfaces a start that could not happen as an ERROR, not a status", async () => {
+    // Returned as data, an idle state reads as "started, not up yet", and the
+    // agent is left guessing -- on 2026-09-28 it guessed wrong and told the
+    // user nothing had launched anywhere.
+    const tool = startTool({
+      ok: false,
+      error: "This project has no tab open in the focused window.",
+    });
+    const res = (await tool.handler({})) as {
+      isError?: boolean;
+      content: { text: string }[];
+    };
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toMatch(/no tab open/);
+  });
+
+  it("still returns needsCommand as data the agent acts on", async () => {
+    const tool = startTool({ ok: false, needsCommand: true, guess: null });
+    const res = (await tool.handler({})) as { isError?: boolean };
+    expect(res.isError).toBeUndefined();
+  });
+});

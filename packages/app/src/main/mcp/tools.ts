@@ -1141,12 +1141,15 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "start_dev_server",
     {
       description:
-        "Start this project's local dev server. ALWAYS use this to run, boot, or \"turn on\" the app locally. Do NOT run `npm run dev` (or the dev command) yourself in a terminal, and do NOT detach/background it to keep it alive: this tool runs the command in a SEPARATE AirLock-owned terminal that already survives across turns (it is NOT a background task the environment will SIGTERM) and that the IDE shows and manages (status, Stop/Restart). A server you start by hand is invisible and unmanaged here, and a detached one cannot be detected at all. If a dev server is ALREADY running but was not started through this tool, offer to stop it and start it here so the IDE can manage it. Starts the project's dev command — the one configured in Host, or otherwise the command resolved from the project's own package.json (e.g. `npm run dev`); returns status metadata (status/url/port) — never a secret value. It returns needsCommand ONLY when no command can be resolved (no package.json, or no dev/start script); only then, ask the user to set the dev command in the Host section (do not fall back to a raw shell command).",
+        "Start this project's local dev server. ALWAYS use this to run, boot, or \"turn on\" the app locally. Do NOT run `npm run dev` (or the dev command) yourself in a terminal, and do NOT detach/background it to keep it alive: this tool runs the command in a SEPARATE AirLock-owned terminal that already survives across turns (it is NOT a background task the environment will SIGTERM) and that the IDE shows and manages (status, Stop/Restart). A server you start by hand is invisible and unmanaged here, and a detached one cannot be detected at all. If a dev server is ALREADY running but was not started through this tool, offer to stop it and start it here so the IDE can manage it. It always starts in THIS project's own tab, whichever tab is focused, and never switches the screen to it; if this project has no tab open in the focused window it returns an error saying so. Starts the project's dev command — the one configured in Host, or otherwise the command resolved from the project's own package.json (e.g. `npm run dev`); returns status metadata (status/url/port) — never a secret value. It returns needsCommand ONLY when no command can be resolved (no package.json, or no dev/start script); only then, ask the user to set the dev command in the Host section (do not fall back to a raw shell command).",
     },
     async () => {
       const root = deps.getWorkspaceRoot();
       if (!root) return err(NO_WORKSPACE);
       const r = await deps.startDevServer(root, "agent");
+      // A start that could not happen is an ERROR. Returned as data, an idle
+      // state reads as "started, not up yet".
+      if (!r.ok && "error" in r) return err(r.error);
       return ok(r);
     },
   );
@@ -1155,7 +1158,7 @@ export function registerTools(mcp: McpServer, deps: ToolDeps): void {
     "stop_dev_server",
     {
       description:
-        "Stop the focused project's managed dev server. Returns dev-server status. No secret values.",
+        "Stop THIS project's managed dev server (the project this session belongs to, whichever tab is focused). Returns dev-server status. No secret values.",
     },
     async () => {
       const root = deps.getWorkspaceRoot();

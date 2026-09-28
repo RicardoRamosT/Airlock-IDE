@@ -23,7 +23,15 @@ import { listeningPorts, processTable, subtreePids } from "./discover";
 export interface ManagerDeps {
   broadcast: (root: string, state: DevServerState) => void;
   writeInput: (ptyId: string, data: string) => boolean;
-  runStart: (command: string, startedBy: "user" | "agent") => Promise<void>;
+  // Start `command` in ROOT's own tab. The root is forwarded to the renderer
+  // as the command's caller; without it the renderer used the FOCUSED tab, and
+  // one project's start ran in another project's terminal with that project's
+  // vaulted secrets injected.
+  runStart: (
+    root: string,
+    command: string,
+    startedBy: "user" | "agent",
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 // Real production deps (lazy-loaded to keep electron out of the module
@@ -42,8 +50,11 @@ function makeRealDeps(): ManagerDeps {
       }
     },
     writeInput: writeTerminalInput,
-    async runStart(command, startedBy) {
-      await runAgentCommand({ type: "start_dev_server", command, startedBy });
+    runStart(root, command, startedBy) {
+      return runAgentCommand(
+        { type: "start_dev_server", command, startedBy },
+        root,
+      );
     },
   };
 }
@@ -248,16 +259,24 @@ export async function startDevServer(
     // (NOT persisted). The user/UI path is unchanged: return the guess for the
     // confirm-once prompt (which persists it via setDevServerCommand).
     const guess = await resolveCommand(root);
-    if (startedBy === "agent" && guess) {
-      await getDeps().runStart(guess, "agent");
-      return { ok: true, state: get(root) };
-    }
+    if (startedBy === "agent" && guess) return launch(root, guess, "agent");
     return { ok: false, needsCommand: true, guess };
   }
-  // Ask the renderer to open a dev terminal + run the command; it calls
-  // registerDevServer once the pty adopts (so state is 'starting' by return).
-  await getDeps().runStart(command, startedBy);
-  return { ok: true, state: get(root) };
+  return launch(root, command, startedBy);
+}
+
+// Ask the renderer to open a dev terminal in ROOT's tab + run the command; it
+// calls registerDevServer once the pty adopts (so state is 'starting' by
+// return). A start it could not perform is REPORTED: this used to return ok
+// with an idle state regardless, and the agent was left to guess why nothing
+// was running.
+async function launch(
+  root: string,
+  command: string,
+  startedBy: "user" | "agent",
+): Promise<DevServerStartResult> {
+  const r = await getDeps().runStart(root, command, startedBy);
+  return r.ok ? { ok: true, state: get(root) } : { ok: false, error: r.error };
 }
 
 // Persist a chosen/confirmed command, then start (the UI confirm path).

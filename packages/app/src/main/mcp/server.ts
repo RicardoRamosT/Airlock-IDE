@@ -109,8 +109,13 @@ export interface McpDeps {
   getUsageLedger: () => SessionUsage[];
   // Drive the focused window's tab/split/terminal/page-tab layout for the
   // IDE-control tools. Resolves layout metadata (or an error result) -- never a
-  // secret value.
-  runAgentCommand: (cmd: AgentCommand) => Promise<AgentCommandResult>;
+  // secret value. callerRoot is in the TYPE, not only passed at runtime: this
+  // declared one argument while tools.ts called it with two, which type-checks,
+  // and told anyone implementing it that dropping the caller was fine.
+  runAgentCommand: (
+    cmd: AgentCommand,
+    callerRoot: string | null,
+  ) => Promise<AgentCommandResult>;
   // Managed dev-server deps for start_dev_server/stop_dev_server: status
   // metadata only (status/url/port/terminalId/command/startedBy/exitCode) --
   // never a secret value. startDevServer takes no arbitrary command; it runs

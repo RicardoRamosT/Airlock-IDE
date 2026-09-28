@@ -194,9 +194,11 @@ yet; the app-global tools (and the IDE-control tools) work regardless.
   start it here so the IDE can manage it. Returns status metadata (`status`, `url`, `port`) —
   never a secret value. If no command is configured, returns `needsCommand: true` with a
   `guess`; **ask the user to set the command in Host** rather than starting it with a raw
-  shell. Idempotent; workspace-rooted (needs an open folder).
+  shell. Idempotent; workspace-rooted (needs an open folder). It starts in **this** project's
+  own tab whichever tab is focused, and never switches the screen to it; if this project has no
+  tab open in the focused window it returns an **error** saying so (not an idle status).
 
-- **`stop_dev_server`** — stop the focused project's managed dev server (sends Ctrl-C to
+- **`stop_dev_server`** — stop **this** project's managed dev server (sends Ctrl-C to
   the foreground dev process; the terminal survives so logs are visible). Returns dev-server
   status metadata — no secret values. Workspace-rooted (needs an open folder).
 

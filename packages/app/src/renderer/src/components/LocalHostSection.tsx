@@ -198,6 +198,10 @@ export function LocalHostSection() {
     if (!root) return;
     const r: DevServerStartResult = await window.airlock.devServerStart(root);
     if (r.ok) return; // state arrives via onDevServerChanged
+    if ("error" in r) {
+      console.error("devServerStart failed", r.error);
+      return;
+    }
     setCmdDraft(r.guess ?? "");
     setCmdEditing(true);
   };

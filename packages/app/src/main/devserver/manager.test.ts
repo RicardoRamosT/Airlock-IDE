@@ -19,7 +19,16 @@ import {
 function makeFakeDeps() {
   const broadcasts: Array<{ root: string; state: DevServerState }> = [];
   const inputs: Array<{ ptyId: string; data: string }> = [];
-  const starts: Array<{ command: string; startedBy: "user" | "agent" }> = [];
+  const starts: Array<{
+    root: string;
+    command: string;
+    startedBy: "user" | "agent";
+  }> = [];
+  // What the renderer answers; a test flips it to model a start that could not
+  // happen (no tab for the project in that window).
+  const reply: { result: { ok: true } | { ok: false; error: string } } = {
+    result: { ok: true },
+  };
   _setDepsForTest({
     broadcast(root, state) {
       broadcasts.push({ root, state });
@@ -28,11 +37,12 @@ function makeFakeDeps() {
       inputs.push({ ptyId, data });
       return true;
     },
-    async runStart(command, startedBy) {
-      starts.push({ command, startedBy });
+    async runStart(root, command, startedBy) {
+      starts.push({ root, command, startedBy });
+      return reply.result;
     },
   });
-  return { broadcasts, inputs, starts };
+  return { broadcasts, inputs, starts, reply };
 }
 
 const ROOT = "/fake/project";
@@ -161,7 +171,7 @@ describe("startDevServer command resolution", () => {
     const r = await startDevServer(dir, "agent");
     expect(r.ok).toBe(true);
     expect(deps.starts).toEqual([
-      { command: "npm run dev", startedBy: "agent" },
+      { root: dir, command: "npm run dev", startedBy: "agent" },
     ]);
     // Ephemeral: the agent guess is NOT persisted to project config.
     expect(existsSync(path.join(dir, ".airlock", "config.json"))).toBe(false);
@@ -172,6 +182,29 @@ describe("startDevServer command resolution", () => {
     const r = await startDevServer(dir, "agent");
     expect(r).toEqual({ ok: false, needsCommand: true, guess: null });
     expect(deps.starts).toEqual([]);
+  });
+
+  it("tells the renderer WHICH project to start in", async () => {
+    // The root was resolved from the caller's MCP token and then dropped here,
+    // so the renderer started the dev server in whatever tab was focused.
+    await writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ scripts: { dev: "vite" } }),
+    );
+    await startDevServer(dir, "agent");
+    expect(deps.starts.map((st) => st.root)).toEqual([dir]);
+  });
+
+  it("reports a start the renderer could not perform, instead of ok", async () => {
+    // It used to return { ok: true } with an idle state regardless, so the
+    // agent could only guess why nothing was running.
+    await writeFile(
+      path.join(dir, "package.json"),
+      JSON.stringify({ scripts: { dev: "vite" } }),
+    );
+    deps.reply.result = { ok: false, error: "No tab for this project" };
+    const r = await startDevServer(dir, "agent");
+    expect(r).toEqual({ ok: false, error: "No tab for this project" });
   });
 
   it("user start with no configured command returns needsCommand + guess (no auto-run)", async () => {

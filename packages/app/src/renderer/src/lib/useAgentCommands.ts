@@ -59,7 +59,9 @@ function buildSnapshot(): TabsSnapshot {
 // Perform one IDE-control command against the store. open_tab is async (it opens
 // the folder main-side first via workspaceOpen, so main's root + recents + the
 // MCP registration follow), so this is async and the caller replies after it.
-async function applyCommand(
+// Exported for its own test: which tab a command lands in is an isolation
+// boundary, and the hook around this only relays the reply.
+export async function applyCommand(
   cmd: AgentCommand,
   callerRoot: string | null,
 ): Promise<ConnectStarted | null> {
@@ -140,7 +142,14 @@ async function applyCommand(
       s.closeAppPage(cmd.page);
       break;
     case "start_dev_server":
-      await startManagedDevTerminal(cmd.command, cmd.startedBy);
+      // Scoped like open_terminal: the CALLER's project tab, never whichever
+      // is focused. It skipped this, and a project's agent started its server
+      // in the project the user was working in.
+      await startManagedDevTerminal(
+        target(undefined).tabId,
+        cmd.command,
+        cmd.startedBy,
+      );
       break;
     case "connect_extension":
       return connectExtension(cmd.id);
