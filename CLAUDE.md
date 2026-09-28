@@ -541,6 +541,19 @@ worked).
   CONTINUATION of the previous value. Splitting naively swallowed the project
   labels that follow it.
 
+**An agent ACTION must land in the CALLER's project, never the focused one.**
+Every IDE-control command goes through `runAgentCommand(cmd, callerRoot)`, and
+the renderer picks its tab with `resolveCommandTab` (`shared/ideScope.ts`): a
+project's Claude acts only on its own tab and never takes the screen; `null` is
+Atlas, portfolio-wide by design. `callerRoot` is REQUIRED because it used to
+default to `null`, so the dev-server manager, which never passed it, silently got
+Atlas's scope -- Trackview's `start_dev_server` ran lendlogic-baapp's dev stack in
+a lendlogic-baapp terminal, with that project's secrets injected (2026-09-28).
+`open_terminal` had been moved onto the boundary on 2026-09-14; `start_dev_server`
+was missed because nothing enumerated it. A command that acts on a project goes
+through `target()` in `useAgentCommands.ts`, and a start it cannot perform is an
+ERROR, not an idle status.
+
 **Atlas's outbound words are SIGNED, and main signs them** (`main/agentAuthor.ts`).
 Atlas can type into a terminal where a Claude session is running, it writes in the
 user's imperative register, and what arrives there is indistinguishable from the
