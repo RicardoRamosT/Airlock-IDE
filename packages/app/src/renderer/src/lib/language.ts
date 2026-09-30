@@ -3,10 +3,11 @@ import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { yaml } from "@codemirror/lang-yaml";
 import type { LanguageSupport } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 
-export type LanguageKey = "js" | "json" | "md" | "css" | "html";
+export type LanguageKey = "js" | "json" | "md" | "css" | "html" | "yaml";
 
 const BY_EXT: Record<string, LanguageKey> = {
   js: "js",
@@ -21,6 +22,8 @@ const BY_EXT: Record<string, LanguageKey> = {
   css: "css",
   html: "html",
   htm: "html",
+  yml: "yaml",
+  yaml: "yaml",
 };
 
 export function languageKeyForPath(path: string): LanguageKey | null {
@@ -37,6 +40,7 @@ const LANGUAGES: Record<LanguageKey, () => LanguageSupport> = {
   md: () => markdown(),
   css: () => css(),
   html: () => html(),
+  yaml: () => yaml(),
 };
 
 // The language itself, for callers that need its parser rather than an editor

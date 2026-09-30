@@ -23,6 +23,18 @@ describe("highlightSpans", () => {
       expect(highlightSpans("let a = 1", lang)).not.toBeNull();
   });
 
+  it("colours a YAML key differently from its value", () => {
+    const spans = highlightSpans(
+      "services:\n  db:\n    image: postgres:16\n",
+      "yaml",
+    );
+    const key = spans?.find((s) => s.text === "image");
+    const value = spans?.find((s) => s.text.includes("postgres"));
+    expect(key?.cls).toBeTruthy();
+    expect(key?.cls).not.toBe(value?.cls ?? "");
+    expect(highlightSpans("a: 1", "yml")).not.toBeNull();
+  });
+
   it("returns null for a language it has no grammar for, so the fence renders plain", () => {
     expect(highlightSpans("echo hi", "bash")).toBeNull();
     expect(highlightSpans("echo hi", null)).toBeNull();

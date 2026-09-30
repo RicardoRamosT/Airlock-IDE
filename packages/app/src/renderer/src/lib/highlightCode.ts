@@ -28,6 +28,8 @@ const FENCE_LANGS: Record<string, LanguageKey> = {
   htm: "html",
   md: "md",
   markdown: "md",
+  yaml: "yaml",
+  yml: "yaml",
 };
 
 export interface CodeSpan {
