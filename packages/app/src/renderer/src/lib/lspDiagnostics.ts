@@ -2,14 +2,14 @@ import type { Diagnostic } from "@codemirror/lint";
 import type { LspDiagnostic } from "../../../shared/ipc";
 
 // Start offset of each line (split on \n).
-function lineStartsOf(text: string): number[] {
+export function lineStartsOf(text: string): number[] {
   const starts = [0];
   for (let i = 0; i < text.length; i++)
     if (text[i] === "\n") starts.push(i + 1);
   return starts;
 }
 
-function offsetAt(
+export function offsetAt(
   starts: number[],
   textLen: number,
   line: number,
