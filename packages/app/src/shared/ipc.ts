@@ -158,6 +158,39 @@ export interface LspDiagnostic {
   message: string;
 }
 
+// ESLint in the editor. A message is ESLint's own shape (1-based line/column,
+// fix as a character-range edit of the linted text), passed through untouched
+// from the project's ESLint by resources/eslint-worker.mjs.
+export interface EslintLintMessage {
+  line: number;
+  column: number;
+  endLine?: number;
+  endColumn?: number;
+  severity: 1 | 2; // ESLint: 1 warn, 2 error
+  ruleId: string | null;
+  message: string;
+  fix?: { range: [number, number]; text: string };
+}
+
+// none: no config governs the file (or it is not JS/TS) -- show nothing.
+// untrusted: a config exists and ESLint is installed, the user has not allowed
+//   it to run. missing-eslint: a config exists but ESLint is not installed.
+export type EslintState = "none" | "untrusted" | "trusted" | "missing-eslint";
+export interface EslintStatus {
+  state: EslintState;
+  /** Root-relative dir of the governing config ("" = root), or null. */
+  unit: string | null;
+}
+
+// Every result echoes the doc version it linted, so a result that returns
+// after further typing is discarded rather than painted on shifted text.
+export type EslintLintResult =
+  | { version: number; messages: EslintLintMessage[] }
+  | { version: number; configError: string }
+  | { version: number; untrusted: true }
+  // A newer lint of the same file replaced this one: render nothing.
+  | { version: number; superseded: true };
+
 export interface LspCompletionItem {
   label: string;
   kind?: number; // LSP CompletionItemKind

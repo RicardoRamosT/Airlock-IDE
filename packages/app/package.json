@@ -72,6 +72,10 @@
         "to": "statusline-emit.sh"
       },
       {
+        "from": "resources/eslint-worker.mjs",
+        "to": "eslint-worker.mjs"
+      },
+      {
         "from": "resources/claude-skills",
         "to": "claude-skills"
       },
@@ -139,6 +143,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.16",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.5"
   }
 }
