@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -157,4 +158,57 @@ it("never runs a config other than its own unit's, even under file-based lookup"
     ESLINT_FLAGS: "v10_config_lookup_from_file",
   });
   expect(existsSync(marker)).toBe(false);
+}, 30000);
+
+// A long-lived worker answering several requests, like the pool uses it.
+function session(unit: string) {
+  const proc = spawn(process.execPath, [WORKER], { cwd: unit, stdio: "pipe" });
+  const feed = splitLines();
+  const waiting = new Map<number, (r: WorkerResponse) => void>();
+  proc.stdout.setEncoding("utf8");
+  proc.stdout.on("data", (chunk: string) => {
+    for (const line of feed(chunk)) {
+      const r = JSON.parse(line) as WorkerResponse;
+      waiting.get(r.id)?.(r);
+    }
+  });
+  let id = 0;
+  return {
+    lint(file: string, text: string): Promise<WorkerResponse> {
+      const n = ++id;
+      return new Promise((resolve) => {
+        waiting.set(n, resolve);
+        proc.stdin.write(
+          `${JSON.stringify({ id: n, op: "lint", filePath: path.join(unit, file), text })}\n`,
+        );
+      });
+    },
+    close: () => proc.kill(),
+  };
+}
+
+// Final review #3: ESLint caches the loaded config per engine, so a warm worker
+// kept linting with the OLD rules after the user edited eslint.config.* --
+// indefinitely, since an actively used worker never idles out.
+it("picks up an edited config without a restart", async () => {
+  const dir = project({
+    "eslint.config.mjs": "export default [{ rules: {} }];\n",
+  });
+  const s = session(dir);
+  try {
+    const before = await s.lint("a.js", "var x = 1;\nconsole.log(x);\n");
+    expect(before).toMatchObject({ messages: [] });
+    writeFileSync(
+      path.join(dir, "eslint.config.mjs"),
+      `export default [{ rules: { "no-var": "error" } }];\n`,
+    );
+    // Guarantee a visible mtime change even on coarse-grained filesystems.
+    const later = new Date(Date.now() + 5000);
+    utimesSync(path.join(dir, "eslint.config.mjs"), later, later);
+    const after = await s.lint("a.js", "var x = 1;\nconsole.log(x);\n");
+    if (!("messages" in after)) throw new Error(JSON.stringify(after));
+    expect(after.messages.map((m) => m.ruleId)).toContain("no-var");
+  } finally {
+    s.close();
+  }
 }, 30000);

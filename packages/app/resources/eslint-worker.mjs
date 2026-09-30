@@ -10,7 +10,7 @@
 // protocol.ts). Request {id, op:"lint", filePath, text}; response
 // {id, messages} or {id, configError}. Messages are passed through in ESLint's
 // own shape (1-based line/column; fix = a character-range edit).
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -49,7 +49,27 @@ function unitConfig() {
   return null;
 }
 
+// ESLint caches the loaded config per engine, so a warm engine would keep the
+// OLD rules after the user edits eslint.config.* -- indefinitely, since a
+// worker in active use never idles out. Key the engine on the config's path
+// and mtime and rebuild when either moves.
+let engineKey = null;
+function configKey() {
+  const p = unitConfig();
+  if (!p) return null;
+  try {
+    return `${p}:${statSync(p).mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
 function eslint() {
+  const key = configKey();
+  if (key !== engineKey) {
+    engine = undefined;
+    engineKey = key;
+  }
   // A path, not a file: createRequire only needs a location to walk up from, so
   // a unit without its own package.json still finds a hoisted install -- the
   // same upward walk main's pre-trust "is ESLint installed" stat check does.
@@ -59,7 +79,8 @@ function eslint() {
     const ESLint = mod.ESLint ?? mod.default?.ESLint;
     if (!ESLint) throw new Error("This ESLint has no ESLint class (too old?)");
     const overrideConfigFile = unitConfig();
-    if (!overrideConfigFile) throw new Error("This folder has no ESLint config");
+    if (!overrideConfigFile)
+      throw new Error("This folder has no ESLint config");
     return new ESLint({ cwd: unit, overrideConfigFile });
   })();
   return engine;
