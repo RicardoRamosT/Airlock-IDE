@@ -670,6 +670,13 @@ alike would either strand a useful action or offer a button that does nothing.
 - **Requests coalesce** by (root, name) for secrets, so two sessions asking for
   the same secret share one card and both resolve. Grants are keyed by ptyId and
   never coalesce.
+- **Vaulting for an agent NEVER restarts a terminal.** `useVaultSecret().save`
+  takes a REQUIRED `restartTerminal`: `SecretModal` (you clicked Add) passes
+  `true`, the agent card `false`. With injection on, the shared save used to
+  replace the ACTIVE terminal — which is nearly always the one running the Claude
+  that asked, so answering `request_secret` killed that session and its
+  subagents mid-turn (2026-09-30). The agent gains nothing from a restart: it
+  reads vaulted values at call time via `run_command(injectSecrets)`.
 - `window.ts` **lazy-requires** `agent-requests` because `agent-requests` imports
   `windowForRoot` from it; a top-level import would be a cycle.
 - Untrusted payloads are normalised in `useAgentRequests` — the stack renders

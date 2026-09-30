@@ -9,6 +9,15 @@ import { restartActiveTerminal } from "./restartActiveTerminal";
 //
 // The VALUE goes user -> keychain via secretsSet and never anywhere else; this
 // hook returns only an outcome.
+//
+// Replacing the active terminal is the ONE thing the surfaces must NOT share, so
+// every caller states it (required, not defaulted -- a default is an input
+// nothing forces you to wire). A user who clicked Add secret is standing at a
+// shell they want re-spawned with the new env. An AGENT that asked for a secret
+// is almost always running IN the active terminal: replacing it killed the
+// claude session and its subagents mid-turn (2026-09-30), and bought the agent
+// nothing, because it reads vaulted values at call time via
+// run_command(injectSecrets).
 
 export interface VaultSaveResult {
   ok: boolean;
@@ -17,8 +26,18 @@ export interface VaultSaveResult {
   error?: string;
 }
 
+export interface VaultSaveOptions {
+  /** Replace the active terminal so it picks up the secret (injection on only). */
+  restartTerminal: boolean;
+}
+
 export function useVaultSecret(): {
-  save: (root: string, name: string, value: string) => Promise<VaultSaveResult>;
+  save: (
+    root: string,
+    name: string,
+    value: string,
+    opts: VaultSaveOptions,
+  ) => Promise<VaultSaveResult>;
   busy: boolean;
 } {
   const setSecrets = useApp((s) => s.setSecrets);
@@ -30,6 +49,7 @@ export function useVaultSecret(): {
       root: string,
       name: string,
       value: string,
+      opts: VaultSaveOptions,
     ): Promise<VaultSaveResult> => {
       setBusy(true);
       try {
@@ -38,8 +58,9 @@ export function useVaultSecret(): {
         // even when the value looks unusual, because it IS vaulted now.
         setSecrets(await window.airlock.secretsList(root));
         // A newly vaulted secret only reaches a shell on spawn, so replace the
-        // active terminal when injection is on.
-        if (config?.injectSecretsIntoTerminal) restartActiveTerminal();
+        // active terminal when injection is on -- and only if the caller asked.
+        if (opts.restartTerminal && config?.injectSecretsIntoTerminal)
+          restartActiveTerminal();
         return meta.valid
           ? { ok: true }
           : {

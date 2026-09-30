@@ -172,6 +172,46 @@ it("vaults the pasted value and reports vaulted to the agent", async () => {
   );
 });
 
+// The terminal most likely to be active when an agent asks for a secret is the
+// one running THAT agent. Replacing it to pick up the new env killed the claude
+// session and its subagents mid-turn (2026-09-30). The agent reads vaulted
+// values at call time via run_command(injectSecrets), so a restart gains it
+// nothing and costs it everything.
+it("vaulting for an agent never replaces the running terminal, even with injection on", async () => {
+  const ptyKill = vi.fn();
+  (window.airlock as unknown as Record<string, unknown>).ptyKill = ptyKill;
+  const tid = useApp.getState().activeTabId;
+  const claudeTerm = {
+    id: "t1",
+    title: "claude",
+    renamed: false,
+    ptyId: "p-claude",
+  };
+  // Through setConfig, not setState: the tab slice is the source of truth and
+  // any tab patch (setSecrets, on save) re-mirrors it over the top level.
+  // biome-ignore lint/suspicious/noExplicitAny: only the field under test matters
+  useApp.getState().setConfig({ injectSecretsIntoTerminal: true } as any, tid);
+  useApp.setState({
+    tabTerminals: {
+      [tid]: {
+        terminals: [claudeTerm],
+        activeTerminalId: "t1",
+        splitTerminalId: null,
+        claudeAutoId: "t1",
+      },
+    },
+  });
+  mount([secret()]);
+  const field = await screen.findByPlaceholderText("Paste the value");
+  fireEvent.change(field, { target: { value: "sk-ant-x" } });
+  fireEvent.click(screen.getByText("Vault it"));
+  await waitFor(() =>
+    expect(requestSecretResolve).toHaveBeenCalledWith("r1", true),
+  );
+  expect(ptyKill).not.toHaveBeenCalled();
+  expect(useApp.getState().tabTerminals[tid]?.terminals).toEqual([claudeTerm]);
+});
+
 it("Allow and Deny resolve the terminal grant", async () => {
   mount([grant()]);
   fireEvent.click(await screen.findByText("Allow"));

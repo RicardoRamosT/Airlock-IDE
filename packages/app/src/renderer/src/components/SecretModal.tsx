@@ -76,7 +76,8 @@ export function SecretModal() {
       return;
     }
     setError(null);
-    const r = await save(root, name, value);
+    // User-initiated: they are at the shell they want re-spawned with the value.
+    const r = await save(root, name, value, { restartTerminal: true });
     if (!r.ok) {
       setError(r.error ?? "Could not save.");
       return;

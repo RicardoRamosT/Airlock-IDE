@@ -210,7 +210,9 @@ function SecretCard({
       return;
     }
     setError(null);
-    const r = await save(root, request.name, value);
+    // NEVER restart: the active terminal is most likely the one running the
+    // agent that asked, and replacing it kills that session (see useVaultSecret).
+    const r = await save(root, request.name, value, { restartTerminal: false });
     if (!r.ok) {
       setError(r.error ?? "Could not save.");
       return;
