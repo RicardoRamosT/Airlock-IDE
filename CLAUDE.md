@@ -262,10 +262,25 @@ the project's lint rules.
   on Trackview — why this is a warm worker and not the CLI per change. Idle
   5 min → disposed; 10 s timeout → killed; crash → respawn on demand. Env is
   main's as-is: vaulted secrets are never injected (that is a pty-only thing).
-- **The worker resolves the file's REALPATH before `lintText`.** ESLint compares
-  it with its (real) cwd; a symlinked project path otherwise reads as "outside
-  the base path" → silently ignored → a file that looks clean because it was
-  never linted. The end-to-end test caught it on macOS's `/var` → `/private/var`.
+- **The worker PINS its unit's own config (`overrideConfigFile`) — ESLint never
+  looks one up.** ESLint 10 finds configs from the FILE's directory upward with
+  no cwd boundary. With the file realpath'd (needed: ESLint compares it to its
+  real cwd, and a symlinked path otherwise reads as "outside the base path" →
+  silently ignored → falsely clean), a symlink inside a trusted unit made ESLint
+  load and RUN another folder's untrusted config (found by the final review,
+  verified, fixed 2026-09-30). The pin closes that whatever ESLint's lookup does.
+- **Main refuses a file whose REAL directory is outside its unit, or under a
+  folder holding its own config** (`reallyInUnit`, service.ts) — that folder is
+  a separate unit with its own trust decision.
+- **ESLint may only resolve from inside the project root.** Main passes the root
+  (`AIRLOCK_ESLINT_ROOT`, a REQUIRED param through pool and spawner); the worker
+  takes the nearest `node_modules/eslint` between unit and root and fails closed
+  without a root. An install above the root is not the project's.
+- **A config edit is picked up live**: the engine is keyed on the config's
+  path + mtime (ESLint caches configs per engine, and an in-use worker never
+  idles out).
+- Tests emulate ESLint 10's lookup on the ^9 devDependency with
+  `ESLINT_FLAGS=v10_config_lookup_from_file` (the `unstable_` name is inactive).
 - **Diagnostics are merged PER SOURCE.** `setDiagnostics` replaces every mark in
   the view, so TypeScript and ESLint each keep their own list in `diagsRef` and
   the union is dispatched. Dispatching either directly erases the other.
