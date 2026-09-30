@@ -12,7 +12,9 @@ interface Fake extends WorkerProc {
 }
 
 let spawned: Fake[];
-function spawner(unit: string): WorkerProc {
+let spawnedRoots: string[];
+function spawner(unit: string, root: string): WorkerProc {
+  spawnedRoots.push(root);
   let onLine: (l: string) => void = () => {};
   let onExit: () => void = () => {};
   const f: Fake = {
@@ -38,6 +40,7 @@ function spawner(unit: string): WorkerProc {
 
 beforeEach(() => {
   spawned = [];
+  spawnedRoots = [];
   vi.useFakeTimers();
 });
 afterEach(() => vi.useRealTimers());
@@ -48,9 +51,9 @@ const pool = () =>
 describe("EslintPool", () => {
   it("spawns one worker per unit and reuses it (two files of one unit share it)", async () => {
     const p = pool();
-    const a = p.lint("/p", "/p/a.ts", "1");
-    const b = p.lint("/p", "/p/b.ts", "2");
-    const c = p.lint("/p/client", "/p/client/c.ts", "3");
+    const a = p.lint("/p", "/p/a.ts", "1", "/p");
+    const b = p.lint("/p", "/p/b.ts", "2", "/p");
+    const c = p.lint("/p/client", "/p/client/c.ts", "3", "/p/client");
     expect(spawned.map((s) => s.unit)).toEqual(["/p", "/p/client"]);
     const [w, wc] = spawned;
     w?.answer(w.sent[0]?.id ?? -1);
@@ -61,10 +64,16 @@ describe("EslintPool", () => {
     expect(await c).toEqual({ messages: [] });
   });
 
+  it("hands the project root to the spawner (the worker bounds resolution by it)", () => {
+    const p = pool();
+    void p.lint("/p/client", "/p/client/a.ts", "x", "/p");
+    expect(spawnedRoots).toEqual(["/p"]);
+  });
+
   it("routes each response to its request by id", async () => {
     const p = pool();
-    const a = p.lint("/p", "/p/a.ts", "A");
-    const b = p.lint("/p", "/p/b.ts", "B");
+    const a = p.lint("/p", "/p/a.ts", "A", "/p");
+    const b = p.lint("/p", "/p/b.ts", "B", "/p");
     const w = spawned[0];
     const idB = w?.sent.find((r) => r.text === "B")?.id ?? -1;
     w?.answer(idB, [{ ruleId: "x" }]);
@@ -75,9 +84,9 @@ describe("EslintPool", () => {
 
   it("keeps ONE queued lint per file while one is in flight; newer replaces older", async () => {
     const p = pool();
-    const first = p.lint("/p", "/p/a.ts", "v1");
-    const second = p.lint("/p", "/p/a.ts", "v2");
-    const third = p.lint("/p", "/p/a.ts", "v3");
+    const first = p.lint("/p", "/p/a.ts", "v1", "/p");
+    const second = p.lint("/p", "/p/a.ts", "v2", "/p");
+    const third = p.lint("/p", "/p/a.ts", "v3", "/p");
     const w = spawned[0];
     expect(w?.sent.map((r) => r.text)).toEqual(["v1"]); // only one in flight
     expect(await second).toEqual({ superseded: true });
@@ -90,33 +99,33 @@ describe("EslintPool", () => {
 
   it("times out a hung lint, kills the worker, and respawns on the next lint", async () => {
     const p = pool();
-    const hung = p.lint("/p", "/p/a.ts", "x");
+    const hung = p.lint("/p", "/p/a.ts", "x", "/p");
     vi.advanceTimersByTime(10_000);
     expect(await hung).toEqual({ timedOut: true });
     expect(spawned[0]?.killed).toBe(true);
-    void p.lint("/p", "/p/a.ts", "y");
+    void p.lint("/p", "/p/a.ts", "y", "/p");
     expect(spawned).toHaveLength(2);
   });
 
   it("a crash fails what was in flight and respawns on demand", async () => {
     const p = pool();
-    const inflight = p.lint("/p", "/p/a.ts", "x");
+    const inflight = p.lint("/p", "/p/a.ts", "x", "/p");
     spawned[0]?.exit();
     expect(await inflight).toEqual({ configError: "ESLint worker exited" });
-    void p.lint("/p", "/p/a.ts", "y");
+    void p.lint("/p", "/p/a.ts", "y", "/p");
     expect(spawned).toHaveLength(2);
   });
 
   it("disposes a worker idle for idleMs, and respawns when needed again", async () => {
     const p = pool();
-    const a = p.lint("/p", "/p/a.ts", "x");
+    const a = p.lint("/p", "/p/a.ts", "x", "/p");
     spawned[0]?.answer(spawned[0].sent[0]?.id ?? -1);
     await a;
     vi.advanceTimersByTime(299_999);
     expect(spawned[0]?.killed).toBe(false);
     vi.advanceTimersByTime(1);
     expect(spawned[0]?.killed).toBe(true);
-    void p.lint("/p", "/p/a.ts", "y");
+    void p.lint("/p", "/p/a.ts", "y", "/p");
     expect(spawned).toHaveLength(2);
   });
 
@@ -124,17 +133,17 @@ describe("EslintPool", () => {
     // Idle shorter than the timeout, so the idle timer really fires while the
     // lint is in flight.
     const p = new EslintPool(spawner, { timeoutMs: 600_000, idleMs: 1_000 });
-    void p.lint("/p", "/p/a.ts", "x"); // never answered
+    void p.lint("/p", "/p/a.ts", "x", "/p"); // never answered
     vi.advanceTimersByTime(5_000);
     expect(spawned[0]?.killed).toBe(false);
   });
 
   it("disposeUnder kills every unit inside a closed root, and only those", () => {
     const p = pool();
-    void p.lint("/p/client", "/p/client/a.ts", "x");
-    void p.lint("/p/server", "/p/server/a.ts", "x");
-    void p.lint("/q", "/q/a.ts", "x");
-    void p.lint("/p-old", "/p-old/a.ts", "x"); // prefix-sharing sibling, NOT inside /p
+    void p.lint("/p/client", "/p/client/a.ts", "x", "/p/client");
+    void p.lint("/p/server", "/p/server/a.ts", "x", "/p/server");
+    void p.lint("/q", "/q/a.ts", "x", "/q");
+    void p.lint("/p-old", "/p-old/a.ts", "x", "/p-old"); // prefix-sharing sibling, NOT inside /p
     p.disposeUnder("/p");
     expect(spawned.map((s) => [s.unit, s.killed])).toEqual([
       ["/p/client", true],
@@ -146,9 +155,9 @@ describe("EslintPool", () => {
 
   it("retainOnly keeps units inside an open root and disposes the rest", () => {
     const p = pool();
-    void p.lint("/p/client", "/p/client/a.ts", "x");
-    void p.lint("/q", "/q/a.ts", "x");
-    void p.lint("/p-old", "/p-old/a.ts", "x");
+    void p.lint("/p/client", "/p/client/a.ts", "x", "/p/client");
+    void p.lint("/q", "/q/a.ts", "x", "/q");
+    void p.lint("/p-old", "/p-old/a.ts", "x", "/p-old");
     p.retainOnly(["/p"]);
     expect(spawned.map((s) => [s.unit, s.killed])).toEqual([
       ["/p/client", false],
@@ -159,9 +168,9 @@ describe("EslintPool", () => {
 
   it("a late exit from a disposed worker does not disturb its replacement", async () => {
     const p = pool();
-    void p.lint("/p", "/p/a.ts", "x");
+    void p.lint("/p", "/p/a.ts", "x", "/p");
     p.disposeUnit("/p");
-    const next = p.lint("/p", "/p/a.ts", "y");
+    const next = p.lint("/p", "/p/a.ts", "y", "/p");
     spawned[0]?.exit(); // the OLD worker finally exits
     spawned[1]?.answer(spawned[1].sent[0]?.id ?? -1);
     expect(await next).toEqual({ messages: [] });

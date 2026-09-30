@@ -44,12 +44,13 @@ function lint(
   file: string,
   text: string,
   env: Record<string, string> = {},
+  root: string = unit,
 ): Promise<WorkerResponse> {
   return new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [WORKER], {
       cwd: unit,
       stdio: "pipe",
-      env: { ...process.env, ...env },
+      env: { ...process.env, AIRLOCK_ESLINT_ROOT: root, ...env },
     });
     const feed = splitLines();
     let err = "";
@@ -106,6 +107,8 @@ it("resolves a HOISTED ESLint for a subfolder unit with no package.json", async 
     path.join(dir, "web"),
     "a.js",
     "var z = 1;\nconsole.log(z);\n",
+    {},
+    dir, // the project root is above the unit; the install is hoisted there
   );
   if (!("messages" in r)) throw new Error(JSON.stringify(r));
   expect(r.messages.map((m) => m.ruleId)).toContain("no-var");
@@ -162,7 +165,11 @@ it("never runs a config other than its own unit's, even under file-based lookup"
 
 // A long-lived worker answering several requests, like the pool uses it.
 function session(unit: string) {
-  const proc = spawn(process.execPath, [WORKER], { cwd: unit, stdio: "pipe" });
+  const proc = spawn(process.execPath, [WORKER], {
+    cwd: unit,
+    stdio: "pipe",
+    env: { ...process.env, AIRLOCK_ESLINT_ROOT: unit },
+  });
   const feed = splitLines();
   const waiting = new Map<number, (r: WorkerResponse) => void>();
   proc.stdout.setEncoding("utf8");
@@ -211,4 +218,25 @@ it("picks up an edited config without a restart", async () => {
   } finally {
     s.close();
   }
+}, 30000);
+
+// Final review #4 / spec §2: an ESLint resolved from ABOVE the project root
+// (node_modules deleted mid-reinstall, or the project nested in a bigger tree)
+// is not this project's ESLint, and the pre-trust install check never looked
+// there. Refuse rather than run it.
+it("refuses an ESLint that resolves from outside the project root", async () => {
+  const outer = project({ "proj/eslint.config.mjs": CONFIG }); // eslint only in outer/node_modules
+  const proj = path.join(outer, "proj");
+  const r = await lint(proj, "a.js", "var q = 1;\n", {}, proj);
+  expect("configError" in r && r.configError).toMatch(
+    /not installed in this project/,
+  );
+}, 30000);
+
+it("fails closed when main did not say where the project root is", async () => {
+  const dir = project({ "eslint.config.mjs": CONFIG });
+  const r = await lint(dir, "a.js", "var q = 1;\n", {
+    AIRLOCK_ESLINT_ROOT: "",
+  });
+  expect("configError" in r).toBe(true);
 }, 30000);

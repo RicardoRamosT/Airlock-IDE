@@ -49,6 +49,29 @@ function unitConfig() {
   return null;
 }
 
+// The project root, from main. Resolution may never leave it: an ESLint found
+// ABOVE the root (node_modules deleted mid-reinstall, or the project nested in
+// a bigger tree) is not this project's, and main's pre-trust install check
+// never looked there. No root = refuse (fail closed).
+const root = process.env.AIRLOCK_ESLINT_ROOT
+  ? realpathSync(process.env.AIRLOCK_ESLINT_ROOT)
+  : null;
+
+// The nearest folder, from the unit up to and including the root, whose
+// node_modules holds ESLint -- the same walk as main's eslintInstalled(), and
+// the one Node's own resolution would take first. Located by the link's
+// position (a pnpm symlink into .pnpm/ still lives inside the project).
+function eslintHome() {
+  if (!root) throw new Error("AirLock did not say where the project root is");
+  if (unit !== root && !unit.startsWith(root + path.sep))
+    throw new Error("This ESLint folder is outside the project");
+  for (let d = unit; ; d = path.dirname(d)) {
+    if (existsSync(path.join(d, "node_modules/eslint/package.json"))) return d;
+    if (d === root) break;
+  }
+  throw new Error("ESLint is not installed in this project (run npm install)");
+}
+
 // ESLint caches the loaded config per engine, so a warm engine would keep the
 // OLD rules after the user edits eslint.config.* -- indefinitely, since a
 // worker in active use never idles out. Key the engine on the config's path
@@ -74,7 +97,7 @@ function eslint() {
   // a unit without its own package.json still finds a hoisted install -- the
   // same upward walk main's pre-trust "is ESLint installed" stat check does.
   engine ??= (async () => {
-    const req = createRequire(path.join(unit, "__airlock_eslint__.js"));
+    const req = createRequire(path.join(eslintHome(), "__airlock_eslint__.js"));
     const mod = await import(pathToFileURL(req.resolve("eslint")).href);
     const ESLint = mod.ESLint ?? mod.default?.ESLint;
     if (!ESLint) throw new Error("This ESLint has no ESLint class (too old?)");

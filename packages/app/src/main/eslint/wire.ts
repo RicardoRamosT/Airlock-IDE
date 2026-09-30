@@ -29,10 +29,15 @@ function workerScript(): string {
 // Electron's own binary as plain Node, like the TypeScript server. The env is
 // main's as-is: vaulted secrets are only ever injected into ptys, never here --
 // a repo's lint config has no business seeing DATABASE_URL.
-function spawnWorker(unitAbs: string): WorkerProc {
+function spawnWorker(unitAbs: string, rootAbs: string): WorkerProc {
   const proc = spawn(process.execPath, [workerScript()], {
     cwd: unitAbs,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      // The worker never resolves an ESLint from above this.
+      AIRLOCK_ESLINT_ROOT: rootAbs,
+    },
     stdio: ["pipe", "pipe", "pipe"],
   });
   const lineCbs: ((l: string) => void)[] = [];

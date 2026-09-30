@@ -9,6 +9,7 @@ type PoolLint = (
   unit: string,
   file: string,
   text: string,
+  root: string,
 ) => Promise<LintOutcome>;
 let poolLint: ReturnType<typeof vi.fn<PoolLint>>;
 let disposeUnit: ReturnType<typeof vi.fn<(unit: string) => void>>;
@@ -98,7 +99,8 @@ describe("lint", () => {
     };
     poolLint.mockResolvedValueOnce({ messages: [msg] });
     const r = await svc().lint(ROOT, "src/a.ts", 4, "var x");
-    expect(poolLint).toHaveBeenCalledWith("/p", "/p/src/a.ts", "var x");
+    // The root rides along: the worker refuses an ESLint resolved above it.
+    expect(poolLint).toHaveBeenCalledWith("/p", "/p/src/a.ts", "var x", "/p");
     expect(r).toEqual({ version: 4, messages: [msg] });
   });
   it("re-checks trust on EVERY call: revoked means refused at once", async () => {

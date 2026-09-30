@@ -106,7 +106,7 @@ export function createEslintService(d: EslintServiceDeps) {
           configError:
             "This file really lives in a different ESLint folder (it is reached through a symlink), so it is not linted here.",
         };
-      const out = await d.pool.lint(unitAbs, fileAbs, text);
+      const out = await d.pool.lint(unitAbs, fileAbs, text, root);
       if ("messages" in out) return { version, messages: out.messages };
       if ("configError" in out)
         return { version, configError: out.configError };

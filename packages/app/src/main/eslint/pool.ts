@@ -22,7 +22,8 @@ export interface WorkerProc {
   onExit(cb: () => void): void;
   kill(): void;
 }
-export type Spawner = (unitAbs: string) => WorkerProc;
+// rootAbs: the project root. The worker refuses an ESLint resolved above it.
+export type Spawner = (unitAbs: string, rootAbs: string) => WorkerProc;
 
 export type LintOutcome =
   | { messages: EslintMessage[] }
@@ -56,8 +57,13 @@ export class EslintPool {
     this.idleMs = opts.idleMs ?? 5 * 60_000;
   }
 
-  lint(unitAbs: string, fileAbs: string, text: string): Promise<LintOutcome> {
-    const w = this.ensure(unitAbs);
+  lint(
+    unitAbs: string,
+    fileAbs: string,
+    text: string,
+    rootAbs: string,
+  ): Promise<LintOutcome> {
+    const w = this.ensure(unitAbs, rootAbs);
     return new Promise<LintOutcome>((resolve) => {
       if (w.busy.has(fileAbs)) {
         // Only the newest text matters: the one it replaces will never be sent.
@@ -94,10 +100,10 @@ export class EslintPool {
       this.teardown(w, "AirLock is quitting", true);
   }
 
-  private ensure(unit: string): Worker {
+  private ensure(unit: string, root: string): Worker {
     const existing = this.workers.get(unit);
     if (existing) return existing;
-    const proc = this.spawn(unit);
+    const proc = this.spawn(unit, root);
     const w: Worker = {
       unit,
       proc,
