@@ -176,6 +176,27 @@ it("discards a result that arrives after newer typing", async () => {
   expect(marks(view)).toEqual([]);
 });
 
+// Final review #2: the version is bumped when a lint is SENT, so a slow first
+// lint (cold ESLint ~2s) that returns while the user is mid-typing -- before
+// the debounce has sent a newer one -- would still match and paint marks
+// computed for text that no longer exists.
+it("discards a result that arrives mid-typing, BEFORE the next lint is sent", async () => {
+  status = { state: "trusted", unit: "" };
+  let release: () => void = () => {};
+  eslintLint.mockImplementationOnce(
+    (_r: string, _p: string, v: number) =>
+      new Promise<EslintLintResult>((res) => {
+        release = () => res(noVar(v));
+      }),
+  );
+  const { view } = mount("var x = 1;\n");
+  await waitFor(() => expect(eslintLint).toHaveBeenCalledTimes(1));
+  act(() => view.dispatch({ changes: { from: 0, insert: "// hi\n" } }));
+  await act(async () => release()); // lands before the 300ms debounce fires
+  expect(eslintLint).toHaveBeenCalledTimes(1); // no newer lint sent yet
+  expect(marks(view)).toEqual([]);
+});
+
 it("Fix applies ESLint's edit to the buffer it was computed from", async () => {
   status = { state: "trusted", unit: "" };
   eslintLint.mockImplementation(async (_r: string, _p: string, v: number) =>

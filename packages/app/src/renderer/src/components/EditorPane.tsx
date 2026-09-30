@@ -701,6 +701,12 @@ export function EditorPane({
           }
           const current = viewRef.current;
           if (!current) return;
+          // The version only moves when a lint is SENT; typing that has not yet
+          // reached the debounce leaves it unchanged. So also require the
+          // buffer to still BE the linted text -- otherwise these offsets
+          // belong to text that no longer exists. The pending debounce lints
+          // the new text.
+          if (current.state.doc.toString() !== text) return;
           eslintLintedRef.current = text;
           diagsRef.current.eslint = eslintToCm(text, r.messages, applyFix);
           setEslintError(null);
