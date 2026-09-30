@@ -236,6 +236,34 @@ another AirLock window to merge it in. **Running terminals move alive** — a li
 Spec: `docs/superpowers/specs/2026-07-25-tab-tear-off-design.md` ·
 Plan: `docs/superpowers/plans/2026-07-25-tab-tear-off.md`.
 
+## Markdown files open rendered
+
+A `.md`/`.markdown` file opens as a GitHub-style **preview** with a
+Preview | Edit toggle (`components/MarkdownPreview.tsx`, routed by
+`isMarkdownPath` in `ProjectPane`). Edit is the ordinary `EditorPane`, so
+autosave and conflict handling are the editor's, never re-implemented. Preview
+is the default because most markdown here is written by Claude and read by you;
+the mode resets per open on purpose. `.mdx` is excluded (it embeds JSX).
+
+- **Not `OverviewMarkdown`.** That parser is a subset for Overview snippets and
+  cannot render a whole document — an indented code block came out as one
+  run-on paragraph. The preview uses `react-markdown` + `remark-gfm`, which
+  builds React elements (still no `dangerouslySetInnerHTML`), with `skipHtml`.
+- **Links resolve against the FILE's folder** (`lib/markdownLinks.ts`, pure +
+  unit-tested; `resolveOverviewLink` delegates to it), may not escape the root,
+  and only http(s) goes to the browser — through `hostOpenExternal`, because
+  **`window.open` is denied app-wide** (`setWindowOpenHandler` → deny), so a
+  `window.open` link is a dead click. `mailto:` is inert for the same reason.
+- **Heading ids are PREFIXED** (`md-`, `lib/markdownHeadings.ts`): the preview is
+  in the app's DOM, and a heading named "Root" would otherwise be `id="root"`.
+- **Images:** the CSP is `img-src 'self' data:`, so repo images load through
+  `readImageDataUrl` and remote ones (badges) show their alt text.
+- **Stays true to disk:** re-reads on mount and on `fs:changed` for its root
+  (which carries no path, hence the extra debounce), so Claude's edits appear
+  and the editor's final autosave after Edit → Preview lands.
+- Code fences highlight with the editor's own Lezer grammars
+  (`lib/highlightCode.ts`); a language without one renders plain.
+
 ## Sidebar layout system
 
 All left-sidebar section panels share one layout grammar so a new section looks

@@ -3,6 +3,7 @@ import type { FileContent } from "../../../shared/ipc";
 import { isDocxPath } from "../lib/docxPath";
 import { isExcelPath } from "../lib/excelTypes";
 import { isImagePath } from "../lib/imageTypes";
+import { isMarkdownPath } from "../lib/markdownLinks";
 import { isPdfPath } from "../lib/pdfTypes";
 import { ProjectPaneContext } from "../lib/projectPane";
 import { useTerminalSlots } from "../lib/terminalSlots";
@@ -15,6 +16,7 @@ import { ExcelViewer } from "./ExcelViewer";
 import { ImagePreview } from "./ImagePreview";
 import { Loading } from "./Loading";
 import { MainTabs } from "./MainTabs";
+import { MarkdownFile } from "./MarkdownPreview";
 import { PdfViewer } from "./PdfViewer";
 import { Viewer } from "./Viewer";
 
@@ -130,6 +132,15 @@ export function ProjectPane({
           <ExcelViewer key={relPath} root={root} relPath={relPath} />
         ) : isDocxPath(relPath) ? (
           <DocxViewer key={relPath} root={root} relPath={relPath} />
+        ) : isMarkdownPath(relPath) && !content.binary ? (
+          <MarkdownFile
+            key={relPath}
+            tabId={tabId}
+            root={root}
+            relPath={relPath}
+            file={content}
+            theme={theme}
+          />
         ) : content.binary ? (
           <BinaryNotice
             key={relPath}

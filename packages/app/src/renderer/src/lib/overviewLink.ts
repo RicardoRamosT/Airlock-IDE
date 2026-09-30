@@ -1,3 +1,5 @@
+import { resolveRepoPath } from "./markdownLinks";
+
 // Resolve a link href from .airlock/overview.md to a PROJECT-ROOT-RELATIVE file
 // path the editor can open, or null when it isn't an openable in-repo file.
 //
@@ -13,13 +15,7 @@ export function resolveOverviewLink(href: string): string | null {
   if (!h || h.startsWith("#") || h.startsWith("/")) return null;
   if (/^https?:\/\//i.test(h)) return null; // external — opened in the browser
   if (/^[a-z][a-z0-9+.-]*:/i.test(h)) return null; // other scheme (javascript:, …)
-  const out: string[] = [];
-  for (const seg of `.airlock/${h}`.split("/")) {
-    if (seg === "" || seg === ".") continue;
-    if (seg === "..") {
-      if (out.length === 0) return null; // escapes the project root
-      out.pop();
-    } else out.push(seg);
-  }
-  return out.length ? out.join("/") : null;
+  // The path arithmetic is shared with the markdown file preview, which resolves
+  // against whatever file is open; overview.md is just the file at this path.
+  return resolveRepoPath(".airlock/overview.md", h);
 }

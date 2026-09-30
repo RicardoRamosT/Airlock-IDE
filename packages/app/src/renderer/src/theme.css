@@ -8285,3 +8285,292 @@ body.resizing-row {
 .atlas-overlay .atlas-pane-brief {
   padding: 12px 0 14px 14px;
 }
+
+/* ---------------------------------------------------------------------------
+   Markdown file preview (MarkdownPreview.tsx). A .md opens rendered, GitHub-
+   style, with a Preview | Edit toggle. The palette is already GitHub's (dark
+   and light), so these rules only add typography; every colour is a token.
+   --------------------------------------------------------------------------- */
+.md-file {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.md-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.md-toolbar .seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+}
+.seg-on.seg-view {
+  background: var(--selected);
+  color: var(--fg);
+}
+.md-file-body {
+  flex: 1;
+  min-height: 0;
+}
+.md-preview {
+  height: 100%;
+  overflow: auto;
+  background: var(--bg);
+}
+.md-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 32px 64px;
+  color: var(--fg);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  user-select: text;
+}
+.md-body > :first-child {
+  margin-top: 0;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  margin: 24px 0 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  scroll-margin-top: 12px;
+}
+.md-body h1 {
+  font-size: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+.md-body h2 {
+  font-size: 1.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+.md-body h3 {
+  font-size: 1.25em;
+}
+.md-body h4 {
+  font-size: 1em;
+}
+.md-body h5 {
+  font-size: 0.875em;
+}
+.md-body h6 {
+  font-size: 0.85em;
+  color: var(--fg-dim);
+}
+.md-body p,
+.md-body ul,
+.md-body ol,
+.md-body blockquote,
+.md-body pre,
+.md-body .md-table-wrap {
+  margin: 0 0 16px;
+}
+.md-body ul,
+.md-body ol {
+  padding-left: 2em;
+}
+.md-body li + li {
+  margin-top: 0.25em;
+}
+.md-body li > ul,
+.md-body li > ol {
+  margin: 0.25em 0 0;
+}
+/* GFM task lists: remark-gfm marks the item and puts a disabled checkbox in. */
+.md-body li.task-list-item {
+  list-style: none;
+}
+.md-body li.task-list-item input[type="checkbox"] {
+  margin: 0 0.4em 0 -1.4em;
+  vertical-align: middle;
+}
+.md-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.md-body a[href]:hover {
+  text-decoration: underline;
+}
+/* An unsafe or unresolvable link keeps its text and loses its target. */
+.md-body a:not([href]) {
+  color: inherit;
+}
+.md-body blockquote {
+  padding: 0 1em;
+  color: var(--fg-dim);
+  border-left: 0.25em solid var(--border);
+}
+.md-body hr {
+  height: 0.25em;
+  margin: 24px 0;
+  border: 0;
+  background: var(--border);
+}
+.md-body code {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 85%;
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  background: var(--hover);
+}
+.md-body pre {
+  padding: 16px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  line-height: 1.45;
+}
+.md-body pre code {
+  padding: 0;
+  font-size: 13px;
+  background: transparent;
+  white-space: pre;
+}
+.md-body .md-table-wrap {
+  overflow-x: auto;
+}
+.md-body table {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.md-body th,
+.md-body td {
+  padding: 6px 13px;
+  border: 1px solid var(--border);
+}
+.md-body th {
+  font-weight: 600;
+  background: var(--bg-panel);
+}
+.md-body tr:nth-child(2n) td {
+  background: var(--hover);
+}
+.md-img {
+  max-width: 100%;
+}
+/* A remote image (CSP-blocked) or one that failed: its alt text, marked as an
+   image so it does not read as ordinary prose. */
+.md-img-alt {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+.md-note {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+}
+/* Code-fence tokens from @lezer/highlight's classHighlighter, coloured like the
+   editor's VS Code theme (Dark+ / Light+) so a snippet looks the same in both. */
+.md-body .tok-keyword,
+.md-body .tok-bool,
+.md-body .tok-null,
+.md-body .tok-atom {
+  color: #569cd6;
+}
+.md-body .tok-controlKeyword,
+.md-body .tok-moduleKeyword {
+  color: #c586c0;
+}
+.md-body .tok-string,
+.md-body .tok-string2 {
+  color: #ce9178;
+}
+.md-body .tok-number {
+  color: #b5cea8;
+}
+.md-body .tok-comment {
+  color: #6a9955;
+  font-style: italic;
+}
+.md-body .tok-variableName.tok-definition,
+.md-body .tok-propertyName {
+  color: #9cdcfe;
+}
+.md-body .tok-typeName,
+.md-body .tok-className,
+.md-body .tok-namespace {
+  color: #4ec9b0;
+}
+.md-body .tok-function {
+  color: #dcdcaa;
+}
+.md-body .tok-tagName {
+  color: #569cd6;
+}
+.md-body .tok-attributeName {
+  color: #9cdcfe;
+}
+.md-body .tok-heading {
+  color: #569cd6;
+  font-weight: 600;
+}
+.md-body .tok-link,
+.md-body .tok-url {
+  color: #4fc1ff;
+}
+.md-body .tok-invalid {
+  color: #f44747;
+}
+:root[data-theme="light"] .md-body .tok-keyword,
+:root[data-theme="light"] .md-body .tok-bool,
+:root[data-theme="light"] .md-body .tok-null,
+:root[data-theme="light"] .md-body .tok-atom,
+:root[data-theme="light"] .md-body .tok-tagName,
+:root[data-theme="light"] .md-body .tok-heading {
+  color: #0000ff;
+}
+:root[data-theme="light"] .md-body .tok-controlKeyword,
+:root[data-theme="light"] .md-body .tok-moduleKeyword {
+  color: #af00db;
+}
+:root[data-theme="light"] .md-body .tok-string,
+:root[data-theme="light"] .md-body .tok-string2 {
+  color: #a31515;
+}
+:root[data-theme="light"] .md-body .tok-number {
+  color: #098658;
+}
+:root[data-theme="light"] .md-body .tok-comment {
+  color: #008000;
+}
+:root[data-theme="light"] .md-body .tok-variableName.tok-definition,
+:root[data-theme="light"] .md-body .tok-propertyName,
+:root[data-theme="light"] .md-body .tok-attributeName {
+  color: #001080;
+}
+:root[data-theme="light"] .md-body .tok-typeName,
+:root[data-theme="light"] .md-body .tok-className,
+:root[data-theme="light"] .md-body .tok-namespace {
+  color: #267f99;
+}
+:root[data-theme="light"] .md-body .tok-function {
+  color: #795e26;
+}
+:root[data-theme="light"] .md-body .tok-link,
+:root[data-theme="light"] .md-body .tok-url {
+  color: #0070c1;
+}

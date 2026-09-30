@@ -3,6 +3,7 @@ import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import type { LanguageSupport } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 
 export type LanguageKey = "js" | "json" | "md" | "css" | "html";
@@ -30,13 +31,19 @@ export function languageKeyForPath(path: string): LanguageKey | null {
   return BY_EXT[name.slice(dot + 1).toLowerCase()] ?? null;
 }
 
-const LANGUAGES: Record<LanguageKey, () => Extension> = {
+const LANGUAGES: Record<LanguageKey, () => LanguageSupport> = {
   js: () => javascript({ jsx: true, typescript: true }),
   json: () => json(),
   md: () => markdown(),
   css: () => css(),
   html: () => html(),
 };
+
+// The language itself, for callers that need its parser rather than an editor
+// extension (the markdown preview's static code-fence highlighting).
+export function languageSupportFor(key: LanguageKey): LanguageSupport {
+  return LANGUAGES[key]();
+}
 
 // CodeMirror language extension(s) for a path's file type, or [] for unknown.
 // Shared by the editable EditorPane and the read-only diff view.
