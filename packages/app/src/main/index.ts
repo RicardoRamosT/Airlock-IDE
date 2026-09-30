@@ -40,6 +40,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { reconcileDockStatus } from "./dockstatus/wire";
+import { disposeAllEslint } from "./eslint/wire";
 import {
   installConsoleFunnel,
   installProcessHandlers,
@@ -380,6 +381,11 @@ function bootstrap(): void {
   app.on("before-quit", () => {
     flushSession(); // synchronous: persist the latest layout before teardown
     killAllSessions();
+  });
+  // ESLint workers exit on their own when stdin closes, but end them
+  // deliberately rather than rely on it.
+  app.on("before-quit", () => {
+    disposeAllEslint();
   });
   // Tear down the MCP listener on quit (it intentionally outlives window-close
   // on darwin). Coexists with killAllSessions above.

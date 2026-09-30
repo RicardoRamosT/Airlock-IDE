@@ -171,6 +171,7 @@ import {
   stopDevServer,
 } from "./devserver/manager";
 import { reconcileDockStatus } from "./dockstatus/wire";
+import { eslintService, syncEslint } from "./eslint/wire";
 import { toRendererErrorEvent } from "./eventlog/rendererError";
 import { emitEvent, queryEvents } from "./eventlog/wire";
 import { runBrokerFlow } from "./extensions/oauth/broker";
@@ -650,6 +651,7 @@ export function registerIpc(
       setWindowRoots(e, list);
       syncWindowWatchers(e.sender, list);
       syncLspServers(allOpenRoots());
+      syncEslint(allOpenRoots());
     }
   });
 
@@ -999,6 +1001,33 @@ export function registerIpc(
     if (typeof relPath !== "string") throw new Error("Invalid payload");
     return lspDocumentSymbol(resolveRoot(e, root), relPath);
   });
+
+  // ESLint in the editor (main/eslint/). resolveRoot pins the root to one this
+  // window opened; the service re-derives the unit and re-checks trust itself.
+  ipcMain.handle("eslint:status", (e, root: unknown, relPath: unknown) => {
+    if (typeof relPath !== "string") throw new Error("Invalid payload");
+    return eslintService().status(resolveRoot(e, root), relPath);
+  });
+  ipcMain.handle(
+    "eslint:setTrust",
+    (e, root: unknown, unitRel: unknown, on: unknown) => {
+      if (typeof unitRel !== "string" || typeof on !== "boolean")
+        throw new Error("Invalid payload");
+      eslintService().setTrust(resolveRoot(e, root), unitRel, on);
+    },
+  );
+  ipcMain.handle(
+    "eslint:lint",
+    (e, root: unknown, relPath: unknown, version: unknown, text: unknown) => {
+      if (
+        typeof relPath !== "string" ||
+        typeof version !== "number" ||
+        typeof text !== "string"
+      )
+        throw new Error("Invalid payload");
+      return eslintService().lint(resolveRoot(e, root), relPath, version, text);
+    },
+  );
 
   ipcMain.handle("secrets:list", (e, root: unknown) =>
     listSecrets(resolveRoot(e, root)),

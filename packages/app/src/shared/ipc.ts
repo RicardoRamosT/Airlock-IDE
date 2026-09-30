@@ -1681,4 +1681,14 @@ export interface AirlockApi {
     root: string,
     relPath: string,
   ): Promise<LspDocumentSymbol[]>;
+  // ESLint in the editor. Main re-derives the unit and re-checks trust on every
+  // lint, so these are safe to call for any file.
+  eslintStatus(root: string, relPath: string): Promise<EslintStatus>;
+  eslintSetTrust(root: string, unitRel: string, on: boolean): Promise<void>;
+  eslintLint(
+    root: string,
+    relPath: string,
+    version: number,
+    text: string,
+  ): Promise<EslintLintResult>;
 }

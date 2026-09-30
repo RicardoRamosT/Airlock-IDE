@@ -20,8 +20,12 @@ function spawner(unit: string): WorkerProc {
     sent: [],
     killed: false,
     write: (line) => void f.sent.push(JSON.parse(line) as WorkerRequest),
-    onLine: (cb) => void (onLine = cb),
-    onExit: (cb) => void (onExit = cb),
+    onLine: (cb) => {
+      onLine = cb;
+    },
+    onExit: (cb) => {
+      onExit = cb;
+    },
     kill: () => {
       f.killed = true;
     },
@@ -137,6 +141,19 @@ describe("EslintPool", () => {
       ["/p/server", true],
       ["/q", false],
       ["/p-old", false],
+    ]);
+  });
+
+  it("retainOnly keeps units inside an open root and disposes the rest", () => {
+    const p = pool();
+    void p.lint("/p/client", "/p/client/a.ts", "x");
+    void p.lint("/q", "/q/a.ts", "x");
+    void p.lint("/p-old", "/p-old/a.ts", "x");
+    p.retainOnly(["/p"]);
+    expect(spawned.map((s) => [s.unit, s.killed])).toEqual([
+      ["/p/client", false],
+      ["/q", true],
+      ["/p-old", true],
     ]);
   });
 

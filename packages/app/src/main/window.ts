@@ -6,6 +6,7 @@
 import path, { basename } from "node:path";
 import { BrowserWindow, screen, type WebContents } from "electron";
 import type { MovingTab } from "../shared/ipc";
+import { syncEslint } from "./eslint/wire";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
 import type { WindowBox } from "./tabdrag/target";
@@ -267,6 +268,7 @@ export function createWindow(): BrowserWindow {
     forgetWindow(win.id);
     disposeWindowWatchers(win.id);
     syncLspServers(allOpenRoots());
+    syncEslint(allOpenRoots());
     if (lastFocusedId === win.id) {
       // appWindows(), not getAllWindows(): re-seeding onto a hidden Atlas
       // window points every IDE-control command at it.

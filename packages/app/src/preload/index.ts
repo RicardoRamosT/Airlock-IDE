@@ -385,6 +385,12 @@ const api: AirlockApi = {
     ipcRenderer.invoke("lsp:references", root, relPath, line, character),
   lspDocumentSymbol: (root, relPath) =>
     ipcRenderer.invoke("lsp:documentSymbol", root, relPath),
+  eslintStatus: (root, relPath) =>
+    ipcRenderer.invoke("eslint:status", root, relPath),
+  eslintSetTrust: (root, unitRel, on) =>
+    ipcRenderer.invoke("eslint:setTrust", root, unitRel, on),
+  eslintLint: (root, relPath, version, text) =>
+    ipcRenderer.invoke("eslint:lint", root, relPath, version, text),
   onLspDiagnostics: (cb) =>
     subscribe<{ root: string; relPath: string; diagnostics: LspDiagnostic[] }>(
       "lsp:diagnostics",

@@ -12,6 +12,10 @@
 import path from "node:path";
 import type { EslintMessage, WorkerRequest } from "./protocol";
 
+function isInside(p: string, root: string): boolean {
+  return p === root || p.startsWith(root + path.sep);
+}
+
 export interface WorkerProc {
   write(line: string): void;
   onLine(cb: (line: string) => void): void;
@@ -74,7 +78,14 @@ export class EslintPool {
   // touches a sibling /p-old.
   disposeUnder(rootAbs: string): void {
     for (const w of [...this.workers.values()])
-      if (w.unit === rootAbs || w.unit.startsWith(rootAbs + path.sep))
+      if (isInside(w.unit, rootAbs)) this.teardown(w, "Project closed", true);
+  }
+
+  // Keep only units inside a still-open project. Called with the full open-root
+  // set at the same moments as syncLspServers (a window closes, a tab closes).
+  retainOnly(openRoots: string[]): void {
+    for (const w of [...this.workers.values()])
+      if (!openRoots.some((r) => isInside(w.unit, r)))
         this.teardown(w, "Project closed", true);
   }
 
