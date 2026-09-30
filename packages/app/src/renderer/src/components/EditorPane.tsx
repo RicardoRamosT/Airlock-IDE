@@ -2,12 +2,16 @@ import {
   autocompletion,
   type CompletionSource,
 } from "@codemirror/autocomplete";
-import { lintGutter, setDiagnostics } from "@codemirror/lint";
+import { type Diagnostic, lintGutter, setDiagnostics } from "@codemirror/lint";
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FileContent, LspCompletionItem } from "../../../shared/ipc";
+import type {
+  EslintStatus,
+  FileContent,
+  LspCompletionItem,
+} from "../../../shared/ipc";
 import { editorChrome } from "../lib/editorChrome";
 import { openEditorFile } from "../lib/editorFiles";
 import {
@@ -18,14 +22,26 @@ import {
   scopesFromMarkdown,
 } from "../lib/editorScopes";
 import { editorTheme } from "../lib/editorTheme";
+import {
+  acceptResult,
+  type DiagSource,
+  type EslintFixEdit,
+  eslintToCm,
+  mergeBySource,
+} from "../lib/eslintDiagnostics";
 import { languageExtensionForPath } from "../lib/language";
 import { toCmCompletions } from "../lib/lspCompletions";
 import { toCmDiagnostics } from "../lib/lspDiagnostics";
 import { lspLanguageId } from "../lib/lspLanguage";
 import { positionAt } from "../lib/lspPositions";
 import { useApp } from "../store";
-import { EditorBreadcrumb, type SaveState } from "./EditorBreadcrumb";
+import {
+  EditorBreadcrumb,
+  type EslintChip,
+  type SaveState,
+} from "./EditorBreadcrumb";
 import { EditorContextMenu } from "./EditorContextMenu";
+import { EslintBar } from "./EslintBar";
 import { StickyScroll } from "./StickyScroll";
 
 // Autosave: write the file this long after the last keystroke. A switch/unmount
@@ -33,6 +49,10 @@ import { StickyScroll } from "./StickyScroll";
 const AUTOSAVE_MS = 800;
 // Debounce window for pushing full-text changes to the language server.
 const LSP_DEBOUNCE_MS = 300;
+
+// ESLint trust bars dismissed with "Not now", for this session only: the
+// question comes back on the next launch rather than being silenced for good.
+const dismissedEslintBars = new Set<string>();
 
 // Editor font size applied via a Compartment (like the theme) so pinch/Cmd zoom
 // reconfigures it in place -- never a construction-effect dep, so a zoom never
@@ -193,6 +213,22 @@ export function EditorPane({
   // The effect rebuilds the EditorView; this ref lets the React-rendered menu
   // call the same doc-flush the in-editor handlers use.
   const syncRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  // Diagnostics per SOURCE. setDiagnostics replaces every mark in the view, so
+  // TypeScript and ESLint each update their own entry here and the editor
+  // always dispatches the union -- neither can erase the other.
+  const diagsRef = useRef<Partial<Record<DiagSource, Diagnostic[]>>>({});
+  // ESLint. Everything the construction effect touches is a REF so ESLint
+  // state never becomes a dependency of it (a rebuild re-creates the buffer
+  // from stale props and loses unsaved edits -- PB-H1).
+  const eslintRunRef = useRef<() => void>(() => {});
+  const eslintTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const eslintVersionRef = useRef(0);
+  const eslintLintedRef = useRef<string | null>(null); // text of the last painted lint
+  const [eslintStatus, setEslintStatus] = useState<EslintStatus | null>(null);
+  const [eslintChip, setEslintChip] = useState<EslintChip["tone"] | null>(null);
+  const [eslintCount, setEslintCount] = useState(0);
+  const [eslintError, setEslintError] = useState<string | null>(null);
+  const [, setEslintDismissTick] = useState(0);
   const editable = !file.truncated;
   const lspLang = lspLanguageId(relPath);
   const isMarkdown = /\.mdx?$/i.test(relPath);
@@ -458,6 +494,14 @@ export function EditorPane({
                       );
                     }, LSP_DEBOUNCE_MS);
                   }
+                  // Same debounce as the language server. The ref resolves to a
+                  // no-op unless ESLint is trusted for this file.
+                  if (eslintTimerRef.current)
+                    clearTimeout(eslintTimerRef.current);
+                  eslintTimerRef.current = setTimeout(
+                    () => eslintRunRef.current(),
+                    LSP_DEBOUNCE_MS,
+                  );
                 }),
                 keymap.of([
                   {
@@ -501,6 +545,7 @@ export function EditorPane({
       window.removeEventListener("pagehide", flushOnLeave);
       window.removeEventListener("blur", flushOnLeave);
       flush(); // flush before the editor goes away (file switch / unmount)
+      if (eslintTimerRef.current) clearTimeout(eslintTimerRef.current);
       if (lspTimer) clearTimeout(lspTimer);
       if (scopeTimer) clearTimeout(scopeTimer);
       if (lspLang) void window.airlock.lspDidClose(root, relPath);
@@ -586,14 +631,164 @@ export function EditorPane({
       if (e.root !== root || e.relPath !== relPath) return;
       const view = viewRef.current;
       if (!view) return;
+      diagsRef.current.typescript = toCmDiagnostics(
+        view.state.doc.toString(),
+        e.diagnostics,
+      );
       view.dispatch(
-        setDiagnostics(
-          view.state,
-          toCmDiagnostics(view.state.doc.toString(), e.diagnostics),
-        ),
+        setDiagnostics(view.state, mergeBySource(diagsRef.current)),
       );
     });
   }, [lspLang, root, relPath]);
+
+  // ---- ESLint -------------------------------------------------------------
+  const pushDiags = useCallback(() => {
+    const view = viewRef.current;
+    if (view)
+      view.dispatch(
+        setDiagnostics(view.state, mergeBySource(diagsRef.current)),
+      );
+  }, []);
+
+  const clearEslint = useCallback(() => {
+    diagsRef.current.eslint = [];
+    eslintLintedRef.current = null;
+    setEslintCount(0);
+    pushDiags();
+  }, [pushDiags]);
+
+  const refreshEslintStatus = useCallback(async () => {
+    try {
+      const st = await window.airlock.eslintStatus(root, relPath);
+      setEslintStatus(st);
+      return st;
+    } catch {
+      setEslintStatus({ state: "none", unit: null });
+      return null;
+    }
+  }, [root, relPath]);
+
+  // Lint the live buffer. Main re-checks trust on every call, so this is safe to
+  // run speculatively; the status here only decides whether to bother.
+  useEffect(() => {
+    const trusted = eslintStatus?.state === "trusted";
+    eslintRunRef.current = () => {
+      const view = viewRef.current;
+      if (!view || !trusted) return;
+      const version = ++eslintVersionRef.current;
+      const text = view.state.doc.toString();
+      if (eslintLintedRef.current === null) setEslintChip("busy");
+      void window.airlock
+        .eslintLint(root, relPath, version, text)
+        .then((r) => {
+          // Only the newest request may paint: an older one arrived after
+          // further typing and its offsets no longer line up.
+          if (!acceptResult(eslintVersionRef.current, r.version)) return;
+          if ("superseded" in r) return;
+          if ("untrusted" in r) {
+            clearEslint();
+            setEslintChip(null);
+            void refreshEslintStatus();
+            return;
+          }
+          if ("configError" in r) {
+            // The config's problem, not the file's: shown on the chip, never
+            // as squiggles. An unread lint is never "clean".
+            clearEslint();
+            setEslintError(r.configError);
+            setEslintChip("error");
+            return;
+          }
+          const current = viewRef.current;
+          if (!current) return;
+          eslintLintedRef.current = text;
+          diagsRef.current.eslint = eslintToCm(text, r.messages, applyFix);
+          setEslintError(null);
+          setEslintCount(r.messages.length);
+          setEslintChip(r.messages.length ? "problems" : "ok");
+          pushDiags();
+        })
+        .catch((err: unknown) => {
+          setEslintError(String((err as Error)?.message ?? err));
+          setEslintChip("error");
+        });
+    };
+    // A fix is valid only for the exact text it was computed from. If the
+    // buffer moved on since, re-lint instead of applying a stale edit.
+    const applyFix = (fix: EslintFixEdit) => {
+      const view = viewRef.current;
+      if (!view) return;
+      if (view.state.doc.toString() !== eslintLintedRef.current) {
+        eslintRunRef.current();
+        return;
+      }
+      view.dispatch({
+        changes: { from: fix.range[0], to: fix.range[1], insert: fix.text },
+      });
+    };
+    if (trusted) eslintRunRef.current();
+    else {
+      setEslintChip(null);
+      if (diagsRef.current.eslint?.length) clearEslint();
+    }
+  }, [
+    eslintStatus,
+    root,
+    relPath,
+    clearEslint,
+    pushDiags,
+    refreshEslintStatus,
+  ]);
+
+  useEffect(() => {
+    void refreshEslintStatus();
+  }, [refreshEslintStatus]);
+
+  const eslintUnit = eslintStatus?.unit ?? null;
+  const eslintBarKey = `${root}|${eslintUnit}`;
+  const showEslintBar =
+    (eslintStatus?.state === "untrusted" ||
+      eslintStatus?.state === "missing-eslint") &&
+    eslintUnit !== null &&
+    !dismissedEslintBars.has(eslintBarKey);
+
+  const eslintChipProps: EslintChip | undefined =
+    eslintStatus?.state === "trusted" && eslintChip
+      ? {
+          tone: eslintChip,
+          label:
+            eslintChip === "busy"
+              ? "ESLint …"
+              : eslintChip === "error"
+                ? "ESLint ⚠"
+                : eslintChip === "problems"
+                  ? `ESLint ${eslintCount}`
+                  : "ESLint ✓",
+          title:
+            eslintChip === "error"
+              ? `ESLint could not run: ${eslintError ?? "unknown error"}`
+              : undefined,
+          onJump:
+            eslintChip === "problems"
+              ? () => {
+                  const view = viewRef.current;
+                  const first = diagsRef.current.eslint?.[0];
+                  if (!view || !first) return;
+                  view.dispatch({
+                    selection: { anchor: first.from },
+                    scrollIntoView: true,
+                  });
+                  view.focus();
+                }
+              : undefined,
+          onDisable: () => {
+            if (eslintUnit === null) return;
+            void window.airlock
+              .eslintSetTrust(root, eslintUnit, false)
+              .then(() => refreshEslintStatus());
+          },
+        }
+      : undefined;
 
   // Fetch the scope model that feeds the breadcrumb's symbol trail: LSP
   // languages ask the language server for document symbols; markdown parses
@@ -635,6 +830,7 @@ export function EditorPane({
         symbolTrail={enclosingScopes(scopes, cursorLine)}
         saveState={saveState}
         truncated={!editable}
+        eslint={eslintChipProps}
         onSymbolClick={(s) => {
           const view = viewRef.current;
           if (!view) return;
@@ -644,6 +840,26 @@ export function EditorPane({
           view.focus();
         }}
       />
+      {showEslintBar && eslintStatus && eslintUnit !== null && (
+        <EslintBar
+          state={
+            eslintStatus.state === "untrusted" ? "untrusted" : "missing-eslint"
+          }
+          unit={eslintUnit}
+          onDismiss={() => {
+            dismissedEslintBars.add(eslintBarKey);
+            setEslintDismissTick((n) => n + 1);
+          }}
+          onEnable={() => {
+            void window.airlock
+              .eslintSetTrust(root, eslintUnit, true)
+              .then(() => refreshEslintStatus())
+              .catch((err: unknown) => {
+                setEslintError(String((err as Error)?.message ?? err));
+              });
+          }}
+        />
+      )}
       {conflict ? (
         <div className="editor-conflict-bar" role="alert">
           <span>

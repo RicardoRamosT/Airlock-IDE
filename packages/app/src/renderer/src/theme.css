@@ -8574,3 +8574,91 @@ body.resizing-row {
 :root[data-theme="light"] .md-body .tok-url {
   color: #0070c1;
 }
+
+/* ---------------------------------------------------------------------------
+   ESLint in the editor. The trust bar mirrors .editor-conflict-bar (a question
+   about THIS file's editor, answered once); the chip sits in the breadcrumb's
+   status area beside the save state.
+   --------------------------------------------------------------------------- */
+.eslint-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font-size: 12px;
+}
+.eslint-bar-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.eslint-bar-text code {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.eslint-bar-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.eslint-chip-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+.eslint-chip {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 10px;
+  white-space: nowrap;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.eslint-chip:hover {
+  background: var(--hover);
+}
+.eslint-chip.eslint-problems {
+  color: var(--warn, #d29922);
+}
+.eslint-chip.eslint-error {
+  color: var(--danger, #f85149);
+}
+.eslint-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.eslint-menu button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.eslint-menu button:hover {
+  background: var(--hover);
+}
