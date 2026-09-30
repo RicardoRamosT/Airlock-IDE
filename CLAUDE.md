@@ -236,6 +236,45 @@ another AirLock window to merge it in. **Running terminals move alive** — a li
 Spec: `docs/superpowers/specs/2026-07-25-tab-tear-off-design.md` ·
 Plan: `docs/superpowers/plans/2026-07-25-tab-tear-off.md`.
 
+## ESLint in the editor
+
+A project's own ESLint problems show in the editor beside TypeScript's, with a
+**Fix** action where ESLint has one (`main/eslint/`, `resources/eslint-worker.mjs`,
+`EditorPane`). TypeScript's own diagnostics already worked; what was missing was
+the project's lint rules.
+
+- **Running a repo's ESLint executes repo code** (its `eslint.config.*` and every
+  plugin). So nothing runs until the user clicks **Enable ESLint here** on a
+  one-time bar, and before that everything is `fs.stat` only.
+- **Trust lives in `<userData>/eslint-trust.json`, NEVER in `.airlock/config.json`.**
+  A repo author can commit that file, so a grant there would be forgeable by the
+  very code it guards. Keyed by **realpath** (a symlink cannot borrow a grant; a
+  renamed folder is untrusted again). Revocable from the breadcrumb chip.
+- **The unit is the NEAREST config folder, not the root** (`findEslintUnit`):
+  ezlis has `client/` and `server/`, the LendLogic repos `frontend/`, each with
+  its own install, each trusted separately. Flat config only — every surveyed
+  project is on ESLint 9/10 flat config.
+- **The service re-derives the unit and re-checks trust on EVERY lint**
+  (`service.ts`). The renderer's "trusted" is a display hint, never an
+  authorisation; an untrusted lint never reaches the pool (unit-tested).
+- **One warm worker per unit** runs the PROJECT's ESLint (never a bundled one;
+  `eslint` is a devDependency for the end-to-end test only). Cold ≈2 s, warm ≈3 ms
+  on Trackview — why this is a warm worker and not the CLI per change. Idle
+  5 min → disposed; 10 s timeout → killed; crash → respawn on demand. Env is
+  main's as-is: vaulted secrets are never injected (that is a pty-only thing).
+- **The worker resolves the file's REALPATH before `lintText`.** ESLint compares
+  it with its (real) cwd; a symlinked project path otherwise reads as "outside
+  the base path" → silently ignored → a file that looks clean because it was
+  never linted. The end-to-end test caught it on macOS's `/var` → `/private/var`.
+- **Diagnostics are merged PER SOURCE.** `setDiagnostics` replaces every mark in
+  the view, so TypeScript and ESLint each keep their own list in `diagsRef` and
+  the union is dispatched. Dispatching either directly erases the other.
+- **Every lint echoes the doc version it linted**; an older result is dropped,
+  and Fix re-lints if the buffer moved since (an ESLint fix is a character range
+  of the exact text it saw).
+- ESLint state reaches EditorPane's construction effect only through refs, so it
+  can never become a dependency that rebuilds the editor (PB-H1).
+
 ## Markdown files open rendered
 
 A `.md`/`.markdown` file opens as a GitHub-style **preview** with a
