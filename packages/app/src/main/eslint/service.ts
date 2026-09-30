@@ -19,6 +19,8 @@ import {
 
 export interface EslintServiceDeps {
   exists(abs: string): boolean;
+  /** null = does not exist. */
+  realpath(abs: string): string | null;
   trust: Pick<TrustStore, "isTrusted" | "set">;
   pool: Pick<EslintPool, "lint" | "disposeUnit">;
 }
@@ -39,6 +41,23 @@ export function createEslintService(d: EslintServiceDeps) {
     relPath && isSafeRel(relPath) && isLintablePath(relPath)
       ? findEslintUnit(relPath, inRoot(root))
       : null;
+
+  // The file's REAL directory must be inside the unit's real directory, with no
+  // folder in between holding a config of its own -- that folder would be a
+  // separate unit with its own trust decision.
+  const reallyInUnit = (unitAbs: string, fileDir: string): boolean => {
+    const realUnit = d.realpath(unitAbs);
+    let dir = d.realpath(fileDir);
+    if (realUnit === null || dir === null) return false;
+    if (dir !== realUnit && !dir.startsWith(realUnit + path.sep)) return false;
+    while (dir !== realUnit) {
+      const here = dir;
+      if (ESLINT_CONFIG_NAMES.some((n) => d.exists(path.join(here, n))))
+        return false;
+      dir = path.dirname(dir);
+    }
+    return true;
+  };
 
   return {
     status(root: string, relPath: string): EslintStatus {
@@ -73,11 +92,21 @@ export function createEslintService(d: EslintServiceDeps) {
       const unit = unitOf(root, relPath);
       if (unit === null || !d.trust.isTrusted(path.join(root, unit)))
         return { version, untrusted: true };
-      const out = await d.pool.lint(
-        path.join(root, unit),
-        path.join(root, relPath),
-        text,
-      );
+      const unitAbs = path.join(root, unit);
+      const fileAbs = path.join(root, relPath);
+      // The unit was found by walking the path AS WRITTEN; a symlink can put
+      // the file's real location somewhere else entirely. The worker pins its
+      // unit's config (it never looks one up), so linting a foreign file would
+      // apply this unit's rules to code they were not written for -- and before
+      // the pin, ESLint 10's lookup from the file's REAL directory ran a config
+      // nobody trusted. Refuse unless the file really lives inside the unit.
+      if (!reallyInUnit(unitAbs, path.dirname(fileAbs)))
+        return {
+          version,
+          configError:
+            "This file really lives in a different ESLint folder (it is reached through a symlink), so it is not linted here.",
+        };
+      const out = await d.pool.lint(unitAbs, fileAbs, text);
       if ("messages" in out) return { version, messages: out.messages };
       if ("configError" in out)
         return { version, configError: out.configError };

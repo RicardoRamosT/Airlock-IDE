@@ -10,7 +10,7 @@
 // protocol.ts). Request {id, op:"lint", filePath, text}; response
 // {id, messages} or {id, configError}. Messages are passed through in ESLint's
 // own shape (1-based line/column; fix = a character-range edit).
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -32,6 +32,23 @@ function realFile(p) {
 }
 let engine;
 
+// PINNED to this unit's own config -- never looked up. ESLint 10 (and 9 under
+// ESLINT_FLAGS=unstable_config_lookup_from_file) searches for a config upward
+// from the FILE's directory with no cwd boundary, so a symlink inside a
+// trusted unit pointing elsewhere made it load and RUN a config the user never
+// trusted. Same names, same order as main's ESLINT_CONFIG_NAMES (unit.ts),
+// which is also ESLint's own precedence.
+const CONFIG_NAMES = ["js", "mjs", "cjs", "ts", "mts", "cts"].map(
+  (e) => `eslint.config.${e}`,
+);
+function unitConfig() {
+  for (const n of CONFIG_NAMES) {
+    const p = path.join(unit, n);
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
 function eslint() {
   // A path, not a file: createRequire only needs a location to walk up from, so
   // a unit without its own package.json still finds a hoisted install -- the
@@ -41,7 +58,9 @@ function eslint() {
     const mod = await import(pathToFileURL(req.resolve("eslint")).href);
     const ESLint = mod.ESLint ?? mod.default?.ESLint;
     if (!ESLint) throw new Error("This ESLint has no ESLint class (too old?)");
-    return new ESLint({ cwd: unit });
+    const overrideConfigFile = unitConfig();
+    if (!overrideConfigFile) throw new Error("This folder has no ESLint config");
+    return new ESLint({ cwd: unit, overrideConfigFile });
   })();
   return engine;
 }

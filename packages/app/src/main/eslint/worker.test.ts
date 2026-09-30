@@ -3,6 +3,7 @@
 // proves the project's own ESLint is found and its flat config applied.
 import { spawn } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -41,11 +42,13 @@ function lint(
   unit: string,
   file: string,
   text: string,
+  env: Record<string, string> = {},
 ): Promise<WorkerResponse> {
   return new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [WORKER], {
       cwd: unit,
       stdio: "pipe",
+      env: { ...process.env, ...env },
     });
     const feed = splitLines();
     let err = "";
@@ -130,4 +133,28 @@ it("lints a project opened through a symlinked path", async () => {
   const r = await lint(link, "a.js", "var w = 1;\nconsole.log(w);\n");
   if (!("messages" in r)) throw new Error(JSON.stringify(r));
   expect(r.messages.map((m) => m.ruleId)).toContain("no-var");
+}, 30000);
+
+// SECURITY (final review, Critical): ESLint 10 looks configs up from the
+// FILE's directory upward with no cwd boundary. A symlink inside a trusted unit
+// pointing into another folder made it load and RUN that folder's untrusted
+// config. ESLINT_FLAGS=v10_config_lookup_from_file reproduces ESLint 10's lookup on the ESLint 9
+// devDependency. The worker must pin its own unit's config, so no lookup ever
+// happens and no other config can execute.
+it("never runs a config other than its own unit's, even under file-based lookup", async () => {
+  const marker = path.join(
+    tmpdir(),
+    `airlock-untrusted-${process.pid}-${Date.now()}`,
+  );
+  const dir = project({
+    "eslint.config.mjs": CONFIG,
+    "other/eslint.config.mjs": `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\nexport default [];\n`,
+    "other/lib/a.js": "var a = 1;\n",
+  });
+  mkdirSync(path.join(dir, "src"));
+  symlinkSync(path.join(dir, "other/lib"), path.join(dir, "src/link"));
+  await lint(dir, "src/link/a.js", "var a = 1;\n", {
+    ESLINT_FLAGS: "v10_config_lookup_from_file",
+  });
+  expect(existsSync(marker)).toBe(false);
 }, 30000);

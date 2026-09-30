@@ -97,6 +97,7 @@ export function eslintService(): EslintService {
     pool = new EslintPool(spawnWorker);
     service = createEslintService({
       exists: existsSync,
+      realpath: nodeTrustFs.realpath,
       trust: new TrustStore(
         path.join(app.getPath("userData"), "eslint-trust.json"),
         nodeTrustFs,

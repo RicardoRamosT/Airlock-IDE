@@ -12,10 +12,18 @@ type PoolLint = (
 ) => Promise<LintOutcome>;
 let poolLint: ReturnType<typeof vi.fn<PoolLint>>;
 let disposeUnit: ReturnType<typeof vi.fn<(unit: string) => void>>;
+// realpath overrides: path -> where it really is. Anything else is itself.
+let links: Record<string, string>;
 
 function svc() {
   return createEslintService({
     exists: (abs) => files.has(abs),
+    realpath: (abs) => {
+      for (const [from, to] of Object.entries(links))
+        if (abs === from || abs.startsWith(`${from}/`))
+          return to + abs.slice(from.length);
+      return abs;
+    },
     trust: {
       isTrusted: (d) => trusted.has(d),
       set: (d, on) => void (on ? trusted.add(d) : trusted.delete(d)),
@@ -32,6 +40,7 @@ beforeEach(() => {
     "/p/bare/eslint.config.mjs", // config, but no ESLint installed anywhere below the root's
   ]);
   trusted = new Set();
+  links = {};
   poolLint = vi.fn<PoolLint>(async () => ({ messages: [] }));
   disposeUnit = vi.fn<(unit: string) => void>();
 });
@@ -115,6 +124,45 @@ describe("lint", () => {
       version: 6,
       superseded: true,
     });
+  });
+});
+
+describe("symlinks (final review, Critical)", () => {
+  it("refuses a file that really lives in ANOTHER unit (the reviewer's layout)", async () => {
+    // /p/src/link -> /p/other/lib: logically under the trusted root unit, really
+    // somewhere else. The worker pins its unit's config, so linting it would
+    // apply that config to a foreign file -- refuse instead.
+    trusted.add("/p");
+    links = { "/p/src/link": "/p/other/lib" };
+    files.add("/p/other/eslint.config.mjs");
+    const r = await svc().lint(ROOT, "src/link/a.ts", 1, "var a");
+    expect(r).toEqual({
+      version: 1,
+      configError: expect.stringMatching(/different ESLint folder/),
+    });
+    expect(poolLint).not.toHaveBeenCalled();
+  });
+
+  it("refuses a file that really lives outside the unit altogether", async () => {
+    trusted.add("/p");
+    links = { "/p/src/link": "/elsewhere/lib" };
+    const r = await svc().lint(ROOT, "src/link/a.ts", 1, "x");
+    expect("configError" in r).toBe(true);
+    expect(poolLint).not.toHaveBeenCalled();
+  });
+
+  it("still lints a symlinked file that really lives inside its unit", async () => {
+    trusted.add("/p");
+    links = { "/p/src/alias": "/p/src/real" };
+    await svc().lint(ROOT, "src/alias/a.ts", 1, "x");
+    expect(poolLint).toHaveBeenCalled();
+  });
+
+  it("accepts a project opened through a symlink (the whole root moves together)", async () => {
+    trusted.add("/p");
+    links = { "/p": "/private/p" };
+    await svc().lint(ROOT, "src/a.ts", 1, "x");
+    expect(poolLint).toHaveBeenCalled();
   });
 });
 
