@@ -13,6 +13,7 @@ import {
   resolveRel,
   urlLinksForRows,
 } from "../lib/terminalLinks";
+import { forceRepaint } from "../lib/terminalRepaint";
 import {
   keepsSelection,
   planSelection,
@@ -318,6 +319,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     idRef.current = null;
     let exited = false;
     let disposed = false;
+    let stopRepaint: (() => void) | undefined;
     const pending: { id: string; data: string }[] = [];
 
     // Renderer-side flow control. xterm's write(data, cb) fires cb once that
@@ -401,7 +403,18 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
         setTerminalPty(terminalId, id);
         // An ADOPTED terminal already has its session (often a running claude);
         // injecting a command would type into it. Only a fresh spawn auto-starts.
-        if (adoptId) return;
+        // What it needs instead is a REPAINT: the replayed tail cannot rebuild a
+        // TUI's screen, and the program has no idea it moved (see
+        // lib/terminalRepaint). Refit first -- the mount-time refits ran before
+        // the id was known, so they never told the pty this window's size.
+        if (adoptId) {
+          refit();
+          stopRepaint = forceRepaint(
+            (cols, rows) => window.airlock.ptyResize(id, cols, rows),
+            () => ({ cols: term.cols, rows: term.rows }),
+          );
+          return;
+        }
         // Auto-start claude when the store grants it (mode/blank-tab/claim
         // logic lives there). Typed-ahead bytes sit in the pty buffer until
         // zsh reads them, so shell startup timing cannot drop the command.
@@ -491,6 +504,7 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     return () => {
       disposed = true;
       if (resizeTimer) clearTimeout(resizeTimer);
+      stopRepaint?.();
       stopDpr();
       ro.disconnect();
       input.dispose();
