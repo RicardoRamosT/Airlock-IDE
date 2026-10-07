@@ -148,6 +148,13 @@ watches.
 - `rate_limits` only appears **after the first API response** and only for
   Pro/Max subscribers; each window can be independently absent — parse
   defensively.
+- **Two accounts break "a later window is newer"** (`tracker.ts`). After a
+  Claude account switch, idle sessions keep re-emitting the OLD account's frozen
+  snapshot, and when its week ended later the fold pinned it (70% shown while
+  the logged-in account sat at 0%, 2026-10-07). The payload names no account, so
+  the tracker picks the window an API response delivered MOST RECENTLY (the
+  session's API time climbed or its reading changed), floored at the window's
+  start so an unobserved new window still replaces an ended one.
 - **Liveness** depends on `refreshInterval` (5s, set in `install.ts`): an open
   session re-emits on a timer so the meter stays live while idle. The UI treats
   "no emit within `STALE_AFTER_SECONDS` (15s, in `QuotaMeter.tsx`)" as **no

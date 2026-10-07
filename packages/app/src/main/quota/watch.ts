@@ -67,9 +67,14 @@ async function readAndBroadcast(outPath: string): Promise<void> {
     scheduleLedgerWrite();
   }
   // The tracker folds window values monotonically (account usage only climbs
-  // within a window), so per-session activity ranking -- and the transcript
-  // mtime stat it needed -- is gone.
-  const best = tracker.record(meta.sessionId ?? outPath, status, emitAt);
+  // within a window) and picks the window an API response delivered most
+  // recently -- API time climbing is how it sees that happen.
+  const best = tracker.record(
+    meta.sessionId ?? outPath,
+    status,
+    emitAt,
+    usage?.apiMs ?? null,
+  );
   if (best) {
     latest = best;
     broadcast(best);
