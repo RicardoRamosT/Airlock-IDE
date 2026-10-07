@@ -81,6 +81,37 @@ describe("hasWorkingIndicator", () => {
     expect(hasWorkingIndicator("✻ Frolicking (12s · ↓ 1.2…")).toBe(true);
   });
 
+  // 2026-10-07: gamemint's tab read "working" for hours while Claude sat idle.
+  // The scan covers the whole visible screen, and the last answer on it said
+  // "...for the whole length of that call (2m36s in your case) the chat...".
+  // A timer only counts in the SPINNER LINE's shape: "<glyph> <Verb> (" before
+  // it, and its own "·", ")" or a truncation "…" after it.
+  it("does not match an elapsed time written in prose", () => {
+    expect(
+      hasWorkingIndicator(
+        "— so for the whole length of that call (2m36s in your case) the chat had nothing to show",
+      ),
+    ).toBe(false);
+    // The whole idle screen: the answer, the finished summary, the footer.
+    expect(
+      hasWorkingIndicator(
+        "⏺ Root-caused and fixed. The model writes the code as one big tool call — so for the whole length of that call (2m36s in your case) the chat had nothing to show. ✻ Worked for 2h 10m 48s > ? for shortcuts",
+      ),
+    ).toBe(false);
+    expect(hasWorkingIndicator("the suite took a while (45s) on CI")).toBe(
+      false,
+    );
+  });
+
+  it("still matches a multi-word spinner label and a hyphenated verb", () => {
+    expect(
+      hasWorkingIndicator("✻ Compacting conversation… (34s · ↓ 2.3k tokens)"),
+    ).toBe(true);
+    expect(hasWorkingIndicator("✶ Razzle-dazzling (9s)")).toBe(true);
+    // A spinner glyph carrying an emoji variation selector.
+    expect(hasWorkingIndicator("✳️ Cooking (3s · thinking)")).toBe(true);
+  });
+
   it("does not match finished/idle lines that share the spinner glyphs", () => {
     // Finished summary: glyph + past-tense verb, but no "… (Ns" core.
     expect(hasWorkingIndicator("✳ Churned for 6s")).toBe(false);

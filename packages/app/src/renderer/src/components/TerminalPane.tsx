@@ -549,8 +549,10 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
   //
   // Reads `baseY` (the top of the CURRENT screen) not the viewport scroll
   // position, so scrolling up into old scrollback never false-triggers. Scans
-  // only the bottom ~10 rows: cheap, targeted (Claude's status line sits at the
-  // bottom), and avoids matching the phrase elsewhere in history. Calls
+  // the whole VISIBLE screen (rows + 2), not just the footer -- a todo list can
+  // push the spinner line well above the input box -- so Claude's last answer
+  // is in the scanned text too, and the matcher must be anchored to the
+  // spinner line's shape rather than to any "(Ns" (see workingIndicator.ts). Calls
   // applyPtyStatus ONLY on a change. Runs for background (hidden) panes too --
   // their xterm buffers keep updating from pty data while display:none, so the
   // finish-glow still fires for a tab the user is not looking at; the scan is

@@ -22,9 +22,21 @@
 // Width effects the caller/handler must tolerate: WRAP (the footer wraps across
 // rows -> the caller joins rows and we collapse whitespace) and TRUNCATION (a
 // narrow split abbreviates the tail -> we never require the tail, only "(Ns").
+//
+// The timer counts ONLY in the spinner line's shape, never on its own. The
+// caller scans the whole visible screen, so Claude's last ANSWER is in the
+// text too, and a bare "(Ns" anchor lit gamemint's tab for hours on the prose
+// "...that call (2m36s in your case) the chat..." (2026-10-07). So the timer
+// must follow "<glyph> <Verb>[…] (" -- one to three words, which covers
+// "Compacting conversation…" -- and be followed by the line's own "·", its ")"
+// or a truncation "…". "(2m36s in" fails the second test, "a while (45s)"
+// the first.
+const SPINNER_TIMER =
+  /(?:^|\s)[^\p{L}\p{N}\s]+\s+\p{L}[\p{L}'’-]*(?:\s+\p{L}[\p{L}'’-]*){0,2}(?:…|\.{3})?\s+\((?:\d+h\s*)?(?:\d+m\s*)?\d+s(?=\s*(?:[·)…]|\.{3}|$))/u;
+
 const WORKING_PATTERNS: RegExp[] = [
   // The live elapsed timer -- the stable anchor across Claude Code versions.
-  /\((?:\d+h\s*)?(?:\d+m\s*)?\d+s\b/u,
+  SPINNER_TIMER,
   // Legacy fallback for OLDER Claude Code that still prints the esc hint.
   /esc to inter/i,
 ];
