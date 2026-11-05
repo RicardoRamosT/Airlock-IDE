@@ -2,49 +2,174 @@
 
 All notable user-facing changes to AirLock. Dates are when the version was cut.
 
-## Unreleased
+## 0.8.0
 
 ### Added
-- **Your whole portfolio, down the right edge.** A slim strip now runs down the
-  right of the window with one dot per open project: red when CI is failing,
-  amber when something is waiting on *you* (a pull request of yours nobody has
-  reviewed), green when a project is clean, grey when it has nothing to say.
-  Hover a dot for the one-line reason; click it to open Atlas over your work —
-  nothing resizes or reflows underneath. Every open project keeps a dot and a
-  fixed position, so after a day or two you know which one is which without
-  reading anything. The Atlas icon moved to the far right of the title bar to
-  sit at the head of the strip, and the notifications bell moved left of it.
+- **Your whole portfolio, down the right edge.** A slim strip runs down the
+  right of the window with one dot for each project in Atlas's debrief: red
+  when CI is failing, amber when something is waiting on *you* (a pull request
+  of yours nobody has reviewed), green when a project is clean, grey when it
+  has nothing to say. Hover a dot for the one-line reason. Click it to open
+  that project's Atlas over your work, with its own chat thread, its own report
+  from the debrief and only its own open concerns. Nothing resizes or reflows
+  underneath, and clicking back into your work closes it. Every project keeps
+  its dot in a fixed position, so after a day or two you know which one is
+  which without reading anything. The Atlas mark now sits at the far right of
+  the title bar, at the head of the strip, and opens the portfolio-wide
+  conversation the same way; the notifications bell moved left of it.
 - **Atlas has its own settings, and you choose which projects it covers.** The
   panel's header is now two tabs (Debrief, Chat) and a ⋯ menu holding History,
   New chat, Open in a window, and a new Atlas settings screen. The debrief hour
   and where Atlas appears moved there from the Settings tab, joined by a list of
   every project Atlas knows about with a switch each. **Projects start switched
   off**, so after updating, Atlas will ask you to choose before it writes
-  another debrief. Switching one off keeps it out of the morning debrief only —
+  another debrief. Switching one off keeps it out of the morning debrief only:
   Atlas still watches it, still raises concerns about it, and can still answer
-  questions about it in chat.
+  questions about it in chat. The screen also says what a debrief costs
+  (roughly 20K to 50K tokens for each enabled project that saw work; quiet ones
+  are free).
 - **Your projects now brief Atlas themselves.** Before the debrief is written,
   every project that saw work files a report: everything that happened to the
-  code, read exhaustively rather than sampled -- commits, pull requests, CI
-  runs, issues, releases and what is still uncommitted -- plus a short account
-  of what the work was and where it stands, distilled from that project's own
-  Claude sessions. You should not have to explain yesterday to Atlas any more.
-  When something cannot be read, the debrief says so instead of quietly
-  reporting nothing.
+  code, read exhaustively rather than sampled (commits, pull requests, CI runs,
+  issues, releases and what is still uncommitted), plus a short account of what
+  the work was and where it stands, distilled from that project's own Claude
+  sessions. You should not have to explain yesterday to Atlas any more. When
+  something cannot be read, the debrief says so instead of quietly reporting
+  nothing.
+- **ESLint in the editor.** A project's own ESLint problems now show in the
+  editor beside TypeScript's, with a **Fix** action wherever ESLint offers one.
+  Running a project's ESLint means running code from that repository (its
+  config and every plugin), so nothing runs until you click **Enable ESLint
+  here** for that folder. The permission is stored outside the repository,
+  where a committed file cannot forge it, and the ESLint chip in the editor's
+  breadcrumb shows the status and turns it off again. AirLock only ever runs
+  the project's own ESLint, installed inside the project, with that folder's
+  own config, and an edited config takes effect without a restart.
+- **Markdown files open rendered.** A `.md` file opens as a GitHub-style
+  preview (headings, tables, task lists, highlighted code) with a
+  Preview | Edit toggle; Edit is the normal editor, autosave included. Links to
+  other files open them in AirLock, web links open in your browser, and the
+  preview follows the file on disk, so edits Claude makes appear as it makes
+  them.
+- **YAML is syntax-highlighted.** `docker-compose.yml`, GitHub workflows and
+  other YAML files were one flat colour. Keys now stand out from values, in the
+  editor, the diff view and markdown code blocks.
+- **AirLock tells you about apps left running for days.** Dev servers and
+  Docker containers belonging to your projects that have been up for more than
+  24 hours appear in the notification bell, with the project they belong to
+  and a Stop button. Nothing is ever stopped for you. It covers every project
+  AirLock knows about, not only the open tabs, and includes servers started
+  from an AirLock terminal, by you or by Claude. The threshold and an off
+  switch are under Settings → Local apps.
+- **The sidebar shows the services this project actually uses.** Docker, Neon,
+  Render, Snowflake and Azure now appear on the rail, and as rows under
+  Databases and Host, only in projects that use them. Detection reads the
+  project's dependencies, config files and the *names* of its `.env` keys
+  (never the values), so a Python service on Azure is recognised as well as an
+  npm app. When it guesses wrong, **Use it here** in the Extensions hub turns
+  one on for that project.
+- **Paste a screenshot into the Atlas chat.** Atlas reads it like any other
+  file.
+
+### Changed
+- **Approving Claude's typing into a terminal is now optional, and off by
+  default.** Claude already runs commands in your terminals, so a separate
+  approval before it types into one it is already driving was friction more
+  than protection. Turn it back on with Settings → Claude → "Ask before Claude
+  types into a terminal".
+- **Turning on "Secrets in terminals" now asks first.** That switch puts every
+  vaulted value into every terminal's environment, which the threat model
+  calls the most important decision in AirLock, yet it rendered as a dim
+  checkbox. Enabling it now shows a confirmation that spells out what it does,
+  and the row stays amber while it is on. Turning it off never asks.
+- **The Claude status pill tracks only what AirLock uses.** It used to show
+  Anthropic's page-wide status, so a problem in an unrelated product (Claude
+  Cowork on Windows, for days) read as "Claude Degraded". It now watches
+  Claude Code and the Claude API, and names which one when something is wrong.
+- **Atlas lives in the title bar and the strip.** The Atlas sidebar section is
+  gone (it was the same panel, already one click away), and the menu bar item
+  no longer carries a dot.
+- **Split view says which project the sidebar is acting on.** Git, Secrets,
+  Databases and Claude's actions all target the focused pane, so the focused
+  pane's ring is thicker and the sidebar carries the same accent.
 
 ### Fixed
+- **Claude's actions land in its own project.** When a project's Claude opened
+  a terminal, switched or closed a tab, or started the dev server while you
+  were working in another project, it did it in the project you were looking
+  at: a terminal opened there with that project's secrets in it, or that
+  project's dev stack started instead of its own. Each project's Claude now
+  acts only on its own tab, and never takes the screen away from you.
+- **Answering Claude's secret request no longer kills its session.** With
+  "Secrets in terminals" on, saving the secret restarted the active terminal,
+  which was usually the one running the Claude that asked, ending it and its
+  subagents mid-turn. That terminal is now left alone; Claude reads the new
+  value without a restart. Adding a secret yourself still restarts the terminal
+  as before.
+- **Claude only sees this project's Docker containers.** Asked about Docker,
+  Claude was handed every container on the machine with nothing saying whose
+  they were, and could inspect another project's database believing it was
+  this one's. Containers are now matched to their project, and other projects'
+  containers are only counted.
+- **A torn-off window can be merged back in.** Dragging a tab out into its own
+  window worked, but dragging it back onto another window did nothing, even
+  though that window said "Drop to add here". It now merges, and the emptied
+  window closes. A terminal moved between windows also redraws whole, instead
+  of Claude Code's input box arriving with lines missing.
+- **The quota meter follows your current Claude account.** After switching
+  accounts it could keep showing the old account's weekly usage indefinitely.
+- **A tab no longer shows Claude working while it is idle.** A duration in
+  parentheses left on screen, such as "(2m36s in your case)" in an answer,
+  could pin the tab's indicator to working for hours.
+- **The dock badge is right more often.** It turned green while a workflow's
+  subagents were still running, and stayed yellow forever after a turn was
+  interrupted with Escape. Only notifications that really hand control back
+  count as finished now, and the badge goes grey once Claude stops writing to
+  its session. (A single tool call that runs silently for more than five
+  minutes can read grey until it returns.)
+- **Long Atlas runs are no longer killed at 15 minutes.** A run that was still
+  working was stopped and its work thrown away. Atlas now stops a run only
+  after 5 minutes with no output, and a failure shows its actual reason
+  instead of "Could not reach Claude".
+- **What Atlas types into a terminal actually arrives.** Its messages sat
+  unsent in a Claude session's input box, a terminal it opened to run commands
+  started Claude instead of a shell, it could not read a terminal's output,
+  and its signature broke every command in zsh. All four are fixed. What Atlas
+  types into another Claude session is signed, so that session knows the
+  message came from Atlas and not from you.
+- **Atlas's stored debriefs could be cut short.** Some debriefs ended mid-word
+  and some project snapshots were unreadable, with no error anywhere. The cause
+  was a text-length miscalculation on the way into storage; writes are now
+  checked, and a short one is retried and then reported. Debriefs that were
+  already cut short cannot be recovered.
+- **Atlas's project list stays true.** A newly opened project appears in Atlas
+  settings straight away instead of after the next debrief. A deleted folder is
+  flagged the next time you look, not the next day, while one that merely could
+  not be checked (an unmounted drive, a pending macOS permission) is no longer
+  treated as gone. A missing project has a **Remove** button, which forgets it
+  in Atlas only, never touches anything on disk, and stays removed.
+- **"Still open" no longer buries the debrief.** The list of open concerns has
+  its own scroll, collapses from its header, and can be resized by dragging the
+  line above it. It also shows before the day's debrief has been written.
 - **A project with a nightly build no longer appears every morning to say
   nothing.** Any CI run counted as activity, so a repository whose only event
   was a passing scheduled build was never quiet. Only a failing run now brings a
   project into the debrief on its own.
 - **CI is read as the project's pinned GitHub account.** Projects pinned to an
   account other than the active one were asking GitHub as the wrong user, and
-  the answer -- a 404 -- looked exactly like a passing build with no CI row.
+  the answer (a 404) looked exactly like a passing build with no CI row.
 - **A skipped day no longer vanishes from the debrief.** The debrief covered a
   fixed 24 hours, so work done on a day you did not open AirLock was never
   reported by any later debrief. It now runs from your last debrief.
 - **A busy day is no longer truncated.** The debrief listed at most 20 commits
   per project and silently dropped whole projects when the prompt got long.
+- **Claude's request cards could go missing.** A secret request raised while
+  Atlas's own window was focused was addressed to a window that never shows
+  cards, and expired unseen. A tall Atlas panel could also cover the cards.
+- **Smaller fixes.** The Usage page read long API times as minutes ("4578m
+  31s"); it now uses hours. Toolbar buttons with longer labels ("Import .env",
+  "+ Add database") no longer wrap their text inside the button. Closing a page
+  no longer reopens a sidebar you had deliberately closed.
 
 ## 0.7.0
 
