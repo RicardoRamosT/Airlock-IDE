@@ -223,6 +223,16 @@ function bootstrap(): void {
     // what level. emitEvent() is a no-op until this is called (writer is null).
     startEventLog(prefs.eventLog);
     emitEvent({ level: "info", category: "lifecycle", op: "app.ready" });
+    // A GPU/utility process dying is invisible otherwise, and is a suspect
+    // whenever windows misbehave after a Space switch or sleep.
+    app.on("child-process-gone", (_e, d) =>
+      emitEvent({
+        level: "error",
+        category: "lifecycle",
+        op: "app.child-process-gone",
+        detail: { type: d.type, reason: d.reason, exitCode: d.exitCode },
+      }),
+    );
     // Quota meter: install/uninstall the chained Claude statusLine to match the
     // saved pref, then start watching the side-channel file. Best-effort -- a
     // failure to touch ~/.claude/settings.json must never break startup.
