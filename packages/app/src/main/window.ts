@@ -4,9 +4,10 @@
 // survives alt-tabbing away from airlock. ASCII-only: CJS-bundled into Electron
 // main.
 import path, { basename } from "node:path";
-import { BrowserWindow, screen, type WebContents } from "electron";
+import { BrowserWindow, dialog, screen, type WebContents } from "electron";
 import type { MovingTab } from "../shared/ipc";
 import { syncEslint } from "./eslint/wire";
+import { emitEvent } from "./eventlog/wire";
 import { disposeWindowWatchers } from "./fsWatch";
 import { syncLspServers } from "./lsp/client";
 import type { WindowBox } from "./tabdrag/target";
@@ -179,6 +180,56 @@ function reapWindowPtys(windowId: number): void {
   (require("./ipc") as typeof import("./ipc")).killSessionsForWindow(windowId);
 }
 
+function liveTerminals(windowId: number): number {
+  return (require("./ipc") as typeof import("./ipc")).countSessionsForWindow(
+    windowId,
+  );
+}
+
+// View > Reload / Force Reload. A reload kills every terminal the window owns
+// (reapWindowPtys above) -- every running Claude, mid-turn -- and session
+// restore brings back one terminal per project. That is far too much for one
+// stray keystroke, so with live terminals it asks first. Logged either way, so
+// an unexplained reset can be told apart from a menu reload in read_events
+// (the 2026-11-05 resets left no trace of their trigger).
+export async function reloadWindowGuarded(
+  win: BrowserWindow,
+  force: boolean,
+): Promise<void> {
+  if (win.isDestroyed()) return;
+  const live = liveTerminals(win.id);
+  if (live > 0) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: "warning",
+      message: "Reload this window?",
+      detail: `This ends ${live} running terminal${live === 1 ? "" : "s"}, including any Claude session working in them. Projects reopen with one terminal each.`,
+      buttons: ["Cancel", "Reload"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response !== 1) {
+      emitEvent({
+        level: "info",
+        category: "lifecycle",
+        op: "window.reload",
+        outcome: "blocked",
+        detail: { force, liveTerminals: live },
+      });
+      return;
+    }
+  }
+  if (win.isDestroyed()) return;
+  emitEvent({
+    level: "warn",
+    category: "lifecycle",
+    op: "window.reload",
+    actor: "user",
+    detail: { force, liveTerminals: live, source: "menu" },
+  });
+  if (force) win.webContents.reloadIgnoringCache();
+  else win.webContents.reload();
+}
+
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1400,
@@ -222,14 +273,52 @@ export function createWindow(): BrowserWindow {
   // renderer spawns fresh ptys and the previous ones are orphaned -- still
   // running, invisible, and still reachable by the agent. Reap on both, exactly
   // as the close path does.
-  win.webContents.on("render-process-gone", () => reapWindowPtys(win.id));
+  //
+  // Both are LOGGED with what is known about the cause: a reset that kills
+  // every agent must never again be something read_events cannot explain.
+  win.webContents.on("render-process-gone", (_e, details) => {
+    emitEvent({
+      level: "error",
+      category: "lifecycle",
+      op: "window.renderer-gone",
+      detail: {
+        reason: details.reason,
+        exitCode: details.exitCode,
+        liveTerminals: liveTerminals(win.id),
+      },
+    });
+    reapWindowPtys(win.id);
+  });
   win.webContents.on("did-start-navigation", (details) => {
     // The first load fires this too, harmlessly: a brand-new window owns no
     // sessions yet. Same-document navigation keeps the renderer, so it must
     // not reap.
     if (!details.isMainFrame || details.isSameDocument) return;
+    const live = liveTerminals(win.id);
+    if (live > 0) {
+      emitEvent({
+        level: "warn",
+        category: "lifecycle",
+        op: "window.navigate",
+        detail: {
+          url: details.url,
+          initiator: details.initiator?.url ?? null,
+          liveTerminals: live,
+          visible: win.isVisible(),
+          focused: win.isFocused(),
+          fullScreen: win.isFullScreen(),
+        },
+      });
+    }
     reapWindowPtys(win.id);
   });
+  win.webContents.on("unresponsive", () =>
+    emitEvent({
+      level: "warn",
+      category: "lifecycle",
+      op: "window.unresponsive",
+    }),
+  );
 
   win.on("focus", () => {
     lastFocusedId = win.id;

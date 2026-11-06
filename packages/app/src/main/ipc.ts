@@ -3332,6 +3332,13 @@ export function killSessionsForWindow(windowId: number): void {
   }
 }
 
+// How many live ptys a window owns -- what a reload of that window would kill.
+export function countSessionsForWindow(windowId: number): number {
+  let n = 0;
+  for (const owner of sessionWindows.values()) if (owner === windowId) n++;
+  return n;
+}
+
 export function killAllSessions(): void {
   for (const s of sessions.values()) s.kill();
   sessions.clear();

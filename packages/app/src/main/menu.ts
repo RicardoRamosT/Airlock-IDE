@@ -13,7 +13,7 @@ import type {
 } from "../shared/ipc";
 import { openAtlasWindow } from "./atlas/trayWindow";
 import { BUILTIN_SECTIONS, loadPrefs, savePrefs } from "./prefs";
-import { appWindows, createWindow } from "./window";
+import { appWindows, createWindow, reloadWindowGuarded } from "./window";
 
 export const SECTION_LABELS: Record<BuiltinSection, string> = {
   files: "Files",
@@ -167,8 +167,24 @@ export function applyAppMenu(
           },
         },
         { type: "separator" },
-        { role: "reload" },
-        { role: "forceReload" },
+        // NOT role: "reload" -- a reload kills every terminal in the window,
+        // so these confirm while any are live (see reloadWindowGuarded).
+        {
+          label: "Reload",
+          accelerator: "CmdOrCtrl+R",
+          click: (_item, win) => {
+            if (win instanceof BrowserWindow)
+              void reloadWindowGuarded(win, false);
+          },
+        },
+        {
+          label: "Force Reload",
+          accelerator: "Shift+CmdOrCtrl+R",
+          click: (_item, win) => {
+            if (win instanceof BrowserWindow)
+              void reloadWindowGuarded(win, true);
+          },
+        },
         { role: "toggleDevTools" },
         { type: "separator" },
         { role: "resetZoom" },
